@@ -32,13 +32,20 @@ TOLERANCE = 1e-6                    # days (0.09 s): Excel dates are doubles, th
 
 
 @pytest.fixture(scope="module")
-def flow_workbook():
-    """The workbook to deliver, built by the same code as `run.ps1 build` (no test module in it)."""
+def built_workbook():
+    """The workbook to deliver, built once per module by the same code as `run.ps1 build` (no test module in it)."""
     build_delivery(TARGET)
+    return TARGET
+
+
+@pytest.fixture
+def flow_workbook(built_workbook):
+    """A fresh Excel per scenario, on the workbook as built: each scenario stands alone. One Excel for the whole module
+    (several extractions and builds in one process) crashed in about 2 runs out of 5 (open defect, handoff section 8b)."""
     holder = {}
     with com.excel_session() as app:
         app.AutomationSecurity = com.MSO_AUTOMATION_SECURITY_LOW
-        holder["wb"] = app.Workbooks.Open(str(TARGET.resolve()))
+        holder["wb"] = app.Workbooks.Open(str(built_workbook.resolve()))
         code = holder["wb"].VBProject.VBComponents(holder["wb"].CodeName).CodeModule
         assert "AbortExtraction" in code.Lines(1, code.CountOfLines)       # closing the workbook drops a pending slice
         yield holder
@@ -126,6 +133,19 @@ def _config(world, flow_workbook, mode):
                         "WorkTypeField": world["dataset"].fields.work_type, "FlowLoadMode": mode,
                         "AsOf": f"{world['dataset'].as_of:%Y-%m-%d %H:%M}"}.items():
         set_config(wb, name, value)
+
+
+@given(parsers.parse("un premier calcul sur un faux Jira de {n:d} tickets a déjà rempli le classeur"))
+def _first_run(world, jira_server, n):
+    """The workbook holds the results of a bigger extraction: the next one must replace them and leave nothing over."""
+    wb, first = world["wb"], generate(seed=11, issues=n, projects=project_keys())
+    server = jira_server(first, credentials=("me@example.com", "tok-123"))
+    set_config(wb, "BaseUrl", server.base_url)
+    set_config(wb, "AsOf", f"{first.as_of:%Y-%m-%d %H:%M}")
+    wb.Application.Run(f"'{wb.Name}'!modActions.ExtractAndCompute")
+    assert len(table_dicts(wb, "Issues")) == n
+    set_config(wb, "BaseUrl", world["jira"].base_url)
+    set_config(wb, "AsOf", f"{world['dataset'].as_of:%Y-%m-%d %H:%M}")
 
 
 FIELD_IDS = {"StoryPointsField": "story_points", "BusinessValueField": "business_value", "PIField": "pi",

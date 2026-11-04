@@ -158,8 +158,8 @@ extraction script (Copilot must read its proxy settings there; never copy the to
   the diagnosis above may have been the same crash. Check the exit code first (section 8b).
 - `scripts\run.ps1 check-machine`: **21 checks, 0 failed**.
 - `scripts\run.ps1 coverage`: **597 passed**, 98.8 %. `test-network`: 1 passed. `build`: COMPILED_OK.
-- `scripts\run.ps1 test-excel`: 31 passed; the two button scenarios of `flow_excel.feature` fail in about 2 runs
-  out of 5 on an Excel crash (**open defect**, section 8b; it also fails on the code before the review).
+- `scripts\run.ps1 test-excel`: **33 passed**. With a fresh Excel per scenario, 9 module runs of `flow_excel.feature`
+  out of 10 are green; 1 lost its Excel in the button scenario (**open defect**, section 8b).
 - Jira itself was never called (no access to the client Jira; the Jira plugin has no site configured).
   Jira behaviour is tested with fake responses (`FakeAdd`). Proxy: to verify at the client.
 
@@ -263,25 +263,38 @@ All findings were treated. **Fixed** means a test or a scenario covers it, or th
 - `build_workbook.py` writes `ThisWorkbook.Workbook_BeforeClose`, which calls `modActions.AbortExtraction`.
 - Coverage markers: 153 (new: FLB35, HTP08, HTP09, JIR24, JIR25, JSN19, JSN20, PRM25).
 
-**OPEN DEFECT: Excel crashes during the extraction in the test runs (2026-11-04).** In about 2 module runs out of 5
-of `flow_excel.feature`, the test Excel dies ("RPC server unavailable"). The Application event log shows a real crash:
-`EXCEL.EXE`, exception `0xC0000005`, faulting module "unknown" (the code address is in heap memory, typically a call
-through a freed object). What is known:
-- Seen on Excel 16.0.20527.20112 and 16.0.20527.20150 (before and after an Office update).
-- The code of the previous commit (before the review) crashes as often (2 runs out of 4): the review did not bring it.
-- Almost always in the two button scenarios, in the slice right after the last search page (last status seen:
-  "Reading the changelogs: 0 / 150 issues"). Once in a synchronous `ExtractAndCompute` (scenario 2), once inside
-  `BtnExtractAndCompute`.
-- Office's crash recovery can end the process with code 0 and start a new `EXCEL.EXE` in the same millisecond: at
-  first this looked like an Office update. Watch the exit code of `EXCEL.EXE`.
-- Tried without effect: reading the bar every 0.25 s instead of every 30 ms (kept: fewer COM calls, one Application
-  proxy per scenario); writing the raw sheets without the manual-calculation wrapper; keeping the POST body alive
-  during the asynchronous send, with `req.Abort` on cancel (both kept as hardening); synchronous WinHTTP (worse: 4
-  crashes out of 5, reverted).
+**OPEN DEFECT: Excel crashes during the extraction, much more often after several extractions in the same Excel
+process (2026-11-04).** With one Excel for
+the whole module, about 2 runs out of 5 of `flow_excel.feature` lost their Excel ("RPC server unavailable"). It is a
+real crash: `EXCEL.EXE`, exception `0xC0000005`, faulting module "unknown" (Application event log, event 1000).
+What is known:
+- **Where (11 crash dumps, `%LOCALAPPDATA%\CrashDumps\EXCEL.EXE.*.dmp`, all identical):** a DEP fault on Excel's main
+  thread. VBA's engine (`VBE7.DLL`, after `call rdx`, called through `oleaut32!DispCallFunc`) calls a small piece of
+  valid x64 code that it generated at run time, in heap memory that is not executable at that moment. One VBA level on
+  the stack; no WinHTTP, ADODB, Scripting or nested `DoEvents` frame. Panda Security (WatchGuard) hook DLLs
+  (`psninjhook*`) are loaded in every dump.
+- **When:** with **a fresh Excel per scenario, 1 module run out of 10 failed** (the button scenario lost its Excel
+  during the search; exit code 0, no event 1000 and no dump that time). With one Excel for the module: about 2 out of 5, mostly in the button scenarios (the 5th and 6th extractions of the
+  process), in the changelog slice (about 10 s of pure VBA: parse a 216 KB answer, then 740 rows with late-bound
+  `Scripting.Dictionary` calls). More crashes when the machine is loaded.
+- Seen on Excel 16.0.20527.20112 and 16.0.20527.20150; the code before the review crashes as often (2 out of 4).
+- Tried without effect: slower COM polling (kept), no manual-calculation wrapper, POST body kept alive and
+  `req.Abort` on cancel (kept as hardening), synchronous WinHTTP, keeping the last WinHTTP request alive.
+- Office's crash recovery can end the process with code 0 and start a new `EXCEL.EXE` in the same millisecond.
 
-Next steps (PROPOSALS): run scenarios 2 to 6 without scenario 1 (it exports the charts to PNG) to see whether it leaves
-Excel in a bad state; run the changelog step alone in a loop against the fake Jira; run the scenarios on another Excel
-build, and at the client before delivery.
+Causes (ranked, PROPOSALS): (1) the anti-exploit module of the security software removes the execute right from VBA's
+code memory (documented by other vendors for Excel macros, not for Panda); (2) a VBA engine bug when the process has
+grown; (3) COM calls of the test during `DoEvents` (unlikely: never on the crashing stack).
+
+What was done: the Excel scenarios now open a fresh Excel per scenario (`flow_workbook` fixture), and the scenario
+"Un second calcul..." makes its own first calculation (250 issues) before the second one (120 issues).
+
+**Delivery risk:** a user who runs several extractions in the same Excel session may hit it; the client's security
+software may decide. Next steps (PROPOSALS, for AL): run the button several times in one Excel session at the client
+before delivery; ask IT for a Panda anti-exploit exclusion (or audit mode) for `EXCEL.EXE` on the dev PC and run the
+old one-Excel module 5 times; with admin rights, full-memory crash dumps (`LocalDumps\EXCEL.EXE`, DumpType 2) to read
+the page protection; fewer late-bound calls in the changelog loop; a local VBA log with BEGIN/END lines (study:
+`C:\dev\reports\Journalisation des erreurs VBA.md`, outside the repo).
 
 ## 9. Suggested next steps
 

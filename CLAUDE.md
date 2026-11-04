@@ -130,9 +130,9 @@ table in the handoff whenever a `.bas` changes. `README.md` (French) covers deli
   read that as an Office update). The Application event log (Application Error, event 1000) names the faulting module:
   ask AL before reading it. Before blaming a change for a flaky Excel run, run the last commit (`git stash`) the same
   number of times. With a failure rate near 40 %, a fix is proven only by 5 green module runs in a row.
-- **Open defect:** Excel crashes (`0xC0000005`, module "unknown") in about 2 runs out of 5 of `flow_excel.feature`,
-  mostly in the button scenarios right after the last search page; it predates the 2026-11-04 review. Read handoff
-  section 8b before chasing it.
+- **Open defect:** Excel crashes (`0xC0000005`, a DEP fault inside VBA's engine, module "unknown") during the
+  extraction: about 2 module runs out of 5 with one Excel per module, 1 out of 10 with a fresh Excel per scenario (what
+  the scenarios now do). It predates the 2026-11-04 review. Read handoff section 8b before chasing it.
 - **Git Bash rewrites `/switch` arguments** of Windows programs into paths (`/update` -> `C:/.../Git/update`, also
   `wevtutil /q:`): prefix the command with `MSYS_NO_PATHCONV=1`.
 - The PowerShell tool is slow here (CIM / event-log queries time out): use Bash `tasklist` for processes.

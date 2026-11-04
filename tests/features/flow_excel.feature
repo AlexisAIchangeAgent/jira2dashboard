@@ -55,6 +55,7 @@ Fonctionnalité: Le classeur livré extrait Jira et calcule les mêmes chiffres 
     Soit un faux Jira avec 120 tickets générés avec les projets des paramètres
     Et le classeur à livrer dont la feuille Config pointe sur ce faux Jira avec FlowLoadMode "A"
     Et les itérations de 14 jours depuis le "2026-08-17" jusqu'à la date de référence dans la feuille Periods
+    Et un premier calcul sur un faux Jira de 250 tickets a déjà rempli le classeur
     Quand j'exécute la macro Extraire et calculer du classeur
     Alors aucune cellule des feuilles de flux ne montre une erreur Excel
     Et les feuilles de flux ont exactement la taille des nouvelles données
