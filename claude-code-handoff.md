@@ -86,8 +86,8 @@ Created under `C:\dev` to avoid antivirus issues (renamed from `xlsm-check`). Ho
 | `src\jira2dashboard\mockjira\` | **Fake Jira Cloud** (E3), stdlib `http.server` on 127.0.0.1: `GET/POST /rest/api/3/search/jql` (token paging, `expand=names`), `POST /search/approximate-count`, `POST /changelog/bulkfetch`, `GET /field`, `GET /myself`; `410` on the removed `/search`; faults (429, 500/503 with or without `Retry-After`) injected from Python (`fail_next`) or over HTTP (`POST /__mock__/fail`); Basic auth `base64("email:token")` checked when credentials are set (plain-text 401 like Jira); usable as an HTTP proxy: absolute-form requests and a plain `CONNECT` tunnel, with an optional proxy challenge (`proxy_challenge="Negotiate"`: 407 until the request carries `Proxy-Authorization`; any value is accepted, so a real NTLM/Kerberos token is not checked). Modelled on the existing PowerShell extraction script (project keys, BV/SP/PI custom field ids, Basic auth, `/rest/api/3` paths). JQL understood: `project in (...)` plus restrictions joined by `AND`: `created` / `updated` (>=, >, <=, < with `"2026-10-01"` or `-30d` / `-2w`, counted from the dataset's as-of date), `issuetype`, `status` (= or `in`), parentheses, `ORDER BY key|created|updated`; anything else is a 400 that says so. Not simulated: TLS 1.2 inside the tunnel and the real NTLM/Kerberos exchange (verify at the client). Data = issue status histories (`dataset.py`; `issue()` builds hand-written cases, `generator.py` builds a seeded volume), so search and changelog never disagree. Run it for Excel: `scripts\run.ps1 mock-jira` (`http://127.0.0.1:8099` by default), then put that URL in `BaseUrl` |
 | `tests\` | `unit\` (no Excel), `features\` + `steps\` (Gherkin, pytest-bdd), `integration\` (Excel) |
 | `scripts\` | `setup.ps1`, `activate.ps1`, `run.ps1` (PowerShell 5.1) |
-| `src\jira2dashboard\build_workbook.py`, `vba\modFlowBuild.bas`, `modActions.bas` | **Delivery (E6).** `scripts\run.ps1 build` makes `out\jira2dashboard.xlsm` (10 modules, no test module). Button **Extract from Jira and compute** on the Dashboard runs `modActions.BtnExtractAndCompute`: extraction, then `BuildFlowSheetsIn`. Scenarios of `flow_excel.feature` run this macro on the delivered workbook against the fake Jira and compare with the Python reference, twice (250 issues, then 120 with fewer periods: no stale row). **Not done:** DC01-DC29 data checks (separate step: most need extra Jira fields not in the extraction: parent, resolution, sprint, team, PI, dates, links); progress bar / cancel during the extraction (it is synchronous, the status bar shows the steps); Flow Load daily curve and the 80-100 % band of Predictability (plan E5 text); the API token is typed in `Config` and stays in the workbook; `http://` BaseUrl is accepted (only the mock uses it); Windows credentials policy is applied to any server when `ProxyWindowsAuth = Yes`; selector list column AA of `ChartData` collides with chart data beyond 26 teams; the workbook is recalculated twice after a build |
-| `out\` | Generated workbooks: `vba_tests_v6.xlsm` is the latest (287 OK, 131/131 markers) |
+| `src\jira2dashboard\build_workbook.py`, `vba\modFlowBuild.bas`, `modActions.bas` | **Delivery (E6).** `scripts\run.ps1 build` makes `out\jira2dashboard.xlsm` (10 modules, no test module). Button **Extract from Jira and compute** on the Dashboard runs `modActions.BtnExtractAndCompute`: extraction, then `BuildFlowSheetsIn`. Scenarios of `flow_excel.feature` run this macro on the delivered workbook against the fake Jira and compare with the Python reference, twice (250 issues, then 120 with fewer periods: no stale row). **Not done:** DC01-DC29 data checks (separate step: most need extra Jira fields not in the extraction: parent, resolution, sprint, team, PI, dates, links); progress bar / cancel during the extraction (it is synchronous, the status bar shows the steps); Flow Load daily curve and the 80-100 % band of Predictability (plan E5 text); the API token is typed in `Config` and stays in the workbook (clear it before sharing; README says so). Review findings fixed in a second pass: `BaseUrl` must be https (local fake Jira excepted), Windows credentials go to any server only when a proxy is set, the search asks only the 5 fields + WorkTypeField, the selector list moved beside the widest chart block. Review findings consciously NOT applied: recalculating twice after a build (speed only, not timed), duplicated sheet helpers (modExtract/modFlowBuild), missing `Cov` on a few small branches of modFlowBuild, `T_FlowBuild` cleanup on failure, ChartData block layout written both in `dashboard_spec.block_top` and in VBA (the scenario would catch a drift), some Python test hygiene and dead-code items |
+| `out\` | Generated workbooks: `vba_tests_v6.xlsm` is the latest (293 OK, 132/132 markers) |
 | `archive\` | Old code kept for history: `probe*.py`, `peek*.py`, `repro_*.py`, `bootstrap_test*`, `vba\patch1.py` ... `patch7.py` (already applied; do not re-run), old workbooks |
 
 MD5 of the current modules (LF line endings). Unchanged since the original handoff: `modCoverage`,
@@ -115,15 +115,15 @@ MD5 of the current modules (LF line endings). Unchanged since the original hando
 | modCoverage.bas | 0b03cf2cb8d0660ed22beadabc9655a4 |
 | modJson.bas | 281dc819db5da7f08a9a280c218dbf86 |
 | modText.bas | 2f23c0bc24c95cae731f331dbe42c047 |
-| modHttp.bas | 1d9a358d0b26e1613b5685fc4b0ec23a |
-| modJira.bas | 7aaafd7168e4da09d9f17d00b35795e5 |
+| modHttp.bas | 939654dc73f1b4aeb2248530efae7c2c |
+| modJira.bas | f9d00a473758bb1f503d34ee35cc55c7 |
 | modFlow.bas | d709521a710f21e3319df21038c8e463 |
 | modParams.bas | c2cc338cf79d8ade69fc66add8d4dc96 |
-| modExtract.bas | b18e71bb5c4c49737aaeb05a6c392cc2 |
-| modFlowBuild.bas | 71448582aa8d8979c862a4de878bba27 |
+| modExtract.bas | 804b945bc04a3153c6ae7f03d34932a8 |
+| modFlowBuild.bas | b68ed6b9ad6fbc5a462a8636c10cd865 |
 | modActions.bas | 33fb4e5a39ed56bf5a3c6dd496c74456 |
 | modBackground.bas | 1d098ce38925b8dc55bcf54404cf314f |
-| modTests.bas | 2b4f005067d68071843703c14ce3130d |
+| modTests.bas | 67743a8782f8d6efeb803586fb99f6df |
 | modButtons.bas | 3bbe95b810cc0722eabed5c2bdbabbb2 |
 
 The Python files are no longer hashed (they were moved and edited; the code is covered by tests). If you
@@ -144,8 +144,8 @@ extraction script (Copilot must read its proxy settings there; never copy the to
 
 ## 6. Test status (2026-11-03)
 
-- `scripts\run.ps1 vba-tests --out vba_tests_v6.xlsm`: COMPILED_OK, **279 offline + 8 network = 287 OK, 0 KO**,
-  coverage **131/131 markers = 100 %** (E2: `modParams`; E3: `TrimWhite`; proxy work: `Config` sheet reader, proxy
+- `scripts\run.ps1 vba-tests --out vba_tests_v6.xlsm`: COMPILED_OK, **285 offline + 8 network = 293 OK, 0 KO**,
+  coverage **132/132 markers = 100 %** (E2: `modParams`; E3: `TrimWhite`; proxy work: `Config` sheet reader, proxy
   normalization, status hints; projects and filter; E4: `modExtract`, `ParseMoment`).
   The `M_` tests against the fake Jira are not in these counts: they run from `scripts\run.ps1 test-excel`.
 - **Flaky Excel sessions while Office updates itself:** if `OfficeClickToRun` / `OfficeC2RClient` runs, Windows

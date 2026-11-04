@@ -76,7 +76,12 @@ Private Function HttpSendOnce(ByVal cfg As Object, ByVal method As String, ByVal
     Set req = CreateObject("WinHttp.WinHttpRequest.5.1")
     req.Open method, url, True                                  ' True = asynchronous
     If Len(cfg("ProxyServer")) > 0 Then req.SetProxy PROXY_SETTING_PROXY, cfg("ProxyServer"), cfg("ProxyBypass")
-    If cfg("ProxyWindowsAuth") Then req.SetAutoLogonPolicy AUTOLOGON_ALWAYS Else req.SetAutoLogonPolicy AUTOLOGON_NEVER
+    ' Windows credentials are meant for the proxy: sent to any server that asks only when a proxy is set; never when No.
+    If Not cfg("ProxyWindowsAuth") Then
+        req.SetAutoLogonPolicy AUTOLOGON_NEVER
+    ElseIf Len(cfg("ProxyServer")) > 0 Then
+        req.SetAutoLogonPolicy AUTOLOGON_ALWAYS
+    End If                                                      ' else: the WinHTTP default (intranet only)
     req.SetTimeouts cfg("ResolveMs"), cfg("ConnectMs"), cfg("SendMs"), cfg("ReceiveMs")
     req.SetRequestHeader "Accept", "application/json"
     req.SetRequestHeader "Accept-Charset", "utf-8"

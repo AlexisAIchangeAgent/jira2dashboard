@@ -52,7 +52,7 @@ Private Function TestNames() As Variant
         "T_RetryExhausted", "T_ChangelogChunks", "T_IssueRows", "T_WriteTable", "T_StatusIntervals", _
         "T_StatusChanges", "T_RetryDelay", "T_SafeAccess", "T_FilesUtf8", "T_StringifyBadObject", _
         "T_TooManyPages", "T_BackgroundExport", "T_TextNotConverted", "T_ParamsTables", "T_ParamsOnWorkbook", _
-        "T_TrimWhite", "T_ConfigSheet", "T_ProjectsSheet", "T_ParseMoment", "T_ExtractFlowData", "T_FlowBuild")
+        "T_TrimWhite", "T_ConfigSheet", "T_ProjectsSheet", "T_ParseMoment", "T_ExtractFlowData", "T_FlowBuild", "T_BaseUrlHttps")
 End Function
 
 Public Function RunAllTests() As String
@@ -341,6 +341,21 @@ Public Sub T_ProjectsSheet()
     Check "projects", "ExtractionJqlFromWorkbook reads the real sheets", "empty Filter", True, InStr(ExtractionJqlFromWorkbook(), """TTT"",""AAA""") > 0
 End Sub
 
+Public Sub T_BaseUrlHttps()
+    ' The Basic header holds the API token: it must not travel over http, except to the fake Jira on this computer.
+    Dim raised As Boolean
+    On Error Resume Next
+    Call JiraConfig("http://x.atlassian.net", "me@x.com", "t", "", "", False)
+    raised = (Err.Number = vbObjectError + 602): Err.Clear
+    On Error GoTo 0
+    Check "config", "an http BaseUrl is refused", "http://x.atlassian.net", True, raised
+    Check "config", "https is accepted", "https://x.atlassian.net", "https://x.atlassian.net", JiraConfig("https://x.atlassian.net", "me@x.com", "t", "", "", False)("BaseUrl")
+    Check "config", "the fake Jira on this computer is accepted", "http://127.0.0.1:8099", "http://127.0.0.1:8099", JiraConfig("http://127.0.0.1:8099/", "me@x.com", "t", "", "", False)("BaseUrl")
+    Check "config", "an empty BaseUrl is left to the later check", "", "", JiraConfig("", "me@x.com", "t", "", "", False)("BaseUrl")
+    Check "extract", "only the fields the metrics use", "WorkTypeField customfield_10200", "key,project,issuetype,created,status,customfield_10200", ExtractFields("customfield_10200")
+    Check "extract", "no work type field: not asked", "empty", "key,project,issuetype,created,status", ExtractFields("")
+End Sub
+
 Public Sub T_ParseMoment()
     Check "asof", "a date", "2026-11-03", CDbl(DateSerial(2026, 11, 3)), CDbl(ParseMoment("2026-11-03"))
     Check "asof", "date and time", "2026-11-03 18:00", CDbl(DateSerial(2026, 11, 3)) + 0.75, CDbl(ParseMoment("2026-11-03 18:00"))
@@ -375,7 +390,7 @@ Public Sub T_ExtractFlowData()
     ts = "T00:00:00.000+0000"
     jql = "project in (TTT,AAA)"
     FakeReset
-    FakeAdd "GET", JiraSearchUrl(cfg("BaseUrl"), jql, ""), 200, J( _
+    FakeAdd "GET", JiraSearchUrl(cfg("BaseUrl"), jql, "", 100, ExtractFields("customfield_10200"), ""), 200, J( _
         "{'issues':[{'id':'10','key':'TTT-1','fields':{'project':{'key':'TTT'},'issuetype':{'name':'Feature'},'created':'2026-10-01" & ts & "'," & _
         "'status':{'name':'" & pret & "'},'customfield_10200':'Feature'}}," & _
         "{'id':'11','key':'AAA-1','fields':{'project':{'key':'AAA'},'issuetype':{'name':'Story'},'created':'2026-10-01" & ts & "'," & _
@@ -807,7 +822,7 @@ Public Sub T_TooManyPages()
     raised = (Err.Number <> 0): msg = Err.Description: Err.Clear
     On Error GoTo 0
     Check "jira", "page guard raises", "maxPages=1", True, raised
-    Check "jira", "page guard message", "maxPages=1", True, (InStr(msg, "Too many pages") > 0)
+    Check "jira", "page guard message", "maxPages=1", True, (InStr(msg, "did not end after 1 pages") > 0)
 End Sub
 
 Public Sub T_BackgroundExport()

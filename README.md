@@ -77,7 +77,8 @@ Sur le poste client :
    est occupé pendant l'extraction (pas d'annulation pour l'instant). À la fin, les feuilles `ItemFlow`, `DailyLoad`,
    `Metrics`, `ChartData` et les graphiques sont **reconstruits à la taille des nouvelles données** : on peut
    relancer autant de fois que nécessaire. Pour l'équipe du graphique Flow Distribution : cellule `B2`.
-4. Les feuilles `FlowFormulas` et `ChartSpec` décrivent les formules et les graphiques : ne pas les modifier.
+4. **Le token API reste en clair dans la feuille Config** : l'effacer avant de transmettre le classeur à quelqu'un d'autre. La BaseUrl doit commencer par https://.
+5. Les feuilles `FlowFormulas` et `ChartSpec` décrivent les formules et les graphiques : ne pas les modifier.
 
 **Formules Excel (E4)** : le test `tests\features\flow_excel.feature` compare cellule par cellule les formules du
 classeur à la référence Python (faux Jira, extraction VBA, formules, en mode A puis B). `Config.WorkTypeField` est

@@ -58,7 +58,7 @@ def _typed_cell(spec: SheetSpec, column: str, raw: str, where: str, problems: li
     if column in spec.int_columns:
         if raw in ("", "-"):
             return None
-        if raw.isdigit():
+        if raw.isdecimal():
             return int(raw)
         problems.append(f"{where}: {column} must be a whole number or '-', got {raw!r}")
         return None
@@ -182,7 +182,7 @@ def _check_config(sheet: ParamSheet, problems: list[str]) -> None:
         problems.append(f"Config: ProxyWindowsAuth must be Yes or No, got {values.get('ProxyWindowsAuth')!r}")
     for name, minimum in (("TimeoutSeconds", 1), ("MaxRetries", 0)):
         text = values.get(name)
-        if text is None or not text.isdigit() or int(text) < minimum:
+        if text is None or not text.isdecimal() or int(text) < minimum:
             problems.append(f"Config: {name} must be a whole number >= {minimum}, got {text!r}")
     base = values.get("BaseUrl")
     if base and not base.lower().startswith(("http://", "https://")):

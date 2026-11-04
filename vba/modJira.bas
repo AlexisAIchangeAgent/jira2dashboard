@@ -14,12 +14,25 @@ Public Function JiraConfig(ByVal baseUrl As String, ByVal email As String, ByVal
     Do While Right$(baseUrl, 1) = "/"
         baseUrl = Left$(baseUrl, Len(baseUrl) - 1)
     Loop
+    If Len(baseUrl) > 0 And LCase$(Left$(baseUrl, 8)) <> "https://" And Not IsLocalUrl(baseUrl) Then
+        Cov "JIR22"
+        Err.Raise vbObjectError + 602, "JiraConfig", "BaseUrl must start with https:// (the API token would travel in clear text). Fix it in the Config sheet."
+    End If
     c("BaseUrl") = baseUrl
     c("Authorization") = BasicAuthHeader(TrimWhite(email), TrimWhite(apiToken))   ' as the PowerShell script: $Token.Trim()
     c("ProxyServer") = NormalizeProxy(proxyServer)
     c("ProxyBypass") = TrimWhite(proxyBypass)
     c("ProxyWindowsAuth") = proxyWindowsAuth
     Set JiraConfig = c
+End Function
+
+Private Function IsLocalUrl(ByVal url As String) As Boolean
+    ' The fake Jira of the tests listens on this computer (or behind the fake proxy under a .invalid name, which never
+    ' resolves to a real server): http is fine there.
+    Dim u As String
+    u = LCase$(url)
+    IsLocalUrl = (Left$(u, 16) = "http://127.0.0.1" Or Left$(u, 16) = "http://localhost" Or _
+                  (Left$(u, 7) = "http://" And InStr(u, ".invalid") > 0))
 End Function
 
 Public Function NormalizeProxy(ByVal proxy As String) As String
@@ -60,7 +73,7 @@ Public Function ProjectsJql(ByVal projectKeys As Collection, Optional ByVal filt
     ' A filter (Config sheet) is a JQL restriction added with AND: ... AND (updated >= -90d) ORDER BY key ASC.
     Cov "JIR02"
     Dim parts() As String, i As Long, jql As String
-    If projectKeys.Count = 0 Then Cov "JIR03": Err.Raise vbObjectError + 600, "ProjectsJql", "No project keys"
+    If projectKeys.Count = 0 Then Cov "JIR03": Err.Raise vbObjectError + 600, "ProjectsJql", "No project to extract: fill the Projects sheet (Project, Role, Team)."
     ReDim parts(1 To projectKeys.Count)
     For i = 1 To projectKeys.Count
         parts(i) = """" & Replace(Trim$(projectKeys(i)), """", "") & """"
@@ -101,7 +114,8 @@ Public Function JiraSearchUrl(ByVal baseUrl As String, ByVal jql As String, ByVa
 End Function
 
 Public Function JiraSearchAll(ByVal cfg As Object, ByVal jql As String, ByRef names As Object, _
-                              Optional ByVal maxPages As Long = 2000) As Collection
+                              Optional ByVal maxPages As Long = 2000, _
+                              Optional ByVal fields As String = "*all", Optional ByVal expand As String = "names") As Collection
     ' Reads every page. names receives fieldId -> display name (from expand=names).
     Cov "JIR06"
     Dim issues As New Collection, token As String, page As Long
@@ -109,7 +123,7 @@ Public Function JiraSearchAll(ByVal cfg As Object, ByVal jql As String, ByRef na
     If names Is Nothing Then Set names = CreateObject("Scripting.Dictionary")
     Do
         page = page + 1
-        Set resp = HttpRequest(cfg, "GET", JiraSearchUrl(cfg("BaseUrl"), jql, token))
+        Set resp = HttpRequest(cfg, "GET", JiraSearchUrl(cfg("BaseUrl"), jql, token, JIRA_PAGE_SIZE, fields, expand))
         CheckStatus resp, "search/jql"
         Set data = JsonParse(resp("Text"))
         For Each issue In AsList(JGet(data, "issues"))
@@ -119,7 +133,7 @@ Public Function JiraSearchAll(ByVal cfg As Object, ByVal jql As String, ByRef na
         token = CStr(JGet(data, "nextPageToken") & "")
         Application.StatusBar = "Jira search: " & issues.Count & " issues read (page " & page & ")"
         If IsTrue(JGet(data, "isLast")) Or Len(token) = 0 Then Exit Do
-        If page >= maxPages Then Cov "JIR07": Err.Raise vbObjectError + 601, "JiraSearchAll", "Too many pages"
+        If page >= maxPages Then Cov "JIR07": Err.Raise vbObjectError + 601, "JiraSearchAll", "Jira search did not end after " & maxPages & " pages: narrow the extraction with the Filter of the Config sheet."
     Loop
     Application.StatusBar = False
     Set JiraSearchAll = issues

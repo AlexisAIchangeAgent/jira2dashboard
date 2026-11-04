@@ -36,6 +36,11 @@ Private Function WorkTypeOf(ByVal issue As Variant, ByVal fieldId As String) As 
     If Not IsNull(v) Then WorkTypeOf = v
 End Function
 
+Public Function ExtractFields(ByVal workTypeField As String) As String
+    ' The Jira fields the extraction reads: the rest (comments, descriptions, attachments) is not downloaded.
+    ExtractFields = "key,project,issuetype,created,status" & IIf(Len(workTypeField) > 0, "," & workTypeField, "")
+End Function
+
 Public Sub ExtractFlowDataTo(ByVal cfg As Object, ByVal jql As String, ByVal workTypeField As String, _
                              ByVal asOf As Date, ByVal wsProjects As Object, ByVal wsWorkflows As Object, _
                              ByVal wsIssues As Object, ByVal wsIntervals As Object, _
@@ -49,7 +54,7 @@ Public Sub ExtractFlowDataTo(ByVal cfg As Object, ByVal jql As String, ByVal wor
     Dim names As Object, issues As Collection, issue As Variant, rows As New Collection, keys As New Collection
     Dim idToKey As Object, changes As Collection, program As String, project As String
     Dim wf As Variant, info As Object, mine As Collection, ch As Variant, iv As Variant, out As New Collection
-    Set issues = JiraSearchAll(cfg, jql, names)
+    Set issues = JiraSearchAll(cfg, jql, names, , ExtractFields(workTypeField), "")     ' only what the metrics use
     Set idToKey = CreateObject("Scripting.Dictionary")
     program = ProgramProject(wsProjects)
     For Each issue In issues

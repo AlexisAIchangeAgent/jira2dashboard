@@ -10,7 +10,6 @@ Option Explicit
 Private Const XL_SRC_RANGE As Long = 1
 Private Const XL_YES As Long = 1
 Private Const XL_CALC_MANUAL As Long = -4135
-Private Const SELECTOR_LIST_COLUMN As Long = 27         ' column AA of ChartData: the teams of the selector list
 
 Public Function SheetExists(ByVal wb As Object, ByVal name As String) As Boolean
     Cov "FLB01"
@@ -339,18 +338,20 @@ Private Sub WriteSelectorList(ByVal wb As Object, ByVal dash As Object, ByVal da
                               ByVal teams As Collection)
     ' The team of the Distribution chart is picked from a list: All teams, then the teams.
     Cov "FLB22"
-    Dim i As Long, cell As Object, allTeams As String, found As Boolean
+    Dim i As Long, cell As Object, allTeams As String, found As Boolean, listColumn As Long
     allTeams = SettingOf(spec, "Dashboard", "AllTeams")
     Set cell = dash.Range(SettingOf(spec, "Dashboard", "SelectorCell"))
-    data.Cells(1, SELECTOR_LIST_COLUMN).Value = "Teams for the selector"
-    data.Cells(2, SELECTOR_LIST_COLUMN).Value = AsText(allTeams)
+    listColumn = teams.Count + 4                       ' right of the widest chart block (one column per team, or 5 work types)
+    If listColumn < 10 Then listColumn = 10
+    data.Cells(1, listColumn).Value = "Teams for the selector"
+    data.Cells(2, listColumn).Value = AsText(allTeams)
     found = (CStr(cell.Value) = allTeams)
     For i = 1 To teams.Count
-        data.Cells(2 + i, SELECTOR_LIST_COLUMN).Value = AsText(CStr(teams(i)))
+        data.Cells(2 + i, listColumn).Value = AsText(CStr(teams(i)))
         If CStr(cell.Value) = CStr(teams(i)) Then found = True
     Next i
     cell.Validation.Delete
-    cell.Validation.Add 3, 1, 1, "=ChartData!$AA$2:$AA$" & (teams.Count + 2)       ' list, stop on error, between
+    cell.Validation.Add 3, 1, 1, "=ChartData!" & data.Range(data.Cells(2, listColumn), data.Cells(teams.Count + 2, listColumn)).Address   ' list, stop on error, between
     If Not found Then Cov "FLB23": cell.Value = allTeams
 End Sub
 

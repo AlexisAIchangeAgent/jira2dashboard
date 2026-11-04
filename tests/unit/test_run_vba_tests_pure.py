@@ -32,7 +32,7 @@ def test_real_vba_modules_are_ascii_and_have_unique_markers():
     markers = rvt.coverage_markers(sources)
     # 65 originally + modParams PRM01..PRM23 + TXT16 (TrimWhite) + JIR14..JIR21 (proxy, Config sheet, hints, filter)
     # + modExtract MEX01..MEX03
-    assert len(markers) == 131                                  # + TXT17 (a malformed Jira date) + PRM24 (AsOf typed as a date)
+    assert len(markers) == 132          # + TXT17 (malformed Jira date), PRM24 (AsOf typed as a date), JIR22 (http BaseUrl refused)
     assert sorted(m for m in markers if m.startswith("PRM")) == [f"PRM{n:02d}" for n in range(1, 25)]
     assert sorted(m for m in markers if m.startswith("MEX")) == ["MEX01", "MEX02", "MEX03"]
     # + modFlowBuild FLB01..FLB29 (build of the flow sheets and the charts)
