@@ -318,15 +318,21 @@ REFERENCE_FIELD = {"Velocity": "velocity", "FlowTimeMedian": "flow_time_median",
                    "FlowEfficiency": "flow_efficiency", "FlowPredictability": "flow_predictability"}
 
 
-def chart_blocks(wb, periods: int):
-    """{chart name: (series names, period labels, rows of points)} read from the sheet ChartData."""
-    ws = wb.Worksheets("ChartData")
+def chart_blocks(wb, world):
+    """{chart name: (series names, row keys, rows of points)} read from the sheet ChartData. A row is a period, or a day
+    for the daily curve; the series of a band are not in the names (they are checked on their own)."""
+    ws, periods = wb.Worksheets("ChartData"), len(world["periods"])
+    days = (world["periods"][-1].end - world["periods"][0].start).days
     blocks = {}
     for index, spec in enumerate(D.CHARTS):
+        n = days if spec.axis == D.DAY_AXIS else periods
         top, count = D.block_top(index, periods), len(D.series_names(spec) or team_names())
-        grid = ws.Range(ws.Cells(top + 1, 1), ws.Cells(top + 1 + periods, 1 + count)).Value2
-        blocks[spec.name] = ([grid[0][c] for c in range(1, count + 1)], [grid[r][0] for r in range(1, periods + 1)],
-                             [list(grid[r][1:]) for r in range(1, periods + 1)])
+        grid = ws.Range(ws.Cells(top + 1, 1), ws.Cells(top + 1 + n, 1 + count + (2 if spec.band else 0))).Value2
+        blocks[spec.name] = ([grid[0][c] for c in range(1, count + 1)], [grid[r][0] for r in range(1, n + 1)],
+                             [list(grid[r][1:count + 1]) for r in range(1, n + 1)])
+        if spec.band:
+            blocks[spec.name + ".band"] = ([grid[0][count + 1], grid[0][count + 2]], blocks[spec.name][1],
+                                           [list(grid[r][count + 1:]) for r in range(1, n + 1)])
     return blocks
 
 
@@ -343,7 +349,7 @@ def _sizes(world):
     assert size["StatusIntervals"] == sum(len(item.intervals) for item in world["items"])
     assert size["DailyLoad"] == (periods[-1].end - periods[0].start).days * len(teams)
     assert size["Metrics"] == len(periods) * len(teams)
-    assert wb.Worksheets("Dashboard").ChartObjects().Count == len(D.CHARTS)
+    assert wb.Worksheets("Dashboard").ChartObjects().Count == len(D.CHARTS) == 8
     names = [sheet.Name for sheet in wb.Worksheets]
     assert len(names) == len(set(names)), names
 
@@ -373,13 +379,30 @@ def expected_distribution(period, selected, expected, bucket):
     return rows[0].distribution_done[bucket]
 
 
+def daily_curve_differences(world, mode, block):
+    """The daily Flow Load curve against the reference: the load at the end of each day, a gap after the as-of date."""
+    names, days, rows = block
+    as_of, items = world["dataset"].as_of, world["items"]
+    first, end = world["periods"][0].start, world["periods"][-1].end
+    reference = {team: daily_load(items, mode, team, first, end, as_of) for team in {i.team for i in items}}
+    wrong = []
+    for serial, row in zip(days, rows):
+        day = dt.datetime(1899, 12, 30) + dt.timedelta(days=serial)
+        for team, got in zip(names, row):
+            wanted = reference.get(team, {}).get(day, 0) if day + dt.timedelta(days=1) <= as_of else NA
+            if not same_point(got, wanted):
+                wrong.append((day.date(), team, got, wanted))
+    assert any(got != NA for row in rows for got in row) and any(got == NA for row in rows for got in row)
+    return wrong
+
+
 @then(parsers.parse('la feuille ChartData reproduit les métriques de la référence Python en mode "{mode}", '
                     "avec #N/A pour « not computable »"))
 def _chart_data(world, mode):
     wb, as_of = world["wb"], world["dataset"].as_of
     expected = {(m.period, m.team): m for m in flow_metrics(world["items"], world["periods"], mode, as_of)}
     metrics_rows = {(r["Period"], r["Team"]): r for r in table_dicts(wb, "Metrics")}
-    blocks, wrong, gaps = chart_blocks(wb, len(world["periods"])), [], 0
+    blocks, wrong, gaps = chart_blocks(wb, world), [], 0
     for spec in D.CHARTS:
         names, labels, rows = blocks[spec.name]
         if spec.column is None:
@@ -393,24 +416,32 @@ def _chart_data(world, mode):
                     wrong.append((spec.name, label, team, got, wanted))
     assert wrong == [], wrong[:8]
     assert gaps > 10                                    # not computable figures are gaps, and they exist in this data
+    daily_wrong = daily_curve_differences(world, mode, blocks["flow_load_daily"])
+    assert daily_wrong == [], daily_wrong[:8]
+    band = blocks["flow_predictability.band"]
+    assert band[0] == list(D.BAND_NAMES) and all(row == [0.8, 1.0] for row in band[2])
     assert all(got == NA for _l, row in zip(*blocks["flow_predictability"][1:]) for got in row)
 
 
 @then("chaque graphique a une série par équipe ou par type de travail avec les valeurs de ChartData")
 def _series(world):
     wb, dash = world["wb"], world["wb"].Worksheets("Dashboard")
-    blocks = chart_blocks(wb, len(world["periods"]))
+    blocks = chart_blocks(wb, world)
     assert {co.Name for co in dash.ChartObjects()} == {s.name for s in D.CHARTS}
     for spec in D.CHARTS:
         names, _labels, rows = blocks[spec.name]
         chart = dash.ChartObjects(spec.name).Chart
-        assert chart.SeriesCollection().Count == len(names), spec.name
+        assert chart.SeriesCollection().Count == len(names) + (2 if spec.band else 0), spec.name
         assert chart.ChartType == spec.chart_type or chart.SeriesCollection(1).ChartType == spec.chart_type, spec.name
         for offset, name in enumerate(names, start=1):
             series = chart.SeriesCollection(offset)
             assert series.Name == name, (spec.name, series.Name, name)
             drawn = [None if row[offset - 1] == NA else row[offset - 1] for row in rows]   # a gap is read as None
             assert list(series.Values) == drawn, (spec.name, name)
+        if spec.band:                                    # two constant series after the data: 80 % and 100 %
+            for offset, expected in ((len(names) + 1, 0.8), (len(names) + 2, 1.0)):
+                assert set(chart.SeriesCollection(offset).Values) == {expected}, (spec.name, offset)
+                assert chart.SeriesCollection(offset).Name == D.BAND_NAMES[offset - len(names) - 1]
         assert chart.HasTitle and chart.ChartTitle.Text == spec.title
     note = dash.Cells(*(lambda a: (a[0] + D.ROWS_PER_CHART, a[1]))(D.chart_anchor([c.name for c in D.CHARTS].index("flow_predictability")))).Value2
     assert "not computable" in note and "PI objectives" in note, note
@@ -429,7 +460,7 @@ def _distribution(world):
     for selected in teams:
         dash.Range(D.SELECTOR_CELL).Value = com.as_cell(selected)
         wb.Application.Calculate()
-        names, labels, rows = chart_blocks(wb, len(world["periods"]))["flow_distribution"]
+        names, labels, rows = chart_blocks(wb, world)["flow_distribution"]
         assert names == list(BUCKETS)
         for label, row in zip(labels, rows):
             for bucket, got in zip(names, row):

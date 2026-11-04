@@ -12,9 +12,11 @@ ALL_TEAMS = "All teams"
 SELECTOR = "dashTeam"                         # name of the cell that picks the team of the Distribution chart
 SELECTOR_CELL = "B2"
 
-XL_COLUMN_CLUSTERED, XL_LINE_MARKERS, XL_COLUMN_STACKED_100 = 51, 65, 53
+XL_COLUMN_CLUSTERED, XL_LINE_MARKERS, XL_COLUMN_STACKED_100, XL_LINE = 51, 65, 53, 4
 
 TEAMS, BUCKET_SERIES = "team", "bucket"
+PERIOD_AXIS, DAY_AXIS = "period", "day"          # one point per period (table Metrics) or per day (table DailyLoad)
+BAND_NAMES = ("Target band low", "Target band high")
 
 
 @dataclass(frozen=True)
@@ -26,6 +28,8 @@ class ChartSpec:
     axis_format: str | None = None
     series: str = TEAMS             # one series per team, or one per work type bucket
     reason: str = ""                # shown under the chart when points are not computable
+    axis: str = PERIOD_AXIS         # what a row of the block of ChartData is: a period or a day
+    band: tuple[float, float] | None = None     # a target band drawn as two constant series (proposal: SAFe 80-100 %)
 
 
 CHARTS = (
@@ -38,7 +42,9 @@ CHARTS = (
     ChartSpec("flow_distribution", "Flow Distribution - items done by work type (team of the selector)", None,
               XL_COLUMN_STACKED_100, "0%", series=BUCKET_SERIES),
     ChartSpec("flow_predictability", "Flow Predictability", "FlowPredictability", XL_LINE_MARKERS, "0%",
-              reason="it needs the PI objectives, which are not in Jira"),
+              reason="it needs the PI objectives, which are not in Jira", band=(0.8, 1.0)),
+    ChartSpec("flow_load_daily", "Flow Load - items in process at the end of each day", None, XL_LINE, axis=DAY_AXIS,
+              reason="the day is after the as-of date"),          # last: its block has one row per day, not per period
 )
 
 COLUMNS_PER_CHART, ROWS_PER_CHART = 8, 18       # size of the area of a chart on the Dashboard sheet
@@ -60,6 +66,17 @@ def team_point(column: str, period_cell: str, team_cell: str) -> str:
     """One point of a team series: the figure of Metrics for this period and team, or #N/A."""
     return (f'=LET(v,XLOOKUP(1,(Metrics[Period]={period_cell})*(Metrics[Team]={team_cell}),Metrics[{column}],""),'
             "IF(ISNUMBER(v),v,NA()))")
+
+
+def day_point(day_cell: str, team_cell: str) -> str:
+    """One point of the daily Flow Load curve: the snapshot of DailyLoad for this day and team, or #N/A (no snapshot yet)."""
+    return (f'=LET(v,XLOOKUP(1,(DailyLoad[Date]={day_cell})*(DailyLoad[Team]={team_cell}),DailyLoad[Load],""),'
+            "IF(ISNUMBER(v),v,NA()))")
+
+
+def band_text(spec: ChartSpec) -> str:
+    """The band as the text that modFlowBuild reads ("0.8;1", a dot whatever the language of Excel), or empty."""
+    return f"{spec.band[0]};{spec.band[1]}" if spec.band else ""
 
 
 def bucket_point(bucket: str, period_cell: str) -> str:

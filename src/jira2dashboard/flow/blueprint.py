@@ -18,7 +18,7 @@ SHEET_CHECKS = "ChecksSpec"
 FORMULAS_HEADER = ("Table", "Column", "Formula")
 CHECKS_HEADER = C.DATACHECKS_KEYS
 CHARTS_HEADER = ("Name", "Title", "ChartType", "AxisFormat", "SeriesNames", "PointFormula", "NoteFormula",
-                 "AnchorRow", "AnchorColumn", "Rows", "Columns")
+                 "AnchorRow", "AnchorColumn", "Rows", "Columns", "Axis", "Band")
 
 CONTROL_NAMES = ("AsOfUtc", "cfg_FlowLoadMode")        # the names of the control cells (sheet Controls, column B)
 
@@ -53,7 +53,10 @@ def check_rows() -> list[tuple[str, ...]]:
 def chart_rows() -> list[tuple]:
     rows = []
     for index, spec in enumerate(D.CHARTS):
-        if spec.series == D.TEAMS:
+        if spec.axis == D.DAY_AXIS:
+            point = D.day_point("{period}", "{name}")                # {period} is the day here
+            series = ""
+        elif spec.series == D.TEAMS:
             point = D.team_point(spec.column, "{period}", "{name}")
             series = ""
         else:
@@ -61,7 +64,8 @@ def chart_rows() -> list[tuple]:
             series = ",".join(D.series_names(spec))
         row, column = D.chart_anchor(index)
         rows.append((spec.name, spec.title, spec.chart_type, spec.axis_format or "", series, point,
-                     D.note_formula("{range}", spec.reason), row, column, D.ROWS_PER_CHART, D.COLUMNS_PER_CHART))
+                     D.note_formula("{range}", spec.reason), row, column, D.ROWS_PER_CHART, D.COLUMNS_PER_CHART,
+                     spec.axis, D.band_text(spec)))
     return rows
 
 

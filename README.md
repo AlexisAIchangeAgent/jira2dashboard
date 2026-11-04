@@ -95,9 +95,9 @@ Sur le poste client :
 classeur à la référence Python (faux Jira, extraction VBA, formules, en mode A puis B). `Config.WorkTypeField` est
 l'id du champ personnalisé du type de travail ; `Config.AsOf` est obligatoire pour l'extraction.
 
-**Tableau de bord (E5)** : la feuille `Dashboard` montre sept graphiques natifs Excel (Velocity, Flow Time médian et
-P85, Flow Load moyen, Flow Efficiency, Flow Distribution, Flow Predictability), un graphique par métrique avec une
-série par équipe. Les points viennent de la feuille `ChartData` (une formule par point). Une valeur « not computable »
+**Tableau de bord (E5)** : la feuille `Dashboard` montre huit graphiques natifs Excel (Velocity, Flow Time médian et
+P85, Flow Load moyen, Flow Efficiency, Flow Distribution, Flow Predictability avec la bande cible 80-100 %, et la courbe
+quotidienne de Flow Load), un graphique par métrique avec une série par équipe. La bande 80-100 % est une proposition (repère SAFe). Les points viennent de la feuille `ChartData` (une formule par point). Une valeur « not computable »
 est un trou dans la courbe, jamais un 0, avec une note sous le graphique. Flow Distribution montre une série par
 type de travail pour l'équipe choisie dans la cellule `B2` (`All teams` = toutes les équipes ensemble). Les
 graphiques sont exportés en PNG dans `out\dashboard\` par le test `flow_excel.feature`.

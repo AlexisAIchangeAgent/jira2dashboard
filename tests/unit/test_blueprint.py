@@ -37,10 +37,11 @@ def test_a_formula_fits_in_a_cell():
 def test_one_chart_row_per_chart_with_the_tokens_the_vba_replaces():
     rows = B.chart_rows()
     assert [r[0] for r in rows] == [c.name for c in D.CHARTS]
-    for name, title, kind, axis, series, point, note, row, column, height, width in rows:
+    for name, title, kind, axis, series, point, note, row, column, height, width, day_or_period, band in rows:
         assert "{period}" in point and "{range}" in note
         assert ("{series}" in point) == bool(series) and ("{name}" in point) == (not series), name
-        assert kind in (D.XL_COLUMN_CLUSTERED, D.XL_LINE_MARKERS, D.XL_COLUMN_STACKED_100)
+        assert kind in (D.XL_COLUMN_CLUSTERED, D.XL_LINE_MARKERS, D.XL_COLUMN_STACKED_100, D.XL_LINE)
+        assert day_or_period in (D.PERIOD_AXIS, D.DAY_AXIS)
         assert row >= 4 and column >= 1 and height > 0 and width > 0
     assert len(B.CHARTS_HEADER) == len(rows[0])
 

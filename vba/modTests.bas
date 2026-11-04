@@ -577,7 +577,7 @@ Public Sub T_FlowBuild()
     Check "flowbuild", "Issues and StatusIntervals become tables", "2 + 3 rows", "2|3", TableRows("Issues") & "|" & TableRows("StatusIntervals")
     Check "flowbuild", "DailyLoad: one row per day and team", "28 days x 9", 28 * teams, TableRows("DailyLoad")
     Check "flowbuild", "Metrics: one row per period and team", "2 periods x 9", 2 * teams, TableRows("Metrics")
-    Check "flowbuild", "seven charts", "Dashboard", 7, dash.ChartObjects.Count
+    Check "flowbuild", "eight charts", "Dashboard", 8, dash.ChartObjects.Count
     Check "flowbuild", "DataChecks: one row per check of ChecksSpec", "29 checks", 29, TableRows("DataChecks")
     Check "flowbuild", "DataChecks: the first check, and the check that needs a field is not computable", "DC01 / DC11", "DC01|OK|not computable", _
           wb.Worksheets("DataChecks").Range("A2").Value & "|" & wb.Worksheets("DataChecks").Range("J2").Value & "|" & wb.Worksheets("DataChecks").Range("J12").Value
@@ -585,6 +585,9 @@ Public Sub T_FlowBuild()
     Check "flowbuild", "IssueLinks is a table even without any link", "rows", 1, TableRows("IssueLinks")
     Check "flowbuild", "one series per team in the Velocity chart", "Velocity", teams, dash.ChartObjects("velocity").Chart.SeriesCollection.Count
     Check "flowbuild", "one series per work type in the Distribution chart", "flow_distribution", 5, dash.ChartObjects("flow_distribution").Chart.SeriesCollection.Count
+    Check "flowbuild", "the Predictability chart has two more series: the 80-100 % band", "Predictability", teams + 2, dash.ChartObjects("flow_predictability").Chart.SeriesCollection.Count
+    Check "flowbuild", "the daily Flow Load curve has one series per team and one point per day", "28 days", teams & "|" & 28, _
+          dash.ChartObjects("flow_load_daily").Chart.SeriesCollection.Count & "|" & UBound(dash.ChartObjects("flow_load_daily").Chart.SeriesCollection(1).Values)
     Check "flowbuild", "the formulas give the issue keys", "ItemFlow.Key", "TTT-1|AAA-1", _
           wb.Worksheets("ItemFlow").ListObjects("ItemFlow").ListColumns("Key").DataBodyRange.Cells(1, 1).Value & "|" & _
           wb.Worksheets("ItemFlow").ListObjects("ItemFlow").ListColumns("Key").DataBodyRange.Cells(2, 1).Value
@@ -603,7 +606,7 @@ Public Sub T_FlowBuild()
     Check "flowbuild", "smaller data: StatusIntervals", "1 interval", 1, TableRows("StatusIntervals")
     Check "flowbuild", "smaller data: FillRates follows the issue types", "3 x 9 x 1", 27, TableRows("FillRates")
     Check "flowbuild", "the sheets are the same", "count", sheetCount, wb.Worksheets.Count
-    Check "flowbuild", "still seven charts", "Dashboard", 7, dash.ChartObjects.Count
+    Check "flowbuild", "still eight charts", "Dashboard", 8, dash.ChartObjects.Count
     Check "flowbuild", "an unknown team in the selector goes back to All teams", "Nowhere", "All teams", dash.Range("B2").Value
     dash.Range("B2").Value = "AAA"
     BuildFlowSheetsIn wb

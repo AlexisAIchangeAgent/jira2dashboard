@@ -10,13 +10,15 @@ METRICS_COLUMNS = set(f.TABLES["Metrics"])
 
 def test_one_chart_per_flow_metric():
     assert [c.name for c in d.CHARTS] == ["velocity", "flow_time", "flow_time_p85", "flow_load", "flow_efficiency",
-                                           "flow_distribution", "flow_predictability"]
+                                           "flow_distribution", "flow_predictability", "flow_load_daily"]
     assert len({c.name for c in d.CHARTS}) == len(d.CHARTS)
 
 
 def test_every_chart_draws_a_column_of_the_metrics_table():
     for chart in d.CHARTS:
-        if chart.series == d.TEAMS:
+        if chart.axis == d.DAY_AXIS:
+            assert chart.column is None and {"Date", "Team", "Load"} <= set(f.TABLES["DailyLoad"])
+        elif chart.series == d.TEAMS:
             assert chart.column in METRICS_COLUMNS, chart.name
         else:
             assert chart.column is None and d.series_names(chart) == f.BUCKETS
@@ -25,7 +27,7 @@ def test_every_chart_draws_a_column_of_the_metrics_table():
 
 def test_formulas_only_use_existing_columns_and_are_balanced():
     texts = [d.team_point(c.column, "$A6", "B$5") for c in d.CHARTS if c.column]
-    texts += [d.bucket_point(b, "$A6") for b in f.BUCKETS]
+    texts += [d.bucket_point(b, "$A6") for b in f.BUCKETS] + [d.day_point("$A6", "B$5")]
     texts.append(d.note_formula("ChartData!$B$6:$J$16", "a reason"))
     for text in texts:
         assert text.startswith("=") and text.count("(") == text.count(")") and text.count('"') % 2 == 0
@@ -69,3 +71,16 @@ def test_charts_on_the_dashboard_do_not_overlap():
             apart = a[1] < b[0] or b[1] < a[0] or a[3] < b[2] or b[3] < a[2]
             assert apart, (a, b)
     assert d.CHART_SPACING > d.ROWS_PER_CHART                # a row for the note under each chart
+
+
+def test_the_daily_curve_is_last_and_has_a_gap_for_days_without_snapshot():
+    daily = d.CHARTS[-1]
+    assert daily.axis == d.DAY_AXIS and all(c.axis == d.PERIOD_AXIS for c in d.CHARTS[:-1])      # its block is the longest
+    text = d.day_point("$A6", "B$5")
+    assert "NA()" in text and "DailyLoad[Load]" in text and text.count("(") == text.count(")")
+
+
+def test_the_predictability_band_is_a_proposal_text_the_vba_can_read():
+    spec = next(c for c in d.CHARTS if c.name == "flow_predictability")
+    assert spec.band == (0.8, 1.0) and d.band_text(spec) == "0.8;1.0"
+    assert all(d.band_text(c) == "" for c in d.CHARTS if c is not spec)

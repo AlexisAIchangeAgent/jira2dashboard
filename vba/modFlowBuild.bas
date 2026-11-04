@@ -437,6 +437,7 @@ Private Sub BuildChart(ByVal dash As Object, ByVal data As Object, ByVal row As 
     Cov "FLB24"
     Dim names() As String, count As Long, i As Long, j As Long, first As Long, last As Long, point As String
     Dim area As Object, shape As Object, ch As Object, s As Object, rng As Object
+    Dim rowsCount As Long, firstDay As Double, p As Variant, band() As String, isDay As Boolean
     If Len(CStr(row("SeriesNames"))) > 0 Then
         names = Split(CStr(row("SeriesNames")), ",")
     Else
@@ -444,13 +445,29 @@ Private Sub BuildChart(ByVal dash As Object, ByVal data As Object, ByVal row As 
         For i = 1 To teams.Count: names(i - 1) = teams(i): Next i
     End If
     count = UBound(names) + 1
-    first = top + 2: last = first + periods.Count - 1
+    isDay = (CStr(row("Axis")) = "day")                      ' one row per day (daily curve) or per period
+    rowsCount = periods.Count
+    If isDay Then rowsCount = DaysOf(periods)
+    first = top + 2: last = first + rowsCount - 1
     data.Cells(top, 1).Value = CStr(row("Title"))
     data.Cells(top, 1).Font.Bold = True
-    data.Cells(top + 1, 1).Value = "Period"
-    For i = 1 To periods.Count
-        data.Cells(first + i - 1, 1).Value = AsText(CStr(periods(i)(0)))
-    Next i
+    If isDay Then
+        Cov "FLB33"
+        data.Cells(top + 1, 1).Value = "Day"
+        firstDay = Int(periods(1)(1))
+        For Each p In periods
+            If Int(p(1)) < firstDay Then firstDay = Int(p(1))
+        Next p
+        For i = 1 To rowsCount
+            data.Cells(first + i - 1, 1).Value = firstDay + i - 1
+        Next i
+        data.Range(data.Cells(first, 1), data.Cells(last, 1)).NumberFormat = "yyyy-mm-dd"
+    Else
+        data.Cells(top + 1, 1).Value = "Period"
+        For i = 1 To rowsCount
+            data.Cells(first + i - 1, 1).Value = AsText(CStr(periods(i)(0)))
+        Next i
+    End If
     For j = 1 To count
         data.Cells(top + 1, 1 + j).Value = AsText(names(j - 1))
     Next j
@@ -477,6 +494,21 @@ Private Sub BuildChart(ByVal dash As Object, ByVal data As Object, ByVal row As 
         s.Values = data.Range(data.Cells(first, 1 + j), data.Cells(last, 1 + j))
         s.XValues = data.Range(data.Cells(first, 1), data.Cells(last, 1))
     Next j
+    If Len(CStr(row("Band"))) > 0 Then
+        Cov "FLB34"                                          ' a target band: two constant series, dashed, after the data
+        band = Split(CStr(row("Band")), ";")
+        For j = 0 To 1
+            data.Cells(top + 1, 2 + count + j).Value = IIf(j = 0, "Target band low", "Target band high")
+            data.Range(data.Cells(first, 2 + count + j), data.Cells(last, 2 + count + j)).Value = Val(band(j))
+            Set s = ch.SeriesCollection.NewSeries
+            s.Name = "=ChartData!" & data.Cells(top + 1, 2 + count + j).Address
+            s.Values = data.Range(data.Cells(first, 2 + count + j), data.Cells(last, 2 + count + j))
+            s.XValues = data.Range(data.Cells(first, 1), data.Cells(last, 1))
+            s.ChartType = 4                                  ' xlLine, no markers
+            s.Format.Line.DashStyle = 4                      ' msoLineDash
+            s.Format.Line.ForeColor.RGB = RGB(128, 128, 128)
+        Next j
+    End If
     ch.HasTitle = True
     ch.ChartTitle.Text = CStr(row("Title"))
     ch.HasLegend = True
