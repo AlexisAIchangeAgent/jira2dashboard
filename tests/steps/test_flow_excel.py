@@ -14,6 +14,8 @@ from jira2dashboard.flow.itemflow import item_flow
 from jira2dashboard.flow.load import daily_load
 from jira2dashboard.flow.metrics import BUCKETS, flow_metrics
 from jira2dashboard.flow.model import NOT_COMPUTABLE, Period, Rules
+from jira2dashboard.flow.checks import CHECKS, IDS, Moves, issue_checks
+from jira2dashboard.mockjira.anomalies import with_anomalies
 from jira2dashboard.mockjira.flow_adapter import to_flow_issues
 from jira2dashboard.mockjira.generator import generate
 from jira2dashboard.mockjira.server import MockJira
@@ -97,6 +99,13 @@ def table_dicts(wb, name):
 def _jira(world, jira_server, n):
     world["dataset"] = generate(seed=11, issues=n, projects=project_keys())
     world["jira"] = jira_server(world["dataset"], credentials=("me@example.com", "tok-123"))
+
+
+@given(parsers.parse("un faux Jira avec {n:d} tickets générés et les anomalies de données connues"))
+def _jira_with_anomalies(world, jira_server, n):
+    dataset, world["anomalies"] = with_anomalies(generate(seed=11, issues=n, projects=project_keys()), project_keys()[1])
+    world["dataset"] = dataset
+    world["jira"] = jira_server(dataset, credentials=("me@example.com", "tok-123"))
 
 
 @given(parsers.parse('le classeur à livrer dont la feuille Config pointe sur ce faux Jira avec FlowLoadMode "{mode}"'))
@@ -194,6 +203,29 @@ def _itemflow(world):
         wrong += [(item.key, column, row[column]) for column, ok in checks.items() if not ok]
     assert wrong == [], wrong[:8]
     assert sum(1 for i in world["items"] if i.done) > 20 and any(i.backlog_returns and i.start for i in world["items"])
+
+
+@then("la table DataChecks et les colonnes DC de ItemFlow reproduisent les contrôles de la référence Python")
+def _data_checks(world):
+    as_of, rules, moves = world["dataset"].as_of, world["rules"], Moves.from_params()
+    expected = {i.key: issue_checks(i, as_of, rules, moves) for i in to_flow_issues(world["dataset"])}
+    flags = {row["Key"]: {c for c in IDS if row[c] == 1} for row in table_dicts(world["wb"], "ItemFlow")}
+    assert flags == {key: set(ids) for key, ids in expected.items()}
+    assert all(row[c] in (0, 1) for row in table_dicts(world["wb"], "ItemFlow") for c in IDS)
+    rows = {row["Id"]: row for row in table_dicts(world["wb"], "DataChecks")}
+    assert list(rows) == list(IDS)                                         # same ids, same order as the plan
+    for check in CHECKS:
+        count = sum(1 for ids in expected.values() if check.id in ids)
+        row = rows[check.id]
+        assert (row["Title"], row["Severity"], row["Items"], row["Result"]) == (
+            check.title, check.severity, count, "OK" if count == 0 else "KO"), check.id
+    assert sum(1 for ids in expected.values() if ids) == len({k for k, v in world["anomalies"].items() if v})   # only the cases fail
+
+
+@then("chaque anomalie connue est trouvée par les contrôles qui lui correspondent et seulement par eux")
+def _known_anomalies(world):
+    flags = {row["Key"]: {c for c in IDS if row[c] == 1} for row in table_dicts(world["wb"], "ItemFlow")}
+    assert {key: flags[key] for key in world["anomalies"]} == {k: set(v) for k, v in world["anomalies"].items()}
 
 
 @then(parsers.parse('la table DailyLoad reproduit la référence Python en mode "{mode}"'))

@@ -483,6 +483,8 @@ Public Sub T_FlowBuild()
     Check "flowbuild", "DailyLoad: one row per day and team", "28 days x 9", 28 * teams, TableRows("DailyLoad")
     Check "flowbuild", "Metrics: one row per period and team", "2 periods x 9", 2 * teams, TableRows("Metrics")
     Check "flowbuild", "seven charts", "Dashboard", 7, dash.ChartObjects.Count
+    Check "flowbuild", "DataChecks: one row per check of ChecksSpec", "6 checks", 6, TableRows("DataChecks")
+    Check "flowbuild", "DataChecks: the first check and its result", "DC06", "DC06", wb.Worksheets("DataChecks").Range("A2").Value
     Check "flowbuild", "one series per team in the Velocity chart", "Velocity", teams, dash.ChartObjects("velocity").Chart.SeriesCollection.Count
     Check "flowbuild", "one series per work type in the Distribution chart", "flow_distribution", 5, dash.ChartObjects("flow_distribution").Chart.SeriesCollection.Count
     Check "flowbuild", "the formulas give the issue keys", "ItemFlow.Key", "TTT-1|AAA-1", _
@@ -512,6 +514,7 @@ Public Sub T_FlowBuild()
     wb.Worksheets("Periods").Range("A2:C10").ClearContents
     ClearFlowSheets wb
     Check "flowbuild", "cleared: the derived sheets are gone", "Metrics", False, SheetExists(wb, "Metrics")
+    Check "flowbuild", "cleared: the data checks are gone too", "DataChecks", False, SheetExists(wb, "DataChecks")
 End Sub
 
 Public Sub T_UrlEncode()

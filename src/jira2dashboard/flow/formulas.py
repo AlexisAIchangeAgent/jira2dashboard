@@ -39,6 +39,11 @@ INTERVAL_HELPERS = (
     ("FirstStart", f"=INDEX({IF_}[FirstStartUtc],MATCH([@Key],{IF_}[Key],0))"),
     ("LeftEff", f'=IF([@LeftUtc]="",{FAR},[@LeftUtc])'),
     ("Counted", "=IF(OR(" + ",".join(f'[@Category]="{c}"' for c in CATEGORIES_IN_PROCESS) + "),1,0)"),
+    ("PrevStatus", f'=IF([@Seq]=1,"",INDEX({SI}[Status],{_row_index(SI)}-1))'),
+    # DC28: the move from the previous status is not in Transitions (same workflow) and the status is not free (IsFree)
+    ("BadMove", '=IF([@Seq]=1,0,IF(OR(COUNTIFS(Transitions!$A:$A,[@Workflow],Transitions!$B:$B,[@PrevStatus],'
+                'Transitions!$C:$C,[@Status])>0,SUMIFS(Workflows!$G:$G,Workflows!$A:$A,[@Workflow],'
+                'Workflows!$C:$C,[@Status])>0),0,1))'),
 )
 
 
@@ -85,6 +90,22 @@ ITEMFLOW_COLUMNS = (
     ("Excluded", '=IF(OR([@SkippedStart]="Y",[@Reopened]>0),1,0)'),
     ("WorkTypeBucket", "=IF(OR(" + ",".join(f'[@WorkType]="{w}"' for w in WORK_TYPES) + '),[@WorkType],"Unmapped")'),
     ("EndUtc", f'=IF([@DoneUtc]<>"",[@DoneUtc],IF([@RemovedUtc]<>"",[@RemovedUtc],{FAR}))'),
+    # data checks (1 = this issue fails the check), see flow/checks.py
+    ("DC06", f'=IF(COUNTIFS({SI}[Key],[@Key],{SI}[Check],"*MISMATCH*")>0,1,0)'),
+    ("DC07", f'=IF(COUNTIFS({SI}[Key],[@Key],{SI}[Check],"*BEFORE_CREATED*")>0,1,0)'),
+    ("DC08", f'=IF(COUNTIFS({SI}[Key],[@Key],{SI}[Category],"Unclassified")>0,1,0)'),
+    ("DC09", '=IF([@SkippedStart]="Y",1,0)'),
+    ("DC10", '=IF([@Reopened]>0,1,0)'),
+    ("DC28", f"=IF(COUNTIFS({SI}[Key],[@Key],{SI}[BadMove],1)>0,1,0)"),
+)
+
+
+# --- DataChecks: one row per check (Id, Title, Severity come from the sheet ChecksSpec) ------------------------------
+
+DATACHECKS_KEYS = ("Id", "Title", "Severity")
+DATACHECKS_COLUMNS = (
+    ("Items", f"=SUM(INDEX({IF_},0,MATCH([@Id],{IF_}[#Headers],0)))"),
+    ("Result", '=IF([@Items]=0,"OK","KO")'),
 )
 
 
@@ -168,5 +189,6 @@ TABLES = {
     "StatusIntervals": INTERVALS_RAW + tuple(name for name, _ in INTERVAL_HELPERS),
     "ItemFlow": tuple(name for name, _ in ITEMFLOW_COLUMNS),
     "DailyLoad": ("Date", "Team", "Load"),
+    "DataChecks": DATACHECKS_KEYS + tuple(name for name, _ in DATACHECKS_COLUMNS),
     "Metrics": METRICS_KEYS + tuple(name for name, _ in METRICS_COLUMNS),
 }

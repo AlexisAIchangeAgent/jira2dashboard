@@ -61,7 +61,7 @@ Private Sub DeleteDerived(ByVal wb As Object)
     alerts = Application.DisplayAlerts
     Application.DisplayAlerts = False
     On Error GoTo Restore
-    For Each nm In Array("ChartData", "ItemFlow", "DailyLoad", "Metrics", "Controls")
+    For Each nm In Array("ChartData", "ItemFlow", "DailyLoad", "Metrics", "DataChecks", "Controls")
         If SheetExists(wb, CStr(nm)) Then wb.Worksheets(CStr(nm)).Delete
     Next nm
 Restore:
@@ -202,7 +202,8 @@ Public Sub BuildFlowSheetsIn(ByVal wb As Object)
     Cov "FLB14"
     Dim spec As Object, teams As Collection, periods As Collection, calcMode As Long
     Dim num As Long, desc As String, nm As Variant
-    For Each nm In Array("FlowFormulas", "ChartSpec", "Periods", "Projects", "Dashboard", "Issues", "StatusIntervals")
+    For Each nm In Array("FlowFormulas", "ChartSpec", "ChecksSpec", "Periods", "Projects", "Workflows", "Transitions", _
+                         "Dashboard", "Issues", "StatusIntervals")
         If Not SheetExists(wb, CStr(nm)) Then
             Err.Raise vbObjectError + 705, "BuildFlowSheets", "Sheet " & nm & " is missing: rebuild the workbook with scripts\run.ps1 build."
         End If
@@ -232,26 +233,30 @@ End Sub
 
 Private Sub BuildAll(ByVal wb As Object, ByVal spec As Object, ByVal teams As Collection, ByVal periods As Collection)
     Cov "FLB16"
-    Dim wsI As Object, wsS As Object, wsF As Object, wsD As Object, wsM As Object
-    Dim loI As Object, loS As Object, loF As Object, loD As Object, loM As Object
+    Dim wsI As Object, wsS As Object, wsF As Object, wsD As Object, wsM As Object, wsC As Object
+    Dim loI As Object, loS As Object, loF As Object, loD As Object, loM As Object, loC As Object
     DeleteDerived wb
     Set wsI = wb.Worksheets("Issues"): Set wsS = wb.Worksheets("StatusIntervals")
     PrepareRaw wsI, spec("Issues")
     PrepareRaw wsS, spec("StatusIntervals")
-    Dim issues As Long
+    Dim issues As Long, checks As Long
     issues = UsedRows(wsI)
     BuildControls wb, spec
     Set wsF = AddSheet(wb, "ItemFlow"): Set wsD = AddSheet(wb, "DailyLoad"): Set wsM = AddSheet(wb, "Metrics")
+    Set wsC = AddSheet(wb, "DataChecks")
     WriteDailyKeys wsD, periods, teams
     WriteMetricKeys wsM, periods, teams
+    checks = WriteCheckKeys(wsC, wb.Worksheets("ChecksSpec"))
     ' every table exists before any formula is written: the formulas refer to each other's columns
     Set loI = CreateTable(wsI, "Issues", spec("Issues"), issues)
     Set loS = CreateTable(wsS, "StatusIntervals", spec("StatusIntervals"), UsedRows(wsS))
     Set loF = CreateTable(wsF, "ItemFlow", spec("ItemFlow"), issues)
     Set loD = CreateTable(wsD, "DailyLoad", spec("DailyLoad"), DaysOf(periods) * teams.Count)
     Set loM = CreateTable(wsM, "Metrics", spec("Metrics"), periods.Count * teams.Count)
+    Set loC = CreateTable(wsC, "DataChecks", spec("DataChecks"), checks)
     FillFormulas loS, spec("StatusIntervals")
     FillFormulas loF, spec("ItemFlow")
+    FillFormulas loC, spec("DataChecks")
     FillFormulas loD, spec("DailyLoad")
     FillFormulas loM, spec("Metrics")
     wsD.Columns(1).NumberFormat = "yyyy-mm-dd"
@@ -319,6 +324,21 @@ Private Sub WriteMetricKeys(ByVal ws As Object, ByVal periods As Collection, ByV
     Next p
     ws.Range(ws.Cells(2, 1), ws.Cells(r + 1, 4)).Value = data
 End Sub
+
+Private Function WriteCheckKeys(ByVal ws As Object, ByVal wsSpec As Object) As Long
+    ' Id | Title | Severity, one row per data check of the sheet ChecksSpec. Returns the number of checks.
+    Cov "FLB30"
+    Dim rows As Collection, row As Variant, r As Long, data() As Variant
+    Set rows = ReadTable(wsSpec)
+    WriteCheckKeys = rows.Count
+    If rows.Count = 0 Then Exit Function
+    ReDim data(1 To rows.Count, 1 To 3)
+    For Each row In rows
+        r = r + 1
+        data(r, 1) = AsText(CStr(row("Id"))): data(r, 2) = AsText(CStr(row("Title"))): data(r, 3) = AsText(CStr(row("Severity")))
+    Next row
+    ws.Range(ws.Cells(2, 1), ws.Cells(rows.Count + 1, 3)).Value = data
+End Function
 
 ' --- the dashboard: ChartData (one block of formulas per chart) and the charts -----------------------------------
 

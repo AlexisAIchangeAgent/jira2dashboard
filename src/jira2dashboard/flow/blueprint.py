@@ -8,11 +8,14 @@ tested here without Excel and against the Python reference by the scenario flow_
 """
 from jira2dashboard.flow import dashboard_spec as D
 from jira2dashboard.flow import formulas as F
+from jira2dashboard.flow.checks import CHECKS
 from jira2dashboard.flow.model import ART
 
 SHEET_FORMULAS = "FlowFormulas"
 SHEET_CHARTS = "ChartSpec"
+SHEET_CHECKS = "ChecksSpec"
 FORMULAS_HEADER = ("Table", "Column", "Formula")
+CHECKS_HEADER = F.DATACHECKS_KEYS
 CHARTS_HEADER = ("Name", "Title", "ChartType", "AxisFormat", "SeriesNames", "PointFormula", "NoteFormula",
                  "AnchorRow", "AnchorColumn", "Rows", "Columns")
 
@@ -26,12 +29,19 @@ def formula_rows() -> list[tuple[str, str, str]]:
     rows += [("StatusIntervals", name, text) for name, text in F.INTERVAL_HELPERS]
     rows += [("ItemFlow", name, text) for name, text in F.ITEMFLOW_COLUMNS]
     rows += [("DailyLoad", "Date", ""), ("DailyLoad", "Team", ""), ("DailyLoad", "Load", F.DAILYLOAD_LOAD)]
+    rows += [("DataChecks", key, "") for key in F.DATACHECKS_KEYS]
+    rows += [("DataChecks", name, text) for name, text in F.DATACHECKS_COLUMNS]
     rows += [("Metrics", key, "") for key in F.METRICS_KEYS]
     rows += [("Metrics", name, text) for name, text in F.METRICS_COLUMNS]
     rows += [("Controls", CONTROL_NAMES[0], F.AS_OF_CELL), ("Controls", CONTROL_NAMES[1], F.MODE_CELL)]
     rows += [("Dashboard", "ProgramTeam", ART), ("Dashboard", "AllTeams", D.ALL_TEAMS),
              ("Dashboard", "SelectorCell", D.SELECTOR_CELL)]
     return rows
+
+
+def check_rows() -> list[tuple[str, str, str]]:
+    """The checks of the sheet DataChecks (Id, Title, Severity): VBA writes them as the keys of the table."""
+    return [(c.id, c.title, c.severity) for c in CHECKS]
 
 
 def chart_rows() -> list[tuple]:

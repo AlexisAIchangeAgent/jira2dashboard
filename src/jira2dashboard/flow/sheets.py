@@ -24,7 +24,7 @@ def read_table(wb, sheet: str, name: str) -> tuple[list[str], list[list]]:
 def error_cells(wb) -> dict[str, int]:
     """How many cells of each flow table show an Excel error, by column (a typo in a formula shows here)."""
     found: dict[str, int] = {}
-    for name in ("StatusIntervals", "ItemFlow", "DailyLoad", "Metrics"):
+    for name in ("StatusIntervals", "ItemFlow", "DailyLoad", "Metrics", "DataChecks"):
         header, rows = read_table(wb, name, name)
         for row in rows:
             for column, value in zip(header, row):
@@ -35,12 +35,13 @@ def error_cells(wb) -> dict[str, int]:
 
 
 def write_blueprint(wb, dash=None, button_macro: str | None = None) -> None:
-    """The sheets Issues, StatusIntervals (empty, raw data comes from the extraction), FlowFormulas and ChartSpec (read
-    by modFlowBuild) and the frame of the Dashboard (`dash`: an existing sheet, or a new one)."""
+    """The sheets Issues, StatusIntervals (empty, raw data comes from the extraction), FlowFormulas, ChartSpec and
+    ChecksSpec (read by modFlowBuild) and the frame of the Dashboard (`dash`: an existing sheet, or a new one)."""
     for name in ("Issues", "StatusIntervals"):
         R.add_sheet_after_last(wb, name)
     for name, header, rows in ((B.SHEET_FORMULAS, B.FORMULAS_HEADER, B.formula_rows()),
-                               (B.SHEET_CHARTS, B.CHARTS_HEADER, B.chart_rows())):
+                               (B.SHEET_CHARTS, B.CHARTS_HEADER, B.chart_rows()),
+                               (B.SHEET_CHECKS, B.CHECKS_HEADER, B.check_rows())):
         ws = R.add_sheet_after_last(wb, name)
         R.write_block(ws, 1, 1, [list(header)] + [list(row) for row in rows])      # text: a formula stays text here
         ws.Columns("A:B").ColumnWidth = 28
