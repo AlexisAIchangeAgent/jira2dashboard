@@ -37,7 +37,7 @@ class ParamSheet:
 
 
 CONFIG_PARAMETERS = ("BaseUrl", "Email", "ApiToken", "Filter", "WorkTypeField", "ProxyServer", "ProxyBypass",
-                     "ProxyWindowsAuth", "FlowLoadMode", "AsOf", "TimeoutSeconds", "MaxRetries")
+                     "ProxyWindowsAuth", "FlowLoadMode", "AsOf", "TimeoutSeconds", "MaxRetries", "ParentRequiredTypes")
 PROJECT_ROLES = ("Program", "Team")
 _PROJECT_KEY = re.compile(r"[A-Z][A-Z0-9_]+")
 

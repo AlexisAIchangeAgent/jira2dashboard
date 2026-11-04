@@ -352,8 +352,8 @@ Public Sub T_BaseUrlHttps()
     Check "config", "https is accepted", "https://x.atlassian.net", "https://x.atlassian.net", JiraConfig("https://x.atlassian.net", "me@x.com", "t", "", "", False)("BaseUrl")
     Check "config", "the fake Jira on this computer is accepted", "http://127.0.0.1:8099", "http://127.0.0.1:8099", JiraConfig("http://127.0.0.1:8099/", "me@x.com", "t", "", "", False)("BaseUrl")
     Check "config", "an empty BaseUrl is left to the later check", "", "", JiraConfig("", "me@x.com", "t", "", "", False)("BaseUrl")
-    Check "extract", "only the fields the metrics use", "WorkTypeField customfield_10200", "key,project,issuetype,created,status,customfield_10200", ExtractFields("customfield_10200")
-    Check "extract", "no work type field: not asked", "empty", "key,project,issuetype,created,status", ExtractFields("")
+    Check "extract", "only the fields the metrics use", "WorkTypeField customfield_10200", "key,project,issuetype,created,status,parent,resolutiondate,customfield_10200", ExtractFields("customfield_10200")
+    Check "extract", "no work type field: not asked", "empty", "key,project,issuetype,created,status,parent,resolutiondate", ExtractFields("")
 End Sub
 
 Public Sub T_ParseMoment()
@@ -392,9 +392,10 @@ Public Sub T_ExtractFlowData()
     FakeReset
     FakeAdd "GET", JiraSearchUrl(cfg("BaseUrl"), jql, "", 100, ExtractFields("customfield_10200"), ""), 200, J( _
         "{'issues':[{'id':'10','key':'TTT-1','fields':{'project':{'key':'TTT'},'issuetype':{'name':'Feature'},'created':'2026-10-01" & ts & "'," & _
-        "'status':{'name':'" & pret & "'},'customfield_10200':'Feature'}}," & _
+        "'status':{'name':'" & pret & "','statusCategory':{'key':'indeterminate'}},'parent':null,'resolutiondate':null,'customfield_10200':'Feature'}}," & _
         "{'id':'11','key':'AAA-1','fields':{'project':{'key':'AAA'},'issuetype':{'name':'Story'},'created':'2026-10-01" & ts & "'," & _
-        "'status':{'name':'En analyse'},'customfield_10200':{'value':'Enabler'}}}],'isLast':true}")
+        "'status':{'name':'En analyse','statusCategory':{'key':'done'}},'parent':{'key':'TTT-1'},'resolutiondate':'2026-10-04" & ts & "'," & _
+        "'customfield_10200':{'value':'Enabler'}}}],'isLast':true}")
     body = "{'issueChangeLogs':[{'issueId':'10','changeHistories':[" & _
         "{'id':'1','created':'2026-10-02" & ts & "','items':[{'fieldId':'status','field':'status','fieldtype':'jira','from':'1','fromString':'Nouveau','to':'2','toString':'En analyse'}]}," & _
         "{'id':'2','created':'2026-10-03" & ts & "','items':[{'fieldId':'status','field':'status','fieldtype':'jira','from':'2','fromString':'En analyse','to':'3','toString':'" & pret & "'}]}]}," & _
@@ -403,9 +404,14 @@ Public Sub T_ExtractFlowData()
     FakeAdd "POST", cfg("BaseUrl") & "/rest/api/3/changelog/bulkfetch", 200, J(body)
     ExtractFlowDataTo cfg, jql, "customfield_10200", DateSerial(2026, 10, 5), ThisWorkbook.Worksheets("Projects"), _
                       ThisWorkbook.Worksheets("Workflows"), wsI, wsV
-    Check "extract", "Issues header", "A1:G1", "Key|Id|Project|Type|WorkType|CreatedUtc|Status", _
+    Check "extract", "Issues header", "A1:J1", "Key|Id|Project|Type|WorkType|CreatedUtc|Status|Parent|StatusCategory|ResolvedUtc", _
           wsI.Range("A1").Value & "|" & wsI.Range("B1").Value & "|" & wsI.Range("C1").Value & "|" & wsI.Range("D1").Value & "|" & _
-          wsI.Range("E1").Value & "|" & wsI.Range("F1").Value & "|" & wsI.Range("G1").Value
+          wsI.Range("E1").Value & "|" & wsI.Range("F1").Value & "|" & wsI.Range("G1").Value & "|" & wsI.Range("H1").Value & "|" & _
+          wsI.Range("I1").Value & "|" & wsI.Range("J1").Value
+    Check "extract", "no parent and no resolution: empty cells", "TTT-1", "Empty|indeterminate|Empty", _
+          IIf(IsEmpty(wsI.Range("H2").Value), "Empty", "set") & "|" & wsI.Range("I2").Value & "|" & IIf(IsEmpty(wsI.Range("J2").Value), "Empty", "set")
+    Check "extract", "parent, status category key and resolution date", "AAA-1", "TTT-1|done|" & CDbl(DateSerial(2026, 10, 4)), _
+          wsI.Range("H3").Value & "|" & wsI.Range("I3").Value & "|" & wsI.Range("J3").Value2
     Check "extract", "one row per issue", "TTT-1, AAA-1", "TTT-1|AAA-1", wsI.Range("A2").Value & "|" & wsI.Range("A3").Value
     Check "extract", "project, type and status", "TTT-1", "TTT|Feature|" & pret, wsI.Range("C2").Value & "|" & wsI.Range("D2").Value & "|" & wsI.Range("G2").Value
     Check "extract", "work type as text", "customfield_10200", "Feature", wsI.Range("E2").Value
@@ -427,14 +433,15 @@ Private Sub FlowRaw(ByVal withStory As Boolean)
     ' Raw sheets as the extraction writes them: a Program feature, and (optionally) a team story with two intervals.
     Dim issues As New Collection, ivs As New Collection, t0 As Date
     t0 = DateSerial(2026, 10, 1)
-    issues.Add Array("TTT-1", "10", "TTT", "Feature", "Feature", t0, "Nouveau")
+    issues.Add Array("TTT-1", "10", "TTT", "Feature", "Feature", t0, "Nouveau", Empty, "new", Empty)
     ivs.Add Array("TTT-1", "Feature", 1, "Nouveau", "Backlog", t0, Empty, 4, True, "1", "")
     If withStory Then
-        issues.Add Array("AAA-1", "11", "AAA", "Story", "Enabler", t0, "En analyse")
+        issues.Add Array("AAA-1", "11", "AAA", "Story", "Enabler", t0, "En analyse", "TTT-1", "indeterminate", Empty)
         ivs.Add Array("AAA-1", "Team", 1, "Nouveau", "Backlog", t0, t0 + 1, 1, False, "1", "")
         ivs.Add Array("AAA-1", "Team", 2, "En analyse", "Active", t0 + 1, Empty, 3, True, "2", "")
     End If
-    WriteTable ThisWorkbook.Worksheets("Issues"), Array("Key", "Id", "Project", "Type", "WorkType", "CreatedUtc", "Status"), issues
+    WriteTable ThisWorkbook.Worksheets("Issues"), Array("Key", "Id", "Project", "Type", "WorkType", "CreatedUtc", "Status", "Parent", _
+        "StatusCategory", "ResolvedUtc"), issues
     WriteTable ThisWorkbook.Worksheets("StatusIntervals"), Array("Key", "Workflow", "Seq", "Status", "Category", "EnteredUtc", _
         "LeftUtc", "DurationDays", "IsOpen", "ChangeId", "Check"), ivs
 End Sub
@@ -483,8 +490,8 @@ Public Sub T_FlowBuild()
     Check "flowbuild", "DailyLoad: one row per day and team", "28 days x 9", 28 * teams, TableRows("DailyLoad")
     Check "flowbuild", "Metrics: one row per period and team", "2 periods x 9", 2 * teams, TableRows("Metrics")
     Check "flowbuild", "seven charts", "Dashboard", 7, dash.ChartObjects.Count
-    Check "flowbuild", "DataChecks: one row per check of ChecksSpec", "6 checks", 6, TableRows("DataChecks")
-    Check "flowbuild", "DataChecks: the first check and its result", "DC06", "DC06", wb.Worksheets("DataChecks").Range("A2").Value
+    Check "flowbuild", "DataChecks: one row per check of ChecksSpec", "9 checks", 9, TableRows("DataChecks")
+    Check "flowbuild", "DataChecks: the first check", "DC01", "DC01", wb.Worksheets("DataChecks").Range("A2").Value
     Check "flowbuild", "one series per team in the Velocity chart", "Velocity", teams, dash.ChartObjects("velocity").Chart.SeriesCollection.Count
     Check "flowbuild", "one series per work type in the Distribution chart", "flow_distribution", 5, dash.ChartObjects("flow_distribution").Chart.SeriesCollection.Count
     Check "flowbuild", "the formulas give the issue keys", "ItemFlow.Key", "TTT-1|AAA-1", _

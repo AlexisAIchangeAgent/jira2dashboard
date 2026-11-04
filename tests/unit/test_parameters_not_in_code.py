@@ -24,8 +24,8 @@ STATUS_NAMES = sorted({_ascii(row[2]) for row in _SHEETS["Workflows"].rows})
 EXTRACT_COLUMNS = [row[0] for row in _SHEETS["FieldMapping"].rows]
 # Same word, other meaning: `resp("Status")` is the HTTP status code key of the response dictionary
 # (modHttp, modJira), not the Jira "Status" column.
-# "Type" is the header of the Issues sheet written by modExtract (a sheet header, not a mapping).
-HTTP_IDENTIFIERS = {"Status", "Type"}
+# "Type" and "Parent" are headers of the Issues sheet written by modExtract (sheet headers, not a mapping).
+HTTP_IDENTIFIERS = {"Status", "Type", "Parent"}
 _STRING = re.compile(r'"((?:[^"]|"")*)"')
 
 

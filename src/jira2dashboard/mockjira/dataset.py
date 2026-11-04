@@ -102,6 +102,7 @@ class Issue:
     business_value: int | None = None
     pi: str | None = None
     due: dt.date | None = None
+    resolution_override: tuple[dt.datetime | None] | None = None    # anomaly: (resolved at,) or (None,) = no resolution date
 
     @property
     def status(self) -> str:
@@ -140,6 +141,9 @@ class Dataset:
 
     def resolution(self, issue: Issue) -> tuple[str, dt.datetime] | None:
         """(resolution name, resolved at) when the issue sits in an end or removed status; else None."""
+        if issue.resolution_override is not None:
+            at = issue.resolution_override[0]
+            return None if at is None else ("Done", at)
         status = issue.status
         category = self.catalog.categories.get((issue.workflow, status))
         if category not in ("Done", "Removed"):

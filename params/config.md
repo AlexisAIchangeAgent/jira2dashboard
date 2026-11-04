@@ -19,3 +19,4 @@ empty here, and **`ApiToken` must stay empty** (a test refuses a token in this f
 | AsOf |  | UTC date and time of the extraction, for example 2026-11-03 18:00. Open statuses run up to it. Required to extract: the macro stops with a message if it is empty |
 | TimeoutSeconds | 60 | Connect, send and receive time limit of one request, in seconds |
 | MaxRetries | 4 | Retries after a 429 or a server error (5xx), so 5 attempts at most |
+| ParentRequiredTypes | Story,Task | Issue types of the team projects that must have a parent (data check DC01), separated by commas |

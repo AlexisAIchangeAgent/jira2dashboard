@@ -1,9 +1,10 @@
 """Issues with known data anomalies, to test the data checks (flow/checks.py) on the fake Jira.
 
 Each case is written by hand with the ids of the checks it must trigger. The generated issues follow the allowed
-moves, so they trigger none of these checks.
+moves and have a parent when their type needs one, so they trigger none of the status-history checks.
 """
 import dataclasses
+import datetime as dt
 
 from jira2dashboard.mockjira.dataset import Dataset, Issue, issue
 
@@ -18,17 +19,26 @@ def known_anomalies(project: str) -> dict[Issue, frozenset[str]]:
     chain = (("2026-10-02T10:00", "En analyse"), ("2026-10-03T10:00", "Prêt"), ("2026-10-04T10:00", "Planifié"),
              ("2026-10-05T10:00", "En développement"), ("2026-10-06T10:00", "En test"),
              ("2026-10-07T10:00", "À déployer"), ("2026-10-08T10:00", "Terminé"))
-    skipped = issue(key(0), moves=(("2026-10-02T10:00", "Terminé"),))
-    reopened = issue(key(1), moves=chain + (("2026-10-09T10:00", "En développement"),))
-    unknown = issue(key(2), moves=chain[:1] + (("2026-10-03T10:00", "Statut inconnu"),))
-    clean = issue(key(3), moves=chain[:2])
-    wrong_from = issue(key(4), moves=chain[:2])
+    parent = f"{project}-1"                                   # every case has a parent but the orphan
+
+    def case(n: int, moves, **fields):
+        return issue(key(n), moves=moves, parent=parent, **fields)
+
+    skipped = case(0, (("2026-10-02T10:00", "Terminé"),))
+    reopened = case(1, chain + (("2026-10-09T10:00", "En développement"),))
+    unknown = case(2, chain[:1] + (("2026-10-03T10:00", "Statut inconnu"),))
+    clean = case(3, chain[:2])
+    wrong_from = case(4, chain[:2])
     wrong_from = dataclasses.replace(wrong_from, changes=(
         wrong_from.changes[0], dataclasses.replace(wrong_from.changes[1], from_status="Planifié")))
-    before_created = issue(key(5), moves=(("2026-09-30T10:00", "En analyse"), ("2026-10-02T10:00", "Prêt")))
+    before_created = case(5, (("2026-09-30T10:00", "En analyse"), ("2026-10-02T10:00", "Prêt")))
+    orphan = issue(key(6), moves=chain[:2])
+    unresolved = case(7, chain, resolution_override=(None,))
+    resolved_early = case(8, chain[:2], resolution_override=(dt.datetime(2026, 10, 3, 10, 0),))
     return {skipped: frozenset({"DC09", "DC28"}), reopened: frozenset({"DC10", "DC28"}),
             unknown: frozenset({"DC08", "DC28"}), clean: frozenset(), wrong_from: frozenset({"DC06"}),
-            before_created: frozenset({"DC07"})}
+            before_created: frozenset({"DC07"}), orphan: frozenset({"DC01"}), unresolved: frozenset({"DC04"}),
+            resolved_early: frozenset({"DC05"})}
 
 
 def with_anomalies(dataset: Dataset, project: str) -> tuple[Dataset, dict[str, frozenset[str]]]:

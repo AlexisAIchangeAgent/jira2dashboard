@@ -12,8 +12,12 @@ def to_flow_issues(dataset: Dataset, sheets: list[ParamSheet] | None = None) -> 
     for issue in dataset.issues:
         role, team = projects[issue.project]
         program = role == "Program"
+        workflow = "Feature" if program else "Team"
+        resolution = dataset.resolution(issue)
         out.append(FlowIssue(
             key=issue.key, team=ART if program else team, type=issue.type, work_type=issue.work_type,
-            workflow="Feature" if program else "Team", created=issue.created, status=issue.status,
-            changes=tuple(Change(c.id, c.at, c.from_status, c.to_status) for c in issue.changes)))
+            workflow=workflow, created=issue.created, status=issue.status,
+            changes=tuple(Change(c.id, c.at, c.from_status, c.to_status) for c in issue.changes),
+            parent=issue.parent, resolved=resolution[1] if resolution else None,
+            status_category=dataset.catalog.jira_category(workflow, issue.status)[0]))
     return out

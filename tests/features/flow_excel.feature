@@ -26,7 +26,7 @@ Fonctionnalité: Le classeur livré extrait Jira et calcule les mêmes chiffres 
     Et la feuille ChartData reproduit les métriques de la référence Python en mode "B", avec #N/A pour « not computable »
 
   @excel
-  Scénario: Les contrôles de données DC06 à DC10 et DC28 trouvent les anomalies connues et rien d'autre
+  Scénario: Les contrôles de données DC01, DC04 à DC10 et DC28 trouvent les anomalies connues et rien d'autre
     Soit un faux Jira avec 150 tickets générés et les anomalies de données connues
     Et le classeur à livrer dont la feuille Config pointe sur ce faux Jira avec FlowLoadMode "A"
     Et les itérations de 14 jours depuis le "2026-08-17" jusqu'à la date de référence dans la feuille Periods

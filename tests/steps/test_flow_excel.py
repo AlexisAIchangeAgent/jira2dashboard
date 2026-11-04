@@ -14,7 +14,7 @@ from jira2dashboard.flow.itemflow import item_flow
 from jira2dashboard.flow.load import daily_load
 from jira2dashboard.flow.metrics import BUCKETS, flow_metrics
 from jira2dashboard.flow.model import NOT_COMPUTABLE, Period, Rules
-from jira2dashboard.flow.checks import CHECKS, IDS, Moves, issue_checks
+from jira2dashboard.flow.checks import CHECKS, IDS, Moves, issue_checks, parent_required_types
 from jira2dashboard.mockjira.anomalies import with_anomalies
 from jira2dashboard.mockjira.flow_adapter import to_flow_issues
 from jira2dashboard.mockjira.generator import generate
@@ -208,7 +208,8 @@ def _itemflow(world):
 @then("la table DataChecks et les colonnes DC de ItemFlow reproduisent les contrôles de la référence Python")
 def _data_checks(world):
     as_of, rules, moves = world["dataset"].as_of, world["rules"], Moves.from_params()
-    expected = {i.key: issue_checks(i, as_of, rules, moves) for i in to_flow_issues(world["dataset"])}
+    parent_types = parent_required_types()
+    expected = {i.key: issue_checks(i, as_of, rules, moves, parent_types) for i in to_flow_issues(world["dataset"])}
     flags = {row["Key"]: {c for c in IDS if row[c] == 1} for row in table_dicts(world["wb"], "ItemFlow")}
     assert flags == {key: set(ids) for key, ids in expected.items()}
     assert all(row[c] in (0, 1) for row in table_dicts(world["wb"], "ItemFlow") for c in IDS)
@@ -219,7 +220,9 @@ def _data_checks(world):
         row = rows[check.id]
         assert (row["Title"], row["Severity"], row["Items"], row["Result"]) == (
             check.title, check.severity, count, "OK" if count == 0 else "KO"), check.id
-    assert sum(1 for ids in expected.values() if ids) == len({k for k, v in world["anomalies"].items() if v})   # only the cases fail
+    # outside the cases only the generated tasks and stories without a parent fail (DC01)
+    assert all(ids == {"DC01"} for key, ids in expected.items() if ids and key not in world["anomalies"])
+    assert sum(1 for ids in expected.values() if "DC01" in ids) > 5
 
 
 @then("chaque anomalie connue est trouvée par les contrôles qui lui correspondent et seulement par eux")

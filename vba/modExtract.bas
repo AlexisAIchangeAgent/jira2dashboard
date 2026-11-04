@@ -36,9 +36,14 @@ Private Function WorkTypeOf(ByVal issue As Variant, ByVal fieldId As String) As 
     If Not IsNull(v) Then WorkTypeOf = v
 End Function
 
+Private Function TextOrEmpty(ByVal v As Variant) As Variant
+    ' A JSON null (or a missing field) is an empty cell, not the text "Null".
+    If IsNull(v) Or IsEmpty(v) Then TextOrEmpty = Empty Else TextOrEmpty = CStr(v)
+End Function
+
 Public Function ExtractFields(ByVal workTypeField As String) As String
     ' The Jira fields the extraction reads: the rest (comments, descriptions, attachments) is not downloaded.
-    ExtractFields = "key,project,issuetype,created,status" & IIf(Len(workTypeField) > 0, "," & workTypeField, "")
+    ExtractFields = "key,project,issuetype,created,status,parent,resolutiondate" & IIf(Len(workTypeField) > 0, "," & workTypeField, "")
 End Function
 
 Public Sub ExtractFlowDataTo(ByVal cfg As Object, ByVal jql As String, ByVal workTypeField As String, _
@@ -47,7 +52,7 @@ Public Sub ExtractFlowDataTo(ByVal cfg As Object, ByVal jql As String, ByVal wor
                              Optional ByVal clearDerived As Boolean = False)
     ' clearDerived: after everything was read from Jira, and only then, empty the sheets of an earlier run (a failed
     ' extraction therefore leaves the previous results as they were).
-    ' Issues: Key | Id | Project | Type | WorkType | CreatedUtc | Status.
+    ' Issues: Key | Id | Project | Type | WorkType | CreatedUtc | Status | Parent | StatusCategory | ResolvedUtc.
     ' StatusIntervals: Key | Workflow | Seq | Status | Category | EnteredUtc | LeftUtc | DurationDays | IsOpen | ChangeId | Check.
     ' The Program follows the Feature workflow, every other project the Team workflow (sheet Projects).
     Cov "MEX01"
@@ -60,7 +65,9 @@ Public Sub ExtractFlowDataTo(ByVal cfg As Object, ByVal jql As String, ByVal wor
     For Each issue In issues
         rows.Add Array(JGet(issue, "key"), JGet(issue, "id"), JPath(issue, "fields.project.key"), _
                        JPath(issue, "fields.issuetype.name"), WorkTypeOf(issue, workTypeField), _
-                       ParseJiraDate(JPath(issue, "fields.created")), JPath(issue, "fields.status.name"))
+                       ParseJiraDate(JPath(issue, "fields.created")), JPath(issue, "fields.status.name"), _
+                       TextOrEmpty(JPath(issue, "fields.parent.key")), TextOrEmpty(JPath(issue, "fields.status.statusCategory.key")), _
+                       ParseJiraDate(JPath(issue, "fields.resolutiondate")))
         keys.Add JGet(issue, "key")
         idToKey(CStr(JGet(issue, "id"))) = JGet(issue, "key")
     Next issue
@@ -82,7 +89,8 @@ Public Sub ExtractFlowDataTo(ByVal cfg As Object, ByVal jql As String, ByVal wor
         Next iv
     Next wf
     If clearDerived Then ClearFlowSheets ThisWorkbook
-    WriteTable wsIssues, Array("Key", "Id", "Project", "Type", "WorkType", "CreatedUtc", "Status"), rows
+    WriteTable wsIssues, Array("Key", "Id", "Project", "Type", "WorkType", "CreatedUtc", "Status", "Parent", "StatusCategory", _
+                               "ResolvedUtc"), rows
     WriteTable wsIntervals, Array("Key", "Workflow", "Seq", "Status", "Category", "EnteredUtc", "LeftUtc", _
                                   "DurationDays", "IsOpen", "ChangeId", "Check"), out
 End Sub

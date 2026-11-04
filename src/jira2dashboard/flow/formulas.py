@@ -17,7 +17,7 @@ CATEGORIES_IN_PROCESS = ("Active", "Wait", "Unclassified")
 BUCKETS = ("Feature", "Enabler", "Defect", "Autre", "Unmapped")
 WORK_TYPES = BUCKETS[:-1]
 
-ISSUES = ("Key", "Id", "Project", "Type", "WorkType", "CreatedUtc", "Status")
+ISSUES = ("Key", "Id", "Project", "Type", "WorkType", "CreatedUtc", "Status", "Parent", "StatusCategory", "ResolvedUtc")
 INTERVALS_RAW = ("Key", "Workflow", "Seq", "Status", "Category", "EnteredUtc", "LeftUtc", "DurationDays", "IsOpen",
                  "ChangeId", "Check")
 
@@ -60,6 +60,9 @@ def _days(category: str) -> str:
             f'{SI}[EnteredUtc],"<"&([@DoneUtc]-{HALF})))')
 
 
+# Config.ParentRequiredTypes without the spaces around the commas (DC01)
+_PARENT_TYPES = ('SUBSTITUTE(SUBSTITUTE(TRIM(INDEX(Config!$B:$B,MATCH("ParentRequiredTypes",Config!$A:$A,0))),", ",",")," ,",",")')
+
 ITEMFLOW_COLUMNS = (
     ("Key", f"=INDEX({IS}[Key],{_row_index(IF_)})"),
     ("Project", f"=INDEX({IS}[Project],{_row_index(IF_)})"),
@@ -91,6 +94,10 @@ ITEMFLOW_COLUMNS = (
     ("WorkTypeBucket", "=IF(OR(" + ",".join(f'[@WorkType]="{w}"' for w in WORK_TYPES) + '),[@WorkType],"Unmapped")'),
     ("EndUtc", f'=IF([@DoneUtc]<>"",[@DoneUtc],IF([@RemovedUtc]<>"",[@RemovedUtc],{FAR}))'),
     # data checks (1 = this issue fails the check), see flow/checks.py
+    ("DC01", f'=IF(AND([@Role]="Team",ISNUMBER(SEARCH(","&[@Type]&",",","&{_PARENT_TYPES}&",")),'
+             f'INDEX({IS}[Parent],{_row_index(IF_)})=""),1,0)'),
+    ("DC04", f'=IF(AND(INDEX({IS}[StatusCategory],{_row_index(IF_)})="done",INDEX({IS}[ResolvedUtc],{_row_index(IF_)})=""),1,0)'),
+    ("DC05", f'=IF(AND(INDEX({IS}[StatusCategory],{_row_index(IF_)})<>"done",INDEX({IS}[ResolvedUtc],{_row_index(IF_)})<>""),1,0)'),
     ("DC06", f'=IF(COUNTIFS({SI}[Key],[@Key],{SI}[Check],"*MISMATCH*")>0,1,0)'),
     ("DC07", f'=IF(COUNTIFS({SI}[Key],[@Key],{SI}[Check],"*BEFORE_CREATED*")>0,1,0)'),
     ("DC08", f'=IF(COUNTIFS({SI}[Key],[@Key],{SI}[Category],"Unclassified")>0,1,0)'),

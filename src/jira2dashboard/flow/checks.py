@@ -1,10 +1,12 @@
-"""Data checks that the extraction alone can make: DC06 to DC10 and DC28 (docs/safe-flow-metrics-and-data-checks.md, section 3).
+"""Data checks that the extraction can make: DC01, DC04 to DC10 and DC28 (docs/safe-flow-metrics-and-data-checks.md, section 3).
 
-Pure. The Excel formulas (formulas.py, columns DC06.. of ItemFlow and sheet DataChecks) are tested against `issue_checks`,
-the reference written here from the status history. The other checks (DC01 to DC05, DC11 to DC27, DC29) need Jira fields that
-the extraction does not read yet.
+Pure. The Excel formulas (formulas.py, columns DC.. of ItemFlow and sheet DataChecks) are tested against `issue_checks`,
+the reference written here from the issue fields and the status history. The other checks (DC02, DC03, DC11 to DC27, DC29)
+need Jira fields that the extraction does not read yet, or a list of feature types.
 
 Choices (proposals, the document says only "StatusIntervals[Check] contains it"):
+* DC01 applies to the issues of the Team workflow whose type is in `Config.ParentRequiredTypes` (default Story, Task).
+* DC04 and DC05 use the Jira status category (key `done`) and the resolution date.
 * DC06 covers FROM_MISMATCH (a change starts from a status that is not the one the issue was in) and CURRENT_MISMATCH (the
   history does not end in the status the issue has now): both say "the status history is inconsistent".
 * DC28 compares the status of two consecutive intervals, so it follows what the intervals show, with Transitions and IsFree.
@@ -25,6 +27,9 @@ class Check:
 
 
 CHECKS = (
+    Check("DC01", "Story or task without parent", "Blocker"),
+    Check("DC04", "Done without resolution date", "Major"),
+    Check("DC05", "Resolution date but not done", "Major"),
     Check("DC06", "Status history inconsistent (FROM_MISMATCH or CURRENT_MISMATCH)", "Major"),
     Check("DC07", "Status change dated before the creation of the issue (BEFORE_CREATED)", "Major"),
     Check("DC08", "Status not in Workflows (category Unclassified)", "Blocker for efficiency"),
@@ -50,9 +55,24 @@ class Moves:
         return (workflow, source, target) in self._rows
 
 
-def issue_checks(issue: FlowIssue, as_of: dt.datetime, rules: Rules, moves: Moves) -> frozenset[str]:
+def parent_required_types(sheets: list[ParamSheet] | None = None) -> frozenset[str]:
+    """Config.ParentRequiredTypes: the issue types that must have a parent (comma separated)."""
+    config = next(s for s in (sheets or load_all()) if s.name == "Config")
+    value = next((row[1] for row in config.rows if row[0] == "ParentRequiredTypes"), None) or ""
+    return frozenset(t.strip() for t in str(value).split(",") if t.strip())
+
+
+def issue_checks(issue: FlowIssue, as_of: dt.datetime, rules: Rules, moves: Moves,
+                 parent_types: frozenset[str]) -> frozenset[str]:
     """The ids of the checks that this issue fails."""
     found: set[str] = set()
+    done = issue.status_category == "done"
+    if issue.workflow == "Team" and issue.type in parent_types and not issue.parent:
+        found.add("DC01")
+    if done and issue.resolved is None:
+        found.add("DC04")
+    if not done and issue.resolved is not None:
+        found.add("DC05")
     changes = sorted(issue.changes, key=lambda c: (c.at, c.id))
     status = changes[0].from_status if changes else issue.status
     entered = issue.created

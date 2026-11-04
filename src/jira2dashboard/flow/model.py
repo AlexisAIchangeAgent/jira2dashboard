@@ -57,6 +57,9 @@ class FlowIssue:
     created: dt.datetime
     status: str                    # current status
     changes: tuple[Change, ...] = ()
+    parent: str | None = None      # key of the parent issue (data check DC01)
+    resolved: dt.datetime | None = None            # resolution date (DC04, DC05)
+    status_category: str = ""      # Jira status category key: new, indeterminate or done (DC04, DC05)
 
 
 @dataclass(frozen=True)
