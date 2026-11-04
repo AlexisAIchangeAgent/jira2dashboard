@@ -20,3 +20,15 @@ empty here, and **`ApiToken` must stay empty** (a test refuses a token in this f
 | TimeoutSeconds | 60 | Connect, send and receive time limit of one request, in seconds |
 | MaxRetries | 4 | Retries after a 429 or a server error (5xx), so 5 attempts at most |
 | ParentRequiredTypes | Story,Task | Issue types of the team projects that must have a parent (data check DC01), separated by commas |
+| FeatureTypes | Feature | Issue types that are features (data checks DC02, DC17-DC21, DC24, DC26), separated by commas |
+| SubTaskTypes | Sub-task | Issue types that are sub-tasks (data checks DC03, DC12), separated by commas |
+| PointsRequiredTypes | Story | Issue types that must have story points in an active or future sprint (data check DC11), separated by commas |
+| StoryPointsField |  | Id of the story points field, for example customfield_10016 (data checks DC11, DC12). Empty = those checks are not computable |
+| BusinessValueField |  | Id of the Business Value field (data check DC21). Empty = not computable |
+| PIField |  | Id of the PI field holding PI#XX-YYYY (data checks DC17, DC18, DC29). Empty = not computable |
+| TeamField |  | Id of the Team field (data checks DC13, DC14). Empty = not computable |
+| SprintField |  | Id of the Sprint field (data checks DC11, DC15, DC16, DC18, DC22, DC23). Empty = not computable |
+| TargetStartField |  | Id of the Target start date field (data checks DC19, DC20). Empty = not computable |
+| TargetEndField |  | Id of the Target end date field (data checks DC19, DC20). Empty = not computable |
+| BlocksLinkType | Blocks | Name of the issue link type that means blocks (data checks DC22, DC23) |
+| FillRateThreshold | 90 | Minimum percentage of filled values per field, team and issue type (data check DC25) |

@@ -25,6 +25,10 @@ class FieldIds:
     work_type: str = "customfield_10200"
     pi: str = "customfield_10300"
     business_value: str = "customfield_10301"
+    team: str = "customfield_10400"
+    sprint: str = "customfield_10020"
+    target_start: str = "customfield_10401"
+    target_end: str = "customfield_10402"
 
     def catalog(self) -> list[dict]:
         """GET /rest/api/3/field: system and custom fields (id, name, custom, schema)."""
@@ -45,6 +49,9 @@ class FieldIds:
             custom(self.work_type, "Work type", "string"),
             custom(self.pi, "PI", "string"),
             custom(self.business_value, "Business Value", "number"),
+            custom(self.team, "Team", "team"), custom(self.sprint, "Sprint", "array"),
+            custom(self.target_start, "Target start", "date"), custom(self.target_end, "Target end", "date"),
+            system("issuelinks", "Linked Issues", "array"),
         ]
 
 
@@ -82,6 +89,16 @@ class Change:
 
 
 @dataclass(frozen=True)
+class Sprint:
+    """A sprint an issue belongs to (the Sprint field holds the sprints of the issue, oldest first)."""
+    id: int
+    name: str
+    state: str                         # future, active or closed
+    start: dt.datetime
+    end: dt.datetime
+
+
+@dataclass(frozen=True)
 class Issue:
     key: str
     id: str
@@ -102,6 +119,12 @@ class Issue:
     business_value: int | None = None
     pi: str | None = None
     due: dt.date | None = None
+    team: str | None = None            # value of the Team field
+    sprints: tuple[Sprint, ...] = ()
+    target_start: dt.date | None = None
+    target_end: dt.date | None = None
+    blocks: tuple[str, ...] = ()       # keys of the issues that this issue blocks (issue links of type Blocks)
+    key_changes: tuple[dt.datetime, ...] = ()      # moves between projects (the key changed)
     resolution_override: tuple[dt.datetime | None] | None = None    # anomaly: (resolved at,) or (None,) = no resolution date
 
     @property

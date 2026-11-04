@@ -37,7 +37,10 @@ class ParamSheet:
 
 
 CONFIG_PARAMETERS = ("BaseUrl", "Email", "ApiToken", "Filter", "WorkTypeField", "ProxyServer", "ProxyBypass",
-                     "ProxyWindowsAuth", "FlowLoadMode", "AsOf", "TimeoutSeconds", "MaxRetries", "ParentRequiredTypes")
+                     "ProxyWindowsAuth", "FlowLoadMode", "AsOf", "TimeoutSeconds", "MaxRetries", "ParentRequiredTypes",
+                     "FeatureTypes", "SubTaskTypes", "PointsRequiredTypes", "StoryPointsField", "BusinessValueField",
+                     "PIField", "TeamField", "SprintField", "TargetStartField", "TargetEndField", "BlocksLinkType",
+                     "FillRateThreshold")
 PROJECT_ROLES = ("Program", "Team")
 _PROJECT_KEY = re.compile(r"[A-Z][A-Z0-9_]+")
 
@@ -45,6 +48,7 @@ SPECS = (
     SheetSpec("Config", "config.md", ("Parameter", "Value", "Description")),
     SheetSpec("Projects", "projects.md", ("Project", "Role", "Team")),
     SheetSpec("Periods", "periods.md", ("Period", "Start", "End")),
+    SheetSpec("PIs", "pis.md", ("PI", "Start", "End")),
     SheetSpec("Workflows", "workflows.md",
               ("Workflow", "Order", "Status", "Category", "IsStart", "IsEnd", "IsFree"),
               frozenset({"Order", "IsStart", "IsEnd", "IsFree"})),
@@ -184,6 +188,9 @@ def _check_config(sheet: ParamSheet, problems: list[str]) -> None:
         text = values.get(name)
         if text is None or not text.isdecimal() or int(text) < minimum:
             problems.append(f"Config: {name} must be a whole number >= {minimum}, got {text!r}")
+    threshold = values.get("FillRateThreshold")
+    if threshold is None or not threshold.isdecimal() or not 0 <= int(threshold) <= 100:
+        problems.append(f"Config: FillRateThreshold must be a whole number between 0 and 100, got {threshold!r}")
     base = values.get("BaseUrl")
     if base and not base.lower().startswith(("http://", "https://")):
         problems.append(f"Config: BaseUrl must start with http:// or https://, got {base!r}")
@@ -208,21 +215,24 @@ def _parse_moment(text: str):
         return None
 
 
-def _check_periods(sheet: ParamSheet, problems: list[str]) -> None:
+def _check_periods(sheet: ParamSheet, problems: list[str], column: str = "Period") -> None:
+    """Periods (column Period) and PIs (column PI): a name, two dates, Start before End, no name twice."""
     seen: Counter = Counter()
+    label = sheet.name
+    noun = column.lower() if column == "PI" else "period"
     for number, rec in _records(sheet):
-        where = f"Periods row {number}"
+        where = f"{label} row {number}"
         start, end = _parse_moment(rec["Start"] or ""), _parse_moment(rec["End"] or "")
-        if not rec["Period"]:
-            problems.append(f"{where}: Period needs a name")
+        if not rec[column]:
+            problems.append(f"{where}: {column} needs a name")
         if start is None or end is None:
             problems.append(f"{where}: Start and End must be dates such as 2026-10-05, got {rec['Start']!r} and {rec['End']!r}")
         elif start >= end:
             problems.append(f"{where}: Start must be before End")
-        seen[rec["Period"]] += 1
+        seen[rec[column]] += 1
     for name, count in seen.items():
         if count > 1:
-            problems.append(f"Periods: period {name!r} listed twice")
+            problems.append(f"{label}: {noun} {name!r} listed twice")
 
 
 def _check_projects(sheet: ParamSheet, problems: list[str]) -> None:
@@ -263,6 +273,8 @@ def load_all(params_dir: Path = PARAMS_DIR) -> list[ParamSheet]:
         _check_projects(sheets["Projects"], problems)
     if sheets["Periods"]:
         _check_periods(sheets["Periods"], problems)
+    if sheets["PIs"]:
+        _check_periods(sheets["PIs"], problems, "PI")
     if sheets["Workflows"]:
         _check_workflows(sheets["Workflows"], problems)
     if sheets["Transitions"] and sheets["Workflows"]:

@@ -60,6 +60,19 @@ class FlowIssue:
     parent: str | None = None      # key of the parent issue (data check DC01)
     resolved: dt.datetime | None = None            # resolution date (DC04, DC05)
     status_category: str = ""      # Jira status category key: new, indeterminate or done (DC04, DC05)
+    fix_versions: tuple[str, ...] = ()
+    story_points: float | None = None
+    pi: str | None = None          # value of the PI field, as typed
+    business_value: float | None = None
+    team_value: str | None = None  # value of the Team field
+    sprint_state: str = ""         # state of the current sprint: active, else future, else closed; "" = no sprint
+    sprint_start: dt.datetime | None = None        # dates of that sprint
+    sprint_end: dt.datetime | None = None
+    sprint_count: int = 0          # number of sprints in the Sprint field
+    target_start: dt.datetime | None = None
+    target_end: dt.datetime | None = None
+    blocks: tuple[str, ...] = ()   # keys of the issues that this issue blocks
+    key_changes: int = 0           # moves between projects
 
 
 @dataclass(frozen=True)

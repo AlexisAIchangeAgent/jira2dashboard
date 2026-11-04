@@ -120,5 +120,5 @@ table in the handoff whenever a `.bas` changes. `README.md` (French) covers deli
 
 ## Roadmap not done yet (ask before starting)
 
-Data checks DC02, DC03, DC11-DC27, DC29 (need more Jira fields in the extraction); progress bar and cancel during extraction;
+Progress bar and cancel during extraction;
 daily Flow Load curve and 80-100 % Predictability band. Real test at the client machine is still to be done by AL.

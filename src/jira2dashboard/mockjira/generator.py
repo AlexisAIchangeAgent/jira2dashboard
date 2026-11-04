@@ -8,7 +8,9 @@ import datetime as dt
 import random
 from collections import defaultdict
 
-from jira2dashboard.mockjira.dataset import Change, Dataset, FieldIds, Issue, StatusCatalog
+import dataclasses
+
+from jira2dashboard.mockjira.dataset import Change, Dataset, FieldIds, Issue, Sprint, StatusCatalog
 from jira2dashboard.params.model import ParamSheet, load_all
 
 DEFAULT_PROJECTS = ("PRG", "TA", "TB")      # the first project is the Program (features), the others are teams
@@ -96,6 +98,45 @@ def _new_issue(rng, key, issue_id, project, type_, work_type, workflow_name, wf,
         due=None)
 
 
+SPRINT_DAYS = 14
+FIRST_SPRINT = dt.datetime(2026, 6, 1)
+
+
+def _sprint(number: int, as_of: dt.datetime) -> Sprint:
+    start = FIRST_SPRINT + dt.timedelta(days=SPRINT_DAYS * (number - 1))
+    end = start + dt.timedelta(days=SPRINT_DAYS)
+    state = "closed" if end <= as_of else "active" if start <= as_of else "future"
+    return Sprint(number, f"Sprint {number}", state, start, end)
+
+
+def _decorate(issues: list[Issue], seed: int, as_of: dt.datetime, teams: dict[str, str]) -> list[Issue]:
+    """Team, sprints, target dates, fix versions and "blocks" links, from a second random stream so that the status
+    histories of a seed stay what they were. Most issues are clean; a share has gaps (no team, no sprint, ...)."""
+    rng = random.Random(seed + 7919)
+    keys_by_project: dict[str, list[str]] = defaultdict(list)
+    out: list[Issue] = []
+    for item in issues:
+        is_feature = item.type == "Feature"
+        sprints: tuple[Sprint, ...] = ()
+        if not is_feature and rng.random() < 0.8:
+            first = int((item.created - FIRST_SPRINT).days // SPRINT_DAYS) + 1
+            sprints = tuple(_sprint(max(first, 1) + n, as_of) for n in range(rng.choice((1, 1, 1, 2, 3))))
+        target_start = target_end = None
+        if is_feature and rng.random() < 0.75:
+            target_start = (item.created + dt.timedelta(days=rng.randint(0, 20))).date()
+            target_end = target_start + dt.timedelta(days=rng.randint(30, 90))
+        blocks: tuple[str, ...] = ()
+        if item.type in ("Story", "Task") and keys_by_project[item.project] and rng.random() < 0.08:
+            blocks = (rng.choice(keys_by_project[item.project]),)
+        out.append(dataclasses.replace(
+            item, team=teams.get(item.project) if rng.random() < 0.85 else None, sprints=sprints,
+            target_start=target_start, target_end=target_end, blocks=blocks,
+            fix_versions=("R1",) if is_feature and rng.random() < 0.5 else ()))
+        if item.type in ("Story", "Task"):
+            keys_by_project[item.project].append(item.key)
+    return out
+
+
 def generate(seed: int = 1, issues: int = 1200, as_of: dt.datetime = dt.datetime(2026, 11, 3, 18, 0),
              since: dt.datetime = dt.datetime(2026, 6, 1), sheets: list[ParamSheet] | None = None,
              projects: tuple[str, ...] = DEFAULT_PROJECTS, fields: FieldIds | None = None) -> Dataset:
@@ -139,5 +180,6 @@ def generate(seed: int = 1, issues: int = 1200, as_of: dt.datetime = dt.datetime
             features.append(key)
         elif type_ == "Story":
             stories[project].append(key)
-    return Dataset(tuple(result), as_of, StatusCatalog.from_params(list(sheets_by_name.values())),
-                   fields or FieldIds())
+    teams = {row[0]: row[2] for row in sheets_by_name["Projects"].rows if row[1] == "Team"}
+    return Dataset(tuple(_decorate(result, seed, as_of, teams)), as_of,
+                   StatusCatalog.from_params(list(sheets_by_name.values())), fields or FieldIds())

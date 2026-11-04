@@ -1,4 +1,5 @@
 """Steps of features/flow_excel.feature: the Excel formulas against the Python reference, cell by cell."""
+import dataclasses
 import datetime as dt
 import gc
 from pathlib import Path
@@ -14,8 +15,8 @@ from jira2dashboard.flow.itemflow import item_flow
 from jira2dashboard.flow.load import daily_load
 from jira2dashboard.flow.metrics import BUCKETS, flow_metrics
 from jira2dashboard.flow.model import NOT_COMPUTABLE, Period, Rules
-from jira2dashboard.flow.checks import CHECKS, IDS, Moves, issue_checks, parent_required_types
-from jira2dashboard.mockjira.anomalies import with_anomalies
+from jira2dashboard.flow.checks import CHECKS, IDS, PER_ISSUE, CheckSettings, Moves, fill_rates, run_checks
+from jira2dashboard.mockjira.anomalies import PI, PI_WINDOW, with_anomalies
 from jira2dashboard.mockjira.flow_adapter import to_flow_issues
 from jira2dashboard.mockjira.generator import generate
 from jira2dashboard.mockjira.server import MockJira
@@ -103,7 +104,7 @@ def _jira(world, jira_server, n):
 
 @given(parsers.parse("un faux Jira avec {n:d} tickets générés et les anomalies de données connues"))
 def _jira_with_anomalies(world, jira_server, n):
-    dataset, world["anomalies"] = with_anomalies(generate(seed=11, issues=n, projects=project_keys()), project_keys()[1])
+    dataset, world["anomalies"] = with_anomalies(generate(seed=11, issues=n, projects=project_keys()), project_keys())
     world["dataset"] = dataset
     world["jira"] = jira_server(dataset, credentials=("me@example.com", "tok-123"))
 
@@ -115,6 +116,37 @@ def _config(world, flow_workbook, mode):
                         "WorkTypeField": world["dataset"].fields.work_type, "FlowLoadMode": mode,
                         "AsOf": f"{world['dataset'].as_of:%Y-%m-%d %H:%M}"}.items():
         set_config(wb, name, value)
+
+
+FIELD_IDS = {"StoryPointsField": "story_points", "BusinessValueField": "business_value", "PIField": "pi",
+             "TeamField": "team", "SprintField": "sprint", "TargetStartField": "target_start",
+             "TargetEndField": "target_end"}          # Config parameter -> attribute of dataset.fields
+
+
+def put_pis(wb, rows):
+    ws = wb.Worksheets("PIs")
+    ws.Range("A2:C20").ClearContents()
+    for n, (name, start, end) in enumerate(rows, start=2):
+        ws.Cells(n, 1).Value = com.as_cell(name)
+        ws.Cells(n, 2).Value2 = com.to_excel_serial(start)
+        ws.Cells(n, 3).Value2 = com.to_excel_serial(end)
+
+
+@given("les champs Jira des contrôles et la fenêtre du PI sont renseignés dans les feuilles Config et PIs")
+def _check_fields(world):
+    ids = {name: getattr(world["dataset"].fields, attr) for name, attr in FIELD_IDS.items()}
+    for name, value in ids.items():
+        set_config(world["wb"], name, value)
+    put_pis(world["wb"], [(PI, *PI_WINDOW)])
+    world["settings"] = dataclasses.replace(CheckSettings.from_params(), fields=ids | {}, pis={PI: PI_WINDOW})
+
+
+@given("les champs Jira des contrôles et la feuille PIs sont vides")
+def _check_fields_empty(world):
+    for name in FIELD_IDS:
+        set_config(world["wb"], name, "")
+    put_pis(world["wb"], [])
+    world["settings"] = dataclasses.replace(CheckSettings.from_params(), fields={n: "" for n in FIELD_IDS}, pis={})
 
 
 @given(parsers.parse('les itérations de 14 jours depuis le "{first}" jusqu\'à la date de référence dans la feuille Periods'))
@@ -205,30 +237,56 @@ def _itemflow(world):
     assert sum(1 for i in world["items"] if i.done) > 20 and any(i.backlog_returns and i.start for i in world["items"])
 
 
+def expected_flags(world):
+    """{key: ids} from the Python reference, with the field ids and PIs that the workbook was given."""
+    return run_checks(to_flow_issues(world["dataset"]), world["dataset"].as_of, world["rules"], Moves.from_params(),
+                      world["settings"])
+
+
+def excel_flags(world):
+    return {row["Key"]: {c for c in PER_ISSUE if row[c] == 1} for row in table_dicts(world["wb"], "ItemFlow")}
+
+
 @then("la table DataChecks et les colonnes DC de ItemFlow reproduisent les contrôles de la référence Python")
 def _data_checks(world):
-    as_of, rules, moves = world["dataset"].as_of, world["rules"], Moves.from_params()
-    parent_types = parent_required_types()
-    expected = {i.key: issue_checks(i, as_of, rules, moves, parent_types) for i in to_flow_issues(world["dataset"])}
-    flags = {row["Key"]: {c for c in IDS if row[c] == 1} for row in table_dicts(world["wb"], "ItemFlow")}
+    expected, settings = expected_flags(world), world["settings"]
+    flags = excel_flags(world)
     assert flags == {key: set(ids) for key, ids in expected.items()}
-    assert all(row[c] in (0, 1) for row in table_dicts(world["wb"], "ItemFlow") for c in IDS)
+    assert all(row[c] in (0, 1) for row in table_dicts(world["wb"], "ItemFlow") for c in PER_ISSUE)
     rows = {row["Id"]: row for row in table_dicts(world["wb"], "DataChecks")}
     assert list(rows) == list(IDS)                                         # same ids, same order as the plan
+    below = sum(1 for r in world["fill_rates"] if r.below)
     for check in CHECKS:
-        count = sum(1 for ids in expected.values() if check.id in ids)
         row = rows[check.id]
-        assert (row["Title"], row["Severity"], row["Items"], row["Result"]) == (
-            check.title, check.severity, count, "OK" if count == 0 else "KO"), check.id
-    # outside the cases only the generated tasks and stories without a parent fail (DC01)
-    assert all(ids == {"DC01"} for key, ids in expected.items() if ids and key not in world["anomalies"])
-    assert sum(1 for ids in expected.values() if "DC01" in ids) > 5
+        count = below if check.source == "FillRates" else sum(1 for ids in expected.values() if check.id in ids)
+        wanted = (check.title, check.severity, count, "OK" if count == 0 else "KO") if settings.ready(check)             else (check.title, check.severity, "", "not computable")
+        assert (row["Title"], row["Severity"], row["Items"], row["Result"]) == wanted, check.id
+
+
+@then("la table FillRates reproduit les taux de remplissage de la référence Python")
+def _fill_rates(world):
+    dataset, settings = world["dataset"], world["settings"]
+    issues = to_flow_issues(dataset)
+    teams = sorted({i.team for i in issues})
+    types = sorted({i.type for i in issues})
+    got = {(r["Field"], r["Team"], r["Type"]): (r["Count"], r["Filled"], r["Below"]) for r in table_dicts(world["wb"], "FillRates")}
+    reference = fill_rates(issues, settings, teams, types)
+    world["fill_rates"] = reference
+    expected = {(r.field, r.team, r.type): (r.count, r.filled, 1 if r.below else 0) for r in reference}
+    assert got == expected
 
 
 @then("chaque anomalie connue est trouvée par les contrôles qui lui correspondent et seulement par eux")
 def _known_anomalies(world):
-    flags = {row["Key"]: {c for c in IDS if row[c] == 1} for row in table_dicts(world["wb"], "ItemFlow")}
+    flags = excel_flags(world)
     assert {key: flags[key] for key in world["anomalies"]} == {k: set(v) for k, v in world["anomalies"].items()}
+
+
+@then("les contrôles qui lisent un champ non configuré ne signalent aucun ticket")
+def _unconfigured(world):
+    unready = {c.id for c in CHECKS if not world["settings"].ready(c)}
+    assert unready and {"DC11", "DC17"} <= unready
+    assert not {c for ids in excel_flags(world).values() for c in ids} & unready
 
 
 @then(parsers.parse('la table DailyLoad reproduit la référence Python en mode "{mode}"'))

@@ -6,6 +6,7 @@ cells) and "Dashboard" (settings) use the third column for a formula or a plain 
 the formula of its points. modFlowBuild reads both after each extraction: formulas and charts are DATA of the workbook,
 tested here without Excel and against the Python reference by the scenario flow_excel.feature.
 """
+from jira2dashboard.flow import check_formulas as C
 from jira2dashboard.flow import dashboard_spec as D
 from jira2dashboard.flow import formulas as F
 from jira2dashboard.flow.checks import CHECKS
@@ -15,7 +16,7 @@ SHEET_FORMULAS = "FlowFormulas"
 SHEET_CHARTS = "ChartSpec"
 SHEET_CHECKS = "ChecksSpec"
 FORMULAS_HEADER = ("Table", "Column", "Formula")
-CHECKS_HEADER = F.DATACHECKS_KEYS
+CHECKS_HEADER = C.DATACHECKS_KEYS
 CHARTS_HEADER = ("Name", "Title", "ChartType", "AxisFormat", "SeriesNames", "PointFormula", "NoteFormula",
                  "AnchorRow", "AnchorColumn", "Rows", "Columns")
 
@@ -29,8 +30,13 @@ def formula_rows() -> list[tuple[str, str, str]]:
     rows += [("StatusIntervals", name, text) for name, text in F.INTERVAL_HELPERS]
     rows += [("ItemFlow", name, text) for name, text in F.ITEMFLOW_COLUMNS]
     rows += [("DailyLoad", "Date", ""), ("DailyLoad", "Team", ""), ("DailyLoad", "Load", F.DAILYLOAD_LOAD)]
-    rows += [("DataChecks", key, "") for key in F.DATACHECKS_KEYS]
-    rows += [("DataChecks", name, text) for name, text in F.DATACHECKS_COLUMNS]
+    rows += [("IssueLinks", key, "") for key in C.LINKS_RAW]
+    rows += [("IssueLinks", name, text) for name, text in C.LINKS_COLUMNS]
+    rows += [("FillRates", key, "") for key in C.FILL_KEYS]
+    rows += [("FillRates", name, text) for name, text in C.FILL_COLUMNS]
+    rows += [("FillFields", name, need) for name, need in C.FILL_FIELD_NEEDS]       # field, Config parameter it needs
+    rows += [("DataChecks", key, "") for key in C.DATACHECKS_KEYS]
+    rows += [("DataChecks", name, text) for name, text in C.DATACHECKS_COLUMNS]
     rows += [("Metrics", key, "") for key in F.METRICS_KEYS]
     rows += [("Metrics", name, text) for name, text in F.METRICS_COLUMNS]
     rows += [("Controls", CONTROL_NAMES[0], F.AS_OF_CELL), ("Controls", CONTROL_NAMES[1], F.MODE_CELL)]
@@ -39,9 +45,9 @@ def formula_rows() -> list[tuple[str, str, str]]:
     return rows
 
 
-def check_rows() -> list[tuple[str, str, str]]:
-    """The checks of the sheet DataChecks (Id, Title, Severity): VBA writes them as the keys of the table."""
-    return [(c.id, c.title, c.severity) for c in CHECKS]
+def check_rows() -> list[tuple[str, ...]]:
+    """The checks of the sheet DataChecks (Id, Title, Severity, three needs, Source): VBA writes them as the keys of the table."""
+    return [(c.id, c.title, c.severity, *(c.needs + ("", "", ""))[:3], c.source) for c in CHECKS]
 
 
 def chart_rows() -> list[tuple]:

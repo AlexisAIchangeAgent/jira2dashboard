@@ -41,7 +41,7 @@ Public Sub ClearFlowSheets(ByVal wb As Object)
     Cov "FLB03"
     Dim nm As Variant
     DeleteDerived wb
-    For Each nm In Array("Issues", "StatusIntervals")
+    For Each nm In Array("Issues", "StatusIntervals", "IssueLinks")
         If SheetExists(wb, CStr(nm)) Then
             UnlistAll wb.Worksheets(CStr(nm))
             wb.Worksheets(CStr(nm)).Cells.Clear
@@ -61,7 +61,7 @@ Private Sub DeleteDerived(ByVal wb As Object)
     alerts = Application.DisplayAlerts
     Application.DisplayAlerts = False
     On Error GoTo Restore
-    For Each nm In Array("ChartData", "ItemFlow", "DailyLoad", "Metrics", "DataChecks", "Controls")
+    For Each nm In Array("ChartData", "ItemFlow", "DailyLoad", "Metrics", "DataChecks", "FillRates", "Controls")
         If SheetExists(wb, CStr(nm)) Then wb.Worksheets(CStr(nm)).Delete
     Next nm
 Restore:
@@ -202,8 +202,8 @@ Public Sub BuildFlowSheetsIn(ByVal wb As Object)
     Cov "FLB14"
     Dim spec As Object, teams As Collection, periods As Collection, calcMode As Long
     Dim num As Long, desc As String, nm As Variant
-    For Each nm In Array("FlowFormulas", "ChartSpec", "ChecksSpec", "Periods", "Projects", "Workflows", "Transitions", _
-                         "Dashboard", "Issues", "StatusIntervals")
+    For Each nm In Array("FlowFormulas", "ChartSpec", "ChecksSpec", "Config", "Periods", "PIs", "Projects", "Workflows", _
+                         "Transitions", "Dashboard", "Issues", "StatusIntervals", "IssueLinks")
         If Not SheetExists(wb, CStr(nm)) Then
             Err.Raise vbObjectError + 705, "BuildFlowSheets", "Sheet " & nm & " is missing: rebuild the workbook with scripts\run.ps1 build."
         End If
@@ -233,20 +233,23 @@ End Sub
 
 Private Sub BuildAll(ByVal wb As Object, ByVal spec As Object, ByVal teams As Collection, ByVal periods As Collection)
     Cov "FLB16"
-    Dim wsI As Object, wsS As Object, wsF As Object, wsD As Object, wsM As Object, wsC As Object
-    Dim loI As Object, loS As Object, loF As Object, loD As Object, loM As Object, loC As Object
+    Dim wsI As Object, wsS As Object, wsF As Object, wsD As Object, wsM As Object, wsC As Object, wsL As Object, wsR As Object
+    Dim loI As Object, loS As Object, loF As Object, loD As Object, loM As Object, loC As Object, loL As Object, loR As Object
     DeleteDerived wb
     Set wsI = wb.Worksheets("Issues"): Set wsS = wb.Worksheets("StatusIntervals")
     PrepareRaw wsI, spec("Issues")
     PrepareRaw wsS, spec("StatusIntervals")
-    Dim issues As Long, checks As Long
+    Set wsL = wb.Worksheets("IssueLinks")
+    PrepareRaw wsL, spec("IssueLinks")
+    Dim issues As Long, checks As Long, fills As Long
     issues = UsedRows(wsI)
     BuildControls wb, spec
     Set wsF = AddSheet(wb, "ItemFlow"): Set wsD = AddSheet(wb, "DailyLoad"): Set wsM = AddSheet(wb, "Metrics")
-    Set wsC = AddSheet(wb, "DataChecks")
+    Set wsC = AddSheet(wb, "DataChecks"): Set wsR = AddSheet(wb, "FillRates")
     WriteDailyKeys wsD, periods, teams
     WriteMetricKeys wsM, periods, teams
     checks = WriteCheckKeys(wsC, wb.Worksheets("ChecksSpec"))
+    fills = WriteFillKeys(wsR, spec("FillFields"), wb, teams)
     ' every table exists before any formula is written: the formulas refer to each other's columns
     Set loI = CreateTable(wsI, "Issues", spec("Issues"), issues)
     Set loS = CreateTable(wsS, "StatusIntervals", spec("StatusIntervals"), UsedRows(wsS))
@@ -254,8 +257,12 @@ Private Sub BuildAll(ByVal wb As Object, ByVal spec As Object, ByVal teams As Co
     Set loD = CreateTable(wsD, "DailyLoad", spec("DailyLoad"), DaysOf(periods) * teams.Count)
     Set loM = CreateTable(wsM, "Metrics", spec("Metrics"), periods.Count * teams.Count)
     Set loC = CreateTable(wsC, "DataChecks", spec("DataChecks"), checks)
+    Set loL = CreateTable(wsL, "IssueLinks", spec("IssueLinks"), UsedRows(wsL))
+    Set loR = CreateTable(wsR, "FillRates", spec("FillRates"), fills)
     FillFormulas loS, spec("StatusIntervals")
     FillFormulas loF, spec("ItemFlow")
+    FillFormulas loL, spec("IssueLinks")
+    FillFormulas loR, spec("FillRates")
     FillFormulas loC, spec("DataChecks")
     FillFormulas loD, spec("DailyLoad")
     FillFormulas loM, spec("Metrics")
@@ -328,16 +335,66 @@ End Sub
 Private Function WriteCheckKeys(ByVal ws As Object, ByVal wsSpec As Object) As Long
     ' Id | Title | Severity, one row per data check of the sheet ChecksSpec. Returns the number of checks.
     Cov "FLB30"
-    Dim rows As Collection, row As Variant, r As Long, data() As Variant
+    Dim rows As Collection, row As Variant, r As Long, data() As Variant, names As Variant, c As Long
+    names = Array("Id", "Title", "Severity", "Need1", "Need2", "Need3", "Source")
     Set rows = ReadTable(wsSpec)
     WriteCheckKeys = rows.Count
     If rows.Count = 0 Then Exit Function
-    ReDim data(1 To rows.Count, 1 To 3)
+    ReDim data(1 To rows.Count, 1 To 7)
     For Each row In rows
         r = r + 1
-        data(r, 1) = AsText(CStr(row("Id"))): data(r, 2) = AsText(CStr(row("Title"))): data(r, 3) = AsText(CStr(row("Severity")))
+        For c = 1 To 7
+            data(r, c) = AsText(CStr(row(names(c - 1)) & ""))
+        Next c
     Next row
-    ws.Range(ws.Cells(2, 1), ws.Cells(rows.Count + 1, 3)).Value = data
+    ws.Range(ws.Cells(2, 1), ws.Cells(rows.Count + 1, 7)).Value = data
+End Function
+
+Private Function IssueTypes(ByVal wsIssues As Object) As Collection
+    ' The distinct values of the column Type of the sheet Issues, in order of appearance.
+    Cov "FLB32"
+    Dim out As New Collection, seen As Object, col As Long, last As Long, v As String, r As Long
+    Set seen = CreateObject("Scripting.Dictionary")
+    Set IssueTypes = out
+    last = UsedRows(wsIssues)
+    If last < 1 Then Exit Function
+    For col = 1 To 20
+        If CStr(wsIssues.Cells(1, col).Value) = "Type" Then Exit For
+    Next col
+    For r = 1 To last                                ' cell by cell: a one-row range does not come back as an array
+        v = CStr(wsIssues.Cells(r + 1, col).Value & "")
+        If Len(v) > 0 Then
+            If Not seen.Exists(v) Then seen(v) = True: out.Add v
+        End If
+    Next r
+End Function
+
+Private Function WriteFillKeys(ByVal ws As Object, ByVal fields As Collection, ByVal wb As Object, _
+                               ByVal teams As Collection) As Long
+    ' Field | Team | Type, one row per field x team x issue type. A field that needs a Jira field id is left out while that
+    ' id is empty in Config (a system field always counts). Returns the number of rows.
+    Cov "FLB31"
+    Dim types As Collection, names As New Collection, pair As Variant, t As Long, k As Long, f As Long, r As Long, data() As Variant
+    Set types = IssueTypes(wb.Worksheets("Issues"))
+    For Each pair In fields
+        If Len(CStr(pair(1))) = 0 Then
+            names.Add CStr(pair(0))
+        ElseIf Len(ConfigValue(wb.Worksheets("Config"), CStr(pair(1)))) > 0 Then
+            names.Add CStr(pair(0))
+        End If
+    Next pair
+    WriteFillKeys = names.Count * teams.Count * types.Count
+    If WriteFillKeys = 0 Then Exit Function
+    ReDim data(1 To WriteFillKeys, 1 To 3)
+    For f = 1 To names.Count
+        For t = 1 To teams.Count
+            For k = 1 To types.Count
+                r = r + 1
+                data(r, 1) = AsText(names(f)): data(r, 2) = AsText(CStr(teams(t))): data(r, 3) = AsText(types(k))
+            Next k
+        Next t
+    Next f
+    ws.Range(ws.Cells(2, 1), ws.Cells(WriteFillKeys + 1, 3)).Value = data
 End Function
 
 ' --- the dashboard: ChartData (one block of formulas per chart) and the charts -----------------------------------

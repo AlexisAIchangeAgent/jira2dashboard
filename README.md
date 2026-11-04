@@ -26,7 +26,7 @@ src/jira2dashboard/
                         de ChartData), sheets.py (COM : écrit le plan, lit les tables, exporte les PNG).
                         Les tables, formules et graphiques sont construits par le VBA (modFlowBuild.bas) depuis
                         ce plan ; modExtract.bas écrit les feuilles brutes Issues et StatusIntervals.
-                        checks.py : contrôles de données DC01, DC04-DC10 et DC28 (référence Python)
+                        checks.py : les 29 contrôles de données DC01-DC29 (référence Python)
   build_workbook.py     construit le classeur à livrer out\jira2dashboard.xlsm (sans module de test)
   mockjira/             faux Jira Cloud sur localhost (E3) : dataset.py (historiques), generator.py (volume seedé),
                         jql.py, api.py (réponses pures), server.py (http.server + fautes injectables)
@@ -80,15 +80,16 @@ Sur le poste client :
    relancer autant de fois que nécessaire. Pour l'équipe du graphique Flow Distribution : cellule `B2`.
 4. **Le token API reste en clair dans la feuille Config** : l'effacer avant de transmettre le classeur à quelqu'un d'autre. La BaseUrl doit commencer par https://.
 5. Les feuilles `FlowFormulas`, `ChartSpec` et `ChecksSpec` décrivent les formules, les graphiques et les contrôles : ne pas les modifier.
-6. **Contrôles de données (feuille `DataChecks`)** : neuf contrôles faisables avec l'extraction actuelle, calculés par
-   des formules sur les champs du ticket et sur l'historique des statuts. DC01 story ou tâche sans parent (types
-   listés dans `Config.ParentRequiredTypes`, par défaut `Story,Task`, équipes seulement), DC04 terminé (catégorie de statut
-   Jira) sans date de résolution, DC05 date de résolution mais pas terminé. DC06 historique incohérent (changement qui ne part pas du statut
-   précédent, ou historique qui n'aboutit pas au statut actuel), DC07 changement daté avant la création, DC08 statut
-   absent de `Workflows`, DC09 terminé sans jamais passer par un statut de départ, DC10 rouvert après Terminé, DC28
-   transition absente de `Transitions` (sauf statut libre). Chaque ligne donne le nombre de tickets en défaut et OK/KO ;
-   pour voir les tickets, filtrer la table `ItemFlow` sur la colonne `DC06`... égale à 1. Les 20 autres contrôles
-   (DC02, DC03, DC11-DC27, DC29) demandent des champs Jira que l'extraction ne lit pas encore.
+6. **Contrôles de données (feuille `DataChecks`)** : les 29 contrôles DC01-DC29, calculés par des formules sur les champs
+   du ticket, l'historique des statuts, les liens « Blocks » (table `IssueLinks`) et les taux de remplissage (table
+   `FillRates`). Chaque ligne donne le nombre de tickets en défaut (`Items`) et `OK`, `KO` ou `not computable`. Pour voir
+   les tickets, filtrer la table `ItemFlow` sur la colonne `DC..` égale à 1. **Un contrôle qui lit un champ Jira non
+   configuré est `not computable` et ne signale personne** (jamais « OK » sans avoir regardé). À renseigner dans `Config` :
+   `StoryPointsField`, `BusinessValueField`, `PIField`, `TeamField`, `SprintField`, `TargetStartField`, `TargetEndField`
+   (identifiants `customfield_NNNNN` de votre Jira) ; les types dans `FeatureTypes`, `SubTaskTypes`, `PointsRequiredTypes`,
+   `ParentRequiredTypes` ; le lien de blocage dans `BlocksLinkType` ; le seuil de DC25 dans `FillRateThreshold` (90) ; et les
+   fenêtres des PI dans la feuille `PIs` (PI, Start, End, noms de la forme `PI#01-2026`). Les interprétations retenues sont des
+   propositions à valider avec les équipes (voir `claude-code-handoff.md`).
 
 **Formules Excel (E4)** : le test `tests\features\flow_excel.feature` compare cellule par cellule les formules du
 classeur à la référence Python (faux Jira, extraction VBA, formules, en mode A puis B). `Config.WorkTypeField` est

@@ -16,6 +16,21 @@ Public Function StatusChangesFromChangelog(ByVal changelogRows As Collection, By
     Set StatusChangesFromChangelog = out
 End Function
 
+Public Function KeyChangeCounts(ByVal changelogRows As Collection, ByVal idToKey As Object) As Object
+    ' Moves between projects: a changelog row of the field Key. Returns issueKey -> number of changes (absent = none).
+    Cov "FLW08"
+    Dim out As Object, r As Variant, key As String
+    Set out = CreateObject("Scripting.Dictionary")
+    For Each r In changelogRows
+        If CStr(r(6) & "") = "Key" Or CStr(r(5) & "") = "issuekey" Then
+            key = CStr(r(0) & "")
+            If idToKey.Exists(key) Then key = idToKey(key)
+            If out.Exists(key) Then out(key) = out(key) + 1 Else out(key) = 1
+        End If
+    Next r
+    Set KeyChangeCounts = out
+End Function
+
 Public Function BuildStatusIntervals(ByVal issueInfo As Object, ByVal statusChanges As Collection, _
                                      ByVal asOfUtc As Date, ByVal categories As Object) As Collection
     ' issueInfo: key -> Array(createdUtc, currentStatus).  categories: status -> "Active" / "Wait" / "Done" / "Removed" / "Backlog" (unknown = "Unclassified").

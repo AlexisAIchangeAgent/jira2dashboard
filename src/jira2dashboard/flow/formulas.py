@@ -10,22 +10,22 @@ Rules kept here:
   into text with 15 digits, so a strict `>` on the exact serial could let an equal date through;
 * a blank result is the empty text "", which COUNTIFS / MINIFS / SUMIFS ignore in numeric criteria.
 """
-HALF = "(0.5/86400)"
+from jira2dashboard.flow import check_formulas as C
+from jira2dashboard.flow.refs import HALF, IF_, IS, SI, row_index
+
 FAR = "2958465"                      # 9999-12-31: "no end"
 NOT_COMPUTABLE = "not computable"
 CATEGORIES_IN_PROCESS = ("Active", "Wait", "Unclassified")
 BUCKETS = ("Feature", "Enabler", "Defect", "Autre", "Unmapped")
 WORK_TYPES = BUCKETS[:-1]
 
-ISSUES = ("Key", "Id", "Project", "Type", "WorkType", "CreatedUtc", "Status", "Parent", "StatusCategory", "ResolvedUtc")
+ISSUES = ("Key", "Id", "Project", "Type", "WorkType", "CreatedUtc", "Status", "Parent", "StatusCategory", "ResolvedUtc",
+          "FixVersions", "StoryPoints", "PI", "BV", "TeamValue", "SprintState", "SprintStart", "SprintEnd", "SprintCount",
+          "TargetStart", "TargetEnd", "KeyChanges")
 INTERVALS_RAW = ("Key", "Workflow", "Seq", "Status", "Category", "EnteredUtc", "LeftUtc", "DurationDays", "IsOpen",
                  "ChangeId", "Check")
 
-SI, IF_, IS = "StatusIntervals", "ItemFlow", "Issues"
-
-
-def _row_index(table: str) -> str:
-    return f"ROW()-ROW({table}[#Headers])"
+_row_index = row_index
 
 
 # --- StatusIntervals: helper columns after the raw ones ------------------------------------------------
@@ -60,9 +60,6 @@ def _days(category: str) -> str:
             f'{SI}[EnteredUtc],"<"&([@DoneUtc]-{HALF})))')
 
 
-# Config.ParentRequiredTypes without the spaces around the commas (DC01)
-_PARENT_TYPES = ('SUBSTITUTE(SUBSTITUTE(TRIM(INDEX(Config!$B:$B,MATCH("ParentRequiredTypes",Config!$A:$A,0))),", ",",")," ,",",")')
-
 ITEMFLOW_COLUMNS = (
     ("Key", f"=INDEX({IS}[Key],{_row_index(IF_)})"),
     ("Project", f"=INDEX({IS}[Project],{_row_index(IF_)})"),
@@ -93,28 +90,8 @@ ITEMFLOW_COLUMNS = (
     ("Excluded", '=IF(OR([@SkippedStart]="Y",[@Reopened]>0),1,0)'),
     ("WorkTypeBucket", "=IF(OR(" + ",".join(f'[@WorkType]="{w}"' for w in WORK_TYPES) + '),[@WorkType],"Unmapped")'),
     ("EndUtc", f'=IF([@DoneUtc]<>"",[@DoneUtc],IF([@RemovedUtc]<>"",[@RemovedUtc],{FAR}))'),
-    # data checks (1 = this issue fails the check), see flow/checks.py
-    ("DC01", f'=IF(AND([@Role]="Team",ISNUMBER(SEARCH(","&[@Type]&",",","&{_PARENT_TYPES}&",")),'
-             f'INDEX({IS}[Parent],{_row_index(IF_)})=""),1,0)'),
-    ("DC04", f'=IF(AND(INDEX({IS}[StatusCategory],{_row_index(IF_)})="done",INDEX({IS}[ResolvedUtc],{_row_index(IF_)})=""),1,0)'),
-    ("DC05", f'=IF(AND(INDEX({IS}[StatusCategory],{_row_index(IF_)})<>"done",INDEX({IS}[ResolvedUtc],{_row_index(IF_)})<>""),1,0)'),
-    ("DC06", f'=IF(COUNTIFS({SI}[Key],[@Key],{SI}[Check],"*MISMATCH*")>0,1,0)'),
-    ("DC07", f'=IF(COUNTIFS({SI}[Key],[@Key],{SI}[Check],"*BEFORE_CREATED*")>0,1,0)'),
-    ("DC08", f'=IF(COUNTIFS({SI}[Key],[@Key],{SI}[Category],"Unclassified")>0,1,0)'),
-    ("DC09", '=IF([@SkippedStart]="Y",1,0)'),
-    ("DC10", '=IF([@Reopened]>0,1,0)'),
-    ("DC28", f"=IF(COUNTIFS({SI}[Key],[@Key],{SI}[BadMove],1)>0,1,0)"),
-)
-
-
-# --- DataChecks: one row per check (Id, Title, Severity come from the sheet ChecksSpec) ------------------------------
-
-DATACHECKS_KEYS = ("Id", "Title", "Severity")
-DATACHECKS_COLUMNS = (
-    ("Items", f"=SUM(INDEX({IF_},0,MATCH([@Id],{IF_}[#Headers],0)))"),
-    ("Result", '=IF([@Items]=0,"OK","KO")'),
-)
-
+    # data checks: raw fields, helpers and one 0/1 column per check (check_formulas.py, reference in checks.py)
+) + C.ITEMFLOW_CHECK_COLUMNS
 
 # --- DailyLoad: one row per day and team ------------------------------------------------------------------
 
@@ -196,6 +173,8 @@ TABLES = {
     "StatusIntervals": INTERVALS_RAW + tuple(name for name, _ in INTERVAL_HELPERS),
     "ItemFlow": tuple(name for name, _ in ITEMFLOW_COLUMNS),
     "DailyLoad": ("Date", "Team", "Load"),
-    "DataChecks": DATACHECKS_KEYS + tuple(name for name, _ in DATACHECKS_COLUMNS),
+    "IssueLinks": C.LINKS_RAW + tuple(name for name, _ in C.LINKS_COLUMNS),
+    "FillRates": C.FILL_KEYS + tuple(name for name, _ in C.FILL_COLUMNS),
+    "DataChecks": C.DATACHECKS_KEYS + tuple(name for name, _ in C.DATACHECKS_COLUMNS),
     "Metrics": METRICS_KEYS + tuple(name for name, _ in METRICS_COLUMNS),
 }

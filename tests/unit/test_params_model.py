@@ -31,7 +31,7 @@ def sheet(sheets, name):
 
 def test_real_parameters_load_in_the_order_of_the_workbook_sheets():
     sheets = model.load_all()
-    assert [s.name for s in sheets] == ["Config", "Projects", "Periods", "Workflows", "Transitions", "FieldMapping"]
+    assert [s.name for s in sheets] == ["Config", "Projects", "Periods", "PIs", "Workflows", "Transitions", "FieldMapping"]
 
 
 def test_real_parameters_have_the_documented_sizes():
@@ -211,8 +211,32 @@ def test_config_has_the_connection_and_proxy_parameters_with_safe_defaults():
     config = {row[0]: row[1] for row in sheet(model.load_all(), "Config").rows}
     assert list(config) == list(model.CONFIG_PARAMETERS)
     assert config["ProxyWindowsAuth"] == "Yes" and config["TimeoutSeconds"] == "60" and config["MaxRetries"] == "4"
-    for client_value in ("BaseUrl", "Email", "ApiToken", "Filter", "WorkTypeField", "ProxyServer", "ProxyBypass"):
+    for client_value in ("BaseUrl", "Email", "ApiToken", "Filter", "WorkTypeField", "ProxyServer", "ProxyBypass",
+                         "StoryPointsField", "BusinessValueField", "PIField", "TeamField", "SprintField",
+                         "TargetStartField", "TargetEndField"):
         assert config[client_value] is None, f"{client_value} must stay empty in the repo"
+
+
+def test_data_check_parameters_have_defaults_and_are_checked(params_copy):
+    config = {row[0]: row[1] for row in sheet(model.load_all(), "Config").rows}
+    assert (config["FeatureTypes"], config["SubTaskTypes"], config["PointsRequiredTypes"], config["BlocksLinkType"],
+            config["FillRateThreshold"]) == ("Feature", "Sub-task", "Story", "Blocks", "90")
+    edit(params_copy, "config.md", "| FillRateThreshold | 90 |", "| FillRateThreshold | 120 |")
+    with pytest.raises(ParamsError, match="FillRateThreshold must be a whole number between 0 and 100"):
+        model.load_all(params_copy)
+
+
+def test_pis_are_empty_in_the_repo_and_checked_like_periods(params_copy):
+    assert sheet(model.load_all(), "PIs").rows == ()
+    path = params_copy / "pis.md"
+    rows = ["| PI#01-2026 | 2026-01-05 | 2026-03-30 |", "| PI#01-2026 | 2026-04-01 | tomorrow |",
+            "| PI#02-2026 | 2026-06-01 | 2026-05-01 |"]
+    path.write_text(path.read_text(encoding="utf-8") + "\n".join(rows) + "\n", encoding="utf-8")
+    with pytest.raises(ParamsError) as err:
+        model.load_all(params_copy)
+    text = str(err.value)
+    assert "pi 'PI#01-2026' listed twice" in text and "PIs row 2: Start and End must be dates" in text
+    assert "PIs row 3: Start must be before End" in text
 
 
 def test_flow_parameters_default_to_mode_a_and_no_fixed_as_of_date():

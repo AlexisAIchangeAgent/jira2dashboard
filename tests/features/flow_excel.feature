@@ -26,16 +26,29 @@ Fonctionnalité: Le classeur livré extrait Jira et calcule les mêmes chiffres 
     Et la feuille ChartData reproduit les métriques de la référence Python en mode "B", avec #N/A pour « not computable »
 
   @excel
-  Scénario: Les contrôles de données DC01, DC04 à DC10 et DC28 trouvent les anomalies connues et rien d'autre
+  Scénario: Les contrôles de données trouvent les anomalies connues et rien d'autre
     Soit un faux Jira avec 150 tickets générés et les anomalies de données connues
     Et le classeur à livrer dont la feuille Config pointe sur ce faux Jira avec FlowLoadMode "A"
+    Et les champs Jira des contrôles et la fenêtre du PI sont renseignés dans les feuilles Config et PIs
     Et les itérations de 14 jours depuis le "2026-08-17" jusqu'à la date de référence dans la feuille Periods
     Quand j'exécute la macro Extraire et calculer du classeur
     Alors aucune cellule des feuilles de flux ne montre une erreur Excel
-    Et la feuille StatusIntervals reproduit les intervalles de la référence Python
     Et la table ItemFlow reproduit les calculs de la référence Python
+    Et la table FillRates reproduit les taux de remplissage de la référence Python
     Et la table DataChecks et les colonnes DC de ItemFlow reproduisent les contrôles de la référence Python
     Et chaque anomalie connue est trouvée par les contrôles qui lui correspondent et seulement par eux
+
+  @excel
+  Scénario: Un contrôle dont le champ Jira n'est pas configuré est « not computable » et ne signale personne
+    Soit un faux Jira avec 150 tickets générés et les anomalies de données connues
+    Et le classeur à livrer dont la feuille Config pointe sur ce faux Jira avec FlowLoadMode "A"
+    Et les champs Jira des contrôles et la feuille PIs sont vides
+    Et les itérations de 14 jours depuis le "2026-08-17" jusqu'à la date de référence dans la feuille Periods
+    Quand j'exécute la macro Extraire et calculer du classeur
+    Alors aucune cellule des feuilles de flux ne montre une erreur Excel
+    Et la table FillRates reproduit les taux de remplissage de la référence Python
+    Et la table DataChecks et les colonnes DC de ItemFlow reproduisent les contrôles de la référence Python
+    Et les contrôles qui lisent un champ non configuré ne signalent aucun ticket
 
   @excel
   Scénario: Un second calcul avec moins de données remplace le premier sans rien laisser

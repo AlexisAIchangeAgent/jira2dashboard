@@ -59,7 +59,7 @@ def build(names: list[str], target: Path) -> list[str]:
     with R.excel_session() as app:
         wb = R.new_workbook(app)
         wb.Worksheets(1).Name = "TestResults"
-        for sheet in ["TestScratch", "TestScratch2", "CoverageHits", "CoverageMap"]:
+        for sheet in ["TestScratch", "TestScratch2", "TestScratch3", "CoverageHits", "CoverageMap"]:
             R.add_sheet_after_last(wb, sheet)
         write_coverage_map(wb.Worksheets("CoverageMap"), markers)
         if "modParams" in sources:

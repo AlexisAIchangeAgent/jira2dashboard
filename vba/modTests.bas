@@ -52,7 +52,7 @@ Private Function TestNames() As Variant
         "T_RetryExhausted", "T_ChangelogChunks", "T_IssueRows", "T_WriteTable", "T_StatusIntervals", _
         "T_StatusChanges", "T_RetryDelay", "T_SafeAccess", "T_FilesUtf8", "T_StringifyBadObject", _
         "T_TooManyPages", "T_BackgroundExport", "T_TextNotConverted", "T_ParamsTables", "T_ParamsOnWorkbook", _
-        "T_TrimWhite", "T_ConfigSheet", "T_ProjectsSheet", "T_ParseMoment", "T_ExtractFlowData", "T_FlowBuild", "T_BaseUrlHttps")
+        "T_TrimWhite", "T_ConfigSheet", "T_ProjectsSheet", "T_ParseMoment", "T_ExtractFlowData", "T_ExtractCheckFields", "T_FlowBuild", "T_BaseUrlHttps")
 End Function
 
 Public Function RunAllTests() As String
@@ -352,8 +352,11 @@ Public Sub T_BaseUrlHttps()
     Check "config", "https is accepted", "https://x.atlassian.net", "https://x.atlassian.net", JiraConfig("https://x.atlassian.net", "me@x.com", "t", "", "", False)("BaseUrl")
     Check "config", "the fake Jira on this computer is accepted", "http://127.0.0.1:8099", "http://127.0.0.1:8099", JiraConfig("http://127.0.0.1:8099/", "me@x.com", "t", "", "", False)("BaseUrl")
     Check "config", "an empty BaseUrl is left to the later check", "", "", JiraConfig("", "me@x.com", "t", "", "", False)("BaseUrl")
-    Check "extract", "only the fields the metrics use", "WorkTypeField customfield_10200", "key,project,issuetype,created,status,parent,resolutiondate,customfield_10200", ExtractFields("customfield_10200")
-    Check "extract", "no work type field: not asked", "empty", "key,project,issuetype,created,status,parent,resolutiondate", ExtractFields("")
+    Check "extract", "only the fields the metrics use", "WorkTypeField customfield_10200", "key,project,issuetype,created,status,parent,resolutiondate,fixVersions,issuelinks,customfield_10200", ExtractFields("customfield_10200")
+    Check "extract", "no work type field: not asked", "empty", "key,project,issuetype,created,status,parent,resolutiondate,fixVersions,issuelinks", ExtractFields("")
+    Check "extract", "the configured fields of the data checks are asked, the empty ones are not", "Team and Sprint", _
+          "key,project,issuetype,created,status,parent,resolutiondate,fixVersions,issuelinks,customfield_10400,customfield_10020", _
+          ExtractFields("", CheckFields("", "", "", "customfield_10400", "customfield_10020"))
 End Sub
 
 Public Sub T_ParseMoment()
@@ -404,10 +407,9 @@ Public Sub T_ExtractFlowData()
     FakeAdd "POST", cfg("BaseUrl") & "/rest/api/3/changelog/bulkfetch", 200, J(body)
     ExtractFlowDataTo cfg, jql, "customfield_10200", DateSerial(2026, 10, 5), ThisWorkbook.Worksheets("Projects"), _
                       ThisWorkbook.Worksheets("Workflows"), wsI, wsV
-    Check "extract", "Issues header", "A1:J1", "Key|Id|Project|Type|WorkType|CreatedUtc|Status|Parent|StatusCategory|ResolvedUtc", _
-          wsI.Range("A1").Value & "|" & wsI.Range("B1").Value & "|" & wsI.Range("C1").Value & "|" & wsI.Range("D1").Value & "|" & _
-          wsI.Range("E1").Value & "|" & wsI.Range("F1").Value & "|" & wsI.Range("G1").Value & "|" & wsI.Range("H1").Value & "|" & _
-          wsI.Range("I1").Value & "|" & wsI.Range("J1").Value
+    Check "extract", "Issues header", "A1:V1", "Key|Id|Project|Type|WorkType|CreatedUtc|Status|Parent|StatusCategory|ResolvedUtc|" & _
+          "FixVersions|StoryPoints|PI|BV|TeamValue|SprintState|SprintStart|SprintEnd|SprintCount|TargetStart|TargetEnd|KeyChanges", _
+          RowText(wsI, 1, 22)
     Check "extract", "no parent and no resolution: empty cells", "TTT-1", "Empty|indeterminate|Empty", _
           IIf(IsEmpty(wsI.Range("H2").Value), "Empty", "set") & "|" & wsI.Range("I2").Value & "|" & IIf(IsEmpty(wsI.Range("J2").Value), "Empty", "set")
     Check "extract", "parent, status category key and resolution date", "AAA-1", "TTT-1|done|" & CDbl(DateSerial(2026, 10, 4)), _
@@ -429,19 +431,105 @@ Public Sub T_ExtractFlowData()
     Check "extract", "a closed interval has its duration", "TTT-1 seq 1", 1, wsV.Range("H2").Value
 End Sub
 
+Private Function RowText(ByVal ws As Object, ByVal row As Long, ByVal cols As Long) As String
+    ' The cells of one row joined with |, empty cells as nothing.
+    Dim c As Long, s As String
+    For c = 1 To cols
+        s = s & IIf(c > 1, "|", "") & CStr(ws.Cells(row, c).Value & "")
+    Next c
+    RowText = s
+End Function
+
+Private Function CheckFields(ByVal points As String, ByVal pi As String, ByVal bv As String, ByVal team As String, _
+                             ByVal sprint As String, Optional ByVal startDate As String = "", Optional ByVal endDate As String = "", _
+                             Optional ByVal linkType As String = "") As Object
+    ' The Config settings of the data checks, as FieldSettings gives them.
+    Dim d As Object
+    Set d = CreateObject("Scripting.Dictionary")
+    d("StoryPointsField") = points: d("PIField") = pi: d("BusinessValueField") = bv: d("TeamField") = team
+    d("SprintField") = sprint: d("TargetStartField") = startDate: d("TargetEndField") = endDate: d("BlocksLinkType") = linkType
+    Set CheckFields = d
+End Function
+
+Private Function LastRow(ByVal ws As Object) As Long
+    LastRow = ws.Cells(ws.Rows.Count, 1).End(-4162).Row
+End Function
+
+Public Sub T_ExtractCheckFields()
+    ' The fields that the data checks read: team (object or text), sprints, points, PI, dates, fix versions, blocking links
+    ' and the moves between projects. One Program feature with almost none of them, one team story with all of them.
+    Dim cfg As Object, wsI As Object, wsV As Object, wsL As Object, st As Object, jql As String, ts As String
+    Set cfg = TestConfig()
+    Set wsI = ThisWorkbook.Worksheets("TestScratch")
+    Set wsV = ThisWorkbook.Worksheets("TestScratch2")
+    Set wsL = ThisWorkbook.Worksheets("TestScratch3")
+    Set st = CheckFields("customfield_1", "customfield_2", "customfield_3", "customfield_4", "customfield_5", "customfield_6", _
+                         "customfield_7", "Blocks")
+    ts = "T00:00:00.000+0000"
+    jql = "project in (TTT,AAA)"
+    FakeReset
+    FakeAdd "GET", JiraSearchUrl(cfg("BaseUrl"), jql, "", 100, ExtractFields("", st), ""), 200, J( _
+        "{'issues':[{'id':'10','key':'TTT-1','fields':{'project':{'key':'TTT'},'issuetype':{'name':'Feature'},'created':'2026-10-01" & ts & "'," & _
+        "'status':{'name':'Nouveau','statusCategory':{'key':'new'}},'fixVersions':[],'issuelinks':[],'customfield_1':null," & _
+        "'customfield_3':40,'customfield_4':'ART','customfield_5':null}}," & _
+        "{'id':'11','key':'AAA-1','fields':{'project':{'key':'AAA'},'issuetype':{'name':'Story'},'created':'2026-10-01" & ts & "'," & _
+        "'status':{'name':'En analyse','statusCategory':{'key':'indeterminate'}},'fixVersions':[{'name':'R1'},{'name':'R2'}]," & _
+        "'customfield_1':5,'customfield_2':'PI#01-2026','customfield_4':{'id':'t1','name':'Alpha'}," & _
+        "'customfield_5':[{'id':1,'state':'closed','startDate':'2026-09-01" & ts & "','endDate':'2026-09-15" & ts & "'}," & _
+        "{'id':2,'state':'active','startDate':'2026-10-01" & ts & "','endDate':'2026-10-15" & ts & "'}," & _
+        "{'id':3,'state':'future','startDate':'2026-10-15" & ts & "','endDate':'2026-10-29" & ts & "'}]," & _
+        "'customfield_6':'2026-10-01','customfield_7':'2026-12-31'," & _
+        "'issuelinks':[{'type':{'name':'Blocks'},'outwardIssue':{'key':'AAA-2'}},{'type':{'name':'Blocks'},'inwardIssue':{'key':'AAA-9'}}," & _
+        "{'type':{'name':'Relates'},'outwardIssue':{'key':'AAA-3'}}]}}],'isLast':true}")
+    FakeAdd "POST", cfg("BaseUrl") & "/rest/api/3/changelog/bulkfetch", 200, J( _
+        "{'issueChangeLogs':[{'issueId':'11','changeHistories':[" & _
+        "{'id':'1','created':'2026-10-02" & ts & "','items':[{'fieldId':'status','field':'status','fieldtype':'jira','from':'1','fromString':'Nouveau','to':'2','toString':'En analyse'}]}," & _
+        "{'id':'2','created':'2026-10-03" & ts & "','items':[{'fieldId':'issuekey','field':'Key','fieldtype':'jira','from':null,'fromString':'OLD-1','to':null,'toString':'AAA-1'}]}]}]}")
+    ExtractFlowDataTo cfg, jql, "", DateSerial(2026, 10, 5), ThisWorkbook.Worksheets("Projects"), ThisWorkbook.Worksheets("Workflows"), _
+                      wsI, wsV, False, st, wsL
+    Check "extract", "the feature has only what Jira gave: BV 40, team text ART, no sprint, no change of key", "TTT-1", _
+          "TTT-1||40|ART||0|0", wsI.Range("A2").Value & "|" & wsI.Range("K2").Value & "|" & wsI.Range("N2").Value & "|" & _
+          wsI.Range("O2").Value & "|" & wsI.Range("P2").Value & "|" & wsI.Range("S2").Value & "|" & wsI.Range("V2").Value
+    Check "extract", "team as an object, points, PI", "AAA-1", "Alpha|5|PI#01-2026", wsI.Range("O3").Value & "|" & wsI.Range("L3").Value & "|" & wsI.Range("M3").Value
+    Check "extract", "fix versions are joined", "R1, R2", "R1, R2", wsI.Range("K3").Value
+    Check "extract", "the active sprint counts, over a closed and a future one", "AAA-1", "active|3", wsI.Range("P3").Value & "|" & wsI.Range("S3").Value
+    Check "extract", "dates of that sprint", "2026-10-01..10-15", CDbl(DateSerial(2026, 10, 1)) & "|" & CDbl(DateSerial(2026, 10, 15)), _
+          wsI.Range("Q3").Value2 & "|" & wsI.Range("R3").Value2
+    Check "extract", "target dates (date only)", "2026-10-01 and 12-31", CDbl(DateSerial(2026, 10, 1)) & "|" & CDbl(DateSerial(2026, 12, 31)), _
+          wsI.Range("T3").Value2 & "|" & wsI.Range("U3").Value2
+    Check "extract", "a change of key is counted", "AAA-1", 1, wsI.Range("V3").Value
+    Check "extract", "only the outward blocks link is a row", "AAA-1 blocks AAA-2", "AAA-1|AAA-2|1", _
+          wsL.Range("A2").Value & "|" & wsL.Range("B2").Value & "|" & (LastRow(wsL) - 1)
+    ' no link type configured: the links are not read; no Sprint field: no sprint
+    FakeReset
+    Set st = CheckFields("", "", "", "", "")
+    FakeAdd "GET", JiraSearchUrl(cfg("BaseUrl"), jql, "", 100, ExtractFields("", st), ""), 200, J( _
+        "{'issues':[{'id':'11','key':'AAA-1','fields':{'project':{'key':'AAA'},'issuetype':{'name':'Story'},'created':'2026-10-01" & ts & "'," & _
+        "'status':{'name':'En analyse'},'issuelinks':[{'type':{'name':'Blocks'},'outwardIssue':{'key':'AAA-2'}}]}}],'isLast':true}")
+    FakeAdd "POST", cfg("BaseUrl") & "/rest/api/3/changelog/bulkfetch", 200, J("{'issueChangeLogs':[]}")
+    ExtractFlowDataTo cfg, jql, "", DateSerial(2026, 10, 5), ThisWorkbook.Worksheets("Projects"), ThisWorkbook.Worksheets("Workflows"), _
+                      wsI, wsV, False, st, wsL
+    Check "extract", "no link type: no link row", "AAA-1", 0, LastRow(wsL) - 1
+    Check "extract", "no sprint field: no sprint", "AAA-1", "|0", wsI.Range("P2").Value & "|" & wsI.Range("S2").Value
+End Sub
+
 Private Sub FlowRaw(ByVal withStory As Boolean)
     ' Raw sheets as the extraction writes them: a Program feature, and (optionally) a team story with two intervals.
     Dim issues As New Collection, ivs As New Collection, t0 As Date
     t0 = DateSerial(2026, 10, 1)
-    issues.Add Array("TTT-1", "10", "TTT", "Feature", "Feature", t0, "Nouveau", Empty, "new", Empty)
+    issues.Add Array("TTT-1", "10", "TTT", "Feature", "Feature", t0, "Nouveau", Empty, "new", Empty, Empty, Empty, Empty, Empty, _
+                     Empty, Empty, Empty, Empty, 0, Empty, Empty, 0)
     ivs.Add Array("TTT-1", "Feature", 1, "Nouveau", "Backlog", t0, Empty, 4, True, "1", "")
     If withStory Then
-        issues.Add Array("AAA-1", "11", "AAA", "Story", "Enabler", t0, "En analyse", "TTT-1", "indeterminate", Empty)
+        issues.Add Array("AAA-1", "11", "AAA", "Story", "Enabler", t0, "En analyse", "TTT-1", "indeterminate", Empty, Empty, Empty, _
+                         Empty, Empty, Empty, Empty, Empty, Empty, 0, Empty, Empty, 0)
         ivs.Add Array("AAA-1", "Team", 1, "Nouveau", "Backlog", t0, t0 + 1, 1, False, "1", "")
         ivs.Add Array("AAA-1", "Team", 2, "En analyse", "Active", t0 + 1, Empty, 3, True, "2", "")
     End If
     WriteTable ThisWorkbook.Worksheets("Issues"), Array("Key", "Id", "Project", "Type", "WorkType", "CreatedUtc", "Status", "Parent", _
-        "StatusCategory", "ResolvedUtc"), issues
+        "StatusCategory", "ResolvedUtc", "FixVersions", "StoryPoints", "PI", "BV", "TeamValue", "SprintState", "SprintStart", _
+        "SprintEnd", "SprintCount", "TargetStart", "TargetEnd", "KeyChanges"), issues
+    WriteTable ThisWorkbook.Worksheets("IssueLinks"), Array("Blocker", "Blocked"), New Collection
     WriteTable ThisWorkbook.Worksheets("StatusIntervals"), Array("Key", "Workflow", "Seq", "Status", "Category", "EnteredUtc", _
         "LeftUtc", "DurationDays", "IsOpen", "ChangeId", "Check"), ivs
 End Sub
@@ -490,8 +578,11 @@ Public Sub T_FlowBuild()
     Check "flowbuild", "DailyLoad: one row per day and team", "28 days x 9", 28 * teams, TableRows("DailyLoad")
     Check "flowbuild", "Metrics: one row per period and team", "2 periods x 9", 2 * teams, TableRows("Metrics")
     Check "flowbuild", "seven charts", "Dashboard", 7, dash.ChartObjects.Count
-    Check "flowbuild", "DataChecks: one row per check of ChecksSpec", "9 checks", 9, TableRows("DataChecks")
-    Check "flowbuild", "DataChecks: the first check", "DC01", "DC01", wb.Worksheets("DataChecks").Range("A2").Value
+    Check "flowbuild", "DataChecks: one row per check of ChecksSpec", "29 checks", 29, TableRows("DataChecks")
+    Check "flowbuild", "DataChecks: the first check, and the check that needs a field is not computable", "DC01 / DC11", "DC01|OK|not computable", _
+          wb.Worksheets("DataChecks").Range("A2").Value & "|" & wb.Worksheets("DataChecks").Range("J2").Value & "|" & wb.Worksheets("DataChecks").Range("J12").Value
+    Check "flowbuild", "FillRates: the system fields x teams x issue types (the fields not configured are left out)", "3 x 9 x 2", 54, TableRows("FillRates")
+    Check "flowbuild", "IssueLinks is a table even without any link", "rows", 1, TableRows("IssueLinks")
     Check "flowbuild", "one series per team in the Velocity chart", "Velocity", teams, dash.ChartObjects("velocity").Chart.SeriesCollection.Count
     Check "flowbuild", "one series per work type in the Distribution chart", "flow_distribution", 5, dash.ChartObjects("flow_distribution").Chart.SeriesCollection.Count
     Check "flowbuild", "the formulas give the issue keys", "ItemFlow.Key", "TTT-1|AAA-1", _
@@ -510,6 +601,7 @@ Public Sub T_FlowBuild()
     Check "flowbuild", "smaller data: ItemFlow shrinks", "1 issue", 1, TableRows("ItemFlow")
     Check "flowbuild", "smaller data: DailyLoad and Metrics shrink", "14 days, 1 period", (14 * teams) & "|" & teams, TableRows("DailyLoad") & "|" & TableRows("Metrics")
     Check "flowbuild", "smaller data: StatusIntervals", "1 interval", 1, TableRows("StatusIntervals")
+    Check "flowbuild", "smaller data: FillRates follows the issue types", "3 x 9 x 1", 27, TableRows("FillRates")
     Check "flowbuild", "the sheets are the same", "count", sheetCount, wb.Worksheets.Count
     Check "flowbuild", "still seven charts", "Dashboard", 7, dash.ChartObjects.Count
     Check "flowbuild", "an unknown team in the selector goes back to All teams", "Nowhere", "All teams", dash.Range("B2").Value
@@ -521,7 +613,8 @@ Public Sub T_FlowBuild()
     wb.Worksheets("Periods").Range("A2:C10").ClearContents
     ClearFlowSheets wb
     Check "flowbuild", "cleared: the derived sheets are gone", "Metrics", False, SheetExists(wb, "Metrics")
-    Check "flowbuild", "cleared: the data checks are gone too", "DataChecks", False, SheetExists(wb, "DataChecks")
+    Check "flowbuild", "cleared: the data checks and fill rates are gone too", "DataChecks", "False|False", _
+          IIf(SheetExists(wb, "DataChecks"), "True", "False") & "|" & IIf(SheetExists(wb, "FillRates"), "True", "False")
 End Sub
 
 Public Sub T_UrlEncode()

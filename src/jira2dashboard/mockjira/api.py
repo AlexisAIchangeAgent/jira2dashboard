@@ -30,6 +30,21 @@ def _error(status: int, message: str, **kwargs) -> ApiError:
 
 # ---------------------------------------------------------------- issues
 
+def _sprint_json(sprint, tz: int) -> dict:
+    return {"id": sprint.id, "name": sprint.name, "state": sprint.state, "boardId": 1,
+            "startDate": jira_time(sprint.start, tz), "endDate": jira_time(sprint.end, tz)}
+
+
+def _links_json(issue: Issue, ds: Dataset) -> list[dict]:
+    """The links of the issue, as Jira shows them on both ends: "blocks" outward here, "is blocked by" inward there."""
+    kind = {"id": "10000", "name": "Blocks", "inward": "is blocked by", "outward": "blocks"}
+    links = [{"id": f"{issue.id}-out-{n}", "type": kind, "outwardIssue": {"key": key}} for n, key in enumerate(issue.blocks)]
+    for other in ds.issues:
+        if issue.key in other.blocks:
+            links.append({"id": f"{other.id}-in-{issue.id}", "type": kind, "inwardIssue": {"key": other.key}})
+    return links
+
+
 def _all_fields(issue: Issue, ds: Dataset, tz: int) -> dict:
     catalog, ids = ds.catalog, ds.fields
     key, category = catalog.jira_category(issue.workflow, issue.status)
@@ -55,6 +70,11 @@ def _all_fields(issue: Issue, ds: Dataset, tz: int) -> dict:
         ids.work_type: issue.work_type,
         ids.pi: issue.pi,
         ids.business_value: issue.business_value,
+        ids.team: {"id": f"team-{issue.team.lower()}", "name": issue.team} if issue.team else None,
+        ids.sprint: [_sprint_json(s, tz) for s in issue.sprints] or None,
+        ids.target_start: issue.target_start.isoformat() if issue.target_start else None,
+        ids.target_end: issue.target_end.isoformat() if issue.target_end else None,
+        "issuelinks": _links_json(issue, ds),
     }
 
 
@@ -137,6 +157,18 @@ def approximate_count(ds: Dataset, body: dict) -> dict:
     return {"count": len(_select(ds, jql.parse(body.get("jql", ""))))}
 
 
+class _KeyMove:
+    """A change of key (the issue moved to another project): author and id like a status change."""
+
+    def __init__(self, id: str, at: dt.datetime):
+        self.id, self.at, self.author, self.author_id = id, at, "Ann Martin", "acc-ann"
+
+
+def _key_item(issue: Issue) -> dict:
+    return {"field": "Key", "fieldtype": "jira", "fieldId": "issuekey", "from": None,
+            "fromString": f"OLD-{issue.number}", "to": None, "toString": issue.key}
+
+
 def bulk_changelog(ds: Dataset, body: dict, *, tz: int, bulk_clamp: int) -> dict:
     """POST /rest/api/3/changelog/bulkfetch: the status histories, oldest change first, paged by token."""
     refs = body.get("issueIdsOrKeys")
@@ -149,6 +181,8 @@ def bulk_changelog(ds: Dataset, body: dict, *, tz: int, bulk_clamp: int) -> dict
         raise _error(400, f"fieldIds can hold at most {BULK_FIELD_IDS_MAX} ids, got {len(field_ids)}.")
     issues = [i for i in (ds.by_key_or_id(str(r)) for r in refs) if i]
     histories = [(i, c) for i in issues for c in i.changes] if not field_ids or "status" in field_ids else []
+    if not field_ids or "issuekey" in field_ids:        # moves between projects: the key changed
+        histories += [(i, _KeyMove(f"{i.id}k{n}", at)) for i in issues for n, at in enumerate(i.key_changes, start=1)]
     histories.sort(key=lambda pair: (pair[1].at, int(pair[0].id), pair[1].id))   # by date, then smallest issue id
     fingerprint = _fingerprint(sorted(str(r) for r in refs), field_ids)
     token = body.get("nextPageToken")
@@ -159,7 +193,8 @@ def bulk_changelog(ds: Dataset, body: dict, *, tz: int, bulk_clamp: int) -> dict
         grouped.setdefault(issue.id, []).append({
             "id": change.id, "created": jira_time(change.at, tz),
             "author": {"accountId": change.author_id, "displayName": change.author},
-            "items": [{"field": "status", "fieldtype": "jira", "fieldId": "status",
+            "items": [_key_item(issue) if isinstance(change, _KeyMove) else
+                      {"field": "status", "fieldtype": "jira", "fieldId": "status",
                        "from": ds.catalog.ids.get(change.from_status, "0"), "fromString": change.from_status,
                        "to": ds.catalog.ids.get(change.to_status, "0"), "toString": change.to_status}],
         })
