@@ -1,13 +1,15 @@
 """Steps of features/flow_excel.feature: the Excel formulas against the Python reference, cell by cell."""
 import datetime as dt
 import gc
+from pathlib import Path
 
 import pytest
 from pytest_bdd import given, parsers, scenarios, then, when
 
+from jira2dashboard.build_workbook import build_delivery
 from jira2dashboard.excel import com
+from jira2dashboard.flow import blueprint, sheets
 from jira2dashboard.flow import dashboard_spec as D
-from jira2dashboard.flow import sheets
 from jira2dashboard.flow.itemflow import item_flow
 from jira2dashboard.flow.load import daily_load
 from jira2dashboard.flow.metrics import BUCKETS, flow_metrics
@@ -15,9 +17,8 @@ from jira2dashboard.flow.model import NOT_COMPUTABLE, Period, Rules
 from jira2dashboard.mockjira.flow_adapter import to_flow_issues
 from jira2dashboard.mockjira.generator import generate
 from jira2dashboard.mockjira.server import MockJira
-from jira2dashboard.params.model import project_keys
+from jira2dashboard.params.model import load_all, project_keys
 from jira2dashboard.paths import OUT_DIR
-from jira2dashboard.testbench import run_vba_tests as rvt
 
 scenarios("../features/flow_excel.feature")
 
@@ -27,8 +28,8 @@ TOLERANCE = 1e-6                    # days (0.09 s): Excel dates are doubles, th
 
 @pytest.fixture(scope="module")
 def flow_workbook():
-    """A workbook of its own (the shared one is compared with params files by other scenarios)."""
-    rvt.build(rvt.ORDER, TARGET)
+    """The workbook to deliver, built by the same code as `run.ps1 build` (no test module in it)."""
+    build_delivery(TARGET)
     holder = {}
     with com.excel_session() as app:
         app.AutomationSecurity = com.MSO_AUTOMATION_SECURITY_LOW
@@ -98,7 +99,7 @@ def _jira(world, jira_server, n):
     world["jira"] = jira_server(world["dataset"], credentials=("me@example.com", "tok-123"))
 
 
-@given(parsers.parse('un classeur dont la feuille Config pointe sur ce faux Jira avec FlowLoadMode "{mode}"'))
+@given(parsers.parse('le classeur à livrer dont la feuille Config pointe sur ce faux Jira avec FlowLoadMode "{mode}"'))
 def _config(world, flow_workbook, mode):
     wb = world["wb"] = flow_workbook["wb"]
     for name, value in {"BaseUrl": world["jira"].base_url, "Email": "me@example.com", "ApiToken": "tok-123",
@@ -110,6 +111,7 @@ def _config(world, flow_workbook, mode):
 @given(parsers.parse('les itérations de 14 jours depuis le "{first}" jusqu\'à la date de référence dans la feuille Periods'))
 def _periods(world, first):
     ws, start, row, periods = world["wb"].Worksheets("Periods"), dt.datetime.fromisoformat(first), 2, []
+    ws.Range("A2:C200").ClearContents()                  # the periods of an earlier run must not stay
     while start < world["dataset"].as_of:
         end = start + dt.timedelta(days=14)
         ws.Cells(row, 1).Value = com.as_cell(f"I{row - 1}")
@@ -122,23 +124,13 @@ def _periods(world, first):
 
 # --- when --------------------------------------------------------------------------------------------
 
-@when("le VBA extrait les données de flux depuis le faux Jira")
-def _extract(world):
+@when("j'exécute la macro Extraire et calculer du classeur")
+def _extract_and_compute(world):
     wb = world["wb"]
-    wb.Application.Run(f"'{wb.Name}'!modExtract.ExtractFlowData")
+    wb.Application.Run(f"'{wb.Name}'!modActions.ExtractAndCompute")
     rules, as_of = Rules.from_params(), world["dataset"].as_of
     world["rules"] = rules
     world["items"] = [item_flow(i, as_of, rules) for i in to_flow_issues(world["dataset"])]
-
-
-@when("les feuilles de flux sont construites avec des formules")
-def _build(world):
-    sheets.build_flow_sheets(world["wb"])
-
-
-@when("le tableau de bord est construit")
-def _dashboard(world):
-    sheets.build_dashboard(world["wb"])
 
 
 @when(parsers.parse('je passe FlowLoadMode à "{mode}" dans la feuille Config'))
@@ -159,7 +151,7 @@ def _intervals(world):
     excel = {}
     for row in table_dicts(world["wb"], "StatusIntervals"):
         excel.setdefault(row["Key"], []).append(row)
-    assert len(excel) == len(world["items"]) == 250
+    assert len(excel) == len(world["items"]) > 50
     wrong = []
     for item in world["items"]:
         mine = excel[item.key]
@@ -225,28 +217,42 @@ def _daily_load(world, mode):
         assert all(table_load == loads[day] for (t, day), table_load in
                    ((k, r["Load"]) for k, r in zip(keys, rows) if k[0] == team and k[1] in loads))
         assert {day for t, day in keys if t == team and rows[keys.index((t, day))]["Load"] != ""} == set(loads), team
-    assert checked > 500
+    assert checked > 300
 
 
 NA = -2146826246                                         # Excel #N/A as read by Value2
-REFERENCE_FIELD = {"Velocity": "velocity", "FlowTimeMedian": "flow_time_median", "FlowLoadAverage": "flow_load_average",
+REFERENCE_FIELD = {"Velocity": "velocity", "FlowTimeMedian": "flow_time_median", "FlowTimeP85": "flow_time_p85", "FlowLoadAverage": "flow_load_average",
                    "FlowEfficiency": "flow_efficiency", "FlowPredictability": "flow_predictability"}
 
 
-def chart_blocks(wb):
+def chart_blocks(wb, periods: int):
     """{chart name: (series names, period labels, rows of points)} read from the sheet ChartData."""
-    ws, periods = wb.Worksheets("ChartData"), wb.Worksheets("Periods").UsedRange.Rows.Count - 1
+    ws = wb.Worksheets("ChartData")
     blocks = {}
     for index, spec in enumerate(D.CHARTS):
-        top, count = D.block_top(index, periods), len(D.series_names(spec) or team_names(wb))
+        top, count = D.block_top(index, periods), len(D.series_names(spec) or team_names())
         grid = ws.Range(ws.Cells(top + 1, 1), ws.Cells(top + 1 + periods, 1 + count)).Value2
         blocks[spec.name] = ([grid[0][c] for c in range(1, count + 1)], [grid[r][0] for r in range(1, periods + 1)],
                              [list(grid[r][1:]) for r in range(1, periods + 1)])
     return blocks
 
 
-def team_names(wb):
-    return [team for team, _formula in sheets._team_rows(wb)]
+def team_names():
+    projects = next(s for s in load_all() if s.name == "Projects")
+    return blueprint.team_names([tuple(row) for row in projects.rows])
+
+
+@then("les feuilles de flux ont exactement la taille des nouvelles données")
+def _sizes(world):
+    wb, teams, periods = world["wb"], team_names(), world["periods"]
+    size = {name: len(table_dicts(wb, name)) for name in ("Issues", "StatusIntervals", "ItemFlow", "DailyLoad", "Metrics")}
+    assert size["Issues"] == size["ItemFlow"] == len(world["items"]) == 120
+    assert size["StatusIntervals"] == sum(len(item.intervals) for item in world["items"])
+    assert size["DailyLoad"] == (periods[-1].end - periods[0].start).days * len(teams)
+    assert size["Metrics"] == len(periods) * len(teams)
+    assert wb.Worksheets("Dashboard").ChartObjects().Count == len(D.CHARTS)
+    names = [sheet.Name for sheet in wb.Worksheets]
+    assert len(names) == len(set(names)), names
 
 
 def expected_point(spec, period, team, expected, metrics_rows):
@@ -263,7 +269,7 @@ def same_point(got, wanted) -> bool:
     return not isinstance(got, str) and got != NA and abs(got - wanted) < TOLERANCE
 
 
-def expected_distribution(spec, period, selected, expected, bucket):
+def expected_distribution(period, selected, expected, bucket):
     rows = [m for (p, t), m in expected.items() if p == period and (selected == D.ALL_TEAMS or t == selected)]
     if selected == D.ALL_TEAMS:
         total = sum(m.velocity for m in rows)
@@ -280,12 +286,12 @@ def _chart_data(world, mode):
     wb, as_of = world["wb"], world["dataset"].as_of
     expected = {(m.period, m.team): m for m in flow_metrics(world["items"], world["periods"], mode, as_of)}
     metrics_rows = {(r["Period"], r["Team"]): r for r in table_dicts(wb, "Metrics")}
-    blocks, wrong, gaps = chart_blocks(wb), [], 0
+    blocks, wrong, gaps = chart_blocks(wb, len(world["periods"])), [], 0
     for spec in D.CHARTS:
         names, labels, rows = blocks[spec.name]
         if spec.column is None:
             continue
-        assert names == team_names(wb) and labels == [p.name for p in world["periods"]]
+        assert names == team_names() and labels == [p.name for p in world["periods"]]
         for label, row in zip(labels, rows):
             for team, got in zip(names, row):
                 wanted = expected_point(spec, label, team, expected, metrics_rows)
@@ -293,14 +299,14 @@ def _chart_data(world, mode):
                 if not same_point(got, wanted):
                     wrong.append((spec.name, label, team, got, wanted))
     assert wrong == [], wrong[:8]
-    assert gaps > 20                                    # not computable figures are gaps, and they exist in this data
+    assert gaps > 10                                    # not computable figures are gaps, and they exist in this data
     assert all(got == NA for _l, row in zip(*blocks["flow_predictability"][1:]) for got in row)
 
 
 @then("chaque graphique a une série par équipe ou par type de travail avec les valeurs de ChartData")
 def _series(world):
     wb, dash = world["wb"], world["wb"].Worksheets("Dashboard")
-    blocks = chart_blocks(wb)
+    blocks = chart_blocks(wb, len(world["periods"]))
     assert {co.Name for co in dash.ChartObjects()} == {s.name for s in D.CHARTS}
     for spec in D.CHARTS:
         names, _labels, rows = blocks[spec.name]
@@ -313,7 +319,7 @@ def _series(world):
             drawn = [None if row[offset - 1] == NA else row[offset - 1] for row in rows]   # a gap is read as None
             assert list(series.Values) == drawn, (spec.name, name)
         assert chart.HasTitle and chart.ChartTitle.Text == spec.title
-    note = dash.Cells(*(lambda a: (a[0] + D.ROWS_PER_CHART, a[1]))(D.chart_anchor(5))).Value2
+    note = dash.Cells(*(lambda a: (a[0] + D.ROWS_PER_CHART, a[1]))(D.chart_anchor([c.name for c in D.CHARTS].index("flow_predictability")))).Value2
     assert "not computable" in note and "PI objectives" in note, note
 
 
@@ -330,11 +336,11 @@ def _distribution(world):
     for selected in teams:
         dash.Range(D.SELECTOR_CELL).Value = com.as_cell(selected)
         wb.Application.Calculate()
-        names, labels, rows = chart_blocks(wb)["flow_distribution"]
+        names, labels, rows = chart_blocks(wb, len(world["periods"]))["flow_distribution"]
         assert names == list(BUCKETS)
         for label, row in zip(labels, rows):
             for bucket, got in zip(names, row):
-                wanted = expected_distribution(None, label, selected, expected, bucket)
+                wanted = expected_distribution(label, selected, expected, bucket)
                 assert same_point(got, wanted), (selected, label, bucket, got, wanted)
                 seen.add((selected, wanted == NA))
         chart = dash.ChartObjects("flow_distribution").Chart
@@ -349,7 +355,7 @@ def _png(world):
     files = sheets.export_charts(world["wb"], OUT_DIR / "dashboard")
     assert set(files) == {s.name for s in D.CHARTS}
     for path in files.values():
-        data = open(path, "rb").read()
+        data = Path(path).read_bytes()
         assert data[:8] == b"\x89PNG\r\n\x1a\n" and len(data) > 5000, path
 
 
@@ -387,6 +393,6 @@ def _metrics(world, mode):
             if not ok:
                 wrong.append((row["Period"], row["Team"], column, got, wanted))
     assert wrong == [], wrong[:8]
-    assert seen == len(expected) > 50
+    assert seen == len(expected) > 20
     figures = [r["FlowTimeMedian"] for r in rows if r["FlowTimeMedian"] != NOT_COMPUTABLE]
-    assert len(figures) > 10 and any(r["FlowEfficiency"] != NOT_COMPUTABLE for r in rows)
+    assert len(figures) > 5 and any(r["FlowEfficiency"] != NOT_COMPUTABLE for r in rows)

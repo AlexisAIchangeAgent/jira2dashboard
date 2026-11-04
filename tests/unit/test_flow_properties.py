@@ -3,13 +3,14 @@ import datetime as dt
 
 import pytest
 
+from jira2dashboard.flow import blueprint
 from jira2dashboard.flow.itemflow import item_flow
 from jira2dashboard.flow.load import ONE_DAY, in_process_at, snapshot_days
 from jira2dashboard.flow.metrics import flow_metrics
 from jira2dashboard.flow.model import NOT_COMPUTABLE, Period, Rules
 from jira2dashboard.mockjira.flow_adapter import to_flow_issues
 from jira2dashboard.mockjira.generator import generate
-from jira2dashboard.params.model import project_keys
+from jira2dashboard.params.model import load_all, project_keys
 
 STATIC_RULES = Rules.from_params()
 
@@ -52,7 +53,8 @@ def test_the_data_is_rich_enough_for_the_properties(items):
     assert sum(1 for i in items if i.done) > 100 and sum(1 for i in items if i.removed) > 5
     assert sum(1 for i in items if i.backlog_returns and i.start and i.done) > 3
     assert sum(1 for i in items if i.reopened) == 0            # the generator never reopens: the hand cases cover it
-    assert {i.team for i in items} == {"ART", "AAA", "EEE", "FFFF", "TTTT", "SSSS", "SSS", "TETET", "CCCC"}
+    projects = next(s for s in load_all() if s.name == "Projects")
+    assert {i.team for i in items} == set(blueprint.team_names([tuple(r) for r in projects.rows]))
 
 
 def test_program_issues_are_the_art_team_and_nobody_else_is(issues):
@@ -180,4 +182,8 @@ def test_not_computable_is_never_a_zero(results):
     for m in metrics:
         for value in (m.flow_time_median, m.flow_time_p85, m.flow_efficiency, m.flow_load_average):
             assert value == NOT_COMPUTABLE or isinstance(value, float | int)
+        if m.flow_time_count == 0:                          # nothing to measure: the text, never a 0
+            assert m.flow_time_median == m.flow_time_p85 == m.flow_efficiency == NOT_COMPUTABLE
+        else:
+            assert isinstance(m.flow_time_median, float | int) and isinstance(m.flow_time_p85, float | int)
         assert m.flow_predictability == NOT_COMPUTABLE

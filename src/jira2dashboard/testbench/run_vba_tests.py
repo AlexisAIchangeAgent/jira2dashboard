@@ -6,19 +6,26 @@ Usage:  scripts\\run.ps1 vba-tests            (offline + network tests)
         scripts\\run.ps1 vba-tests --out name.xlsm  (workbook name under out\\)
 """
 import json
-import re
 import subprocess
+import re
 import sys
 from pathlib import Path
 
 from jira2dashboard.excel import com as R
+from jira2dashboard.flow.sheets import write_blueprint
 from jira2dashboard.params.model import load_all as load_params
 from jira2dashboard.params.write import write_params
 from jira2dashboard.paths import CHILDREN_DIR, OUT_DIR, VBA_DIR
 
-OUT = OUT_DIR / (sys.argv[sys.argv.index("--out") + 1] if "--out" in sys.argv else "vba_tests.xlsm")
+def option(flag: str, default: str) -> str:
+    """The value after `flag` on the command line, or the default (also when the flag is the last argument)."""
+    argv = sys.argv
+    return argv[argv.index(flag) + 1] if flag in argv[:-1] else default
+
+
+OUT = OUT_DIR / option("--out", "vba_tests.xlsm")
 ORDER = ["modCoverage", "modJson", "modText", "modHttp", "modJira", "modFlow", "modParams", "modExtract",
-         "modBackground", "modTests", "modButtons"]
+         "modFlowBuild", "modActions", "modBackground", "modTests", "modButtons"]
 BUTTONS = [("J2", "Lancer les tests (hors ligne)", "modButtons.BtnRunAllTests"),
            ("J4", "Lancer les tests + reseau", "modButtons.BtnRunNetworkTests"),
            ("J6", "Effacer les resultats", "modButtons.BtnClearResults")]
@@ -56,7 +63,9 @@ def build(names: list[str], target: Path) -> list[str]:
             R.add_sheet_after_last(wb, sheet)
         write_coverage_map(wb.Worksheets("CoverageMap"), markers)
         if "modParams" in sources:
-            write_params(wb, load_params())              # sheets Workflows, Transitions, FieldMapping
+            write_params(wb, load_params())              # the six parameter sheets
+        if "modFlowBuild" in sources:
+            write_blueprint(wb)                          # Issues, StatusIntervals, FlowFormulas, ChartSpec, Dashboard
         for name, code in sources.items():
             R.add_or_replace_module(wb, name, code)
         if "modButtons" in sources:
@@ -100,11 +109,10 @@ def compile_ok(target: Path) -> str:
 def run_tests(target: Path, network: bool) -> dict:
     """Open the workbook in a child process, run the VBA tests; return the child's JSON report."""
     args = ["--network"] if network else []
-    proc = subprocess.run([sys.executable, str(CHILDREN_DIR / "_run_tests_child.py"), str(target), *args],
-                          capture_output=True, text=True, timeout=600, env=R.child_env())
-    if proc.returncode != 0:
-        raise RuntimeError(proc.stderr[-3000:])
-    return json.loads(proc.stdout.strip().splitlines()[-1])
+    last_line = R.run_child(CHILDREN_DIR / "_run_tests_child.py", target, *args, timeout_s=600)   # kills its Excel on timeout
+    if not last_line:
+        raise RuntimeError("the test child printed no report")
+    return json.loads(last_line)
 
 
 def bisect() -> None:
@@ -131,7 +139,7 @@ def main() -> int:
         return 1
     try:
         report = run_tests(OUT, network="--offline" not in sys.argv)
-    except RuntimeError as err:
+    except (RuntimeError, subprocess.TimeoutExpired) as err:
         print(err)
         return 1
     print("summary:", report["summary"])

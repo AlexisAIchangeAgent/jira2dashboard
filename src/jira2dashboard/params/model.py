@@ -194,9 +194,16 @@ def _check_config(sheet: ParamSheet, problems: list[str]) -> None:
         problems.append(f"Config: AsOf must be a UTC date or date and time such as 2026-11-03 18:00, got {as_of!r}")
 
 
+MOMENT = re.compile(r"^\d{4}-\d{2}-\d{2}([ T]\d{2}:\d{2}(:\d{2})?)?$")
+
+
 def _parse_moment(text: str):
+    "A date or date and time as the workbook formulas read them (2026-11-03, 2026-11-03 18:00, ...T18:00:00), else None."
+    text = text.strip()
+    if not MOMENT.match(text):
+        return None
     try:
-        return dt.datetime.fromisoformat(text.strip())
+        return dt.datetime.fromisoformat(text)
     except ValueError:
         return None
 

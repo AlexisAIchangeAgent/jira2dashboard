@@ -145,8 +145,15 @@ End Function
 Public Function AsOfFromConfig(ByVal wsConfig As Object) As Date
     ' The AsOf parameter of the Config sheet (UTC). The metrics need it: open statuses run up to it.
     Cov "PRM22"
-    Dim v As Variant
-    v = ParseMoment(ConfigValue(wsConfig, "AsOf"))
+    Dim v As Variant, row As Variant
+    For Each row In ReadTable(wsConfig)
+        If CStr(row("Parameter")) = "AsOf" Then v = row("Value"): Exit For
+    Next row
+    If VarType(v) = vbDate Or VarType(v) = vbDouble Then
+        Cov "PRM24"                                  ' typed as a date: Excel keeps the date, not the text
+        AsOfFromConfig = CDate(v): Exit Function
+    End If
+    v = ParseMoment(CStr(v & ""))
     If IsEmpty(v) Then
         Cov "PRM23"
         Err.Raise vbObjectError + 604, "AsOfFromConfig", "Type AsOf in the Config sheet: a UTC date and time such as 2026-11-03 18:00"

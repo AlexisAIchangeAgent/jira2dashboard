@@ -1,6 +1,6 @@
 """The Excel formulas of the flow sheets, as text (English function names, structured references).
 
-Pure: nothing here touches Excel. sheets.py writes them. The formulas follow docs section 2 and are what the
+Pure: nothing here touches Excel. blueprint.py writes them into the sheet FlowFormulas and modFlowBuild.bas puts them in the tables. The formulas follow docs section 2 and are what the
 differential test compares, cell by cell, with the Python reference (itemflow.py, load.py, metrics.py).
 
 Rules kept here:
@@ -107,7 +107,7 @@ def load_count(day: str, team: str, bucket: str | None = None) -> str:
     mode_a = (f'COUNTIFS({SI}[EnteredUtc],"<="&{t},{SI}[LeftEff],">"&{t},{SI}[Counted],1,'
               f'{SI}[FirstStart],"<="&{t},{SI}[Team],{team}{a_bucket})')
     mode_b = (f'COUNTIFS({IF_}[Team],{team},{IF_}[StartUtc],"<="&{t},{IF_}[EndUtc],">"&{t}{b_bucket})')
-    return f'IF(cfg_FlowLoadMode="A",{mode_a},{mode_b})'
+    return f'IF(cfg_FlowLoadMode="A",{mode_a},IF(cfg_FlowLoadMode="B",{mode_b},NA()))'
 
 
 DAILYLOAD_LOAD = f'=IF(ROUND(([@Date]+1-AsOfUtc)*86400,0)>0,"",{load_count("[@Date]", "[@Team]")})'
@@ -157,8 +157,10 @@ METRICS_COLUMNS = (
 # --- control cells of the Metrics sheet: the as-of date and the Flow Load mode, read from Config ------------
 
 CONFIG_VALUE = 'INDEX(Config!$B:$B,MATCH("{name}",Config!$A:$A,0))'
-AS_OF_CELL = ('=LET(t,SUBSTITUTE(TRIM(' + CONFIG_VALUE.format(name="AsOf") + '),"T"," "),'
-              'DATEVALUE(LEFT(t,10))+IF(LEN(t)>10,TIMEVALUE(MID(t,12,8)),0))')
+# A date typed in the cell is a number, ISO text (2026-11-03 18:00) is parsed, an empty cell is #N/A (not 1900).
+AS_OF_CELL = ('=LET(v,' + CONFIG_VALUE.format(name="AsOf") + ',IF(ISNUMBER(v),v,'
+              'LET(t,SUBSTITUTE(TRIM(v),"T"," "),'
+              'IF(t="",NA(),DATEVALUE(LEFT(t,10))+IF(LEN(t)>10,TIMEVALUE(MID(t,12,8)),0)))))')
 MODE_CELL = "=UPPER(TRIM(" + CONFIG_VALUE.format(name="FlowLoadMode") + "))"
 
 TABLES = {

@@ -9,8 +9,8 @@ METRICS_COLUMNS = set(f.TABLES["Metrics"])
 
 
 def test_one_chart_per_flow_metric():
-    assert [c.name for c in d.CHARTS] == ["velocity", "flow_time", "flow_load", "flow_efficiency", "flow_distribution",
-                                           "flow_predictability"]
+    assert [c.name for c in d.CHARTS] == ["velocity", "flow_time", "flow_time_p85", "flow_load", "flow_efficiency",
+                                           "flow_distribution", "flow_predictability"]
     assert len({c.name for c in d.CHARTS}) == len(d.CHARTS)
 
 

@@ -9,7 +9,7 @@ Public Sub ExtractFlowData()
     ExtractFlowDataTo JiraConfigFromSheet(wsConfig), ExtractionJql(ThisWorkbook.Worksheets("Projects"), wsConfig), _
                       ConfigValue(wsConfig, "WorkTypeField"), AsOfFromConfig(wsConfig), _
                       ThisWorkbook.Worksheets("Projects"), ThisWorkbook.Worksheets("Workflows"), _
-                      SheetNamed("Issues"), SheetNamed("StatusIntervals")
+                      SheetNamed("Issues"), SheetNamed("StatusIntervals"), True
 End Sub
 
 Private Function SheetNamed(ByVal name As String) As Object
@@ -38,7 +38,10 @@ End Function
 
 Public Sub ExtractFlowDataTo(ByVal cfg As Object, ByVal jql As String, ByVal workTypeField As String, _
                              ByVal asOf As Date, ByVal wsProjects As Object, ByVal wsWorkflows As Object, _
-                             ByVal wsIssues As Object, ByVal wsIntervals As Object)
+                             ByVal wsIssues As Object, ByVal wsIntervals As Object, _
+                             Optional ByVal clearDerived As Boolean = False)
+    ' clearDerived: after everything was read from Jira, and only then, empty the sheets of an earlier run (a failed
+    ' extraction therefore leaves the previous results as they were).
     ' Issues: Key | Id | Project | Type | WorkType | CreatedUtc | Status.
     ' StatusIntervals: Key | Workflow | Seq | Status | Category | EnteredUtc | LeftUtc | DurationDays | IsOpen | ChangeId | Check.
     ' The Program follows the Feature workflow, every other project the Team workflow (sheet Projects).
@@ -56,7 +59,6 @@ Public Sub ExtractFlowDataTo(ByVal cfg As Object, ByVal jql As String, ByVal wor
         keys.Add JGet(issue, "key")
         idToKey(CStr(JGet(issue, "id"))) = JGet(issue, "key")
     Next issue
-    WriteTable wsIssues, Array("Key", "Id", "Project", "Type", "WorkType", "CreatedUtc", "Status"), rows
     Set changes = StatusChangesFromChangelog(JiraChangelogsAll(cfg, keys), idToKey)
     For Each wf In Array("Feature", "Team")
         Set info = CreateObject("Scripting.Dictionary")
@@ -74,6 +76,8 @@ Public Sub ExtractFlowDataTo(ByVal cfg As Object, ByVal jql As String, ByVal wor
             out.Add Array(iv(0), wf, iv(1), iv(2), iv(3), iv(4), iv(5), iv(6), iv(7), iv(8), iv(9))
         Next iv
     Next wf
+    If clearDerived Then ClearFlowSheets ThisWorkbook
+    WriteTable wsIssues, Array("Key", "Id", "Project", "Type", "WorkType", "CreatedUtc", "Status"), rows
     WriteTable wsIntervals, Array("Key", "Workflow", "Seq", "Status", "Category", "EnteredUtc", "LeftUtc", _
                                   "DurationDays", "IsOpen", "ChangeId", "Check"), out
 End Sub

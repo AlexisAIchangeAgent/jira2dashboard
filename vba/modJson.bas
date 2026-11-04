@@ -166,7 +166,8 @@ Public Function JsonStringify(ByVal value As Variant) As String
     ElseIf VarType(value) = vbBoolean Then
         JsonStringify = IIf(value, "true", "false")
     ElseIf IsNumeric(value) And VarType(value) <> vbString Then
-        JsonStringify = Trim$(Str$(value))
+        JsonStringify = Replace(Replace(Trim$(Str$(value)), "-.", "-0."), " .", "0.")
+        If Left$(JsonStringify, 1) = "." Then JsonStringify = "0" & JsonStringify    ' JSON has no ".5"
     ElseIf IsArray(value) Then
         Cov "JSN18": JsonStringify = StringifyVbArray(value)
     Else

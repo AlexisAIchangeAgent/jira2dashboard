@@ -16,6 +16,7 @@ dev = ["pytest==9.1.1", "pytest-bdd==8.1.0", "pytest-cov==7.1.0"]
 check-machine = "jira2dashboard.cli.check_machine:main"
 run-vba-tests = "jira2dashboard.testbench.run_vba_tests:main"
 mock-jira = "jira2dashboard.mockjira.__main__:main"
+build-workbook = "jira2dashboard.build_workbook:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
@@ -36,7 +37,7 @@ exclude_also = [
     '''def (set_module_code|add_or_replace_module|workbook_component|sheet_component|_find_document_by_tab_name)\b''',
     '''def (set_sheet_code_name|add_macro_button|open_without_macros|compile_vba_project|run_macro)\b''',
     '''def (run_child|_kill_child_excel|write_params)\b''',
-    '''def (build|add_progress_bar|write_coverage_map|compile_ok|run_tests|bisect|main)\b''',
+    '''def (build|add_progress_bar|write_coverage_map|compile_ok|run_tests|bisect|main|build_delivery)\b''',
 ]
 
 [tool.pytest.ini_options]

@@ -59,6 +59,7 @@ Public Function RetryDelayMs(ByVal cfg As Object, ByVal attempt As Long, ByVal r
     If backoff > cfg("RetryMaxMs") Then backoff = cfg("RetryMaxMs")
     backoff = backoff * Rnd()                                   ' full jitter
     If Len(retryAfter) > 0 Then fromHeader = Val(retryAfter) * 1000# + Rnd() * 500#
+    If fromHeader > 120000# Then fromHeader = 120000#           ' never wait more than two minutes on a Retry-After
     RetryDelayMs = IIf(fromHeader > backoff, fromHeader, backoff)
 End Function
 

@@ -388,16 +388,20 @@ def child_env(base: dict[str, str] | None = None) -> dict[str, str]:
     return env
 
 def run_child(script: Path, xlsm_path: Path, *extra_args: str, timeout_s: int = 60) -> str:
-    """Run a child check script; on timeout kill its Excel too. Return the last stdout line."""
+    """Run a child check script; on timeout kill its Excel too. Return the last stdout line (empty if none).
+    A failing child raises RuntimeError with the end of its stderr (the COM error or the traceback)."""
     try:
         res = subprocess.run(
             [sys.executable, str(script), str(xlsm_path.resolve()), *extra_args],
-            capture_output=True, text=True, timeout=timeout_s, check=True, env=child_env(),
+            capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=timeout_s, env=child_env(),
         )
     except subprocess.TimeoutExpired as err:
         _kill_child_excel(err.stderr)
         raise
-    return res.stdout.strip().splitlines()[-1]
+    if res.returncode != 0:
+        raise RuntimeError(f"{script.name} failed ({res.returncode}): {res.stderr[-3000:]}")
+    lines = res.stdout.strip().splitlines()
+    return lines[-1] if lines else ""
 
 def _kill_child_excel(stderr) -> None:
     """Find the child's Excel PID in its stderr and end that process."""

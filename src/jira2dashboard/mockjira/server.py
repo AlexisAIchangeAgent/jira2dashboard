@@ -111,10 +111,13 @@ def _make_handler(state: _State):
                 if not readable:
                     return
                 for source in readable:
-                    data = source.recv(65536)
-                    if not data:
+                    try:
+                        data = source.recv(65536)
+                        if not data:
+                            return
+                        (upstream if source is client else client).sendall(data)
+                    except OSError:                  # a connection reset by the peer ends the tunnel quietly
                         return
-                    (upstream if source is client else client).sendall(data)
 
         def _proxy_auth_missing(self) -> bool:
             """With a proxy challenge set, a request that came through the proxy needs Proxy-Authorization.
@@ -224,6 +227,10 @@ def _basic(email: str, token: str) -> str:
     return "Basic " + base64.b64encode(f"{email}:{token}".encode("utf-8")).decode("ascii")
 
 
+class _ExclusiveServer(ThreadingHTTPServer):
+    allow_reuse_address = False              # on Windows SO_REUSEADDR lets a second server take the port of a running one
+
+
 class MockJira:
     """The fake Jira. `page_clamp` / `bulk_clamp` cap what one response can hold (Jira serves smaller pages than
     asked when many fields are requested: the client must read what came back). `proxy_challenge` ("Negotiate",
@@ -235,7 +242,7 @@ class MockJira:
                  page_clamp: int = 100, bulk_clamp: int = 1000, near_limit: bool = False,
                  proxy_challenge: str | None = None):
         self._state = _State(dataset, credentials, tz_minutes, page_clamp, bulk_clamp, near_limit, proxy_challenge)
-        self._server = ThreadingHTTPServer((host, port), _make_handler(self._state))
+        self._server = _ExclusiveServer((host, port), _make_handler(self._state))
         self._state.address = self._server.server_address[:2]
         self._server.daemon_threads = True
         self._thread = threading.Thread(target=self._server.serve_forever, kwargs={"poll_interval": 0.02}, daemon=True)
@@ -262,7 +269,8 @@ class MockJira:
         return self
 
     def stop(self) -> None:
-        self._server.shutdown()
+        if self._thread.is_alive():          # shutdown() waits for a serve loop: it would block if start() was never called
+            self._server.shutdown()
         self._server.server_close()
         self._thread.join(timeout=5)
 

@@ -21,15 +21,19 @@ src/jira2dashboard/
                         intervals.py (StatusIntervals), itemflow.py (ItemFlow), load.py (Flow Load A/B),
                         metrics.py (par période et par équipe ; « not computable » jamais 0).
                         Côté Excel : formulas.py (texte des formules, testé sans Excel) et sheets.py (tables
-                        ItemFlow, DailyLoad, Metrics en formules visibles ; build_dashboard : feuilles ChartData
-                        et Dashboard) ; dashboard_spec.py (graphiques et formules de ChartData, testé sans Excel) ;
-                        modExtract.bas écrit les feuilles brutes Issues et StatusIntervals
+                        ItemFlow, DailyLoad, Metrics en formules visibles), blueprint.py (le plan écrit dans le
+                        classeur : feuilles FlowFormulas et ChartSpec), dashboard_spec.py (graphiques et formules
+                        de ChartData), sheets.py (COM : écrit le plan, lit les tables, exporte les PNG).
+                        Les tables, formules et graphiques sont construits par le VBA (modFlowBuild.bas) depuis
+                        ce plan ; modExtract.bas écrit les feuilles brutes Issues et StatusIntervals
+  build_workbook.py     construit le classeur à livrer out\jira2dashboard.xlsm (sans module de test)
   mockjira/             faux Jira Cloud sur localhost (E3) : dataset.py (historiques), generator.py (volume seedé),
                         jql.py, api.py (réponses pures), server.py (http.server + fautes injectables)
   paths.py              emplacements (repo, vba, params, out, children)
 params/                 workflows.md, transitions.md, field_mapping.md : les paramètres (statuts, transitions,
                         champs). On les modifie ici ou dans le classeur, jamais dans le code
-vba/                    10 modules .bas (ASCII uniquement), artefact de premier rang ; modParams.bas lit les feuilles
+vba/                    13 modules .bas (ASCII uniquement), artefact de premier rang ; modParams.bas lit les feuilles,
+                        modFlowBuild.bas construit tables et graphiques, modActions.bas = le bouton du Dashboard
 tests/unit/             Python pur, sans Excel (rapide)
 tests/features/         scénarios Gherkin (*.feature, en français)
 tests/steps/            steps pytest-bdd
@@ -52,15 +56,36 @@ powershell -ExecutionPolicy Bypass -File scripts\setup.ps1 -Dev    # crée .venv
 .\scripts\run.ps1 vba-tests       # build + compile + tests VBA ; --offline, --bisect, --out nom.xlsm
 .\scripts\run.ps1 check-machine   # 21 contrôles de la machine
 .\scripts\run.ps1 mock-jira       # faux Jira sur http://127.0.0.1:8099, Ctrl+C pour arrêter
+.\scripts\run.ps1 build           # construit le classeur à livrer : out\jira2dashboard.xlsm (--out nom.xlsm)
 ```
+
+## Livraison : le classeur `out\jira2dashboard.xlsm` (E6)
+
+Deux façons de livrer, au choix d'AL : **le fichier `.xlsm` tel quel**, ou **le code du projet**, à builder sur le
+poste client (Python 3.14 : `scripts\setup.ps1`, puis `scripts\run.ps1 build`). Le classeur n'a pas besoin de Python
+pour fonctionner : le VBA lit Jira et construit les tables, les formules et les graphiques.
+
+Sur le poste client :
+
+1. **Débloquer le fichier** s'il vient d'un téléchargement ou d'un mail (marque « Mark of the Web », sinon Excel
+   bloque les macros) : clic droit sur le fichier > Propriétés > cocher « Débloquer », ou
+   `Unblock-File .\jira2dashboard.xlsm` dans PowerShell. Ouvrir le classeur et cliquer sur « Activer le contenu ».
+2. Feuille **Config** : `BaseUrl`, `Email`, `ApiToken`, `WorkTypeField` (id du champ type de travail), `AsOf` (date
+   de l'extraction, UTC), et `ProxyServer` / `ProxyBypass` si besoin. Feuille **Projects** : les projets Jira et
+   lequel est le Program. Feuille **Periods** : les itérations (`Period | Start | End`, fin exclue).
+3. Feuille **Dashboard** : bouton **Extract from Jira and compute**. La barre d'état suit les étapes. Le classeur
+   est occupé pendant l'extraction (pas d'annulation pour l'instant). À la fin, les feuilles `ItemFlow`, `DailyLoad`,
+   `Metrics`, `ChartData` et les graphiques sont **reconstruits à la taille des nouvelles données** : on peut
+   relancer autant de fois que nécessaire. Pour l'équipe du graphique Flow Distribution : cellule `B2`.
+4. Les feuilles `FlowFormulas` et `ChartSpec` décrivent les formules et les graphiques : ne pas les modifier.
 
 **Formules Excel (E4)** : le test `tests\features\flow_excel.feature` compare cellule par cellule les formules du
 classeur à la référence Python (faux Jira, extraction VBA, formules, en mode A puis B). `Config.WorkTypeField` est
 l'id du champ personnalisé du type de travail ; `Config.AsOf` est obligatoire pour l'extraction.
 
-**Tableau de bord (E5)** : la feuille `Dashboard` montre six graphiques natifs Excel (Velocity, Flow Time médian,
-Flow Load moyen, Flow Efficiency, Flow Distribution, Flow Predictability), un graphique par métrique avec une série
-par équipe. Les points viennent de la feuille `ChartData` (une formule par point). Une valeur « not computable »
+**Tableau de bord (E5)** : la feuille `Dashboard` montre sept graphiques natifs Excel (Velocity, Flow Time médian et
+P85, Flow Load moyen, Flow Efficiency, Flow Distribution, Flow Predictability), un graphique par métrique avec une
+série par équipe. Les points viennent de la feuille `ChartData` (une formule par point). Une valeur « not computable »
 est un trou dans la courbe, jamais un 0, avec une note sous le graphique. Flow Distribution montre une série par
 type de travail pour l'équipe choisie dans la cellule `B2` (`All teams` = toutes les équipes ensemble). Les
 graphiques sont exportés en PNG dans `out\dashboard\` par le test `flow_excel.feature`.

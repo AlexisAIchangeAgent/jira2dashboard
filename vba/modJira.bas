@@ -47,6 +47,7 @@ Public Function JiraConfigFromSheet(ByVal wsConfig As Object) As Object
     If secs < 1 Then secs = 60
     c("ConnectMs") = secs * 1000: c("SendMs") = secs * 1000: c("ReceiveMs") = secs * 1000
     c("MaxRetries") = CLng(Val(ConfigValue(wsConfig, "MaxRetries", "4")))
+    If c("MaxRetries") < 0 Then c("MaxRetries") = 0                 ' a negative count would skip the request altogether
     Set JiraConfigFromSheet = c
 End Function
 
@@ -177,7 +178,7 @@ Public Function JiraChangelogsAll(ByVal cfg As Object, ByVal issueKeys As Collec
 End Function
 
 Private Sub FetchChangelogChunk(ByVal cfg As Object, ByVal chunk As Collection, ByVal rows As Collection)
-    Dim token As String, resp As Object, data As Variant, icl As Variant, h As Variant, it As Variant
+    Dim token As String, resp As Object, data As Variant, icl As Variant, h As Variant, it As Variant, pages As Long, previous As String
     Do
         Set resp = HttpRequest(cfg, "POST", cfg("BaseUrl") & "/rest/api/3/changelog/bulkfetch", _
                                ChangelogBody(chunk, token))
@@ -193,7 +194,12 @@ Private Sub FetchChangelogChunk(ByVal cfg As Object, ByVal chunk As Collection, 
                 Next it
             Next h
         Next icl
+        previous = token
         token = CStr(JGet(data, "nextPageToken") & "")
+        pages = pages + 1
+        If Len(token) > 0 And (token = previous Or pages > 5000) Then
+            Err.Raise vbObjectError + 505, "FetchChangelogChunk", "Jira keeps sending the same changelog page: stop here and try again later."
+        End If
     Loop While Len(token) > 0
 End Sub
 

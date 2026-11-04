@@ -85,6 +85,7 @@ Public Function ParseJiraDate(ByVal value As Variant) As Variant
     ' "2026-10-01" -> that date. Empty or invalid -> Empty (never raises).
     Dim s As String, d As Date, offsetMin As Long, tail As String, sign As Long
     ParseJiraDate = Empty
+    On Error GoTo Invalid
     If IsNull(value) Or IsEmpty(value) Then Cov "TXT06": Exit Function
     s = CStr(value)
     If Len(s) < 10 Then Cov "TXT07": Exit Function
@@ -103,6 +104,11 @@ Public Function ParseJiraDate(ByVal value As Variant) As Variant
         offsetMin = sign * (CLng(Left$(tail, 2)) * 60 + CLng(Mid$(tail, 3, 2)))
     End If
     ParseJiraDate = d - offsetMin / 1440#
+    Exit Function
+Invalid:
+    Cov "TXT17"
+    Err.Clear
+    ParseJiraDate = Empty
 End Function
 
 Public Function FieldToCell(ByVal value As Variant) As Variant

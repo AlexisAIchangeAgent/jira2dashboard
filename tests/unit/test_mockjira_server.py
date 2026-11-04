@@ -33,7 +33,7 @@ def test_get_search_like_the_vba_client(jira, call):
 def test_post_search_with_a_json_body(jira, call):
     result = call(jira, "POST", SEARCH, {"jql": "project = TA", "fields": ["summary"], "maxResults": 2})
     assert [i["key"] for i in result.json["issues"]] == ["TA-1", "TA-2"]
-    assert "nextPageToken" in result.json
+    assert result.json["nextPageToken"] and result.json["isLast"] is False
 
 
 def test_utf8_is_sent_as_utf8(jira, call):

@@ -52,7 +52,7 @@ Private Function TestNames() As Variant
         "T_RetryExhausted", "T_ChangelogChunks", "T_IssueRows", "T_WriteTable", "T_StatusIntervals", _
         "T_StatusChanges", "T_RetryDelay", "T_SafeAccess", "T_FilesUtf8", "T_StringifyBadObject", _
         "T_TooManyPages", "T_BackgroundExport", "T_TextNotConverted", "T_ParamsTables", "T_ParamsOnWorkbook", _
-        "T_TrimWhite", "T_ConfigSheet", "T_ProjectsSheet", "T_ParseMoment", "T_ExtractFlowData")
+        "T_TrimWhite", "T_ConfigSheet", "T_ProjectsSheet", "T_ParseMoment", "T_ExtractFlowData", "T_FlowBuild")
 End Function
 
 Public Function RunAllTests() As String
@@ -176,12 +176,11 @@ Public Sub T_JsonEmpty()
 End Sub
 
 Public Sub T_JsonErrors()
-    Dim bad As Variant, raised As Boolean, v As Variant
+    Dim bad As Variant, raised As Boolean
     For Each bad In Array("", "[1,", "{'a':1 'b':2}", "{", "{'a':1}x", "{'a' 1}", "[1 2]", "{'a':tru}", "'abc", "{1:2}", "{'a':'\q'}", "@")
         raised = False
         On Error Resume Next
-        v = Empty
-        v = JsonParse(J(bad))
+        Call JsonParse(J(bad))                      ' no assignment: a parsed object would raise 450 and hide an accepted input
         raised = (Err.Number <> 0)
         Err.Clear
         On Error GoTo 0
@@ -361,6 +360,9 @@ Public Sub T_ParseMoment()
     raised = (Err.Number <> 0): Err.Clear
     On Error GoTo 0
     Check "asof", "the error asks to type AsOf", "empty AsOf", True, raised
+    ConfigRows ws, Array("AsOf", "x")
+    ws.Cells(2, 2).Value = DateSerial(2026, 11, 3) + TimeSerial(18, 0, 0)        ' typed as a date: the cell holds a date, not text
+    Check "asof", "AsOf typed as a date in the cell", "2026-11-03 18:00 as a date", CDbl(DateSerial(2026, 11, 3)) + 0.75, CDbl(AsOfFromConfig(ws))
 End Sub
 
 Public Sub T_ExtractFlowData()
@@ -406,6 +408,97 @@ Public Sub T_ExtractFlowData()
     Check "extract", "a closed interval has its duration", "TTT-1 seq 1", 1, wsV.Range("H2").Value
 End Sub
 
+Private Sub FlowRaw(ByVal withStory As Boolean)
+    ' Raw sheets as the extraction writes them: a Program feature, and (optionally) a team story with two intervals.
+    Dim issues As New Collection, ivs As New Collection, t0 As Date
+    t0 = DateSerial(2026, 10, 1)
+    issues.Add Array("TTT-1", "10", "TTT", "Feature", "Feature", t0, "Nouveau")
+    ivs.Add Array("TTT-1", "Feature", 1, "Nouveau", "Backlog", t0, Empty, 4, True, "1", "")
+    If withStory Then
+        issues.Add Array("AAA-1", "11", "AAA", "Story", "Enabler", t0, "En analyse")
+        ivs.Add Array("AAA-1", "Team", 1, "Nouveau", "Backlog", t0, t0 + 1, 1, False, "1", "")
+        ivs.Add Array("AAA-1", "Team", 2, "En analyse", "Active", t0 + 1, Empty, 3, True, "2", "")
+    End If
+    WriteTable ThisWorkbook.Worksheets("Issues"), Array("Key", "Id", "Project", "Type", "WorkType", "CreatedUtc", "Status"), issues
+    WriteTable ThisWorkbook.Worksheets("StatusIntervals"), Array("Key", "Workflow", "Seq", "Status", "Category", "EnteredUtc", _
+        "LeftUtc", "DurationDays", "IsOpen", "ChangeId", "Check"), ivs
+End Sub
+
+Private Sub FlowPeriods(ByVal start1 As Variant, ByVal end1 As Variant, Optional ByVal second As Boolean = False)
+    Dim ws As Object
+    Set ws = ThisWorkbook.Worksheets("Periods")
+    ws.Range("A2:C10").ClearContents
+    ws.Range("A2").Value = "P1": ws.Range("B2").Value = start1: ws.Range("C2").Value = end1
+    If second Then ws.Range("A3").Value = "P2": ws.Range("B3").Value = "2026-10-15": ws.Range("C3").Value = "2026-10-29"
+End Sub
+
+Private Function FlowBuildError() As Long
+    On Error Resume Next
+    BuildFlowSheetsIn ThisWorkbook
+    FlowBuildError = Err.Number - vbObjectError
+    Err.Clear
+End Function
+
+Private Function TableRows(ByVal sheetName As String) As Long
+    TableRows = ThisWorkbook.Worksheets(sheetName).ListObjects(sheetName).ListRows.Count
+End Function
+
+Public Sub T_FlowBuild()
+    ' The flow sheets and the dashboard are built from the plan sheets (FlowFormulas, ChartSpec), and rebuilt to the size
+    ' of newer data: nothing of a bigger earlier run stays. Period dates come as a date, as text or as a number.
+    Dim wb As Object, dash As Object, sheetCount As Long, teams As Long
+    Set wb = ThisWorkbook
+    Set dash = wb.Worksheets("Dashboard")
+    ClearFlowSheets wb
+    FlowPeriods "x", "y"
+    FlowRaw True
+    Check "flowbuild", "text that is not a date is refused", "Start x", 701, FlowBuildError()
+    FlowPeriods DateSerial(2026, 10, 15), DateSerial(2026, 10, 1)
+    Check "flowbuild", "a period that ends before it starts is refused", "15 Oct -> 1 Oct", 704, FlowBuildError()
+    wb.Worksheets("Periods").Range("A2:C10").ClearContents
+    Check "flowbuild", "no period is refused", "empty Periods", 703, FlowBuildError()
+    FlowPeriods DateSerial(2026, 10, 1), DateSerial(2026, 10, 15), True
+    ClearFlowSheets wb
+    Check "flowbuild", "no extracted data is refused", "empty Issues", 702, FlowBuildError()
+    FlowRaw True
+    BuildFlowSheetsIn wb
+    teams = 9                                                    ' ART and the eight team projects of params\projects.md
+    Check "flowbuild", "ItemFlow: one row per issue", "2 issues", 2, TableRows("ItemFlow")
+    Check "flowbuild", "Issues and StatusIntervals become tables", "2 + 3 rows", "2|3", TableRows("Issues") & "|" & TableRows("StatusIntervals")
+    Check "flowbuild", "DailyLoad: one row per day and team", "28 days x 9", 28 * teams, TableRows("DailyLoad")
+    Check "flowbuild", "Metrics: one row per period and team", "2 periods x 9", 2 * teams, TableRows("Metrics")
+    Check "flowbuild", "seven charts", "Dashboard", 7, dash.ChartObjects.Count
+    Check "flowbuild", "one series per team in the Velocity chart", "Velocity", teams, dash.ChartObjects("velocity").Chart.SeriesCollection.Count
+    Check "flowbuild", "one series per work type in the Distribution chart", "flow_distribution", 5, dash.ChartObjects("flow_distribution").Chart.SeriesCollection.Count
+    Check "flowbuild", "the formulas give the issue keys", "ItemFlow.Key", "TTT-1|AAA-1", _
+          wb.Worksheets("ItemFlow").ListObjects("ItemFlow").ListColumns("Key").DataBodyRange.Cells(1, 1).Value & "|" & _
+          wb.Worksheets("ItemFlow").ListObjects("ItemFlow").ListColumns("Key").DataBodyRange.Cells(2, 1).Value
+    Check "flowbuild", "the Program is the team ART, a team project its own team", "ItemFlow.Team", "ART|AAA", _
+          wb.Worksheets("ItemFlow").ListObjects("ItemFlow").ListColumns("Team").DataBodyRange.Cells(1, 1).Value & "|" & _
+          wb.Worksheets("ItemFlow").ListObjects("ItemFlow").ListColumns("Team").DataBodyRange.Cells(2, 1).Value
+    Check "flowbuild", "the mode is read from Config", "Controls!B2", "A", wb.Worksheets("Controls").Range("B2").Value
+    sheetCount = wb.Worksheets.Count
+    ' a second, smaller run: no row, no sheet and no chart of the first one stays
+    FlowRaw False
+    FlowPeriods 46296, 46310                                      ' 2026-10-01 .. 2026-10-15 as plain numbers
+    wb.Worksheets("Dashboard").Range("B2").Value = "Nowhere"
+    BuildFlowSheetsIn wb
+    Check "flowbuild", "smaller data: ItemFlow shrinks", "1 issue", 1, TableRows("ItemFlow")
+    Check "flowbuild", "smaller data: DailyLoad and Metrics shrink", "14 days, 1 period", (14 * teams) & "|" & teams, TableRows("DailyLoad") & "|" & TableRows("Metrics")
+    Check "flowbuild", "smaller data: StatusIntervals", "1 interval", 1, TableRows("StatusIntervals")
+    Check "flowbuild", "the sheets are the same", "count", sheetCount, wb.Worksheets.Count
+    Check "flowbuild", "still seven charts", "Dashboard", 7, dash.ChartObjects.Count
+    Check "flowbuild", "an unknown team in the selector goes back to All teams", "Nowhere", "All teams", dash.Range("B2").Value
+    dash.Range("B2").Value = "AAA"
+    BuildFlowSheetsIn wb
+    Check "flowbuild", "a known team stays selected", "AAA", "AAA", dash.Range("B2").Value
+    ' leave the workbook as it was
+    dash.Range("B2").Value = "All teams"
+    wb.Worksheets("Periods").Range("A2:C10").ClearContents
+    ClearFlowSheets wb
+    Check "flowbuild", "cleared: the derived sheets are gone", "Metrics", False, SheetExists(wb, "Metrics")
+End Sub
+
 Public Sub T_UrlEncode()
     Check "text", "url encode JQL", "project in (ABC, ""DEF"") AND summary ~ ""?""", _
           "project%20in%20%28ABC%2C%20%22DEF%22%29%20AND%20summary%20~%20%22%C3%A9%22", _
@@ -433,6 +526,8 @@ Public Sub T_JiraDates()
     Check "text", "null", "Null", Empty, ParseJiraDate(Null)
     Check "text", "too short", "2026", Empty, ParseJiraDate("2026")
     Check "text", "not a date", "abcdefghijkl", Empty, ParseJiraDate("abcdefghijkl")
+    Check "text", "a time without seconds does not raise", "2026-10-01T09:12Z", True, IsEmpty(ParseJiraDate("2026-10-01T09:12Z"))
+    Check "text", "letters in the date do not raise", "20x6-10-01T09:12:33Z", True, IsEmpty(ParseJiraDate("20x6-10-01T09:12:33Z"))
 End Sub
 
 Public Sub T_FieldToCell()

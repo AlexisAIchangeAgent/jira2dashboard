@@ -16,6 +16,6 @@ empty here, and **`ApiToken` must stay empty** (a test refuses a token in this f
 | ProxyBypass |  | Hosts that skip the proxy, for example *.client.local;<local> |
 | ProxyWindowsAuth | Yes | Yes = answer the proxy's Windows authentication with the Windows session. No = never send it |
 | FlowLoadMode | A | A = a ticket counts from its first start until it is done or removed, except while in a Backlog status. B = only from its last start (after the last return to backlog) |
-| AsOf |  | UTC date and time of the extraction, for example 2026-11-03 18:00. Open statuses run up to it, so type it for reproducible figures. Empty = the moment the metrics are computed |
+| AsOf |  | UTC date and time of the extraction, for example 2026-11-03 18:00. Open statuses run up to it. Required to extract: the macro stops with a message if it is empty |
 | TimeoutSeconds | 60 | Connect, send and receive time limit of one request, in seconds |
 | MaxRetries | 4 | Retries after a 429 or a server error (5xx), so 5 attempts at most |

@@ -2,7 +2,7 @@
 
 The sheet ChartData holds one block per chart: a row of series names, one row per period, one formula per point.
 A point that is "not computable" is the Excel error #N/A, so the chart leaves a gap there and never shows a 0.
-sheets.py builds the sheets and the charts from this description.
+blueprint.py writes this description into the sheet ChartSpec; modFlowBuild.bas builds ChartData and the charts from it.
 """
 from dataclasses import dataclass
 
@@ -31,10 +31,11 @@ class ChartSpec:
 CHARTS = (
     ChartSpec("velocity", "Velocity - items done per period", "Velocity", XL_COLUMN_CLUSTERED),
     ChartSpec("flow_time", "Flow Time - median, in days", "FlowTimeMedian", XL_LINE_MARKERS),
+    ChartSpec("flow_time_p85", "Flow Time - 85th percentile, in days", "FlowTimeP85", XL_LINE_MARKERS),
     ChartSpec("flow_load", "Flow Load - average items in process", "FlowLoadAverage", XL_LINE_MARKERS),
-    ChartSpec("flow_efficiency", "Flow Efficiency - active time / (active + wait)", "FlowEfficiency", XL_LINE_MARKERS,
-              "0%"),
-    ChartSpec("flow_distribution", "Flow Distribution - items done by work type (team of cell B2)", None,
+    ChartSpec("flow_efficiency", "Flow Efficiency - active time / (active + wait)", "FlowEfficiency",
+              XL_COLUMN_CLUSTERED, "0%"),
+    ChartSpec("flow_distribution", "Flow Distribution - items done by work type (team of the selector)", None,
               XL_COLUMN_STACKED_100, "0%", series=BUCKET_SERIES),
     ChartSpec("flow_predictability", "Flow Predictability", "FlowPredictability", XL_LINE_MARKERS, "0%",
               reason="it needs the PI objectives, which are not in Jira"),
