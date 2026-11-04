@@ -93,6 +93,14 @@ Sur le poste client :
    `ParentRequiredTypes` ; le lien de blocage dans `BlocksLinkType` ; le seuil de DC25 dans `FillRateThreshold` (90) ; et les
    fenêtres des PI dans la feuille `PIs` (PI, Start, End, noms de la forme `PI#01-2026`). Les interprétations retenues sont des
    propositions à valider avec les équipes (voir `claude-code-handoff.md`).
+7. **Journal local** : chaque exécution écrit des lignes dans
+   `%LOCALAPPDATA%\jira2dashboard\logs\jira2dashboard.log` (module `modLog`). Une ligne `RUN` au début (version
+   d'Excel, nom du classeur) et à la fin (`end ok`, `end cancelled`), un `BEGIN` et un `END` autour de chaque étape
+   (page de recherche, lot de changelogs, feuilles brutes, feuilles de flux), une ligne `ERROR` par erreur. Si Excel
+   plante, le dernier `BEGIN` sans `END` donne l'étape en cours. Le journal ne contient ni le token, ni l'e-mail, ni
+   l'URL, ni les réponses de Jira (les erreurs 602 et 607, qui citent la réponse, n'écrivent que leur numéro). Il reste
+   sur le poste (pas dans OneDrive). Au-delà de 1 Mo, l'ancien fichier devient `jira2dashboard.1.log`. Relire le
+   fichier avant de le transmettre.
 
 **Formules Excel (E4)** : le test `tests\features\flow_excel.feature` compare cellule par cellule les formules du
 classeur à la référence Python (faux Jira, extraction VBA, formules, en mode A puis B). `Config.WorkTypeField` est
@@ -133,8 +141,10 @@ vérifier chez le client.
 Les tests VBA `M_*` de `modTests.bas` ne tournent que depuis les scénarios Python (`test-excel`) : ils ont
 besoin du serveur que pytest démarre.
 
-`test-excel` peut échouer par intermittence pendant une mise à jour d'Office (`OfficeClickToRun` actif) : Windows
-demande alors à Excel de redémarrer en cours de session. Attendre la fin de la mise à jour et relancer.
+**Défaut ouvert** : Excel peut planter (`0xC0000005`) pendant l'extraction, bien plus souvent après plusieurs
+extractions dans le même Excel. Voir `claude-code-handoff.md`, section 8b. Les scénarios Excel ouvrent donc un Excel
+neuf par scénario ; `J2D_ONE_EXCEL=1` remet un seul Excel pour tout le module (mode « stress », pour tester un
+correctif : il faut alors 5 passes vertes de suite).
 
 Par défaut pytest exclut les marqueurs `excel` et `network` (`addopts`). On ne tue jamais un `EXCEL.EXE` qui
 n'est pas celui du script.

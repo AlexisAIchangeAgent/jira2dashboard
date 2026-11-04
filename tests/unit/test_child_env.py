@@ -29,7 +29,7 @@ def test_child_env_does_not_modify_the_parent_environment():
 
 def test_repo_layout_constants_point_to_real_places():
     assert (paths.REPO_ROOT / "pyproject.toml").is_file()
-    assert len(list(paths.VBA_DIR.glob("*.bas"))) == 13
+    assert len(list(paths.VBA_DIR.glob("*.bas"))) == 14
     assert sorted(p.name for p in paths.PARAMS_DIR.glob("*.md")) == [
         "config.md", "field_mapping.md", "periods.md", "pis.md", "projects.md", "transitions.md", "workflows.md"]
     assert sorted(p.name for p in paths.CHILDREN_DIR.glob("*.py")) == [

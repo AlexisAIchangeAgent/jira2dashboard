@@ -237,6 +237,7 @@ Public Sub BuildFlowSheetsIn(ByVal wb As Object)
     Dim spec As Object, teams As Collection, periods As Collection, calcMode As Long, screen As Boolean
     Dim num As Long, desc As String
     LoadPlan wb, spec, teams, periods
+    LogBegin "flow sheets and charts"
     calcMode = Application.Calculation
     screen = Application.ScreenUpdating
     Application.ScreenUpdating = False
@@ -246,6 +247,7 @@ Public Sub BuildFlowSheetsIn(ByVal wb As Object)
     Application.Calculation = calcMode
     Application.CalculateFull
     Application.ScreenUpdating = screen
+    LogEnd "flow sheets and charts"
     On Error Resume Next
     wb.Worksheets("Dashboard").Activate                  ' the sheets added by the build must not leave another one in front
     Exit Sub

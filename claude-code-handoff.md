@@ -86,8 +86,8 @@ Created under `C:\dev` to avoid antivirus issues (renamed from `xlsm-check`). Ho
 | `src\jira2dashboard\mockjira\` | **Fake Jira Cloud** (E3), stdlib `http.server` on 127.0.0.1: `GET/POST /rest/api/3/search/jql` (token paging, `expand=names`), `POST /search/approximate-count`, `POST /changelog/bulkfetch`, `GET /field`, `GET /myself`; `410` on the removed `/search`; faults (429, 500/503 with or without `Retry-After`) injected from Python (`fail_next`) or over HTTP (`POST /__mock__/fail`); Basic auth `base64("email:token")` checked when credentials are set (plain-text 401 like Jira); usable as an HTTP proxy: absolute-form requests and a plain `CONNECT` tunnel, with an optional proxy challenge (`proxy_challenge="Negotiate"`: 407 until the request carries `Proxy-Authorization`; any value is accepted, so a real NTLM/Kerberos token is not checked). Modelled on the existing PowerShell extraction script (project keys, BV/SP/PI custom field ids, Basic auth, `/rest/api/3` paths). JQL understood: `project in (...)` plus restrictions joined by `AND`: `created` / `updated` (>=, >, <=, < with `"2026-10-01"` or `-30d` / `-2w`, counted from the dataset's as-of date), `issuetype`, `status` (= or `in`), parentheses, `ORDER BY key|created|updated`; anything else is a 400 that says so. Not simulated: TLS 1.2 inside the tunnel and the real NTLM/Kerberos exchange (verify at the client). Data = issue status histories (`dataset.py`; `issue()` builds hand-written cases, `generator.py` builds a seeded volume), so search and changelog never disagree. Run it for Excel: `scripts\run.ps1 mock-jira` (`http://127.0.0.1:8099` by default), then put that URL in `BaseUrl` |
 | `tests\` | `unit\` (no Excel), `features\` + `steps\` (Gherkin, pytest-bdd), `integration\` (Excel) |
 | `scripts\` | `setup.ps1`, `activate.ps1`, `run.ps1` (PowerShell 5.1) |
-| `src\jira2dashboard\build_workbook.py`, `vba\modFlowBuild.bas`, `modActions.bas` | **Delivery (E6).** `scripts\run.ps1 build` makes `out\jira2dashboard.xlsm` (10 modules, no test module). Button **Extract from Jira and compute** on the Dashboard runs `modActions.BtnExtractAndCompute`: extraction, then `BuildFlowSheetsIn`. Scenarios of `flow_excel.feature` run this macro on the delivered workbook against the fake Jira and compare with the Python reference, twice (250 issues, then 120 with fewer periods: no stale row). **Data checks: all 29 (DC01-DC29), done 2026-11-04.** The extraction now also reads `parent`, `resolutiondate`, `fixVersions`, `issuelinks` and the configured fields (story points, business value, PI, team, sprint, target dates): `Issues` has 22 columns, plus the raw table `IssueLinks` (Blocker, Blocked; outward "Blocks" links only) and `KeyChanges` (changelog items with `field="Key"` or `fieldId="issuekey"`). New Config rows: `FeatureTypes`, `SubTaskTypes`, `PointsRequiredTypes`, `ParentRequiredTypes`, the seven field ids, `BlocksLinkType`, `FillRateThreshold`; new sheet `PIs` (PI, Start, End). All client values stay empty in the repo. `flow\checks.py` is the Python reference (`run_checks`, `fill_rates`, `CheckSettings`); `flow\check_formulas.py` holds the Excel formulas (copies of raw fields, helper columns, 28 flags in `ItemFlow`, `IssueLinks` and `FillRates` columns, `DataChecks`). DC25 is counted on `FillRates` (field x team x issue type). **A check whose Jira field is not configured is `not computable` (Ready = 0) and flags nobody.** `mockjiranomalies.py` holds hand-written clean cases and one anomaly per check; `flow_excel.feature` compares ItemFlow flags, `DataChecks`, `FillRates` and the known anomalies with the reference, and a fourth scenario checks the empty-field case. **Interpretations (all PROPOSALS to validate with AL and the teams; the document is silent or short on them):** DC06 also covers CURRENT_MISMATCH; DC28 compares consecutive intervals with `Transitions` and `IsFree`; DC01 applies to the Team workflow and `ParentRequiredTypes`; DC02 flags only when the parent is in the extract and its type is not in `FeatureTypes`; DC03 flags sub-tasks of a team that has more than one parent type; the current sprint is the active one, else a future one, else the last closed one; DC15 uses Jira status category `indeterminate` with no sprint; DC16 counts the sprints in the Sprint field (3 or more); PI format is `PI#[0-9]{2}-[0-9]{4}` and a malformed PI counts as empty for DC17 and DC18; DC18 uses the `PIs` window and the dates of the children's sprints; DC19 applies to features whose category is not Backlog or Removed; DC20 checks end < start and child dates outside the parent's dates; DC22 flags the blocked issue when the blocker's sprint ends after the blocked issue's sprint starts; DC23 flags the side without sprint on a cross-team link; DC25 uses `FillRateThreshold`; DC27 counts the key changes. **Not done:** (none of the data checks); **progress bar, cancel and sliced extraction (done 2026-11-04)**: the extraction is a job of steps in `modExtract` (`ExtractJobStart`, `ExtractJobStep`, `ExtractJobFraction`, `ExtractJobLabel`, `ExtractJobAbort`; `ExtractFlowDataTo` runs the same steps in a loop, so there is one code path); the Dashboard button runs one step per `Application.OnTime` slice (`modActions.BtnExtractAndCompute`, `ExtractSlice`), moves the bar (`pbBack` / `pbFill`, status cell named `dashStatus`, cell A3), and `BtnCancelExtraction` stops it before the raw sheets are written (the earlier results stay); `AbortExtraction` unschedules a pending slice. The search has no known size, so its share of the bar (30 %) is an estimate. The build of the flow sheets is one slice (no cancel during it). Known limits: while a slice runs (one HTTP call) Excel is busy; a pending `OnTime` reopens the workbook if it is closed during a run (`AbortExtraction` is for that). The mock has `delay=` (seconds per call) for the scenarios; the two scenarios on the button in `flow_excel.feature` check the bar, that Excel answers between slices, and the kept results. Also done: (done 2026-11-04: the daily Flow Load curve `flow_load_daily`, last chart, one ChartData row per day via `ChartSpec.Axis`; and the 80-100 % band on Predictability via `ChartSpec.Band`, a PROPOSAL; markers FLB33-34); the API token is typed in `Config` and stays in the workbook (clear it before sharing; README says so). Review findings fixed in a second pass: `BaseUrl` must be https (local fake Jira excepted), Windows credentials go to any server only when a proxy is set, the search asks only the 5 fields + WorkTypeField, the selector list moved beside the widest chart block. Review findings consciously NOT applied: recalculating twice after a build (speed only, not timed), duplicated sheet helpers (modExtract/modFlowBuild), missing `Cov` on a few small branches of modFlowBuild, `T_FlowBuild` cleanup on failure, ChartData block layout written both in `dashboard_spec.block_top` and in VBA (the scenario would catch a drift), some Python test hygiene and dead-code items |
-| `out\` | Generated workbooks: `vba_tests_v7.xlsm` is the latest (2026-11-04, after the code review: 327 + 8 network OK, 0 KO, 153/153 markers) |
+| `src\jira2dashboard\build_workbook.py`, `vba\modFlowBuild.bas`, `modActions.bas` | **Delivery (E6).** `scripts\run.ps1 build` makes `out\jira2dashboard.xlsm` (11 modules with `modLog`, no test module). Button **Extract from Jira and compute** on the Dashboard runs `modActions.BtnExtractAndCompute`: extraction, then `BuildFlowSheetsIn`. Scenarios of `flow_excel.feature` run this macro on the delivered workbook against the fake Jira and compare with the Python reference, twice (250 issues, then 120 with fewer periods: no stale row). **Data checks: all 29 (DC01-DC29), done 2026-11-04.** The extraction now also reads `parent`, `resolutiondate`, `fixVersions`, `issuelinks` and the configured fields (story points, business value, PI, team, sprint, target dates): `Issues` has 22 columns, plus the raw table `IssueLinks` (Blocker, Blocked; outward "Blocks" links only) and `KeyChanges` (changelog items with `field="Key"` or `fieldId="issuekey"`). New Config rows: `FeatureTypes`, `SubTaskTypes`, `PointsRequiredTypes`, `ParentRequiredTypes`, the seven field ids, `BlocksLinkType`, `FillRateThreshold`; new sheet `PIs` (PI, Start, End). All client values stay empty in the repo. `flow\checks.py` is the Python reference (`run_checks`, `fill_rates`, `CheckSettings`); `flow\check_formulas.py` holds the Excel formulas (copies of raw fields, helper columns, 28 flags in `ItemFlow`, `IssueLinks` and `FillRates` columns, `DataChecks`). DC25 is counted on `FillRates` (field x team x issue type). **A check whose Jira field is not configured is `not computable` (Ready = 0) and flags nobody.** `mockjiranomalies.py` holds hand-written clean cases and one anomaly per check; `flow_excel.feature` compares ItemFlow flags, `DataChecks`, `FillRates` and the known anomalies with the reference, and a fourth scenario checks the empty-field case. **Interpretations (all PROPOSALS to validate with AL and the teams; the document is silent or short on them):** DC06 also covers CURRENT_MISMATCH; DC28 compares consecutive intervals with `Transitions` and `IsFree`; DC01 applies to the Team workflow and `ParentRequiredTypes`; DC02 flags only when the parent is in the extract and its type is not in `FeatureTypes`; DC03 flags sub-tasks of a team that has more than one parent type; the current sprint is the active one, else a future one, else the last closed one; DC15 uses Jira status category `indeterminate` with no sprint; DC16 counts the sprints in the Sprint field (3 or more); PI format is `PI#[0-9]{2}-[0-9]{4}` and a malformed PI counts as empty for DC17 and DC18; DC18 uses the `PIs` window and the dates of the children's sprints; DC19 applies to features whose category is not Backlog or Removed; DC20 checks end < start and child dates outside the parent's dates; DC22 flags the blocked issue when the blocker's sprint ends after the blocked issue's sprint starts; DC23 flags the side without sprint on a cross-team link; DC25 uses `FillRateThreshold`; DC27 counts the key changes. **Not done:** (none of the data checks); **progress bar, cancel and sliced extraction (done 2026-11-04)**: the extraction is a job of steps in `modExtract` (`ExtractJobStart`, `ExtractJobStep`, `ExtractJobFraction`, `ExtractJobLabel`, `ExtractJobAbort`; `ExtractFlowDataTo` runs the same steps in a loop, so there is one code path); the Dashboard button runs one step per `Application.OnTime` slice (`modActions.BtnExtractAndCompute`, `ExtractSlice`), moves the bar (`pbBack` / `pbFill`, status cell named `dashStatus`, cell A3), and `BtnCancelExtraction` stops it before the raw sheets are written (the earlier results stay); `AbortExtraction` unschedules a pending slice. The search has no known size, so its share of the bar (30 %) is an estimate. The build of the flow sheets is one slice (no cancel during it). Known limits: while a slice runs (one HTTP call) Excel is busy; a pending `OnTime` reopens the workbook if it is closed during a run (`AbortExtraction` is for that). The mock has `delay=` (seconds per call) for the scenarios; the two scenarios on the button in `flow_excel.feature` check the bar, that Excel answers between slices, and the kept results. Also done: (done 2026-11-04: the daily Flow Load curve `flow_load_daily`, last chart, one ChartData row per day via `ChartSpec.Axis`; and the 80-100 % band on Predictability via `ChartSpec.Band`, a PROPOSAL; markers FLB33-34); the API token is typed in `Config` and stays in the workbook (clear it before sharing; README says so). Review findings fixed in a second pass: `BaseUrl` must be https (local fake Jira excepted), Windows credentials go to any server only when a proxy is set, the search asks only the 5 fields + WorkTypeField, the selector list moved beside the widest chart block. Review findings consciously NOT applied: recalculating twice after a build (speed only, not timed), duplicated sheet helpers (modExtract/modFlowBuild), missing `Cov` on a few small branches of modFlowBuild, `T_FlowBuild` cleanup on failure, ChartData block layout written both in `dashboard_spec.block_top` and in VBA (the scenario would catch a drift), some Python test hygiene and dead-code items |
+| `out\` | Generated workbooks: `vba_tests_v8.xlsm` is the latest (2026-11-04, with `modLog`: 337 + 8 network OK, 0 KO, 164/164 markers) |
 | `archive\` | Old code kept for history: `probe*.py`, `peek*.py`, `repro_*.py`, `bootstrap_test*`, `vba\patch1.py` ... `patch7.py` (already applied; do not re-run), old workbooks |
 
 MD5 of the current modules (LF line endings). Unchanged since the original handoff: `modCoverage`,
@@ -109,22 +109,31 @@ MD5 of the current modules (LF line endings). Unchanged since the original hando
 - `modFlowBuild` (new, E6): `BuildFlowSheetsIn` rebuilds ItemFlow, DailyLoad, Metrics, Controls, ChartData and the charts from the sheets `FlowFormulas` and `ChartSpec` (written at build time by `flow\blueprint.py`); sizes follow the data, nothing of an older run stays; `ClearFlowSheets` empties everything. `modActions` (new): `ExtractAndCompute` and the button macro `BtnExtractAndCompute`. The extraction empties the old results only once Jira has answered.
 - Review fixes (2026-11-04): `AsOf` typed as a date in the cell is accepted (`AsOfFromConfig`, and the formula of `Controls`), an empty `AsOf` or a `FlowLoadMode` other than A/B gives `#N/A` instead of a guess, `ParseJiraDate` never raises, changelog paging and `Retry-After` are capped, `MaxRetries` < 0 is clamped, `JsonStringify` writes `0.5` not `.5`, `T_JsonErrors` really calls the parser.
 - Code review of `src/` and `vba/` (2026-11-04, second pass): see section 8b for every finding and what was done.
+- `modLog` (new, 2026-11-04): the local log of the runs, `%LOCALAPPDATA%\jira2dashboard\logs\jira2dashboard.log`
+  (`%TEMP%` if not set). One line opened, written and closed at a time (survives an Excel crash): `RUN` at the start
+  (Excel version and build, workbook name) and at the end, `BEGIN`/`END` around each step (search page, changelog
+  chunk, raw sheets, flow sheets), `ERROR` with `vbObjectError+n`. Never the token, e-mail, URL, JQL or an answer of
+  Jira: errors 602 and 607 (they quote the answer) log their number only; `tests\unit\test_vba_log_guard.py` refuses
+  such arguments in any call to the logger. Rotation above 1 MB to `.1.log`. Never raises. `T_Log` (markers
+  LOG01-LOG11); the button scenario checks the lines of its run. The VBA test runner writes to
+  `%TEMP%\jira2dashboard_vba_tests.log`, never to the real log.
 - `modTests`: `T_FlowBuild` (builds twice, smaller the second time), parameter tests, `T_TrimWhite`, `T_ConfigSheet`, and the `M_` tests against the fake Jira.
 
 | Module | MD5 |
 |---|---|
 | modCoverage.bas | 0b03cf2cb8d0660ed22beadabc9655a4 |
+| modLog.bas | f2f3f3d5e56be831e38ba9a874ff74ab |
 | modJson.bas | e051a7775e419b2b49d2de6014a8719e |
 | modText.bas | 2f23c0bc24c95cae731f331dbe42c047 |
 | modHttp.bas | 849a7542964572acbece130c0d9bf086 |
 | modJira.bas | 3e91019bff4c37532ad75d3beca54096 |
 | modFlow.bas | 69f021411e3989de981f8bbde8ec5d73 |
 | modParams.bas | 718b90c97703dde1073480eb4cee0d3c |
-| modExtract.bas | e2ebdc0cce48199660421070ac434e5a |
-| modFlowBuild.bas | 5afc64c10ab3569dfcc376501daca6aa |
-| modActions.bas | 870e6e5f4baeace21ae3c12f8c5c64f6 |
+| modExtract.bas | d78be88ec4c062903dbfaf42586b9fa6 |
+| modFlowBuild.bas | bb2fbc8c73909f2ac82cf34b27c6ca08 |
+| modActions.bas | eace395b3fdba4172975f690d169ad19 |
 | modBackground.bas | 1d098ce38925b8dc55bcf54404cf314f |
-| modTests.bas | 1d697773c2ea0d1c0f8688744bb2f342 |
+| modTests.bas | aa6350809b58a21491f4bf27f78930ca |
 | modButtons.bas | 3bbe95b810cc0722eabed5c2bdbabbb2 |
 
 The Python files are no longer hashed (they were moved and edited; the code is covered by tests). If you
@@ -145,8 +154,8 @@ extraction script (Copilot must read its proxy settings there; never copy the to
 
 ## 6. Test status (2026-11-04, after the code review)
 
-- `scripts\run.ps1 vba-tests --out vba_tests_v7.xlsm`: COMPILED_OK, **327 offline + 8 network OK, 0 KO**,
-  coverage **153/153 markers = 100 %** (review markers: section 8b; earlier: E2: `modParams`; E3: `TrimWhite`; proxy work: `Config` sheet reader, proxy
+- `scripts\run.ps1 vba-tests --out vba_tests_v8.xlsm`: COMPILED_OK, **337 offline + 8 network OK, 0 KO**,
+  coverage **164/164 markers = 100 %** (`modLog`: LOG01-LOG11; review markers: section 8b; earlier: E2: `modParams`; E3: `TrimWhite`; proxy work: `Config` sheet reader, proxy
   normalization, status hints; projects and filter; E4: `modExtract`, `ParseMoment`).
   The `M_` tests against the fake Jira are not in these counts: they run from `scripts\run.ps1 test-excel`.
 - **Flaky Excel sessions while Office updates itself:** if `OfficeClickToRun` / `OfficeC2RClient` runs, Windows
@@ -157,9 +166,10 @@ extraction script (Copilot must read its proxy settings there; never copy the to
   and after an Office update; Office's crash recovery can end the process with code 0 and start a new `EXCEL.EXE`, so
   the diagnosis above may have been the same crash. Check the exit code first (section 8b).
 - `scripts\run.ps1 check-machine`: **21 checks, 0 failed**.
-- `scripts\run.ps1 coverage`: **597 passed**, 98.8 %. `test-network`: 1 passed. `build`: COMPILED_OK.
-- `scripts\run.ps1 test-excel`: **33 passed**. With a fresh Excel per scenario, 9 module runs of `flow_excel.feature`
-  out of 10 are green; 1 lost its Excel in the button scenario (**open defect**, section 8b).
+- `scripts\run.ps1 coverage`: **601 passed**, 98.7 %. `test-network`: 1 passed. `build`: COMPILED_OK.
+- `scripts\run.ps1 test-excel`: 32 of 33 on the last run, the button scenario lost its Excel (**open defect**, section
+  8b; run alone it passes, with the check of the local log). Earlier: 9 module runs out of 10 green with a fresh Excel
+  per scenario.
 - Jira itself was never called (no access to the client Jira; the Jira plugin has no site configured).
   Jira behaviour is tested with fake responses (`FakeAdd`). Proxy: to verify at the client.
 
@@ -278,6 +288,11 @@ What is known:
   process), in the changelog slice (about 10 s of pure VBA: parse a 216 KB answer, then 740 rows with late-bound
   `Scripting.Dictionary` calls). More crashes when the machine is loaded.
 - Seen on Excel 16.0.20527.20112 and 16.0.20527.20150; the code before the review crashes as often (2 out of 4).
+- **Located by the local log (2 crashes, 2026-11-04, button scenario, fresh Excel):** the last line of the run is
+  `END search page 30: 150 issues`; `BEGIN changelogs from issue 1 of 150` never comes. Excel dies between the end of
+  the last search page and the start of the next slice: the progress update (`DoEvents`), the `OnTime` scheduling or
+  Excel's call of the next slice. With the dumps (9 of 11 entered VBA from Excel's main loop), the likeliest moment is
+  Excel starting the `OnTime` macro, not the work inside a slice. Why only at that transition is not known.
 - Tried without effect: slower COM polling (kept), no manual-calculation wrapper, POST body kept alive and
   `req.Abort` on cancel (kept as hardening), synchronous WinHTTP, keeping the last WinHTTP request alive.
 - Office's crash recovery can end the process with code 0 and start a new `EXCEL.EXE` in the same millisecond.
@@ -286,15 +301,20 @@ Causes (ranked, PROPOSALS): (1) the anti-exploit module of the security software
 code memory (documented by other vendors for Excel macros, not for Panda); (2) a VBA engine bug when the process has
 grown; (3) COM calls of the test during `DoEvents` (unlikely: never on the crashing stack).
 
-What was done: the Excel scenarios now open a fresh Excel per scenario (`flow_workbook` fixture), and the scenario
-"Un second calcul..." makes its own first calculation (250 issues) before the second one (120 issues).
+What was done: the Excel scenarios now open a fresh Excel per scenario (`flow_workbook` fixture; `J2D_ONE_EXCEL=1`
+gives back one Excel for the whole module, the stress setup to test a fix: with a fresh Excel per scenario, 5 green
+runs prove nothing), and the scenario "Un second calcul..." makes its own first calculation (250 issues) before the
+second one (120 issues). The local log (`modLog`) now writes BEGIN/END around each step: after a crash, the last BEGIN
+without its END names the step. Lead dropped: AMSI runtime scanning of VBA (Office scans low-trust files, a Trusted
+Location is exempt): from a Trusted Location the changelog loop was as slow (837 rows in 10 s), so no sign of it.
 
 **Delivery risk:** a user who runs several extractions in the same Excel session may hit it; the client's security
 software may decide. Next steps (PROPOSALS, for AL): run the button several times in one Excel session at the client
 before delivery; ask IT for a Panda anti-exploit exclusion (or audit mode) for `EXCEL.EXE` on the dev PC and run the
 old one-Excel module 5 times; with admin rights, full-memory crash dumps (`LocalDumps\EXCEL.EXE`, DumpType 2) to read
-the page protection; fewer late-bound calls in the changelog loop; a local VBA log with BEGIN/END lines (study:
-`C:\dev\reports\Journalisation des erreurs VBA.md`, outside the repo).
+the page protection; fewer late-bound calls in the changelog loop (8 to 13 s for about 1,000 rows); at the client,
+read the last BEGIN without END of the local log after a crash (study: `C:\dev\reports\Journalisation des erreurs
+VBA.md`, outside the repo).
 
 ## 9. Suggested next steps
 

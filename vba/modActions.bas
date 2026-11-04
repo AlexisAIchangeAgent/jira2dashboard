@@ -28,29 +28,36 @@ Public Sub ExtractAndCompute(Optional ByVal fromButton As Boolean = False)
     Dim num As Long, desc As String
     If mBusy Then Err.Raise vbObjectError + 611, "ExtractAndCompute", "An extraction is already running: wait for it or cancel it."
     On Error GoTo Failed
+    LogRunStart "macro ExtractAndCompute"
     Application.StatusBar = "Reading Jira..."
     ExtractFlowData                                ' empties the old results only once Jira has answered
     Application.StatusBar = "Building the flow sheets and the charts..."
     BuildFlowSheetsIn ThisWorkbook
     Application.StatusBar = False
+    LogLine "RUN", "end ok"
     Exit Sub
 Failed:
     num = Err.Number: desc = Err.Description
+    LogError "ExtractAndCompute", num, desc
     Application.StatusBar = False
     Err.Raise num, "ExtractAndCompute", desc
 End Sub
 
 Public Sub BtnExtractAndCompute()
+    Dim num As Long, desc As String
     If mBusy Then Beep: Exit Sub
     On Error GoTo Failed
     mBusy = True: mCancel = False: mExtracting = True: gHttpCancel = False
+    LogRunStart "button Extract from Jira and compute"
     ShowProgress 0, "Starting..."
     ExtractFlowDataStart
     ScheduleSlice
     Exit Sub
 Failed:
+    num = Err.Number: desc = Err.Description                        ' first: the calls below may clear Err
+    LogError "BtnExtractAndCompute", num, desc
     ExtractJobAbort
-    EndRun "Stopped: " & Err.Number & " - " & Err.Description, 0
+    EndRun "Stopped: " & num & " - " & desc, 0
 End Sub
 
 Public Sub BtnCancelExtraction()
@@ -60,18 +67,22 @@ Public Sub BtnCancelExtraction()
     If mExtracting Then
         mCancel = True
         gHttpCancel = True
+        LogLine "RUN", "cancel asked"
         ShowProgress -1, "Cancelling..."
     Else
+        LogLine "RUN", "cancel asked too late (building the flow sheets)"
         ShowProgress -1, "Too late to cancel: the flow sheets are being built."
     End If
 End Sub
 
 Public Sub ExtractSlice()
     ' Called by Application.OnTime: one step, then the next call is scheduled. Keep it short (UI thread).
+    Dim num As Long, desc As String
     If Not mBusy Then Exit Sub
     On Error GoTo Failed
     If mExtracting Then
         If mCancel Then
+            LogLine "RUN", "end cancelled"
             ExtractJobAbort
             EndRun "Cancelled: the results of the previous run are kept.", 0
             Exit Sub
@@ -85,17 +96,21 @@ Public Sub ExtractSlice()
         ScheduleSlice
     Else
         BuildFlowSheetsIn ThisWorkbook
+        LogLine "RUN", "end ok"
         EndRun "Done. The Dashboard shows the six flow metrics.", 1
     End If
     Exit Sub
 Failed:
-    If Err.Number = vbObjectError + 610 Then                         ' the Cancel button, pressed during a wait for Jira
+    num = Err.Number: desc = Err.Description                        ' first: the calls below may clear Err
+    If num = vbObjectError + 610 Then                                ' the Cancel button, pressed during a wait for Jira
+        LogLine "RUN", "end cancelled during a wait for Jira"
         ExtractJobAbort
         EndRun "Cancelled: the results of the previous run are kept.", 0
         Exit Sub
     End If
+    LogError "ExtractSlice", num, desc
     ExtractJobAbort
-    EndRun "Stopped: " & Err.Number & " - " & Err.Description, 0
+    EndRun "Stopped: " & num & " - " & desc, 0
 End Sub
 
 Public Sub AbortExtraction()

@@ -74,6 +74,7 @@ Fonctionnalité: Le classeur livré extrait Jira et calcule les mêmes chiffres 
     Et les itérations de 14 jours depuis le "2026-08-17" jusqu'à la date de référence dans la feuille Periods
     Quand je clique sur le bouton Extraire et calculer sans attendre la fin
     Alors la barre de progression avance sans reculer, le classeur répond entre deux tranches et l'extraction se termine
+    Et le journal local décrit l'exécution étape par étape, sans jeton, adresse ni réponse de Jira
     Et aucune cellule des feuilles de flux ne montre une erreur Excel
     Et la table ItemFlow reproduit les calculs de la référence Python
     Et la table Metrics reproduit la référence Python en mode "A"

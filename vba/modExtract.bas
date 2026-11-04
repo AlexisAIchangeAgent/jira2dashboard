@@ -260,8 +260,10 @@ Public Function ExtractJobStep() As Boolean
     Dim isLast As Boolean, issue As Variant
     Select Case mPhase
         Case 1                                                       ' one page of the search
+            LogBegin "search page " & (mPage + 1)
             mToken = JiraSearchPage(mCfg, mJql, mToken, mIssues, mNames, ExtractFields(mWorkType, mSettings), "", isLast)
             mPage = mPage + 1
+            LogEnd "search page " & mPage & ": " & mIssues.Count & " issues"
             If Not isLast And mPage >= 2000 Then Err.Raise vbObjectError + 601, "ExtractJobStep", "Jira search did not end after 2000 pages: narrow the extraction with the Filter of the Config sheet."
             If isLast Then
                 Set mKeys = New Collection: Set mIdToKey = CreateObject("Scripting.Dictionary")
@@ -273,10 +275,14 @@ Public Function ExtractJobStep() As Boolean
             End If
         Case 2                                                       ' one chunk of changelogs
             Cov "MEX08"
+            LogBegin "changelogs from issue " & mNextChunk & " of " & mKeys.Count
             If mNextChunk <= mKeys.Count Then mNextChunk = JiraChangelogChunk(mCfg, mKeys, mNextChunk, mRaw)
+            LogEnd "changelogs: " & mRaw.Count & " items"
             If mNextChunk > mKeys.Count Then mPhase = 3
         Case 3                                                       ' compute and write the raw sheets
+            LogBegin "raw sheets"
             BuildRawSheets
+            LogEnd "raw sheets"
             ExtractJobAbort                                          ' the pages and the changelogs are no longer needed
             ExtractJobStep = True
         Case Else

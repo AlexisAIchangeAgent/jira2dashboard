@@ -32,7 +32,7 @@ def out_name(default: str) -> str:
 
 
 OUT = OUT_DIR / out_name("vba_tests.xlsm")
-ORDER = ["modCoverage", "modJson", "modText", "modHttp", "modJira", "modFlow", "modParams", "modExtract",
+ORDER = ["modCoverage", "modLog", "modJson", "modText", "modHttp", "modJira", "modFlow", "modParams", "modExtract",
          "modFlowBuild", "modActions", "modBackground", "modTests", "modButtons"]
 BUTTONS = [("J2", "Lancer les tests (hors ligne)", "modButtons.BtnRunAllTests"),
            ("J4", "Lancer les tests + reseau", "modButtons.BtnRunNetworkTests"),

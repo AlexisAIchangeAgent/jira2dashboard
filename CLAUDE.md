@@ -61,7 +61,8 @@ Before finishing a change run the full pass: `coverage`, `vba-tests`, `test-exce
   (`modParams`). Status names, team names and extract columns must not appear as literals in VBA (a guard test enforces it).
 - **Extraction (VBA).** `modHttp` (WinHTTP, proxy with Windows auth, retries) -> `modJira` (search, bulk changelog) ->
   `modExtract` -> `modFlow` (status intervals) ; `modActions` is the dashboard button (`ExtractAndCompute`). The previous
-  results are cleared only after Jira has answered.
+  results are cleared only after Jira has answered. `modLog` writes the local log (`%LOCALAPPDATA%\jira2dashboard\logs`):
+  RUN, BEGIN/END per step, ERROR; never pass it a token, URL, JQL or Jira answer (`test_vba_log_guard.py` checks).
 - **Fake Jira.** `mockjira/` is a stdlib `http.server` Jira Cloud (search/jql, changelog bulkfetch, proxy/CONNECT, fault
   injection) fed by `dataset.py` (hand-written cases via `issue()`) and `generator.py` (seeded volume);
   `anomalies.py` adds known data-quality cases. The real Jira is never called.
@@ -132,7 +133,8 @@ table in the handoff whenever a `.bas` changes. `README.md` (French) covers deli
   number of times. With a failure rate near 40 %, a fix is proven only by 5 green module runs in a row.
 - **Open defect:** Excel crashes (`0xC0000005`, a DEP fault inside VBA's engine, module "unknown") during the
   extraction: about 2 module runs out of 5 with one Excel per module, 1 out of 10 with a fresh Excel per scenario (what
-  the scenarios now do). It predates the 2026-11-04 review. Read handoff section 8b before chasing it.
+  the scenarios now do). It predates the 2026-11-04 review. Read handoff section 8b before chasing it. Test a fix in
+  the stress setup (`J2D_ONE_EXCEL=1`: one Excel per module): with a fresh Excel per scenario, 5 green runs prove nothing.
 - **Git Bash rewrites `/switch` arguments** of Windows programs into paths (`/update` -> `C:/.../Git/update`, also
   `wevtutil /q:`): prefix the command with `MSYS_NO_PATHCONV=1`.
 - The PowerShell tool is slow here (CIM / event-log queries time out): use Bash `tasklist` for processes.

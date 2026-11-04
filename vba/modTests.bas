@@ -52,7 +52,7 @@ Private Function TestNames() As Variant
         "T_HttpNetworkAndCancel", "T_RetryExhausted", "T_ChangelogChunks", "T_IssueRows", "T_WriteTable", "T_StatusIntervals", _
         "T_StatusChanges", "T_RetryDelay", "T_SafeAccess", "T_FilesUtf8", "T_StringifyBadObject", _
         "T_TooManyPages", "T_BackgroundExport", "T_TextNotConverted", "T_ParamsTables", "T_ParamsOnWorkbook", _
-        "T_TrimWhite", "T_ConfigSheet", "T_ProjectsSheet", "T_ParseMoment", "T_ExtractFlowData", "T_ExtractJob", "T_ExtractCheckFields", "T_FlowBuild", "T_BaseUrlHttps")
+        "T_TrimWhite", "T_ConfigSheet", "T_ProjectsSheet", "T_ParseMoment", "T_ExtractFlowData", "T_ExtractJob", "T_ExtractCheckFields", "T_FlowBuild", "T_BaseUrlHttps", "T_Log")
 End Function
 
 Public Function RunAllTests() As String
@@ -75,6 +75,7 @@ Private Function RunTests(ByVal names As Variant) As String
     ' Each result row is written as soon as its check runs; the progress bar moves after each test.
     Dim nm As Variant, ok As Long, ko As Long, r As Variant, standalone As Boolean
     Set mRows = New Collection
+    gLogPath = Environ$("TEMP") & "\jira2dashboard_vba_tests.log"   ' the tests never write to the real log
     Randomize 1
     standalone = (mTotalPlanned = 0)
     If standalone Then mTotalPlanned = CountOfNames(names): mDone = 0
@@ -368,6 +369,69 @@ Public Sub T_BaseUrlHttps()
     Check "extract", "the configured fields of the data checks are asked, the empty ones are not", "Team and Sprint", _
           "key,project,issuetype,created,status,parent,resolutiondate,fixVersions,issuelinks,customfield_10400,customfield_10020", _
           ExtractFields("", CheckFields("", "", "", "customfield_10400", "customfield_10020"))
+End Sub
+
+Public Sub T_Log()
+    ' The local log (modLog): one ASCII line per entry, no answer of Jira, a new file above 1 MB, never an error.
+    Dim folder As String, file As String, saved As String, text As String, ok As Boolean
+    saved = gLogPath
+    folder = Environ$("TEMP") & "\j2d_log_test_" & Format$(Now, "hhnnss") & Int(Rnd() * 1000)
+    file = folder & "\sub\run.log"
+    gLogPath = file
+    LogLine "TEST", "first" & vbCrLf & "second" & vbTab & ChrW(233)
+    text = FileText(file)
+    Check "log", "missing folders are created; one ASCII line per entry", "CR LF TAB e-acute", True, _
+          text Like "####-##-## ##:##:##.### TEST first  second ?" & vbCrLf
+    LogLine "TEST", String$(400, "x")
+    text = FileText(file)
+    Check "log", "a long text is cut", "400 x", True, InStr(text, " TEST " & String$(300, "x") & "..." & vbCrLf) > 0
+    LogError "Step", vbObjectError + 602, "HTTP 500 after 1 try: {secret answer}"
+    LogError "Step", vbObjectError + 605, "Sheet Periods has no period"
+    LogError "Step", 13, "Type mismatch"
+    text = FileText(file)
+    Check "log", "an error that quotes the answer of Jira keeps its number only", "602", True, _
+          InStr(text, "ERROR Step | vbObjectError+602 | (description not logged") > 0 And InStr(text, "secret") = 0
+    Check "log", "a project error reads vbObjectError+n, with its description", "605", True, _
+          InStr(text, "ERROR Step | vbObjectError+605 | Sheet Periods has no period") > 0
+    Check "log", "a VBA error keeps its number", "13", True, InStr(text, "ERROR Step | 13 | Type mismatch") > 0
+    WriteFileText file, String$(1000001, "y")                       ' too big: the next run starts a new file
+    LogRunStart "test"
+    Check "log", "a log above 1 MB becomes .1.log", "1000001 bytes", True, FileLen(folder & "\sub\run.1.log") >= 1000001
+    Check "log", "the new file starts with the run line", "RUN test", True, _
+          FileText(file) Like "####-##-## ##:##:##.### RUN test | Excel *" & vbCrLf
+    Check "log", "the folder under LOCALAPPDATA", "C:\L", "C:\L\jira2dashboard\logs", LogFolderFrom("C:\L", "C:\T")
+    Check "log", "TEMP when LOCALAPPDATA is not set", "empty", "C:\T\jira2dashboard\logs", LogFolderFrom("", "C:\T")
+    gLogPath = folder & "\bad<name>|.log"                            ' a name Windows refuses
+    On Error Resume Next
+    LogLine "TEST", "dropped"
+    ok = (Err.Number = 0)
+    On Error GoTo 0
+    Check "log", "a line that cannot be written is dropped, without an error", "bad file name", True, ok
+    gLogPath = saved
+    On Error Resume Next
+    Kill folder & "\sub\*.log"
+    RmDir folder & "\sub"
+    RmDir folder
+    Err.Clear
+    On Error GoTo 0
+End Sub
+
+Private Function FileText(ByVal file As String) As String
+    Dim f As Integer, text As String
+    f = FreeFile
+    Open file For Binary Access Read As #f
+    text = Space$(LOF(f))
+    Get #f, , text
+    Close #f
+    FileText = text
+End Function
+
+Private Sub WriteFileText(ByVal file As String, ByVal text As String)
+    Dim f As Integer
+    f = FreeFile
+    Open file For Output As #f
+    Print #f, text;
+    Close #f
 End Sub
 
 Public Sub T_ParseMoment()

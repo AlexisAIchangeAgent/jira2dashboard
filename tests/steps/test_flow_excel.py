@@ -2,6 +2,7 @@
 import dataclasses
 import datetime as dt
 import gc
+import os
 import time
 from pathlib import Path
 
@@ -38,7 +39,12 @@ def built_workbook():
     return TARGET
 
 
-@pytest.fixture
+def excel_scope(fixture_name, config):
+    """A fresh Excel per scenario; J2D_ONE_EXCEL=1 shares one Excel across the module (the stress setup of handoff 8b)."""
+    return "module" if os.environ.get("J2D_ONE_EXCEL") == "1" else "function"
+
+
+@pytest.fixture(scope=excel_scope)
 def flow_workbook(built_workbook):
     """A fresh Excel per scenario, on the workbook as built: each scenario stands alone. One Excel for the whole module
     (several extractions and builds in one process) crashed in about 2 runs out of 5 (open defect, handoff section 8b)."""
@@ -271,6 +277,7 @@ def wait_for(world, done, seconds=180):
 def _click(world, request):
     request.addfinalizer(lambda: macro(world, "AbortExtraction"))        # no slice must outlive the scenario
     world["before"] = {name: len(table_dicts(world["wb"], name)) for name in ("Issues", "ItemFlow")}         if "items" in world else None
+    world["log_from"] = LOG_FILE.stat().st_size if LOG_FILE.exists() else 0
     macro(world, "BtnExtractAndCompute")
     reference(world)
 
@@ -307,6 +314,27 @@ def _progress(world):
     assert "Reading Jira" in kinds, kinds        # the search has many slices; the other steps are one slice each (not always seen)
     dash.Range("R1").ClearContents()
     assert retry(lambda: wb.Worksheets("ItemFlow").ListObjects("ItemFlow").ListRows.Count) == len(world["items"])
+
+
+LOG_FILE = Path(os.environ["LOCALAPPDATA"]) / "jira2dashboard" / "logs" / "jira2dashboard.log"      # modLog.LogFile
+
+
+@then("le journal local décrit l'exécution étape par étape, sans jeton, adresse ni réponse de Jira")
+def _log(world):
+    raw = LOG_FILE.read_bytes()
+    start = world["log_from"] if len(raw) >= world["log_from"] else 0                 # a new file when the log was big
+    text = raw[start:].decode("ascii")                                                  # plain ASCII, or this fails
+    lines = [line.split(" ", 3)[2:] for line in text.splitlines()]                     # date time KIND text
+    kinds = [kind for kind, *_ in lines]
+    assert lines[0][1].startswith("button Extract from Jira and compute | Excel "), lines[0]
+    assert lines[-1] == ["RUN", "end ok"], lines[-1]
+    steps = kinds[1:-1]
+    assert steps == ["BEGIN", "END"] * (len(steps) // 2), kinds                          # each step ends before the next
+    begun = [rest[0] for kind, *rest in lines if kind == "BEGIN"]
+    for name in ("search page 1", "changelogs from issue 1 of 150", "raw sheets", "flow sheets and charts"):
+        assert name in begun, (name, begun[:5])
+    for secret in ("tok-123", "me@example.com", "127.0.0.1", "http", "{"):
+        assert secret not in text, secret
 
 
 @then("les résultats du premier calcul sont conservés et l'état dit « Cancelled »")
