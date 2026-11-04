@@ -31,6 +31,9 @@ powershell -ExecutionPolicy Bypass -File scripts\setup.ps1 -Dev   # create .venv
 .\scripts\run.ps1 build           # delivery workbook out\jira2dashboard.xlsm (--out name.xlsm)
 ```
 
+`test` and `coverage` skip the `excel` and `network` markers by default (`addopts` in `pyproject.toml`): use `test-excel` /
+`test-network` for those.
+
 Single test: `.\scripts\run.ps1 test tests/unit/test_checks.py::test_name` or
 `.\scripts\run.ps1 test-excel tests/steps/test_flow_excel.py -k "contr" -q`. Call `run.ps1` directly from PowerShell: do not
 wrap it in `cmd /c` or redirect with `2>&1` (it stops on `$ErrorActionPreference='Stop'`).
@@ -69,6 +72,17 @@ Domain decisions and the metric definitions are in `docs/` (7 md files, **never 
 `claude-code-handoff.md`, which also holds the roadmap, review dispositions and the MD5 of every `.bas`). Update the MD5
 table in the handoff whenever a `.bas` changes. `README.md` (French) covers delivery to the client machine.
 
+## Adding a data check
+
+1. `flow/checks.py`: a `Check` row and the rule in `issue_checks` (Python reference).
+2. `flow/formulas.py`: a `DCnn` column in `ITEMFLOW_COLUMNS` (helper columns in `INTERVAL_HELPERS` if needed).
+3. If it needs a new Jira field: a raw column in `ISSUES`, `ExtractFields` and the row in `modExtract.bas`, the fixtures in
+   `modTests.bas`, and the field in `mockjira/` (`FlowIssue` and `flow_adapter.py`).
+4. `mockjira/anomalies.py`: a known case with the ids it must trigger; the data-check scenario of `flow_excel.feature`
+   compares it with the workbook.
+5. Update the counts (marker test, the Config row count in `params.feature` if a parameter is added), the MD5 table and
+   the handoff.
+
 ## Development practices
 
 - **BDD outer loop, TDD inner loop.** Start from a Gherkin scenario (`tests/features/*.feature`, French keywords,
@@ -94,6 +108,9 @@ table in the handoff whenever a `.bas` changes. `README.md` (French) covers deli
 - **Never kill an `EXCEL.EXE` the scripts did not start** (the user may have their own). If a test run hangs, end only the
   process you started, by PID. A modal VB dialog is the usual cause of a hung Excel run.
 - **Do not call a real Jira.** Use the fake Jira.
+- Excel formula traps: a formula typed in one cell of a table column fills the whole column (write key columns as values
+  before creating the table); a structured reference to a column whose name contains `_` is refused; compare dates with a
+  half-second margin; a blank result is `""`, never `0`.
 - Mind the COM traps listed in `claude-code-handoff.md` section 7: positional arguments only, `put_en_us` for number formats,
   leading apostrophe on text written to cells (`as_cell` / `SafeCell`), read `.Value2`, activate a chart's sheet before export.
 - **Git.** Repo `AlexisAIchangeAgent/jira2dashboard` (public), branch `main`. `.gitattributes` disables line-ending
