@@ -63,6 +63,9 @@ class _State:
     lock: threading.Lock = field(default_factory=threading.Lock)
 
 
+MAX_BODY = 10_000_000                       # bytes a request may carry
+
+
 def _json_params(body: dict) -> dict:
     """POST /search/jql takes fields as a list and expand as a string; the GET form takes comma-separated text."""
     return {"jql": body.get("jql"), "fields": body.get("fields") or [], "expand": body.get("expand"),
@@ -144,7 +147,11 @@ def _make_handler(state: _State):
         def _serve(self):
             parsed = urllib.parse.urlsplit(self.path)
             query = urllib.parse.parse_qs(parsed.query)
-            length = int(self.headers.get("Content-Length") or 0)
+            raw_length = self.headers.get("Content-Length") or "0"
+            if not raw_length.isdecimal() or int(raw_length) > MAX_BODY:          # not a number, negative or huge
+                self._send(400, {"errorMessages": ["bad Content-Length"], "errors": {}}, {})
+                return
+            length = int(raw_length)
             text = self.rfile.read(length).decode("utf-8") if length else ""
             with state.lock:
                 state.requests.append(Request(self.command, parsed.path, query, text,

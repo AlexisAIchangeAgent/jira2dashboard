@@ -198,10 +198,18 @@ Private Function RawCount(ByVal cols As Collection) As Long
     Next i
 End Function
 
-Public Sub BuildFlowSheetsIn(ByVal wb As Object)
-    Cov "FLB14"
-    Dim spec As Object, teams As Collection, periods As Collection, calcMode As Long
-    Dim num As Long, desc As String, nm As Variant
+Private Sub RequireDynamicArrays()
+    ' The formulas of the plan use LET, XLOOKUP and FILTER (Excel 365 or 2021): say so before anything is read or cleared.
+    Cov "FLB35"
+    If IsError(Application.Evaluate("LET(x,1,x)")) Then
+        Err.Raise vbObjectError + 708, "BuildFlowSheets", "This workbook needs Excel 365 or Excel 2021 (dynamic array formulas: LET, XLOOKUP, FILTER)."
+    End If
+End Sub
+
+Private Sub LoadPlan(ByVal wb As Object, ByRef spec As Object, ByRef teams As Collection, ByRef periods As Collection)
+    ' Everything the build needs from the sheets, checked: the errors come before anything is changed.
+    Dim nm As Variant
+    RequireDynamicArrays
     For Each nm In Array("FlowFormulas", "ChartSpec", "ChecksSpec", "Config", "Periods", "PIs", "Projects", "Workflows", _
                          "Transitions", "Dashboard", "Issues", "StatusIntervals", "IssueLinks")
         If Not SheetExists(wb, CStr(nm)) Then
@@ -215,19 +223,36 @@ Public Sub BuildFlowSheetsIn(ByVal wb As Object)
         Cov "FLB15"
         Err.Raise vbObjectError + 703, "BuildFlowSheets", "Sheet Periods has no period: fill Period, Start and End first."
     End If
+End Sub
+
+Public Sub ValidateBuildInputs(ByVal wb As Object)
+    ' Called before the extraction: a bad Periods sheet or an old Excel must not be found after ten minutes of reading Jira,
+    ' with the earlier results already cleared.
+    Dim spec As Object, teams As Collection, periods As Collection
+    LoadPlan wb, spec, teams, periods
+End Sub
+
+Public Sub BuildFlowSheetsIn(ByVal wb As Object)
+    Cov "FLB14"
+    Dim spec As Object, teams As Collection, periods As Collection, calcMode As Long, screen As Boolean
+    Dim num As Long, desc As String
+    LoadPlan wb, spec, teams, periods
     calcMode = Application.Calculation
+    screen = Application.ScreenUpdating
     Application.ScreenUpdating = False
     Application.Calculation = XL_CALC_MANUAL
     On Error GoTo Failed
     BuildAll wb, spec, teams, periods
     Application.Calculation = calcMode
     Application.CalculateFull
-    Application.ScreenUpdating = True
+    Application.ScreenUpdating = screen
+    On Error Resume Next
+    wb.Worksheets("Dashboard").Activate                  ' the sheets added by the build must not leave another one in front
     Exit Sub
 Failed:
     num = Err.Number: desc = Err.Description
     Application.Calculation = calcMode
-    Application.ScreenUpdating = True
+    Application.ScreenUpdating = screen
     Err.Raise num, "BuildFlowSheets", desc
 End Sub
 
@@ -353,7 +378,7 @@ End Function
 Private Function IssueTypes(ByVal wsIssues As Object) As Collection
     ' The distinct values of the column Type of the sheet Issues, in order of appearance.
     Cov "FLB32"
-    Dim out As New Collection, seen As Object, col As Long, last As Long, v As String, r As Long
+    Dim out As New Collection, seen As Object, col As Long, last As Long, data As Variant, r As Long
     Set seen = CreateObject("Scripting.Dictionary")
     Set IssueTypes = out
     last = UsedRows(wsIssues)
@@ -361,13 +386,21 @@ Private Function IssueTypes(ByVal wsIssues As Object) As Collection
     For col = 1 To 20
         If CStr(wsIssues.Cells(1, col).Value) = "Type" Then Exit For
     Next col
-    For r = 1 To last                                ' cell by cell: a one-row range does not come back as an array
-        v = CStr(wsIssues.Cells(r + 1, col).Value & "")
-        If Len(v) > 0 Then
-            If Not seen.Exists(v) Then seen(v) = True: out.Add v
-        End If
+    If col > 20 Then Err.Raise vbObjectError + 709, "IssueTypes", "The sheet Issues has no column Type: run the extraction again."
+    If last = 1 Then                                 ' a one-cell range does not come back as an array
+        AddType out, seen, CStr(wsIssues.Cells(2, col).Value & "")
+        Exit Function
+    End If
+    data = wsIssues.Range(wsIssues.Cells(2, col), wsIssues.Cells(last + 1, col)).Value
+    For r = 1 To last
+        AddType out, seen, CStr(data(r, 1) & "")
     Next r
 End Function
+
+Private Sub AddType(ByVal out As Collection, ByVal seen As Object, ByVal v As String)
+    If Len(v) = 0 Then Exit Sub
+    If Not seen.Exists(v) Then seen(v) = True: out.Add v
+End Sub
 
 Private Function WriteFillKeys(ByVal ws As Object, ByVal fields As Collection, ByVal wb As Object, _
                                ByVal teams As Collection) As Long

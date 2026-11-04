@@ -16,23 +16,32 @@ from jira2dashboard.params.model import load_all
 from jira2dashboard.params.write import write_params
 from jira2dashboard.testbench import run_vba_tests as rvt
 
-TARGET = OUT_DIR / rvt.option("--out", "jira2dashboard.xlsm")
+TARGET = OUT_DIR / rvt.out_name("jira2dashboard.xlsm")
 # No test module, no test button: modCoverage stays because the other modules call Cov (a no-op unless switched on).
 MODULES = ["modCoverage", "modJson", "modText", "modHttp", "modJira", "modFlow", "modParams", "modExtract",
            "modFlowBuild", "modActions"]
 BUTTON_MACRO = "modActions.BtnExtractAndCompute"
+# The handler of the workbook: a slice of the extraction still scheduled when the workbook is closed would reopen it.
+THISWORKBOOK_CODE = "\r\n".join((
+    "Option Explicit",
+    "Private Sub Workbook_BeforeClose(Cancel As Boolean)",
+    "    modActions.AbortExtraction",
+    "End Sub",
+    ""))
 
 
 def build_delivery(target: Path = TARGET) -> Path:
     sources = rvt.module_sources(MODULES)
     with R.excel_session() as app:
         wb = R.new_workbook(app)
+        R.assert_vba_access(wb)                                       # fail now, not deep inside the module import
         dash = wb.Worksheets(1)
         dash.Name = "Dashboard"
         write_params(wb, load_all())                                  # Config, Projects, Periods, Workflows, ...
         write_blueprint(wb, dash, BUTTON_MACRO)
         for name, code in sources.items():
             R.add_or_replace_module(wb, name, code)
+        R.set_module_code(R.workbook_component(wb), THISWORKBOOK_CODE)
         dash.Activate()
         R.save_as_xlsm(wb, target, overwrite=True)
         wb.Close(False)

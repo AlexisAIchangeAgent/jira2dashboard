@@ -194,6 +194,8 @@ def _check_config(sheet: ParamSheet, problems: list[str]) -> None:
     base = values.get("BaseUrl")
     if base and not base.lower().startswith(("http://", "https://")):
         problems.append(f"Config: BaseUrl must start with http:// or https://, got {base!r}")
+    if base and "@" in base.split("//", 1)[-1].split("/", 1)[0]:
+        problems.append("Config: BaseUrl must not contain a user name or a token (user:token@host)")
     if values.get("FlowLoadMode") not in ("A", "B"):
         problems.append(f"Config: FlowLoadMode must be A or B, got {values.get('FlowLoadMode')!r}")
     as_of = values.get("AsOf")
@@ -227,6 +229,8 @@ def _check_periods(sheet: ParamSheet, problems: list[str], column: str = "Period
             problems.append(f"{where}: {column} needs a name")
         if start is None or end is None:
             problems.append(f"{where}: Start and End must be dates such as 2026-10-05, got {rec['Start']!r} and {rec['End']!r}")
+        elif start.time() != dt.time() or end.time() != dt.time():
+            problems.append(f"{where}: Start and End are whole days (no time): the daily load and the PI window count days")
         elif start >= end:
             problems.append(f"{where}: Start must be before End")
         seen[rec[column]] += 1

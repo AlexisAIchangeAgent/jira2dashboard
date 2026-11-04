@@ -13,6 +13,7 @@ Private mPhase As Long                  ' 0 no job, 1 search, 2 changelogs, 3 bu
 
 Private Sub ExtractParameters(ByRef cfg As Object, ByRef jql As String, ByRef settings As Object)
     Dim wsConfig As Object
+    ValidateBuildInputs ThisWorkbook                 ' before any call to Jira: nothing is read or cleared if the build cannot run
     Set wsConfig = ThisWorkbook.Worksheets("Config")
     Set cfg = JiraConfigFromSheet(wsConfig)
     jql = ExtractionJql(ThisWorkbook.Worksheets("Projects"), wsConfig)
@@ -106,12 +107,26 @@ Private Function TextOf(ByVal v As Variant) As Variant
         If IsNull(TextOf) Then TextOf = Empty
         Exit Function
     End If
-    TextOf = CStr(v)
+    Select Case VarType(v)
+        Case vbDouble, vbSingle, vbCurrency, vbLong, vbInteger: TextOf = Trim$(Str$(v))     ' a dot, whatever the language of the PC
+        Case vbBoolean: TextOf = IIf(v, "true", "false")
+        Case Else: TextOf = CStr(v)
+    End Select
 End Function
 
 Private Function NumberOf(ByVal v As Variant) As Variant
-    If IsEmpty(v) Or IsObject(v) Then Exit Function
-    If IsNumeric(v) Then NumberOf = CDbl(v)
+    ' A number field: Jira sends a JSON number. A text is accepted only as plain digits with a dot (never read with the
+    ' decimal separator of the PC); a Boolean is not a number.
+    If IsEmpty(v) Or IsObject(v) Or IsNull(v) Then Exit Function
+    Select Case VarType(v)
+        Case vbBoolean
+        Case vbString
+            If Len(Trim$(v)) > 0 Then
+                If Not Trim$(v) Like "*[!0-9.+-]*" Then NumberOf = Val(v)
+            End If
+        Case Else
+            If IsNumeric(v) Then NumberOf = CDbl(v)
+    End Select
 End Function
 
 Private Function DateOf(ByVal v As Variant) As Variant
@@ -262,7 +277,7 @@ Public Function ExtractJobStep() As Boolean
             If mNextChunk > mKeys.Count Then mPhase = 3
         Case 3                                                       ' compute and write the raw sheets
             BuildRawSheets
-            mPhase = 0
+            ExtractJobAbort                                          ' the pages and the changelogs are no longer needed
             ExtractJobStep = True
         Case Else
             ExtractJobStep = True
@@ -290,12 +305,34 @@ Public Function ExtractJobLabel() As String
 End Function
 
 Public Sub ExtractJobAbort()
-    ' Forgets the job (cancelled or failed): nothing was written to the sheets before the last step.
+    ' Forgets the job (finished, cancelled or failed): nothing was written to the sheets before the last step. Releases the
+    ' parsed pages and changelogs, and the connection (it holds the Authorization header).
     mPhase = 0
-    Set mIssues = Nothing: Set mKeys = Nothing: Set mRaw = Nothing: Set mIdToKey = Nothing
+    Set mIssues = Nothing: Set mKeys = Nothing: Set mRaw = Nothing: Set mIdToKey = Nothing: Set mNames = Nothing
+    Set mCfg = Nothing: Set mSettings = Nothing
+    Set mWsProjects = Nothing: Set mWsWorkflows = Nothing: Set mWsIssues = Nothing: Set mWsIntervals = Nothing: Set mWsLinks = Nothing
 End Sub
 
 Private Sub BuildRawSheets()
+    ' The clearing of the old sheets and the writing of the new ones, without flicker and without a recalculation per change.
+    Dim calcMode As Long, screen As Boolean, num As Long, desc As String
+    calcMode = Application.Calculation
+    screen = Application.ScreenUpdating
+    Application.ScreenUpdating = False
+    Application.Calculation = -4135                                  ' xlCalculationManual
+    On Error GoTo Failed
+    BuildRawSheetsCore
+    Application.Calculation = calcMode
+    Application.ScreenUpdating = screen
+    Exit Sub
+Failed:
+    num = Err.Number: desc = Err.Description
+    Application.Calculation = calcMode
+    Application.ScreenUpdating = screen
+    Err.Raise num, "BuildRawSheets", desc
+End Sub
+
+Private Sub BuildRawSheetsCore()
     Dim issues As Collection, issue As Variant, rows As New Collection, changes As Collection, moved As Object
     Dim program As String, project As String, wf As Variant, info As Object, mine As Collection, ch As Variant, iv As Variant
     Dim out As New Collection, links As New Collection

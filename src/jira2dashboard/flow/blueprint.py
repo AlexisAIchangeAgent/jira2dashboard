@@ -47,6 +47,7 @@ def formula_rows() -> list[tuple[str, str, str]]:
 
 def check_rows() -> list[tuple[str, ...]]:
     """The checks of the sheet DataChecks (Id, Title, Severity, three needs, Source): VBA writes them as the keys of the table."""
+    assert all(len(c.needs) <= 3 for c in CHECKS), "DataChecks has three Need columns"
     return [(c.id, c.title, c.severity, *(c.needs + ("", "", ""))[:3], c.source) for c in CHECKS]
 
 

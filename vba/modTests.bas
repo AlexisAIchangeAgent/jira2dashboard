@@ -49,7 +49,7 @@ Private Function TestNames() As Variant
     TestNames = Array("T_JsonNested", "T_JsonEscapes", "T_JsonEmpty", "T_JsonErrors", "T_JsonRoundTrip", _
         "T_JsonLarge", "T_Base64Auth", "T_UrlEncode", "T_Utf8RoundTrip", "T_JiraDates", "T_FieldToCell", _
         "T_SafeCell", "T_ProjectsJql", "T_SearchUrl", "T_SearchPagination", "T_Retry429", _
-        "T_RetryExhausted", "T_ChangelogChunks", "T_IssueRows", "T_WriteTable", "T_StatusIntervals", _
+        "T_HttpNetworkAndCancel", "T_RetryExhausted", "T_ChangelogChunks", "T_IssueRows", "T_WriteTable", "T_StatusIntervals", _
         "T_StatusChanges", "T_RetryDelay", "T_SafeAccess", "T_FilesUtf8", "T_StringifyBadObject", _
         "T_TooManyPages", "T_BackgroundExport", "T_TextNotConverted", "T_ParamsTables", "T_ParamsOnWorkbook", _
         "T_TrimWhite", "T_ConfigSheet", "T_ProjectsSheet", "T_ParseMoment", "T_ExtractFlowData", "T_ExtractJob", "T_ExtractCheckFields", "T_FlowBuild", "T_BaseUrlHttps")
@@ -177,7 +177,7 @@ End Sub
 
 Public Sub T_JsonErrors()
     Dim bad As Variant, raised As Boolean
-    For Each bad In Array("", "[1,", "{'a':1 'b':2}", "{", "{'a':1}x", "{'a' 1}", "[1 2]", "{'a':tru}", "'abc", "{1:2}", "{'a':'\q'}", "@")
+    For Each bad In Array("", "[1,", "{'a':1 'b':2}", "{", "{'a':1}x", "{'a' 1}", "[1 2]", "{'a':tru}", "'abc", "{1:2}", "{'a':'\q'}", "@", "'\u12'", "'\uZZZZ'")
         raised = False
         On Error Resume Next
         Call JsonParse(J(bad))                      ' no assignment: a parsed object would raise 450 and hide an accepted input
@@ -341,6 +341,13 @@ Public Sub T_ProjectsSheet()
     Check "projects", "ExtractionJqlFromWorkbook reads the real sheets", "empty Filter", True, InStr(ExtractionJqlFromWorkbook(), """TTT"",""AAA""") > 0
 End Sub
 
+Private Function RaisesOnConfig(ByVal url As String) As Boolean
+    On Error Resume Next
+    Call JiraConfig(url, "me@x.com", "t", "", "", False)
+    RaisesOnConfig = (Err.Number = vbObjectError + 602)
+    Err.Clear
+End Function
+
 Public Sub T_BaseUrlHttps()
     ' The Basic header holds the API token: it must not travel over http, except to the fake Jira on this computer.
     Dim raised As Boolean
@@ -351,6 +358,10 @@ Public Sub T_BaseUrlHttps()
     Check "config", "an http BaseUrl is refused", "http://x.atlassian.net", True, raised
     Check "config", "https is accepted", "https://x.atlassian.net", "https://x.atlassian.net", JiraConfig("https://x.atlassian.net", "me@x.com", "t", "", "", False)("BaseUrl")
     Check "config", "the fake Jira on this computer is accepted", "http://127.0.0.1:8099", "http://127.0.0.1:8099", JiraConfig("http://127.0.0.1:8099/", "me@x.com", "t", "", "", False)("BaseUrl")
+    Check "config", "a name that only starts like localhost is not local", "http://localhost.evil.example", True, RaisesOnConfig("http://localhost.evil.example")
+    Check "config", "127.0.0.1 inside a longer name is not local", "http://127.0.0.1.evil.example", True, RaisesOnConfig("http://127.0.0.1.evil.example")
+    Check "config", ".invalid in the query is not a local host", "http://evil.example/?x=.invalid", True, RaisesOnConfig("http://evil.example/?x=.invalid")
+    Check "config", "a .invalid host (the fake proxy tests) is local", "http://jira.invalid:8080/x", False, RaisesOnConfig("http://jira.invalid:8080/x")
     Check "config", "an empty BaseUrl is left to the later check", "", "", JiraConfig("", "me@x.com", "t", "", "", False)("BaseUrl")
     Check "extract", "only the fields the metrics use", "WorkTypeField customfield_10200", "key,project,issuetype,created,status,parent,resolutiondate,fixVersions,issuelinks,customfield_10200", ExtractFields("customfield_10200")
     Check "extract", "no work type field: not asked", "empty", "key,project,issuetype,created,status,parent,resolutiondate,fixVersions,issuelinks", ExtractFields("")
@@ -381,6 +392,13 @@ Public Sub T_ParseMoment()
     ConfigRows ws, Array("AsOf", "x")
     ws.Cells(2, 2).Value = DateSerial(2026, 11, 3) + TimeSerial(18, 0, 0)        ' typed as a date: the cell holds a date, not text
     Check "asof", "AsOf typed as a date in the cell", "2026-11-03 18:00 as a date", CDbl(DateSerial(2026, 11, 3)) + 0.75, CDbl(AsOfFromConfig(ws))
+    ws.Cells(2, 2).Value = 5                                                     ' a plain number is not a date
+    raised = False
+    On Error Resume Next
+    Call AsOfFromConfig(ws)
+    raised = (Err.Number = vbObjectError + 604): Err.Clear
+    On Error GoTo 0
+    Check "asof", "a number such as 5 is refused, not read as 1900-01-05", "5", True, raised
 End Sub
 
 Public Sub T_ExtractFlowData()
@@ -779,6 +797,55 @@ Public Sub T_Retry429()
     Set resp = HttpRequest(cfg, "GET", "https://x/a")
     Check "http", "retried after 429", "429 then 200", 200, resp("Status")
     Check "http", "attempts", "429 then 200", 2, resp("Attempts")
+End Sub
+
+Public Sub T_HttpNetworkAndCancel()
+    ' A network error (status 0) is retried twice; Cancel ends the request at once; an HTML answer is explained.
+    Dim cfg As Object, resp As Object, raised As Boolean, data As Collection, names As Object, isLast As Boolean
+    Set cfg = TestConfig()
+    cfg("RetryBaseMs") = 1: cfg("RetryMaxMs") = 2
+    FakeReset
+    FakeAdd "GET", "https://x/net", 0, ""
+    FakeAdd "GET", "https://x/net", 200, "{}"
+    Set resp = HttpRequest(cfg, "GET", "https://x/net")
+    Check "http", "one network error then the answer", "0 then 200", "200|2", resp("Status") & "|" & resp("Attempts")
+    FakeReset
+    FakeAdd "GET", "https://x/net", 0, ""
+    FakeAdd "GET", "https://x/net", 0, ""
+    FakeAdd "GET", "https://x/net", 0, ""
+    FakeAdd "GET", "https://x/net", 200, "{}"
+    cfg("MaxRetries") = 6
+    Set resp = HttpRequest(cfg, "GET", "https://x/net")
+    Check "http", "a network error is given up after two retries", "0 0 0 200", "0|3", resp("Status") & "|" & resp("Attempts")
+    FakeReset
+    FakeAdd "GET", "https://x/slow", 503, ""
+    FakeAdd "GET", "https://x/slow", 200, "{}"
+    gHttpCancel = True
+    On Error Resume Next
+    Call HttpRequest(cfg, "GET", "https://x/slow")
+    raised = (Err.Number = vbObjectError + 610): Err.Clear
+    On Error GoTo 0
+    gHttpCancel = False
+    Check "http", "Cancel stops the request with error 610", "gHttpCancel", True, raised
+    Check "http", "the jitter never gives an instant retry", "backoff 2000", True, RetryDelayMs(NewHttpConfig(), 0, "") >= 1000
+    cfg("MaxRetries") = 0
+    FakeReset
+    FakeAdd "GET", JiraSearchUrl(cfg("BaseUrl"), "project = X", "", 100, "key", ""), 200, "<html>Login</html>"
+    Set data = New Collection: Set names = CreateObject("Scripting.Dictionary")
+    On Error Resume Next
+    Call JiraSearchPage(cfg, "project = X", "", data, names, "key", "", isLast)
+    raised = (Err.Number = vbObjectError + 607)
+    Err.Clear
+    On Error GoTo 0
+    Check "jira", "a 200 answer that is not JSON is explained", "<html>", True, raised
+    FakeReset
+    FakeAdd "GET", JiraSearchUrl(cfg("BaseUrl"), "project = X", "t1", 100, "key", ""), 200, J("{'issues':[],'isLast':false,'nextPageToken':'t1'}")
+    On Error Resume Next
+    Call JiraSearchPage(cfg, "project = X", "t1", data, names, "key", "", isLast)
+    raised = (Err.Number = vbObjectError + 606)
+    Err.Clear
+    On Error GoTo 0
+    Check "jira", "a page token that comes back is refused", "t1 again", True, raised
 End Sub
 
 Public Sub T_RetryExhausted()

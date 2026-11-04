@@ -39,6 +39,8 @@ def flow_workbook():
     with com.excel_session() as app:
         app.AutomationSecurity = com.MSO_AUTOMATION_SECURITY_LOW
         holder["wb"] = app.Workbooks.Open(str(TARGET.resolve()))
+        code = holder["wb"].VBProject.VBComponents(holder["wb"].CodeName).CodeModule
+        assert "AbortExtraction" in code.Lines(1, code.CountOfLines)       # closing the workbook drops a pending slice
         yield holder
         holder.pop("wb").Close(False)
         del app
@@ -192,16 +194,19 @@ BUSY = (-2147418111, -2147417846)               # Excel is running a macro slice
 
 def retry(call):
     """Run a COM call between two slices of the extraction: Excel refuses calls while a slice runs."""
+    last = None
     for _ in range(400):
         try:
             return call()
-        except AttributeError:                                           # a busy Excel also fails the lookup of a name
+        except AttributeError as err:                                    # a busy Excel also fails the lookup of a name
+            last = err
             time.sleep(0.02)
         except pywintypes.com_error as err:
             if err.hresult not in BUSY:
                 raise
+            last = err
             time.sleep(0.02)
-    raise TimeoutError("Excel stayed busy")
+    raise TimeoutError("Excel stayed busy") from last                    # the real error stays visible
 
 
 def put(dash, value):
@@ -209,25 +214,36 @@ def put(dash, value):
 
 
 def macro(world, name):
-    wb = world["wb"]
-    return retry(lambda: wb.Application.Run(f"'{wb.Name}'!modActions.{name}"))
+    """Application.Run of a modActions macro. The Application proxy and the workbook name are read once per scenario:
+    each wb.Application is one more COM call (and a type lookup) for an Excel that is running the job."""
+    if "app" not in world:
+        wb = world["wb"]
+        world["app"], world["prefix"] = wb.Application, f"'{wb.Name}'!modActions."
+    app, prefix = world["app"], world["prefix"]
+    return retry(lambda: app.Run(prefix + name))
 
 
 def status_and_bar(world):
     """(status text, bar as a fraction of its width) in one call: between two slices Excel answers only a few calls."""
-    wb = world["wb"]
-    bar, _sep, text = retry(lambda: wb.Application.Run(f"'{wb.Name}'!modActions.ProgressSnapshot")).partition("|")
+    bar, _sep, text = macro(world, "ProgressSnapshot").partition("|")
     return text, float(bar)
+
+
+POLL_S = 0.25        # a human pace: fewer COM calls into the Excel that runs the job
 
 
 def wait_for(world, done, seconds=180):
     """Poll the status cell and the bar until done(status) is true; returns the (status, bar) samples."""
     samples, deadline = [], time.time() + seconds
     while time.time() < deadline:
-        samples.append(status_and_bar(world))
+        try:
+            samples.append(status_and_bar(world))
+        except Exception as err:                              # noqa: BLE001 - say where the run was when Excel went away
+            raise RuntimeError(f"{err!r}; the last samples: {samples[-4:]} (Excel gone? check the EXCEL.EXE exit code: "
+                               "claude-code-handoff.md section 8b)") from err
         if done(samples[-1][0]):
             return samples
-        time.sleep(0.03)
+        time.sleep(POLL_S)
     raise TimeoutError(samples[-3:])
 
 
@@ -250,16 +266,19 @@ def _cancel(world):
 @then("la barre de progression avance sans reculer, le classeur répond entre deux tranches et l'extraction se termine")
 def _progress(world):
     wb, dash = world["wb"], world["wb"].Worksheets("Dashboard")
-    ticks = 0
+    ticks = checks = 0
 
     def usable(text):
-        nonlocal ticks
-        ticks += 1                                                       # a cell can be written while the job runs
-        retry(lambda: put(dash, ticks))
-        assert retry(lambda: dash.Range("R1").Value2) == ticks
+        nonlocal ticks, checks
+        ticks += 1
+        if ticks % 10 == 1:                                              # a cell can be written while the job runs
+            checks += 1
+            retry(lambda: put(dash, ticks))
+            assert retry(lambda: dash.Range("R1").Value2) == ticks
         return text.startswith(("Done", "Stopped"))
 
     samples = wait_for(world, usable)
+    assert checks >= 3, f"the workbook was written only {checks} times during the run"
     bars = [bar for _text, bar in samples]
     assert samples[-1][0].startswith("Done"), samples[-1]
     assert bars == sorted(bars) and bars[-1] > 0.99, bars[-5:]

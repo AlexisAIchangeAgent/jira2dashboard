@@ -229,7 +229,8 @@ def _field_checks(issue: FlowIssue, parent: FlowIssue | None, children: list[Flo
         found.add("DC17")
     if feature and valid_pi(issue.pi) and issue.pi in s.pis:
         start, end = s.pis[issue.pi]
-        if any(c.sprint_start is not None and (c.sprint_start < start or c.sprint_end > end) for c in children):
+        if any((c.sprint_start is not None and c.sprint_start < start) or (c.sprint_end is not None and c.sprint_end > end)
+               for c in children):
             found.add("DC18")
     category = rules.rule(issue.workflow, issue.status).category
     if feature and category not in (BACKLOG, REMOVED) and (issue.target_start is None or issue.target_end is None):

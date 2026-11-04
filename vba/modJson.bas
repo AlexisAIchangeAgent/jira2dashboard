@@ -115,7 +115,10 @@ Private Function ParseString() As String
             Case "n": out = out & vbLf
             Case "r": out = out & vbCr
             Case "t": out = out & vbTab
-            Case "u": out = out & ChrW$(CLng("&H" & Mid$(mText, mPos, 4))): mPos = mPos + 4
+            Case "u"
+                If mPos + 3 > Len(mText) Then Cov "JSN19": Fail "Bad \u escape"
+                If Mid$(mText, mPos, 4) Like "*[!0-9A-Fa-f]*" Then Cov "JSN20": Fail "Bad \u escape"
+                out = out & ChrW$(CLng("&H" & Mid$(mText, mPos, 4))): mPos = mPos + 4
             Case Else: Cov "JSN12": Fail "Bad escape \" & esc
         End Select
     Loop

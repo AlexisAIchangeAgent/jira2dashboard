@@ -6,14 +6,19 @@ from pathlib import Path
 from jira2dashboard.excel import com as R
 
 
+def grid(value):
+    """A range of one cell comes back as a scalar: make it a one-row table like any other."""
+    return value if isinstance(value, tuple) else ((value,),)
+
+
 def main(path: str, network: bool) -> None:
     with R.excel_session() as app:
         print(f"child excel pid {R.excel_pid(app)}", file=sys.stderr, flush=True)
         app.AutomationSecurity = R.MSO_AUTOMATION_SECURITY_LOW
         wb = app.Workbooks.Open(str(Path(path).resolve()))
         summary = app.Run(f"'{wb.Name}'!modTests.RunWithCoverage", network)   # positional argument
-        rows = wb.Worksheets("TestResults").UsedRange.Value
-        hits = wb.Worksheets("CoverageHits").UsedRange.Value
+        rows = grid(wb.Worksheets("TestResults").UsedRange.Value)
+        hits = grid(wb.Worksheets("CoverageHits").UsedRange.Value)
         wb.Save()
         wb.Close(False)
         del wb

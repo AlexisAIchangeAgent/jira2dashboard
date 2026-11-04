@@ -23,7 +23,15 @@ def option(flag: str, default: str) -> str:
     return argv[argv.index(flag) + 1] if flag in argv[:-1] else default
 
 
-OUT = OUT_DIR / option("--out", "vba_tests.xlsm")
+def out_name(default: str) -> str:
+    """The workbook name of --out: a bare file name, so that nothing outside the folder out is ever overwritten."""
+    name = option("--out", default)
+    if name != Path(name).name or not name.lower().endswith(".xlsm"):
+        raise SystemExit(f"--out takes a bare file name ending in .xlsm (it goes under the folder out), not {name!r}")
+    return name
+
+
+OUT = OUT_DIR / out_name("vba_tests.xlsm")
 ORDER = ["modCoverage", "modJson", "modText", "modHttp", "modJira", "modFlow", "modParams", "modExtract",
          "modFlowBuild", "modActions", "modBackground", "modTests", "modButtons"]
 BUTTONS = [("J2", "Lancer les tests (hors ligne)", "modButtons.BtnRunAllTests"),
@@ -136,9 +144,15 @@ def main() -> int:
         print("  KO", " | ".join(str(x) for x in row))
     hit = set(report["hits"])
     missed = [m for m in markers if m not in hit]
-    pct = 100 * (len(markers) - len(missed)) / len(markers)
+    pct = 100 * (len(markers) - len(missed)) / max(len(markers), 1)
     print(f"coverage: {len(markers) - len(missed)}/{len(markers)} markers = {pct:.1f} %")
     print("missed markers:", ", ".join(missed) or "none")
+    if report["total"] == 0 or not markers:
+        print("no test result or no marker: nothing was tested")
+        return 1
+    if missed and "--offline" not in sys.argv:       # offline runs skip the network tests, which cover some markers
+        print("every marker must be hit (100 % required)")
+        return 1
     return 0 if not report["ko"] else 1
 
 

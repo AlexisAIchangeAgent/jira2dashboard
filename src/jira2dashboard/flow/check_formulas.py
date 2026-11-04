@@ -20,7 +20,8 @@ def cfg(name: str) -> str:
 
 def _list(name: str) -> str:
     """Config list "a, b,c" as ",a,b,c," (no space around the commas): to look a value up with FIND (case-sensitive)."""
-    return f'","&SUBSTITUTE(SUBSTITUTE({cfg(name)},", ",",")," ,",",")&","'
+    raw = f'SUBSTITUTE({cfg(name)},CHAR(160)," ")'                     # a pasted list may hold a non-breaking space
+    return f'","&TEXTJOIN(",",TRUE,TRIM(TEXTSPLIT({raw},",")))&","'
 
 
 def in_list(value: str, name: str) -> str:

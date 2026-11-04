@@ -37,6 +37,8 @@ powershell -ExecutionPolicy Bypass -File scripts\setup.ps1 -Dev   # create .venv
 Single test: `.\scripts\run.ps1 test tests/unit/test_checks.py::test_name` or
 `.\scripts\run.ps1 test-excel tests/steps/test_flow_excel.py -k "contr" -q`. Call `run.ps1` directly from PowerShell: do not
 wrap it in `cmd /c` or redirect with `2>&1` (it stops on `$ErrorActionPreference='Stop'`).
+From Bash: `powershell -NoProfile -ExecutionPolicy Bypass -File scripts/run.ps1 test-excel > out/x.log 2>&1` works
+(the redirect is outside PowerShell).
 
 Before finishing a change run the full pass: `coverage`, `vba-tests`, `test-excel`, `test-network`, `build`.
 
@@ -97,6 +99,9 @@ table in the handoff whenever a `.bas` changes. `README.md` (French) covers deli
   Trivial entry points (`modActions`, `modButtons`) carry none.
 - **VBA conventions.** ASCII only, LF line endings, `Option Explicit`; offline tests `T_*` and fake-Jira tests `M_*` in
   `modTests.bas`; button macros are Public Subs without arguments.
+- **VBA traps.** A one-cell `Range.Value` is not an array; assigning an object to a Variant needs `Set` (error 450);
+  `Application.OnTime` has a 1 s granularity; a COM call to an Excel that runs a macro is rejected (see `retry()` in
+  `tests/steps/test_flow_excel.py`).
 - **Test markers.** `excel` and `network` tests are excluded from the default run; Excel scenarios share one delivered
   workbook per module.
 
@@ -105,8 +110,8 @@ table in the handoff whenever a `.bas` changes. `README.md` (French) covers deli
 - **Nothing from the client may leave the client machine** (no scripts, no data). Client values (`BaseUrl`, `Email`,
   `ApiToken`, `ProxyServer`, `ProxyBypass`, `Filter`, `WorkTypeField`, `AsOf`, the periods calendar) stay **empty** in the
   repo; the API token must never be written to `params/config.md` (a test refuses it).
-- **Never kill an `EXCEL.EXE` the scripts did not start** (the user may have their own). If a test run hangs, end only the
-  process you started, by PID. A modal VB dialog is the usual cause of a hung Excel run.
+- **Never kill an `EXCEL.EXE` the scripts did not start** (the user may have their own), except one hung for long on a
+  VBA error dialog (AL allows it). A modal VB dialog (an untrapped VBA error) is the usual cause of a hung Excel run.
 - **Do not call a real Jira.** Use the fake Jira.
 - Excel formula traps: a formula typed in one cell of a table column fills the whole column (write key columns as values
   before creating the table); a structured reference to a column whose name contains `_` is refused; compare dates with a
@@ -115,8 +120,23 @@ table in the handoff whenever a `.bas` changes. `README.md` (French) covers deli
   leading apostrophe on text written to cells (`as_cell` / `SafeCell`), read `.Value2`, activate a chart's sheet before export.
 - **Git.** Repo `AlexisAIchangeAgent/jira2dashboard` (public), branch `main`. `.gitattributes` disables line-ending
   conversion (`* -text`, `*.bas text eol=lf`) so the tracked MD5 hold; Excel binaries (`*.xlsm`, `out/`) are ignored.
-  Commit messages end with `Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>`. If SSH push is refused, push over
+  Commit messages end with the `Co-Authored-By` line of the model in use (e.g. `Claude Opus 5.5 <noreply@anthropic.com>`). If SSH push is refused, push over
   HTTPS with the `gh` token: `git -c credential.helper= -c "credential.helper=!gh auth git-credential" push https://github.com/AlexisAIchangeAgent/jira2dashboard.git main`.
+
+## Environment gotchas
+
+- **Excel vanishes in the Excel scenarios ("RPC server unavailable")**: watch the `EXCEL.EXE` exit code. `0xC0000005` is
+  a crash; Office's crash recovery can also end it with 0 and start a new `EXCEL.EXE` in the same millisecond (do not
+  read that as an Office update). The Application event log (Application Error, event 1000) names the faulting module:
+  ask AL before reading it. Before blaming a change for a flaky Excel run, run the last commit (`git stash`) the same
+  number of times. With a failure rate near 40 %, a fix is proven only by 5 green module runs in a row.
+- **Open defect:** Excel crashes (`0xC0000005`, module "unknown") in about 2 runs out of 5 of `flow_excel.feature`,
+  mostly in the button scenarios right after the last search page; it predates the 2026-11-04 review. Read handoff
+  section 8b before chasing it.
+- **Git Bash rewrites `/switch` arguments** of Windows programs into paths (`/update` -> `C:/.../Git/update`, also
+  `wevtutil /q:`): prefix the command with `MSYS_NO_PATHCONV=1`.
+- The PowerShell tool is slow here (CIM / event-log queries time out): use Bash `tasklist` for processes.
+- Edit scripts with many quotes or `\r\n`: write a `.py` file with the Write tool and run it, not a Bash heredoc.
 
 ## Roadmap not done yet (ask before starting)
 

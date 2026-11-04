@@ -151,6 +151,10 @@ Public Function AsOfFromConfig(ByVal wsConfig As Object) As Date
     Next row
     If VarType(v) = vbDate Or VarType(v) = vbDouble Then
         Cov "PRM24"                                  ' typed as a date: Excel keeps the date, not the text
+        If CDbl(v) < 36526 Then                      ' before 2000-01-01: a plain number such as 5 was typed, not a date
+            Cov "PRM25"
+            Err.Raise vbObjectError + 604, "AsOfFromConfig", "AsOf in the Config sheet is not a date (" & CStr(v) & "): type a UTC date and time such as 2026-11-03 18:00"
+        End If
         AsOfFromConfig = CDate(v): Exit Function
     End If
     v = ParseMoment(CStr(v & ""))

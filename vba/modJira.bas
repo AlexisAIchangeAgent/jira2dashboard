@@ -29,10 +29,14 @@ End Function
 Private Function IsLocalUrl(ByVal url As String) As Boolean
     ' The fake Jira of the tests listens on this computer (or behind the fake proxy under a .invalid name, which never
     ' resolves to a real server): http is fine there.
-    Dim u As String
-    u = LCase$(url)
-    IsLocalUrl = (Left$(u, 16) = "http://127.0.0.1" Or Left$(u, 16) = "http://localhost" Or _
-                  (Left$(u, 7) = "http://" And InStr(u, ".invalid") > 0))
+    Dim h As String, p As Long
+    h = LCase$(url)
+    If Left$(h, 7) <> "http://" Then Exit Function
+    h = Mid$(h, 8)
+    p = InStr(h, "/"): If p > 0 Then h = Left$(h, p - 1)         ' the host alone: "localhost.evil.example" is not local
+    p = InStr(h, "?"): If p > 0 Then h = Left$(h, p - 1)
+    p = InStr(h, ":"): If p > 0 Then h = Left$(h, p - 1)
+    IsLocalUrl = (h = "127.0.0.1" Or h = "localhost" Or Right$(h, 8) = ".invalid")
 End Function
 
 Public Function NormalizeProxy(ByVal proxy As String) As String
@@ -138,6 +142,7 @@ Public Function JiraSearchPage(ByVal cfg As Object, ByVal jql As String, ByVal t
     Dim resp As Object, data As Variant, issue As Variant
     Set resp = HttpRequest(cfg, "GET", JiraSearchUrl(cfg("BaseUrl"), jql, token, JIRA_PAGE_SIZE, fields, expand))
     CheckStatus resp, "search/jql"
+    RequireJson resp, "search/jql"
     Set data = JsonParse(resp("Text"))
     For Each issue In AsList(JGet(data, "issues"))
         issues.Add issue
@@ -145,6 +150,10 @@ Public Function JiraSearchPage(ByVal cfg As Object, ByVal jql As String, ByVal t
     MergeNames names, JGet(data, "names")
     JiraSearchPage = CStr(JGet(data, "nextPageToken") & "")
     isLast = IsTrue(JGet(data, "isLast")) Or Len(JiraSearchPage) = 0
+    If Not isLast And JiraSearchPage = token Then
+        Cov "JIR25"
+        Err.Raise vbObjectError + 606, "JiraSearchPage", "Jira keeps sending the same page token: stop here and try again later."
+    End If
 End Function
 
 Private Sub MergeNames(ByVal names As Object, ByVal pageNames As Variant)
@@ -153,6 +162,16 @@ Private Sub MergeNames(ByVal names As Object, ByVal pageNames As Variant)
     For Each k In pageNames.Keys
         If Not names.Exists(k) Then names(k) = pageNames(k)
     Next k
+End Sub
+
+Public Sub RequireJson(ByVal resp As Object, ByVal what As String)
+    ' A proxy or a login page can answer 200 with HTML: say so, with the start of the text, instead of a parser error.
+    Dim first As String
+    first = Left$(LTrim$(resp("Text")), 1)
+    If first = "{" Or first = "[" Then Exit Sub
+    Cov "JIR24"
+    Err.Raise vbObjectError + 607, "Jira " & what, "Jira answered 200 with something that is not JSON (a proxy or a login page?). " & _
+              "Check ProxyServer and BaseUrl in the Config sheet. Start of the answer: " & Left$(resp("Text"), 200)
 End Sub
 
 Public Sub CheckStatus(ByVal resp As Object, ByVal what As String)
@@ -213,6 +232,7 @@ Private Sub FetchChangelogChunk(ByVal cfg As Object, ByVal chunk As Collection, 
         Set resp = HttpRequest(cfg, "POST", cfg("BaseUrl") & "/rest/api/3/changelog/bulkfetch", _
                                ChangelogBody(chunk, token))
         CheckStatus resp, "changelog/bulkfetch"
+        RequireJson resp, "changelog/bulkfetch"
         Set data = JsonParse(resp("Text"))
         For Each icl In AsList(JGet(data, "issueChangeLogs"))
             For Each h In AsList(JGet(icl, "changeHistories"))

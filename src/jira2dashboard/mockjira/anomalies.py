@@ -31,6 +31,8 @@ def team_of(project: str) -> str:
 
 def known_anomalies(projects: tuple[str, ...]) -> dict[Issue, frozenset[str]]:
     """The cases, in the Program project (features) and two team projects, with the ids of the checks they fail."""
+    if len(projects) < 3:
+        raise ValueError("the known anomalies need the Program and two team projects (params/projects.md has them)")
     program, alpha, beta = projects[0], projects[1], projects[2]
     cases: list[tuple[Issue, frozenset[str]]] = []
     counter = [FIRST_NUMBER - 1]

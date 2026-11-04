@@ -10,7 +10,9 @@ Option Explicit
 #End If
 
 Public gHttpFake As Object      ' Dictionary: "METHOD url" -> Collection of Array(status, body, retryAfter)
-Public gHttpLog As Collection   ' one Array(method, url, body) per attempt
+Public gHttpLog As Collection   ' one Array(method, url, body) per attempt (tests only: started by FakeReset or by a test)
+Public gHttpCancel As Boolean   ' set by the Cancel button: the waits end and HttpRequest raises 610
+Private Const MAX_NET_RETRIES As Long = 2    ' a network error (status 0) is retried twice, then reported
 
 Private Const PROXY_SETTING_PROXY As Long = 2      ' HTTPREQUEST_PROXYSETTING_PROXY
 Private Const AUTOLOGON_ALWAYS As Long = 0         ' AutoLogonPolicy_Always: send Windows credentials
@@ -33,11 +35,18 @@ Public Function HttpRequest(ByVal cfg As Object, ByVal method As String, ByVal u
                             Optional ByVal body As String = "") As Object
     ' Returns a Dictionary: Status (0 = network error), Text, RetryAfter, Error, Attempts.
     Cov "HTP02"
-    Dim attempt As Long, resp As Object
+    Dim attempt As Long, resp As Object, netFailures As Long
     For attempt = 0 To cfg("MaxRetries")
         Set resp = HttpSendOnce(cfg, method, url, body)
         resp("Attempts") = attempt + 1
-        If Not IsRetryable(resp) Then Exit For
+        If gHttpCancel Then Cov "HTP08": Err.Raise vbObjectError + 610, "HttpRequest", "Cancelled by the user."
+        If resp("Status") = 0 Then
+            Cov "HTP09"
+            netFailures = netFailures + 1                       ' timeout, reset, proxy hiccup: worth another try, but not for ever
+            If netFailures > MAX_NET_RETRIES Then Exit For
+        ElseIf Not IsRetryable(resp) Then
+            Exit For
+        End If
         If attempt = cfg("MaxRetries") Then Cov "HTP03": Exit For
         Cov "HTP04"
         WaitMs RetryDelayMs(cfg, attempt, resp("RetryAfter"))
@@ -46,8 +55,8 @@ Public Function HttpRequest(ByVal cfg As Object, ByVal method As String, ByVal u
 End Function
 
 Private Function IsRetryable(ByVal resp As Object) As Boolean
-    ' Like the PowerShell extraction script: 429 and every server error (5xx) are retried, 4xx are not.
-    ' Only call HttpRequest with POST for read-only endpoints (search, bulkfetch).
+    ' Like the PowerShell extraction script: 429 and every server error (5xx) are retried, 4xx are not (a network error,
+    ' status 0, is handled by HttpRequest). Only call HttpRequest with POST for read-only endpoints (search, bulkfetch).
     If resp("Status") = 429 Then IsRetryable = True: Exit Function
     If resp("Status") >= 500 Then IsRetryable = True
 End Function
@@ -57,7 +66,7 @@ Public Function RetryDelayMs(ByVal cfg As Object, ByVal attempt As Long, ByVal r
     Dim backoff As Double, fromHeader As Double
     backoff = cfg("RetryBaseMs") * 2 ^ attempt
     If backoff > cfg("RetryMaxMs") Then backoff = cfg("RetryMaxMs")
-    backoff = backoff * Rnd()                                   ' full jitter
+    backoff = backoff / 2 + (backoff / 2) * Rnd()               ' half jitter: never an instant retry
     If Len(retryAfter) > 0 Then fromHeader = Val(retryAfter) * 1000# + Rnd() * 500#
     If fromHeader > 120000# Then fromHeader = 120000#           ' never wait more than two minutes on a Retry-After
     RetryDelayMs = IIf(fromHeader > backoff, fromHeader, backoff)
@@ -65,11 +74,10 @@ End Function
 
 Private Function HttpSendOnce(ByVal cfg As Object, ByVal method As String, ByVal url As String, _
                               ByVal body As String) As Object
-    Dim r As Object, req As Object, raw As Variant
+    Dim r As Object, req As Object, raw As Variant, payload As Variant
     Set r = CreateObject("Scripting.Dictionary")
     r("Status") = 0: r("Text") = "": r("RetryAfter") = "": r("Error") = ""
-    If gHttpLog Is Nothing Then Set gHttpLog = New Collection
-    gHttpLog.Add Array(method, url, body)
+    If Not gHttpLog Is Nothing Then gHttpLog.Add Array(method, url, body)     ' tests start the log (FakeReset); production has none
     If Not gHttpFake Is Nothing Then Cov "HTP06": Set HttpSendOnce = FakeResponse(r, method, url): Exit Function
 
     On Error GoTo NetError
@@ -88,13 +96,15 @@ Private Function HttpSendOnce(ByVal cfg As Object, ByVal method As String, ByVal
     If Len(cfg("Authorization")) > 0 Then req.SetRequestHeader "Authorization", cfg("Authorization")
     If Len(body) > 0 Then
         req.SetRequestHeader "Content-Type", "application/json; charset=utf-8"
-        req.Send Utf8Encode(body)
+        payload = Utf8Encode(body)                              ' kept alive until the answer: the send is asynchronous
+        req.Send payload
     Else
         req.Send
     End If
     Do While Not req.WaitForResponse(0)                         ' returns at once; keeps Excel alive
         DoEvents
         Sleep 20
+        If gHttpCancel Then req.Abort: r("Error") = "cancelled": Set HttpSendOnce = r: Exit Function
     Loop
     r("Status") = req.Status
     raw = req.ResponseBody
@@ -124,7 +134,7 @@ Public Sub WaitMs(ByVal ms As Double)
         Sleep 20
         elapsed = (Timer - t0) * 1000#
         If elapsed < 0 Then elapsed = elapsed + 86400000#
-    Loop While elapsed < ms
+    Loop While elapsed < ms And Not gHttpCancel
 End Sub
 
 ' ---------- Test hook ----------

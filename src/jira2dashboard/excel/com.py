@@ -72,11 +72,17 @@ def start_excel():
         if err.hresult == CO_E_CLASSSTRING:
             raise ExcelNotInstalledError("Excel desktop is not installed.") from err
         raise
-    app.Visible = False
-    app.DisplayAlerts = False
-    app.ScreenUpdating = False
-    app.EnableEvents = False
-    app.AskToUpdateLinks = False
+    pid = None
+    try:
+        pid = excel_pid(app)                       # known at once: a failure below must not orphan this Excel
+        for name, value in (("Visible", False), ("DisplayAlerts", False), ("ScreenUpdating", False),
+                            ("EnableEvents", False), ("AskToUpdateLinks", False)):
+            call_with_retry(setattr, app, name, value)   # Excel may still be starting and refuse a call
+    except BaseException:
+        _quit_quietly(app)
+        if pid is not None:
+            _kill_if_still_excel(pid)
+        raise
     return app
 
 def excel_pid(app) -> int:
@@ -105,7 +111,7 @@ def excel_session():
 def _quit_quietly(app) -> None:
     """Close every workbook without saving, then quit Excel."""
     try:
-        while app.Workbooks.Count > 0:
+        for _ in range(app.Workbooks.Count):            # bounded: a Close that does nothing must not loop for ever
             app.Workbooks(1).Close(False)
         app.Quit()
     except pywintypes.com_error:
@@ -376,6 +382,10 @@ def compile_vba_project(app, wb) -> bool:
     """Compile the whole VBA project; True if it compiled without error."""
     app.VBE.ActiveVBProject = wb.VBProject
     ctrl = app.VBE.CommandBars.FindControl(1, COMPILE_CONTROL_ID)
+    if ctrl is None:
+        raise RuntimeError("the VBE has no Compile control: is access to the VBA project object model allowed?")
+    if not ctrl.Enabled:
+        raise RuntimeError("the Compile control of the VBE is disabled: no active project, or the editor is busy")
     ctrl.Execute()
     return not ctrl.Enabled
 

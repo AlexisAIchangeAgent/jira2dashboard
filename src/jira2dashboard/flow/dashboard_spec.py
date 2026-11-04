@@ -72,9 +72,10 @@ def team_point(column: str, period_cell: str, team_cell: str) -> str:
 
 
 def day_point(day_cell: str, team_cell: str) -> str:
-    """One point of the daily Flow Load curve: the snapshot of DailyLoad for this day and team, or #N/A (no snapshot yet)."""
-    return (f'=LET(v,XLOOKUP(1,(DailyLoad[Date]={day_cell})*(DailyLoad[Team]={team_cell}),DailyLoad[Load],""),'
-            "IF(ISNUMBER(v),v,NA()))")
+    """One point of the daily Flow Load curve: the snapshot of DailyLoad for this day and team, or #N/A (no snapshot yet).
+    COUNTIFS and SUMIFS, not an array lookup: one point per day and team would scan the whole table each time."""
+    keys = f"DailyLoad[Date],{day_cell},DailyLoad[Team],{team_cell}"
+    return f'=IF(COUNTIFS({keys},DailyLoad[Load],">=0")=0,NA(),SUMIFS(DailyLoad[Load],{keys}))'
 
 
 def band_text(spec: ChartSpec) -> str:
