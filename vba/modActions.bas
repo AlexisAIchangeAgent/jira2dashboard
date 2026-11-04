@@ -28,17 +28,18 @@ Public Sub ExtractAndCompute(Optional ByVal fromButton As Boolean = False)
     Dim num As Long, desc As String
     If mBusy Then Err.Raise vbObjectError + 611, "ExtractAndCompute", "An extraction is already running: wait for it or cancel it."
     On Error GoTo Failed
-    LogRunStart "macro ExtractAndCompute"
+    LogRunStart "macro ExtractAndCompute", LogLevelSetting()
     Application.StatusBar = "Reading Jira..."
     ExtractFlowData                                ' empties the old results only once Jira has answered
     Application.StatusBar = "Building the flow sheets and the charts..."
     BuildFlowSheetsIn ThisWorkbook
     Application.StatusBar = False
-    LogLine "RUN", "end ok"
+    LogRunEnd "ok"
     Exit Sub
 Failed:
     num = Err.Number: desc = Err.Description
     LogError "ExtractAndCompute", num, desc
+    LogRunEnd "stopped"
     Application.StatusBar = False
     Err.Raise num, "ExtractAndCompute", desc
 End Sub
@@ -48,7 +49,7 @@ Public Sub BtnExtractAndCompute()
     If mBusy Then Beep: Exit Sub
     On Error GoTo Failed
     mBusy = True: mCancel = False: mExtracting = True: gHttpCancel = False
-    LogRunStart "button Extract from Jira and compute"
+    LogRunStart "button Extract from Jira and compute", LogLevelSetting()
     ShowProgress 0, "Starting..."
     ExtractFlowDataStart
     ScheduleSlice
@@ -56,6 +57,7 @@ Public Sub BtnExtractAndCompute()
 Failed:
     num = Err.Number: desc = Err.Description                        ' first: the calls below may clear Err
     LogError "BtnExtractAndCompute", num, desc
+    LogRunEnd "stopped"
     ExtractJobAbort
     EndRun "Stopped: " & num & " - " & desc, 0
 End Sub
@@ -82,7 +84,7 @@ Public Sub ExtractSlice()
     On Error GoTo Failed
     If mExtracting Then
         If mCancel Then
-            LogLine "RUN", "end cancelled"
+            LogRunEnd "cancelled"
             ExtractJobAbort
             EndRun "Cancelled: the results of the previous run are kept.", 0
             Exit Sub
@@ -96,19 +98,20 @@ Public Sub ExtractSlice()
         ScheduleSlice
     Else
         BuildFlowSheetsIn ThisWorkbook
-        LogLine "RUN", "end ok"
+        LogRunEnd "ok"
         EndRun "Done. The Dashboard shows the six flow metrics.", 1
     End If
     Exit Sub
 Failed:
     num = Err.Number: desc = Err.Description                        ' first: the calls below may clear Err
     If num = vbObjectError + 610 Then                                ' the Cancel button, pressed during a wait for Jira
-        LogLine "RUN", "end cancelled during a wait for Jira"
+        LogRunEnd "cancelled during a wait for Jira"
         ExtractJobAbort
         EndRun "Cancelled: the results of the previous run are kept.", 0
         Exit Sub
     End If
     LogError "ExtractSlice", num, desc
+    LogRunEnd "stopped"
     ExtractJobAbort
     EndRun "Stopped: " & num & " - " & desc, 0
 End Sub
@@ -131,6 +134,14 @@ Public Function ProgressSnapshot() As String
     Set shapes = ThisWorkbook.Worksheets("Dashboard").Shapes
     ProgressSnapshot = Trim$(Str$(shapes("pbFill").Width / shapes("pbBack").Width)) & "|" & _
                        CStr(ThisWorkbook.Names("dashStatus").RefersToRange.Value)
+End Function
+
+Private Function LogLevelSetting() As String
+    ' Config LogLevel (Steps or Errors); Steps when the sheet or the row is missing.
+    On Error Resume Next
+    LogLevelSetting = "Steps"
+    LogLevelSetting = ConfigValue(ThisWorkbook.Worksheets("Config"), "LogLevel", "Steps")
+    Err.Clear
 End Function
 
 Private Sub ScheduleSlice()

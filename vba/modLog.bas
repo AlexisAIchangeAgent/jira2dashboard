@@ -6,10 +6,14 @@ Option Explicit
 ' The log never holds the API token, an e-mail address, a URL or an answer of Jira: callers pass step names and numbers,
 ' and the descriptions of the errors that quote the answer of Jira (602, 607) are not written.
 ' The logger never raises: a line that cannot be written is dropped.
+' Level (Config LogLevel, read by the caller): Steps = everything; Errors = no BEGIN/END lines.
+' A run that does not end (Excel closed or crashed) leaves a flag in the registry (HKCU, VB and VBA Program Settings):
+' the next run says so in the log.
 
 Public gLogPath As String                          ' empty = the default file; the tests point it to a file of their own
 Private Const LOG_MAX_BYTES As Long = 1000000      ' above this size a run starts a new file (the old one becomes .1.log)
 Private Const LOG_MAX_TEXT As Long = 300           ' longer texts are cut
+Private mErrorsOnly As Boolean                     ' True while a run asked the level Errors
 
 Public Function LogFolderFrom(ByVal localAppData As String, ByVal temp As String) As String
     Cov "LOG01"
@@ -46,25 +50,52 @@ Public Sub LogLine(ByVal kind As String, ByVal text As String)
 End Sub
 
 Public Sub LogBegin(ByVal stepName As String)
+    If mErrorsOnly Then Exit Sub
     LogLine "BEGIN", stepName
 End Sub
 
 Public Sub LogEnd(ByVal stepName As String)
+    If mErrorsOnly Then Exit Sub
     LogLine "END", stepName
 End Sub
 
-Public Sub LogRunStart(ByVal how As String)
-    ' The first line of a run: a new file when the log is too big, then what is needed to read the lines that follow.
+Public Sub LogRunStart(ByVal how As String, Optional ByVal level As String = "Steps")
+    ' The first line of a run: a new file when the log is too big, then what is needed to read the lines that follow,
+    ' and a warning when the previous run never ended.
     Cov "LOG06"
-    Dim bits As String
+    Dim bits As String, previous As String
+    On Error Resume Next
     #If Win64 Then
         bits = "64-bit"
     #Else
         bits = "32-bit"
     #End If
     RotateLog
+    mErrorsOnly = (StrComp(level, "Errors", vbTextCompare) = 0)
     LogLine "RUN", how & " | Excel " & Application.Version & " build " & Application.Build & " " & bits & " | " & ThisWorkbook.Name
+    previous = GetSetting("jira2dashboard", FlagSection(), "RunInProgress", "")
+    If Len(previous) > 0 Then
+        Cov "LOG12"
+        LogLine "RUN", "previous run did not end (started " & previous & "): Excel was closed or stopped during it"
+    End If
+    SaveSetting "jira2dashboard", FlagSection(), "RunInProgress", Stamp()
+    Err.Clear
 End Sub
+
+Public Sub LogRunEnd(ByVal result As String)
+    ' The last line of a run: "end ok", "end cancelled", "end stopped". Clears the flag of the run in progress.
+    Cov "LOG13"
+    On Error Resume Next
+    LogLine "RUN", "end " & result
+    mErrorsOnly = False
+    DeleteSetting "jira2dashboard", FlagSection(), "RunInProgress"
+    Err.Clear
+End Sub
+
+Private Function FlagSection() As String
+    ' The tests write to a log file of their own: their flag is apart too.
+    If Len(gLogPath) = 0 Then FlagSection = "Log" Else FlagSection = "LogTests"
+End Function
 
 Public Sub LogError(ByVal where As String, ByVal number As Long, ByVal description As String)
     ' The caller passes the values it saved from Err: any On Error statement clears Err.

@@ -87,7 +87,7 @@ Created under `C:\dev` to avoid antivirus issues (renamed from `xlsm-check`). Ho
 | `tests\` | `unit\` (no Excel), `features\` + `steps\` (Gherkin, pytest-bdd), `integration\` (Excel) |
 | `scripts\` | `setup.ps1`, `activate.ps1`, `run.ps1` (PowerShell 5.1) |
 | `src\jira2dashboard\build_workbook.py`, `vba\modFlowBuild.bas`, `modActions.bas` | **Delivery (E6).** `scripts\run.ps1 build` makes `out\jira2dashboard.xlsm` (11 modules with `modLog`, no test module). Button **Extract from Jira and compute** on the Dashboard runs `modActions.BtnExtractAndCompute`: extraction, then `BuildFlowSheetsIn`. Scenarios of `flow_excel.feature` run this macro on the delivered workbook against the fake Jira and compare with the Python reference, twice (250 issues, then 120 with fewer periods: no stale row). **Data checks: all 29 (DC01-DC29), done 2026-11-04.** The extraction now also reads `parent`, `resolutiondate`, `fixVersions`, `issuelinks` and the configured fields (story points, business value, PI, team, sprint, target dates): `Issues` has 22 columns, plus the raw table `IssueLinks` (Blocker, Blocked; outward "Blocks" links only) and `KeyChanges` (changelog items with `field="Key"` or `fieldId="issuekey"`). New Config rows: `FeatureTypes`, `SubTaskTypes`, `PointsRequiredTypes`, `ParentRequiredTypes`, the seven field ids, `BlocksLinkType`, `FillRateThreshold`; new sheet `PIs` (PI, Start, End). All client values stay empty in the repo. `flow\checks.py` is the Python reference (`run_checks`, `fill_rates`, `CheckSettings`); `flow\check_formulas.py` holds the Excel formulas (copies of raw fields, helper columns, 28 flags in `ItemFlow`, `IssueLinks` and `FillRates` columns, `DataChecks`). DC25 is counted on `FillRates` (field x team x issue type). **A check whose Jira field is not configured is `not computable` (Ready = 0) and flags nobody.** `mockjiranomalies.py` holds hand-written clean cases and one anomaly per check; `flow_excel.feature` compares ItemFlow flags, `DataChecks`, `FillRates` and the known anomalies with the reference, and a fourth scenario checks the empty-field case. **Interpretations (all PROPOSALS to validate with AL and the teams; the document is silent or short on them):** DC06 also covers CURRENT_MISMATCH; DC28 compares consecutive intervals with `Transitions` and `IsFree`; DC01 applies to the Team workflow and `ParentRequiredTypes`; DC02 flags only when the parent is in the extract and its type is not in `FeatureTypes`; DC03 flags sub-tasks of a team that has more than one parent type; the current sprint is the active one, else a future one, else the last closed one; DC15 uses Jira status category `indeterminate` with no sprint; DC16 counts the sprints in the Sprint field (3 or more); PI format is `PI#[0-9]{2}-[0-9]{4}` and a malformed PI counts as empty for DC17 and DC18; DC18 uses the `PIs` window and the dates of the children's sprints; DC19 applies to features whose category is not Backlog or Removed; DC20 checks end < start and child dates outside the parent's dates; DC22 flags the blocked issue when the blocker's sprint ends after the blocked issue's sprint starts; DC23 flags the side without sprint on a cross-team link; DC25 uses `FillRateThreshold`; DC27 counts the key changes. **Not done:** (none of the data checks); **progress bar, cancel and sliced extraction (done 2026-11-04)**: the extraction is a job of steps in `modExtract` (`ExtractJobStart`, `ExtractJobStep`, `ExtractJobFraction`, `ExtractJobLabel`, `ExtractJobAbort`; `ExtractFlowDataTo` runs the same steps in a loop, so there is one code path); the Dashboard button runs one step per `Application.OnTime` slice (`modActions.BtnExtractAndCompute`, `ExtractSlice`), moves the bar (`pbBack` / `pbFill`, status cell named `dashStatus`, cell A3), and `BtnCancelExtraction` stops it before the raw sheets are written (the earlier results stay); `AbortExtraction` unschedules a pending slice. The search has no known size, so its share of the bar (30 %) is an estimate. The build of the flow sheets is one slice (no cancel during it). Known limits: while a slice runs (one HTTP call) Excel is busy; a pending `OnTime` reopens the workbook if it is closed during a run (`AbortExtraction` is for that). The mock has `delay=` (seconds per call) for the scenarios; the two scenarios on the button in `flow_excel.feature` check the bar, that Excel answers between slices, and the kept results. Also done: (done 2026-11-04: the daily Flow Load curve `flow_load_daily`, last chart, one ChartData row per day via `ChartSpec.Axis`; and the 80-100 % band on Predictability via `ChartSpec.Band`, a PROPOSAL; markers FLB33-34); the API token is typed in `Config` and stays in the workbook (clear it before sharing; README says so). Review findings fixed in a second pass: `BaseUrl` must be https (local fake Jira excepted), Windows credentials go to any server only when a proxy is set, the search asks only the 5 fields + WorkTypeField, the selector list moved beside the widest chart block. Review findings consciously NOT applied: recalculating twice after a build (speed only, not timed), duplicated sheet helpers (modExtract/modFlowBuild), missing `Cov` on a few small branches of modFlowBuild, `T_FlowBuild` cleanup on failure, ChartData block layout written both in `dashboard_spec.block_top` and in VBA (the scenario would catch a drift), some Python test hygiene and dead-code items |
-| `out\` | Generated workbooks: `vba_tests_v8.xlsm` is the latest (2026-11-04, with `modLog`: 337 + 8 network OK, 0 KO, 164/164 markers) |
+| `out\` | Generated workbooks: `vba_tests_v9.xlsm` is the latest (2026-11-04, with `modLog`, its level and run flag: 341 + 8 network OK, 0 KO, 166/166 markers) |
 | `archive\` | Old code kept for history: `probe*.py`, `peek*.py`, `repro_*.py`, `bootstrap_test*`, `vba\patch1.py` ... `patch7.py` (already applied; do not re-run), old workbooks |
 
 MD5 of the current modules (LF line endings). Unchanged since the original handoff: `modCoverage`,
@@ -114,15 +114,18 @@ MD5 of the current modules (LF line endings). Unchanged since the original hando
   (Excel version and build, workbook name) and at the end, `BEGIN`/`END` around each step (search page, changelog
   chunk, raw sheets, flow sheets), `ERROR` with `vbObjectError+n`. Never the token, e-mail, URL, JQL or an answer of
   Jira: errors 602 and 607 (they quote the answer) log their number only; `tests\unit\test_vba_log_guard.py` refuses
-  such arguments in any call to the logger. Rotation above 1 MB to `.1.log`. Never raises. `T_Log` (markers
-  LOG01-LOG11); the button scenario checks the lines of its run. The VBA test runner writes to
+  such arguments in any call to the logger. Rotation above 1 MB to `.1.log`. Never raises. Config `LogLevel`: Steps
+  (default) or Errors (no BEGIN/END). A run that does not end leaves a flag in HKCU (`SaveSetting jira2dashboard`,
+  section `Log`; the tests use `LogTests`): the next run writes `RUN previous run did not end (started ...)`.
+  `LogRunEnd` writes `end ok|cancelled|stopped` and clears it. `T_Log` (markers LOG01-LOG13); the button scenario
+  checks the lines of its run. The VBA test runner writes to
   `%TEMP%\jira2dashboard_vba_tests.log`, never to the real log.
 - `modTests`: `T_FlowBuild` (builds twice, smaller the second time), parameter tests, `T_TrimWhite`, `T_ConfigSheet`, and the `M_` tests against the fake Jira.
 
 | Module | MD5 |
 |---|---|
 | modCoverage.bas | 0b03cf2cb8d0660ed22beadabc9655a4 |
-| modLog.bas | f2f3f3d5e56be831e38ba9a874ff74ab |
+| modLog.bas | 8bba9ce1bb95bb061acb5b911fcb5752 |
 | modJson.bas | e051a7775e419b2b49d2de6014a8719e |
 | modText.bas | 2f23c0bc24c95cae731f331dbe42c047 |
 | modHttp.bas | 849a7542964572acbece130c0d9bf086 |
@@ -131,9 +134,9 @@ MD5 of the current modules (LF line endings). Unchanged since the original hando
 | modParams.bas | 718b90c97703dde1073480eb4cee0d3c |
 | modExtract.bas | d78be88ec4c062903dbfaf42586b9fa6 |
 | modFlowBuild.bas | bb2fbc8c73909f2ac82cf34b27c6ca08 |
-| modActions.bas | eace395b3fdba4172975f690d169ad19 |
+| modActions.bas | befe652b7e5630ad16014e94592911e4 |
 | modBackground.bas | 1d098ce38925b8dc55bcf54404cf314f |
-| modTests.bas | aa6350809b58a21491f4bf27f78930ca |
+| modTests.bas | 453302e0444f166e138d49f0cd995546 |
 | modButtons.bas | 3bbe95b810cc0722eabed5c2bdbabbb2 |
 
 The Python files are no longer hashed (they were moved and edited; the code is covered by tests). If you
@@ -154,8 +157,8 @@ extraction script (Copilot must read its proxy settings there; never copy the to
 
 ## 6. Test status (2026-11-04, after the code review)
 
-- `scripts\run.ps1 vba-tests --out vba_tests_v8.xlsm`: COMPILED_OK, **337 offline + 8 network OK, 0 KO**,
-  coverage **164/164 markers = 100 %** (`modLog`: LOG01-LOG11; review markers: section 8b; earlier: E2: `modParams`; E3: `TrimWhite`; proxy work: `Config` sheet reader, proxy
+- `scripts\run.ps1 vba-tests --out vba_tests_v9.xlsm`: COMPILED_OK, **341 offline + 8 network OK, 0 KO**,
+  coverage **166/166 markers = 100 %** (`modLog`: LOG01-LOG13; review markers: section 8b; earlier: E2: `modParams`; E3: `TrimWhite`; proxy work: `Config` sheet reader, proxy
   normalization, status hints; projects and filter; E4: `modExtract`, `ParseMoment`).
   The `M_` tests against the fake Jira are not in these counts: they run from `scripts\run.ps1 test-excel`.
 - **Flaky Excel sessions while Office updates itself:** if `OfficeClickToRun` / `OfficeC2RClient` runs, Windows
@@ -166,7 +169,7 @@ extraction script (Copilot must read its proxy settings there; never copy the to
   and after an Office update; Office's crash recovery can end the process with code 0 and start a new `EXCEL.EXE`, so
   the diagnosis above may have been the same crash. Check the exit code first (section 8b).
 - `scripts\run.ps1 check-machine`: **21 checks, 0 failed**.
-- `scripts\run.ps1 coverage`: **601 passed**, 98.7 %. `test-network`: 1 passed. `build`: COMPILED_OK.
+- `scripts\run.ps1 coverage`: **603 passed**. `test-network`: 1 passed. `build`: COMPILED_OK.
 - `scripts\run.ps1 test-excel`: 32 of 33 on the last run, the button scenario lost its Excel (**open defect**, section
   8b; run alone it passes, with the check of the local log). Earlier: 9 module runs out of 10 green with a fresh Excel
   per scenario.
@@ -302,6 +305,10 @@ What is known:
   dumps (VBA's engine runs code from memory that is not executable) and points to the state of the process memory:
   the security software's anti-exploit (Panda hooks in every dump) or a VBA engine bug. No code change tried so far
   removes it.
+- Same night, the run flag of `modLog` worked: after a crash of the button scenario, the next run wrote `RUN previous
+  run did not end (started ...)`. Once, the Excel of `test-network` (the VBA suite with network) died too, with
+  `0xC0000028` (bad stack during an exception unwind) in `ntdll.dll`: probably the same defect seen from another side
+  (an exception crossing code generated at run time); the rerun passed.
 - Tried without effect: slower COM polling (kept), no manual-calculation wrapper, POST body kept alive and
   `req.Abort` on cancel (kept as hardening), synchronous WinHTTP, keeping the last WinHTTP request alive.
 - Office's crash recovery can end the process with code 0 and start a new `EXCEL.EXE` in the same millisecond.

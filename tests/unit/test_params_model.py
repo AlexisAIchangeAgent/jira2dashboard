@@ -244,6 +244,18 @@ def test_flow_parameters_default_to_mode_a_and_no_fixed_as_of_date():
     assert config["FlowLoadMode"] == "A" and config["AsOf"] is None
 
 
+def test_log_level_defaults_to_steps():
+    config = {row[0]: row[1] for row in sheet(model.load_all(), "Config").rows}
+    assert config["LogLevel"] == "Steps"
+
+
+def test_log_level_must_be_steps_or_errors(params_copy):
+    edit(params_copy, "config.md", "| LogLevel | Steps |", "| LogLevel | Debug |")
+    with pytest.raises(ParamsError) as err:
+        model.load_all(params_copy)
+    assert "LogLevel must be Steps or Errors" in str(err.value)
+
+
 def test_flow_load_mode_and_as_of_are_checked(params_copy):
     edit(params_copy, "config.md", "| FlowLoadMode | A |", "| FlowLoadMode | C |")
     edit(params_copy, "config.md", "| AsOf |  |", "| AsOf | tomorrow |")

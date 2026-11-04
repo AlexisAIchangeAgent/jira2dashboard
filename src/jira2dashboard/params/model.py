@@ -40,7 +40,7 @@ CONFIG_PARAMETERS = ("BaseUrl", "Email", "ApiToken", "Filter", "WorkTypeField", 
                      "ProxyWindowsAuth", "FlowLoadMode", "AsOf", "TimeoutSeconds", "MaxRetries", "ParentRequiredTypes",
                      "FeatureTypes", "SubTaskTypes", "PointsRequiredTypes", "StoryPointsField", "BusinessValueField",
                      "PIField", "TeamField", "SprintField", "TargetStartField", "TargetEndField", "BlocksLinkType",
-                     "FillRateThreshold")
+                     "FillRateThreshold", "LogLevel")
 PROJECT_ROLES = ("Program", "Team")
 _PROJECT_KEY = re.compile(r"[A-Z][A-Z0-9_]+")
 
@@ -196,6 +196,8 @@ def _check_config(sheet: ParamSheet, problems: list[str]) -> None:
         problems.append(f"Config: BaseUrl must start with http:// or https://, got {base!r}")
     if base and "@" in base.split("//", 1)[-1].split("/", 1)[0]:
         problems.append("Config: BaseUrl must not contain a user name or a token (user:token@host)")
+    if values.get("LogLevel") not in ("Steps", "Errors"):
+        problems.append(f"Config: LogLevel must be Steps or Errors, got {values.get('LogLevel')!r}")
     if values.get("FlowLoadMode") not in ("A", "B"):
         problems.append(f"Config: FlowLoadMode must be A or B, got {values.get('FlowLoadMode')!r}")
     as_of = values.get("AsOf")

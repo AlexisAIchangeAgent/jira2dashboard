@@ -100,7 +100,10 @@ Sur le poste client :
    plante, le dernier `BEGIN` sans `END` donne l'étape en cours. Le journal ne contient ni le token, ni l'e-mail, ni
    l'URL, ni les réponses de Jira (les erreurs 602 et 607, qui citent la réponse, n'écrivent que leur numéro). Il reste
    sur le poste (pas dans OneDrive). Au-delà de 1 Mo, l'ancien fichier devient `jira2dashboard.1.log`. Relire le
-   fichier avant de le transmettre.
+   fichier avant de le transmettre. Paramètre `LogLevel` de `Config` : `Steps` (par défaut, toutes les étapes) ou
+   `Errors` (seulement le début, la fin et les erreurs). Si une exécution ne s'est pas terminée (Excel fermé ou planté),
+   la suivante écrit `RUN previous run did not end (started ...)` : un indicateur est gardé dans le registre de
+   l'utilisateur (`HKCU\Software\VB and VBA Program Settings\jira2dashboard`).
 
 **Formules Excel (E4)** : le test `tests\features\flow_excel.feature` compare cellule par cellule les formules du
 classeur à la référence Python (faux Jira, extraction VBA, formules, en mode A puis B). `Config.WorkTypeField` est

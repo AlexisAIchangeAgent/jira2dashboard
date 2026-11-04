@@ -32,3 +32,4 @@ empty here, and **`ApiToken` must stay empty** (a test refuses a token in this f
 | TargetEndField |  | Id of the Target end date field (data checks DC19, DC20). Empty = not computable |
 | BlocksLinkType | Blocks | Name of the issue link type that means blocks (data checks DC22, DC23) |
 | FillRateThreshold | 90 | Minimum percentage of filled values per field, team and issue type (data check DC25) |
+| LogLevel | Steps | Detail of the local log of the runs (%LOCALAPPDATA%\jira2dashboard\logs): Steps = each step (BEGIN/END), Errors = only the start, the end and the errors |

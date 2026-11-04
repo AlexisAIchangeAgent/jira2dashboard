@@ -378,6 +378,9 @@ Public Sub T_Log()
     folder = Environ$("TEMP") & "\j2d_log_test_" & Format$(Now, "hhnnss") & Int(Rnd() * 1000)
     file = folder & "\sub\run.log"
     gLogPath = file
+    On Error Resume Next
+    DeleteSetting "jira2dashboard", "LogTests"                       ' no flag left by an earlier test run
+    On Error GoTo 0
     LogLine "TEST", "first" & vbCrLf & "second" & vbTab & ChrW(233)
     text = FileText(file)
     Check "log", "missing folders are created; one ASCII line per entry", "CR LF TAB e-acute", True, _
@@ -399,6 +402,23 @@ Public Sub T_Log()
     Check "log", "a log above 1 MB becomes .1.log", "1000001 bytes", True, FileLen(folder & "\sub\run.1.log") >= 1000001
     Check "log", "the new file starts with the run line", "RUN test", True, _
           FileText(file) Like "####-##-## ##:##:##.### RUN test | Excel *" & vbCrLf
+    LogRunEnd "ok"
+    LogRunStart "level", "Errors"
+    LogBegin "hidden step"
+    LogError "Step", 13, "Type mismatch"
+    LogRunEnd "ok"
+    LogRunStart "steps again"
+    LogBegin "shown step"
+    text = FileText(file)
+    Check "log", "level Errors: no BEGIN/END, but RUN and ERROR", "Errors", True, _
+          InStr(text, "hidden step") = 0 And InStr(text, "RUN level |") > 0 And InStr(text, "RUN end ok") > 0
+    Check "log", "a new run is back to the level Steps", "no level", True, InStr(text, "BEGIN shown step") > 0
+    Check "log", "a run that ended leaves no warning", "end ok then start", 0, InStr(text, "did not end")
+    LogRunStart "after a crash"                                     ' the run "steps again" never ended
+    text = FileText(file)
+    Check "log", "the next run says the previous one did not end", "no end", True, _
+          InStr(text, "RUN after a crash |") > 0 And InStr(text, "RUN previous run did not end (started ") > 0
+    LogRunEnd "ok"
     Check "log", "the folder under LOCALAPPDATA", "C:\L", "C:\L\jira2dashboard\logs", LogFolderFrom("C:\L", "C:\T")
     Check "log", "TEMP when LOCALAPPDATA is not set", "empty", "C:\T\jira2dashboard\logs", LogFolderFrom("", "C:\T")
     gLogPath = folder & "\bad<name>|.log"                            ' a name Windows refuses

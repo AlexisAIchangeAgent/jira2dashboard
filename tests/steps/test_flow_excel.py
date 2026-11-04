@@ -324,7 +324,8 @@ def _log(world):
     raw = LOG_FILE.read_bytes()
     start = world["log_from"] if len(raw) >= world["log_from"] else 0                 # a new file when the log was big
     text = raw[start:].decode("ascii")                                                  # plain ASCII, or this fails
-    lines = [line.split(" ", 3)[2:] for line in text.splitlines()]                     # date time KIND text
+    lines = [line.split(" ", 3)[2:] for line in text.splitlines()                      # date time KIND text
+             if " RUN previous run did not end " not in line]                           # an earlier scenario crashed
     kinds = [kind for kind, *_ in lines]
     assert lines[0][1].startswith("button Extract from Jira and compute | Excel "), lines[0]
     assert lines[-1] == ["RUN", "end ok"], lines[-1]
