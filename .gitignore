@@ -1,0 +1,24 @@
+# Environment and caches
+.venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Generated workbooks and test output (rebuilt by scripts\run.ps1)
+out/
+
+# Excel binaries, wherever they are (the VBA and the Python that build them are the source)
+*.xlsm
+*.xlsx
+*.xlsb
+*.xls
+~$*
+
+# Local tools and editors
+.claude/
+.vscode/
+.idea/
+Thumbs.db

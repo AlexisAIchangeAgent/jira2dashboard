@@ -1,0 +1,43 @@
+"""Characterization tests: pure helpers of testbench/run_vba_tests.py (no Excel needed)."""
+import pytest
+
+from jira2dashboard.testbench import run_vba_tests as rvt
+
+
+def test_module_sources_reads_and_normalizes(tmp_path, monkeypatch):
+    (tmp_path / "modA.bas").write_text('Attribute VB_Name = "modA"\nOption Explicit\n', encoding="ascii")
+    monkeypatch.setattr(rvt, "VBA_DIR", tmp_path)
+    assert rvt.module_sources(["modA"]) == {"modA": "Option Explicit\r\n"}
+
+
+def test_module_sources_refuses_non_ascii_source(tmp_path, monkeypatch):
+    (tmp_path / "modA.bas").write_bytes("Sub A() ' café\n".encode("utf-8"))
+    monkeypatch.setattr(rvt, "VBA_DIR", tmp_path)
+    with pytest.raises(UnicodeDecodeError):
+        rvt.module_sources(["modA"])
+
+
+def test_coverage_markers_keeps_order_and_drops_duplicates():
+    sources = {"m1": 'Cov "B1"\nCov "A1"\n', "m2": 'x = 1\nCov "B1"\nCov "C1"\n'}
+    assert rvt.coverage_markers(sources) == ["B1", "A1", "C1"]
+
+
+def test_coverage_markers_ignores_other_text():
+    assert rvt.coverage_markers({"m": 'Coverage "X"\nCov X\n'}) == []
+
+
+def test_real_vba_modules_are_ascii_and_have_100_markers():
+    sources = rvt.module_sources(rvt.ORDER)
+    assert len(sources) == 11
+    markers = rvt.coverage_markers(sources)
+    # 65 originally + modParams PRM01..PRM23 + TXT16 (TrimWhite) + JIR14..JIR21 (proxy, Config sheet, hints, filter)
+    # + modExtract MEX01..MEX03
+    assert len(markers) == 100
+    assert sorted(m for m in markers if m.startswith("PRM")) == [f"PRM{n:02d}" for n in range(1, 24)]
+    assert sorted(m for m in markers if m.startswith("MEX")) == ["MEX01", "MEX02", "MEX03"]
+
+
+def test_every_button_macro_exists_in_modbuttons():
+    text = rvt.module_sources(["modButtons"])["modButtons"]
+    for _cell, _caption, macro in rvt.BUTTONS:
+        assert f"Sub {macro.split('.')[1]}" in text

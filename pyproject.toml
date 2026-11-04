@@ -1,0 +1,51 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "jira2dashboard"
+version = "0.0.0"
+description = "Extract Jira, compute the six SAFe flow metrics, show them in an .xlsm dashboard"
+requires-python = ">=3.12"
+dependencies = ["pywin32==312"]
+
+[project.optional-dependencies]
+dev = ["pytest==9.1.1", "pytest-bdd==8.1.0", "pytest-cov==7.1.0"]
+
+[project.scripts]
+check-machine = "jira2dashboard.cli.check_machine:main"
+run-vba-tests = "jira2dashboard.testbench.run_vba_tests:main"
+mock-jira = "jira2dashboard.mockjira.__main__:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+# Coverage target (>= 90 %) is for the PURE code, measured by the fast loop (no Excel). Code that needs a real
+# Excel, the registry or a child process is left out here and is exercised by the `excel` tests, `check-machine`
+# and `vba-tests` instead. When you add an Excel-bound function, add its name to this list.
+[tool.coverage.run]
+source = ["jira2dashboard"]
+data_file = "out/.coverage"
+omit = ["*/cli/check_machine.py", "*/mockjira/__main__.py", "*/flow/sheets.py"]
+
+[tool.coverage.report]
+fail_under = 90
+show_missing = true
+exclude_also = [
+    '''def (start_excel|excel_pid|excel_session|_quit_quietly|_kill_if_still_excel|read_access_vbom|assert_vba_access)\b''',    '''def (new_workbook|add_sheet_after_last|block_range|write_block|put_en_us|components|get_component)\b''',
+    '''def (set_module_code|add_or_replace_module|workbook_component|sheet_component|_find_document_by_tab_name)\b''',
+    '''def (set_sheet_code_name|add_macro_button|open_without_macros|compile_vba_project|run_macro)\b''',
+    '''def (run_child|_kill_child_excel|write_params)\b''',
+    '''def (build|add_progress_bar|write_coverage_map|compile_ok|run_tests|bisect|main)\b''',
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+cache_dir = "out/.pytest_cache"
+pythonpath = ["src"]
+markers = [
+    "excel: drives a real Excel through COM (slow)",
+    "network: needs the network",
+]
+filterwarnings = ["ignore:'maxsplit' is passed as positional argument:DeprecationWarning:gherkin"]
+addopts ="-m 'not excel and not network'"

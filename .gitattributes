@@ -1,0 +1,4 @@
+# Windows-only project, nothing is converted: the VBA modules must stay ASCII with LF line endings and keep the
+# MD5 listed in claude-code-handoff.md, the docs keep their bytes.
+* -text
+*.bas text eol=lf
