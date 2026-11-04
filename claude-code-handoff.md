@@ -293,6 +293,15 @@ What is known:
   the last search page and the start of the next slice: the progress update (`DoEvents`), the `OnTime` scheduling or
   Excel's call of the next slice. With the dumps (9 of 11 entered VBA from Excel's main loop), the likeliest moment is
   Excel starting the `OnTime` macro, not the work inside a slice. Why only at that transition is not known.
+- **Bench of the button scenario alone (fresh Excel, 2026-11-04 evening):** the committed code crashed in 3 runs out
+  of 4; a variant that runs the whole job inside one `OnTime` call (no `OnTime` between the steps) crashed in 1 out
+  of 4. **Every crash has the same last line, `END search page 30: 150 issues`**, so the `OnTime` entry is not the
+  cause. Two temporary log lines then placed 3 more crashes: once inside the loop that lists the 150 issue keys (the
+  first statements after the last page), twice inside `ShowProgress` right after it. Excel dies 0.2 to 0.5 s after
+  the last search page, at different ordinary VBA statements: a moment, not a statement of our code. This fits the
+  dumps (VBA's engine runs code from memory that is not executable) and points to the state of the process memory:
+  the security software's anti-exploit (Panda hooks in every dump) or a VBA engine bug. No code change tried so far
+  removes it.
 - Tried without effect: slower COM polling (kept), no manual-calculation wrapper, POST body kept alive and
   `req.Abort` on cancel (kept as hardening), synchronous WinHTTP, keeping the last WinHTTP request alive.
 - Office's crash recovery can end the process with code 0 and start a new `EXCEL.EXE` in the same millisecond.
