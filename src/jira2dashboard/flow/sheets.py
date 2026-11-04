@@ -34,6 +34,9 @@ def error_cells(wb) -> dict[str, int]:
     return found
 
 
+CANCEL_MACRO = "modActions.BtnCancelExtraction"
+
+
 def write_blueprint(wb, dash=None, button_macro: str | None = None) -> None:
     """The sheets Issues, StatusIntervals, IssueLinks (empty, raw data comes from the extraction), FlowFormulas, ChartSpec and
     ChecksSpec (read by modFlowBuild) and the frame of the Dashboard (`dash`: an existing sheet, or a new one)."""
@@ -49,7 +52,8 @@ def write_blueprint(wb, dash=None, button_macro: str | None = None) -> None:
 
 
 def write_dashboard_frame(wb, dash, button_macro: str | None = None) -> None:
-    """Title, the team selector (B2, name dashTeam) and the as-of date. The charts come after each extraction."""
+    """Title, the team selector (B2, name dashTeam), the as-of date, the status cell (name dashStatus) and, with the button, the
+    buttons Extract and Cancel and the progress bar. The charts come after each extraction."""
     dash.Range("A1").Value = "Flow metrics"
     dash.Range("A1").Font.Bold = True
     dash.Range("A2").Value = "Team of the Distribution chart"
@@ -59,8 +63,12 @@ def write_dashboard_frame(wb, dash, button_macro: str | None = None) -> None:
     dash.Range("F1").Formula2 = "=IFERROR(AsOfUtc,\"\")"
     R.put_en_us(dash.Range("F1"), "NumberFormat", "yyyy-mm-dd hh:mm")
     dash.Range("A:R").ColumnWidth = 11
+    dash.Range(D.STATUS_CELL).Value = "Ready"
+    wb.Names.Add(D.STATUS, "=Dashboard!" + dash.Range(D.STATUS_CELL).Address)
     if button_macro:
         R.add_macro_button(dash, "J1", "Extract from Jira and compute", button_macro, 190, 26)
+        R.add_macro_button(dash, D.CANCEL_CELL, "Cancel", CANCEL_MACRO, 80, 26)
+        R.add_progress_bar(dash, D.BAR_CELL, 190, 14)
 
 
 def export_charts(wb, folder) -> dict[str, str]:

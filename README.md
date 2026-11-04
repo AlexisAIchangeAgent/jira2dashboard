@@ -74,8 +74,11 @@ Sur le poste client :
 2. Feuille **Config** : `BaseUrl`, `Email`, `ApiToken`, `WorkTypeField` (id du champ type de travail), `AsOf` (date
    de l'extraction, UTC), et `ProxyServer` / `ProxyBypass` si besoin. Feuille **Projects** : les projets Jira et
    lequel est le Program. Feuille **Periods** : les itérations (`Period | Start | End`, fin exclue).
-3. Feuille **Dashboard** : bouton **Extract from Jira and compute**. La barre d'état suit les étapes. Le classeur
-   est occupé pendant l'extraction (pas d'annulation pour l'instant). À la fin, les feuilles `ItemFlow`, `DailyLoad`,
+3. Feuille **Dashboard** : bouton **Extract from Jira and compute**. L'extraction se fait par petites tranches : la barre
+   de progression de la feuille (à côté du bouton) avance, la cellule `A3` dit ce qui se passe, Excel reste utilisable entre
+   deux tranches et le bouton **Cancel** arrête l'extraction avant l'écriture des feuilles brutes (les résultats
+   précédents restent intacts). La première partie (lecture de Jira, sans taille connue) remplit 30 % de la barre : c'est une
+   estimation. À la fin, les feuilles `ItemFlow`, `DailyLoad`,
    `Metrics`, `ChartData` et les graphiques sont **reconstruits à la taille des nouvelles données** : on peut
    relancer autant de fois que nécessaire. Pour l'équipe du graphique Flow Distribution : cellule `B2`.
 4. **Le token API reste en clair dans la feuille Config** : l'effacer avant de transmettre le classeur à quelqu'un d'autre. La BaseUrl doit commencer par https://.

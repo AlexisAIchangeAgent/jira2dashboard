@@ -52,7 +52,7 @@ Private Function TestNames() As Variant
         "T_RetryExhausted", "T_ChangelogChunks", "T_IssueRows", "T_WriteTable", "T_StatusIntervals", _
         "T_StatusChanges", "T_RetryDelay", "T_SafeAccess", "T_FilesUtf8", "T_StringifyBadObject", _
         "T_TooManyPages", "T_BackgroundExport", "T_TextNotConverted", "T_ParamsTables", "T_ParamsOnWorkbook", _
-        "T_TrimWhite", "T_ConfigSheet", "T_ProjectsSheet", "T_ParseMoment", "T_ExtractFlowData", "T_ExtractCheckFields", "T_FlowBuild", "T_BaseUrlHttps")
+        "T_TrimWhite", "T_ConfigSheet", "T_ProjectsSheet", "T_ParseMoment", "T_ExtractFlowData", "T_ExtractJob", "T_ExtractCheckFields", "T_FlowBuild", "T_BaseUrlHttps")
 End Function
 
 Public Function RunAllTests() As String
@@ -454,6 +454,55 @@ End Function
 Private Function LastRow(ByVal ws As Object) As Long
     LastRow = ws.Cells(ws.Rows.Count, 1).End(-4162).Row
 End Function
+
+Public Sub T_ExtractJob()
+    ' The extraction as a job: one step per page of the search, one per chunk of changelogs, one for the raw sheets. The bar
+    ' of the Dashboard moves with the fraction, and a job that is dropped before its last step writes nothing.
+    Dim cfg As Object, wsI As Object, wsV As Object, jql As String, ts As String, fields As String
+    Dim steps As Long, last As Double, increasing As Boolean, f As Double, first As String
+    Set cfg = TestConfig()
+    Set wsI = ThisWorkbook.Worksheets("TestScratch")
+    Set wsV = ThisWorkbook.Worksheets("TestScratch2")
+    ts = "T00:00:00.000+0000"
+    jql = "project in (TTT,AAA)"
+    fields = ExtractFields("")
+    FakeReset
+    FakeAdd "GET", JiraSearchUrl(cfg("BaseUrl"), jql, "", 100, fields, ""), 200, J( _
+        "{'issues':[{'id':'10','key':'TTT-1','fields':{'project':{'key':'TTT'},'issuetype':{'name':'Feature'},'created':'2026-10-01" & ts & "'," & _
+        "'status':{'name':'Nouveau','statusCategory':{'key':'new'}}}}],'isLast':false,'nextPageToken':'p2'}")
+    FakeAdd "GET", JiraSearchUrl(cfg("BaseUrl"), jql, "", 100, fields, ""), 200, J( _
+        "{'issues':[{'id':'10','key':'TTT-1','fields':{'project':{'key':'TTT'},'issuetype':{'name':'Feature'},'created':'2026-10-01" & ts & "'," & _
+        "'status':{'name':'Nouveau','statusCategory':{'key':'new'}}}}],'isLast':false,'nextPageToken':'p2'}")       ' for the second job
+    FakeAdd "GET", JiraSearchUrl(cfg("BaseUrl"), jql, "p2", 100, fields, ""), 200, J( _
+        "{'issues':[{'id':'11','key':'AAA-1','fields':{'project':{'key':'AAA'},'issuetype':{'name':'Story'},'created':'2026-10-01" & ts & "'," & _
+        "'status':{'name':'Nouveau','statusCategory':{'key':'new'}}}}],'isLast':true}")
+    FakeAdd "POST", cfg("BaseUrl") & "/rest/api/3/changelog/bulkfetch", 200, J("{'issueChangeLogs':[]}")
+    wsI.Cells.ClearContents
+    wsI.Range("A2").Value = "KEEP"
+    ExtractJobStart cfg, jql, "", DateSerial(2026, 10, 5), ThisWorkbook.Worksheets("Projects"), ThisWorkbook.Worksheets("Workflows"), wsI, wsV
+    ExtractJobStep
+    Check "extractjob", "after one step the job is not finished and says what it reads", "page 1", "True|Reading Jira: 1 issues (page 1)", _
+          IIf(ExtractJobFraction() > 0 And ExtractJobFraction() < 0.3, "True", "False") & "|" & ExtractJobLabel()
+    Check "extractjob", "a job dropped before its last step writes nothing", "A2", "KEEP", wsI.Range("A2").Value
+    ExtractJobAbort
+    Check "extractjob", "an aborted job is finished", "fraction", 1, ExtractJobFraction()
+    ExtractJobStart cfg, jql, "", DateSerial(2026, 10, 5), ThisWorkbook.Worksheets("Projects"), ThisWorkbook.Worksheets("Workflows"), wsI, wsV
+    increasing = True
+    Do
+        steps = steps + 1
+        If ExtractJobStep() Then Exit Do
+        f = ExtractJobFraction()
+        If f < last Then increasing = False
+        last = f
+        If steps = 3 Then first = ExtractJobLabel()
+        If steps > 20 Then Exit Do
+    Loop
+    Check "extractjob", "two pages, one chunk of changelogs and the build make four steps", "steps", 4, steps
+    Check "extractjob", "the fraction never goes back", "fractions", True, increasing
+    Check "extractjob", "before the build the label says what comes", "label", "Computing the intervals and writing the raw sheets...", first
+    Check "extractjob", "the raw sheets hold both pages", "TTT-1, AAA-1", "TTT-1|AAA-1", wsI.Range("A2").Value & "|" & wsI.Range("A3").Value
+    Check "extractjob", "a finished job reads 100 %", "fraction", 1, ExtractJobFraction()
+End Sub
 
 Public Sub T_ExtractCheckFields()
     ' The fields that the data checks read: team (object or text), sprints, points, PI, dates, fix versions, blocking links

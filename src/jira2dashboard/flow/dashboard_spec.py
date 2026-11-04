@@ -11,6 +11,9 @@ from jira2dashboard.flow.formulas import BUCKETS
 ALL_TEAMS = "All teams"
 SELECTOR = "dashTeam"                         # name of the cell that picks the team of the Distribution chart
 SELECTOR_CELL = "B2"
+STATUS = "dashStatus"                          # name of the cell where the extraction tells what it does
+STATUS_CELL = "A3"
+BAR_CELL, CANCEL_CELL = "J3", "M1"            # the progress bar (rectangles pbBack, pbFill) and the button Cancel
 
 XL_COLUMN_CLUSTERED, XL_LINE_MARKERS, XL_COLUMN_STACKED_100, XL_LINE = 51, 65, 53, 4
 

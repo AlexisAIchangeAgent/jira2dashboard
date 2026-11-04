@@ -118,25 +118,33 @@ Public Function JiraSearchAll(ByVal cfg As Object, ByVal jql As String, ByRef na
                               Optional ByVal fields As String = "*all", Optional ByVal expand As String = "names") As Collection
     ' Reads every page. names receives fieldId -> display name (from expand=names).
     Cov "JIR06"
-    Dim issues As New Collection, token As String, page As Long
-    Dim resp As Object, data As Variant, issue As Variant
+    Dim issues As New Collection, token As String, page As Long, isLast As Boolean
     If names Is Nothing Then Set names = CreateObject("Scripting.Dictionary")
     Do
         page = page + 1
-        Set resp = HttpRequest(cfg, "GET", JiraSearchUrl(cfg("BaseUrl"), jql, token, JIRA_PAGE_SIZE, fields, expand))
-        CheckStatus resp, "search/jql"
-        Set data = JsonParse(resp("Text"))
-        For Each issue In AsList(JGet(data, "issues"))
-            issues.Add issue
-        Next issue
-        MergeNames names, JGet(data, "names")
-        token = CStr(JGet(data, "nextPageToken") & "")
+        token = JiraSearchPage(cfg, jql, token, issues, names, fields, expand, isLast)
         Application.StatusBar = "Jira search: " & issues.Count & " issues read (page " & page & ")"
-        If IsTrue(JGet(data, "isLast")) Or Len(token) = 0 Then Exit Do
+        If isLast Then Exit Do
         If page >= maxPages Then Cov "JIR07": Err.Raise vbObjectError + 601, "JiraSearchAll", "Jira search did not end after " & maxPages & " pages: narrow the extraction with the Filter of the Config sheet."
     Loop
     Application.StatusBar = False
     Set JiraSearchAll = issues
+End Function
+
+Public Function JiraSearchPage(ByVal cfg As Object, ByVal jql As String, ByVal token As String, ByVal issues As Collection, _
+                               ByVal names As Object, ByVal fields As String, ByVal expand As String, ByRef isLast As Boolean) As String
+    ' One page of the search: adds its issues and names, returns the token of the next page. isLast is True on the last page.
+    Cov "JIR23"
+    Dim resp As Object, data As Variant, issue As Variant
+    Set resp = HttpRequest(cfg, "GET", JiraSearchUrl(cfg("BaseUrl"), jql, token, JIRA_PAGE_SIZE, fields, expand))
+    CheckStatus resp, "search/jql"
+    Set data = JsonParse(resp("Text"))
+    For Each issue In AsList(JGet(data, "issues"))
+        issues.Add issue
+    Next issue
+    MergeNames names, JGet(data, "names")
+    JiraSearchPage = CStr(JGet(data, "nextPageToken") & "")
+    isLast = IsTrue(JGet(data, "isLast")) Or Len(JiraSearchPage) = 0
 End Function
 
 Private Sub MergeNames(ByVal names As Object, ByVal pageNames As Variant)
@@ -178,17 +186,25 @@ Public Function JiraChangelogsAll(ByVal cfg As Object, ByVal issueKeys As Collec
     ' One row per changed item: Array(issueId, changeId, created, authorName, authorId,
     '                                 fieldId, field, fieldtype, from, fromString, to, toString)
     Cov "JIR10"
-    Dim rows As New Collection, first As Long, i As Long, chunk As Collection
-    For first = 1 To issueKeys.Count Step chunkSize
-        Set chunk = New Collection
-        For i = first To IIf(first + chunkSize - 1 > issueKeys.Count, issueKeys.Count, first + chunkSize - 1)
-            chunk.Add issueKeys(i)
-        Next i
-        FetchChangelogChunk cfg, chunk, rows
-        Application.StatusBar = "Jira changelogs: " & (i - 1) & " / " & issueKeys.Count & " issues"
-    Next first
+    Dim rows As New Collection, nextFirst As Long
+    nextFirst = 1
+    Do While nextFirst <= issueKeys.Count
+        nextFirst = JiraChangelogChunk(cfg, issueKeys, nextFirst, rows, chunkSize)
+        Application.StatusBar = "Jira changelogs: " & (nextFirst - 1) & " / " & issueKeys.Count & " issues"
+    Loop
     Application.StatusBar = False
     Set JiraChangelogsAll = rows
+End Function
+
+Public Function JiraChangelogChunk(ByVal cfg As Object, ByVal issueKeys As Collection, ByVal first As Long, _
+                                   ByVal rows As Collection, Optional ByVal chunkSize As Long = CHANGELOG_CHUNK) As Long
+    ' The changelogs of `chunkSize` issues from the position `first`, added to rows. Returns the position of the next chunk.
+    Dim chunk As New Collection, i As Long
+    For i = first To IIf(first + chunkSize - 1 > issueKeys.Count, issueKeys.Count, first + chunkSize - 1)
+        chunk.Add issueKeys(i)
+    Next i
+    FetchChangelogChunk cfg, chunk, rows
+    JiraChangelogChunk = i
 End Function
 
 Private Sub FetchChangelogChunk(ByVal cfg As Object, ByVal chunk As Collection, ByVal rows As Collection)

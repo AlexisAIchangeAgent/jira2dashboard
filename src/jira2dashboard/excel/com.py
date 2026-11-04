@@ -336,6 +336,19 @@ def add_macro_button(ws, cell_address: str, caption: str, macro: str,
     return shape
 
 
+MSO_SHAPE_RECTANGLE = 1
+
+
+def add_progress_bar(ws, cell_address: str, width: float = 190, height: float = 14) -> None:
+    """Grey background and green fill rectangles, named pbBack / pbFill: VBA widens pbFill as the work advances."""
+    cell = ws.Range(cell_address)
+    for name, w, rgb in (("pbBack", width, 0xD9D9D9), ("pbFill", 0.1, 0x50B000)):   # RGB is stored as BGR
+        shape = ws.Shapes.AddShape(MSO_SHAPE_RECTANGLE, cell.Left, cell.Top, w, height)
+        shape.Name = name
+        shape.Fill.ForeColor.RGB = rgb
+        shape.Line.Visible = 0
+
+
 from pathlib import Path
 
 def save_as_xlsm(wb, path: Path, overwrite: bool = False) -> Path:

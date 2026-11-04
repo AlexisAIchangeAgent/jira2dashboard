@@ -14,6 +14,7 @@ import json
 import select
 import socket
 import threading
+import time
 import urllib.parse
 from dataclasses import dataclass, field
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -54,6 +55,7 @@ class _State:
     bulk_clamp: int
     near_limit: bool
     proxy_challenge: str | None = None
+    delay: float = 0.0                       # seconds every API call waits before it answers (slow Jira)
     base_url: str = ""
     address: tuple = ("", 0)
     faults: list[Fault] = field(default_factory=list)
@@ -147,6 +149,8 @@ def _make_handler(state: _State):
             with state.lock:
                 state.requests.append(Request(self.command, parsed.path, query, text,
                                               {k.lower(): v for k, v in self.headers.items()}))
+            if state.delay:
+                time.sleep(state.delay)
             try:
                 status, body, headers = self._dispatch(parsed.path, query, text)
             except ApiError as err:
@@ -240,8 +244,9 @@ class MockJira:
     def __init__(self, dataset: Dataset, *, host: str = "127.0.0.1", port: int = 0,
                  credentials: tuple[str, str] | None = None, tz_minutes: int = 120,
                  page_clamp: int = 100, bulk_clamp: int = 1000, near_limit: bool = False,
-                 proxy_challenge: str | None = None):
-        self._state = _State(dataset, credentials, tz_minutes, page_clamp, bulk_clamp, near_limit, proxy_challenge)
+                 proxy_challenge: str | None = None, delay: float = 0.0):
+        self._state = _State(dataset, credentials, tz_minutes, page_clamp, bulk_clamp, near_limit, proxy_challenge,
+                             delay=delay)
         self._server = _ExclusiveServer((host, port), _make_handler(self._state))
         self._state.address = self._server.server_address[:2]
         self._server.daemon_threads = True

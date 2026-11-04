@@ -30,7 +30,6 @@ BUTTONS = [("J2", "Lancer les tests (hors ligne)", "modButtons.BtnRunAllTests"),
            ("J4", "Lancer les tests + reseau", "modButtons.BtnRunNetworkTests"),
            ("J6", "Effacer les resultats", "modButtons.BtnClearResults")]
 MARKER = re.compile(r'Cov "(\w+)"')
-MSO_SHAPE_RECTANGLE = 1
 
 
 def module_sources(names: list[str]) -> dict[str, str]:
@@ -71,21 +70,11 @@ def build(names: list[str], target: Path) -> list[str]:
         if "modButtons" in sources:
             for cell, caption, macro in BUTTONS:
                 R.add_macro_button(wb.Worksheets("TestResults"), cell, caption, macro, 190, 26)
-            add_progress_bar(wb.Worksheets("TestResults"))
+            R.add_progress_bar(wb.Worksheets("TestResults"), "J8")
         R.save_as_xlsm(wb, target, overwrite=True)
         wb.Close(False)
         del wb, app                      # release every COM proxy before excel_session quits Excel
     return markers
-
-
-def add_progress_bar(ws, cell_address: str = "J8", width: float = 190, height: float = 14) -> None:
-    """Grey background and green fill rectangles, named pbBack / pbFill for modTests.ProgressDraw."""
-    cell = ws.Range(cell_address)
-    for name, w, rgb in (("pbBack", width, 0xD9D9D9), ("pbFill", 0.1, 0x50B000)):   # RGB is stored as BGR
-        shape = ws.Shapes.AddShape(MSO_SHAPE_RECTANGLE, cell.Left, cell.Top, w, height)
-        shape.Name = name
-        shape.Fill.ForeColor.RGB = rgb
-        shape.Line.Visible = 0
 
 
 def write_coverage_map(ws, markers: list[str]) -> None:

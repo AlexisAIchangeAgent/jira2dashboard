@@ -65,3 +65,24 @@ Fonctionnalité: Le classeur livré extrait Jira et calcule les mêmes chiffres 
     Et la feuille ChartData reproduit les métriques de la référence Python en mode "A", avec #N/A pour « not computable »
     Et chaque graphique a une série par équipe ou par type de travail avec les valeurs de ChartData
     Et le graphique Flow Distribution suit l'équipe choisie dans la cellule B2
+
+  @excel
+  Scénario: Le bouton extrait par tranches : la barre avance, Excel répond entre deux tranches, puis les résultats sont complets
+    Soit un faux Jira lent avec 150 tickets générés avec les projets des paramètres
+    Et le classeur à livrer dont la feuille Config pointe sur ce faux Jira avec FlowLoadMode "A"
+    Et les itérations de 14 jours depuis le "2026-08-17" jusqu'à la date de référence dans la feuille Periods
+    Quand je clique sur le bouton Extraire et calculer sans attendre la fin
+    Alors la barre de progression avance sans reculer, le classeur répond entre deux tranches et l'extraction se termine
+    Et aucune cellule des feuilles de flux ne montre une erreur Excel
+    Et la table ItemFlow reproduit les calculs de la référence Python
+    Et la table Metrics reproduit la référence Python en mode "A"
+
+  @excel
+  Scénario: Annuler pendant l'extraction garde les résultats du calcul précédent
+    Soit un faux Jira lent avec 150 tickets générés avec les projets des paramètres
+    Et le classeur à livrer dont la feuille Config pointe sur ce faux Jira avec FlowLoadMode "A"
+    Et les itérations de 14 jours depuis le "2026-08-17" jusqu'à la date de référence dans la feuille Periods
+    Quand j'exécute la macro Extraire et calculer du classeur
+    Et je clique sur le bouton Extraire et calculer sans attendre la fin
+    Et j'annule dès que la barre a avancé
+    Alors les résultats du premier calcul sont conservés et l'état dit « Cancelled »

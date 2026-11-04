@@ -211,3 +211,11 @@ def test_bad_input_is_a_400_with_the_jira_error_envelope(jira, call):
     assert result.status == 400 and "maxResults" in result.json["errorMessages"][0]
     broken = call(jira, "POST", SEARCH, None)           # no body: jql missing
     assert broken.status == 400
+
+
+def test_delay_slows_every_call_down(small_dataset, call):
+    import time
+    with MockJira(small_dataset, delay=0.15) as slow:
+        started = time.perf_counter()
+        assert call(slow, "GET", get_search_path("project = TA")).status == 200
+        assert time.perf_counter() - started >= 0.15

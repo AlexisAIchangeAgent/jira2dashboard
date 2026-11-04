@@ -2,9 +2,11 @@
 import dataclasses
 import datetime as dt
 import gc
+import time
 from pathlib import Path
 
 import pytest
+import pywintypes
 from pytest_bdd import given, parsers, scenarios, then, when
 
 from jira2dashboard.build_workbook import build_delivery
@@ -102,6 +104,12 @@ def _jira(world, jira_server, n):
     world["jira"] = jira_server(world["dataset"], credentials=("me@example.com", "tok-123"))
 
 
+@given(parsers.parse("un faux Jira lent avec {n:d} tickets générés avec les projets des paramètres"))
+def _slow_jira(world, jira_server, n):
+    world["dataset"] = generate(seed=11, issues=n, projects=project_keys())
+    world["jira"] = jira_server(world["dataset"], credentials=("me@example.com", "tok-123"), delay=0.15, page_clamp=5)
+
+
 @given(parsers.parse("un faux Jira avec {n:d} tickets générés et les anomalies de données connues"))
 def _jira_with_anomalies(world, jira_server, n):
     dataset, world["anomalies"] = with_anomalies(generate(seed=11, issues=n, projects=project_keys()), project_keys())
@@ -169,9 +177,105 @@ def _periods(world, first):
 def _extract_and_compute(world):
     wb = world["wb"]
     wb.Application.Run(f"'{wb.Name}'!modActions.ExtractAndCompute")
+    reference(world)
+
+
+def reference(world):
+    """The Python reference of the data the fake Jira holds, for the steps that compare with the workbook."""
     rules, as_of = Rules.from_params(), world["dataset"].as_of
     world["rules"] = rules
     world["items"] = [item_flow(i, as_of, rules) for i in to_flow_issues(world["dataset"])]
+
+
+BUSY = (-2147418111, -2147417846)               # Excel is running a macro slice: the call is rejected, try again
+
+
+def retry(call):
+    """Run a COM call between two slices of the extraction: Excel refuses calls while a slice runs."""
+    for _ in range(400):
+        try:
+            return call()
+        except AttributeError:                                           # a busy Excel also fails the lookup of a name
+            time.sleep(0.02)
+        except pywintypes.com_error as err:
+            if err.hresult not in BUSY:
+                raise
+            time.sleep(0.02)
+    raise TimeoutError("Excel stayed busy")
+
+
+def put(dash, value):
+    dash.Range("R1").Value = value
+
+
+def macro(world, name):
+    wb = world["wb"]
+    return retry(lambda: wb.Application.Run(f"'{wb.Name}'!modActions.{name}"))
+
+
+def status_and_bar(world):
+    """(status text, bar as a fraction of its width) in one call: between two slices Excel answers only a few calls."""
+    wb = world["wb"]
+    bar, _sep, text = retry(lambda: wb.Application.Run(f"'{wb.Name}'!modActions.ProgressSnapshot")).partition("|")
+    return text, float(bar)
+
+
+def wait_for(world, done, seconds=180):
+    """Poll the status cell and the bar until done(status) is true; returns the (status, bar) samples."""
+    samples, deadline = [], time.time() + seconds
+    while time.time() < deadline:
+        samples.append(status_and_bar(world))
+        if done(samples[-1][0]):
+            return samples
+        time.sleep(0.03)
+    raise TimeoutError(samples[-3:])
+
+
+@when("je clique sur le bouton Extraire et calculer sans attendre la fin")
+def _click(world, request):
+    request.addfinalizer(lambda: macro(world, "AbortExtraction"))        # no slice must outlive the scenario
+    world["before"] = {name: len(table_dicts(world["wb"], name)) for name in ("Issues", "ItemFlow")}         if "items" in world else None
+    macro(world, "BtnExtractAndCompute")
+    reference(world)
+
+
+@when("j'annule dès que la barre a avancé")
+def _cancel(world):
+    world["samples"] = wait_for(world, lambda text: text.startswith("Reading") and "page 2" in text or text.startswith("Done"))
+    assert not world["samples"][-1][0].startswith("Done"), "the extraction ended before the cancel"
+    macro(world, "BtnCancelExtraction")
+    world["samples"] += wait_for(world, lambda text: text.startswith(("Cancelled", "Stopped", "Done")))
+
+
+@then("la barre de progression avance sans reculer, le classeur répond entre deux tranches et l'extraction se termine")
+def _progress(world):
+    wb, dash = world["wb"], world["wb"].Worksheets("Dashboard")
+    ticks = 0
+
+    def usable(text):
+        nonlocal ticks
+        ticks += 1                                                       # a cell can be written while the job runs
+        retry(lambda: put(dash, ticks))
+        assert retry(lambda: dash.Range("R1").Value2) == ticks
+        return text.startswith(("Done", "Stopped"))
+
+    samples = wait_for(world, usable)
+    bars = [bar for _text, bar in samples]
+    assert samples[-1][0].startswith("Done"), samples[-1]
+    assert bars == sorted(bars) and bars[-1] > 0.99, bars[-5:]
+    assert len({round(b, 2) for b in bars}) >= 4, "the bar did not move step by step"
+    kinds = {text.split(":")[0] for text, _bar in samples}
+    assert "Reading Jira" in kinds, kinds        # the search has many slices; the other steps are one slice each (not always seen)
+    dash.Range("R1").ClearContents()
+    assert retry(lambda: wb.Worksheets("ItemFlow").ListObjects("ItemFlow").ListRows.Count) == len(world["items"])
+
+
+@then("les résultats du premier calcul sont conservés et l'état dit « Cancelled »")
+def _cancelled(world):
+    text, bar = world["samples"][-1]
+    assert text.startswith("Cancelled"), text
+    assert {name: len(table_dicts(world["wb"], name)) for name in ("Issues", "ItemFlow")} == world["before"]
+    assert bar == pytest.approx(0, abs=0.01)
 
 
 @when(parsers.parse('je passe FlowLoadMode à "{mode}" dans la feuille Config'))

@@ -120,4 +120,4 @@ table in the handoff whenever a `.bas` changes. `README.md` (French) covers deli
 
 ## Roadmap not done yet (ask before starting)
 
-Progress bar and cancel during extraction. Real test at the client machine is still to be done by AL.
+Real test at the client machine is still to be done by AL.
