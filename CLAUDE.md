@@ -72,6 +72,9 @@ Before finishing a change run the full pass: `coverage`, `vba-tests`, `test-exce
   the figures on the page `rovo/confluence_flow_metrics_page.md`. The agent `rovo/rovo_train_steering.md` reads that
   page and never computes a metric; its skills are in `rovo/skills/`. The page template copies the column names of
   `METRICS_COLUMNS` and `DATACHECKS_COLUMNS` and the chart titles: update it when they change.
+  Label every Rovo fact Documented / Community / Verify in UI / Proposal; the check coverage of `rovo/rovo-guide.md`
+  section 3 (10 exact, 9 partial, 1 to test, 9 workbook only) is the reference for the other `rovo/` files. Research
+  behind them: `C:\dev\reports\Agents Rovo Studio et métriques.md` (outside the repo).
 - **Fake Jira.** `mockjira/` is a stdlib `http.server` Jira Cloud (search/jql, changelog bulkfetch, proxy/CONNECT, fault
   injection) fed by `dataset.py` (hand-written cases via `issue()`) and `generator.py` (seeded volume);
   `anomalies.py` adds known data-quality cases; `config.py` answers the configuration calls from the parameters (round
@@ -156,6 +159,7 @@ table in the handoff whenever a `.bas` changes. `README.md` (French) covers deli
 - The PowerShell tool is slow here (CIM / event-log queries time out): use Bash `tasklist` for processes.
 - Edit scripts with quotes, `\r\n` or backslashes (Windows paths in Markdown): write a `.py` file with the Write tool and
   run it, not a Bash heredoc (a heredoc turned `tests\\features` into a form feed in the handoff).
+  Pattern: `assert s.count(old) == 1` before each replace, write with `newline="\n"`, run with `.venv/Scripts/python.exe`.
 - `Windows fatal exception: code 0x800706be` (or `0x800706ba`) printed after Excel scenarios is teardown noise, also in
   green runs: only the test result counts.
 
