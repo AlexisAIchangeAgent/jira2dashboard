@@ -50,6 +50,10 @@ archive/                ancien code et sondes (rien n'a été supprimé)
 
 ## Commandes
 
+Chaque script et chaque commande expliquent leur fonctionnement et leurs arguments avec `--help` :
+`.\scripts\run.ps1 --help` liste les commandes, `.\scripts\run.ps1 build --help` donne les options de `build`,
+`.\scripts\manual-test.ps1 --help` (ou `-?`) l'aide d'un script.
+
 ```powershell
 powershell -ExecutionPolicy Bypass -File scripts\setup.ps1 -Dev    # crée .venv (py -3.14), installe ; -Proxy <url> si besoin
 . .\scripts\activate.ps1                                           # optionnel : active le venv
@@ -116,6 +120,7 @@ Sur le poste client (le classeur le rappelle : les premières étapes dans l'ord
    de l'extraction, UTC). `ProxyServer` vide : le proxy des réglages Windows est trouvé comme le fait le navigateur
    (détection automatique WPAD, script PAC, puis proxy fixe) ; `DIRECT` : pas de proxy ; sinon `hôte:port`.
    Feuille **Projects** : les projets Jira et lequel est le Program. Feuille **Periods** : les itérations (`Period | Start | End`, fin exclue).
+   La colonne **Example** de `Config`, à côté de **Value**, montre la forme attendue (elle n'est jamais lue).
    La colonne **Mandatory** de `Config` dit si une valeur vide est permise. `True` : le bouton **Extract from Jira and
    compute** s'arrête avant d'appeler Jira et nomme les valeurs vides (le bouton **Read the Jira configuration** ne
    demande que `BaseUrl`, `Email` et `ApiToken`). `False` : une valeur vide est permise (valeur par défaut, pas de

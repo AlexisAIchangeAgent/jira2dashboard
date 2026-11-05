@@ -60,6 +60,19 @@ def _mandatory(world, names):
     assert ", ".join(model.mandatory_parameters(world["sheets"]["Config"])) == names
 
 
+@then(parsers.parse('les colonnes de la feuille Config sont "{names}"'))
+def _config_columns(world, names):
+    assert world["error"] is None, world["error"]
+    assert ", ".join(world["sheets"]["Config"].header) == names
+
+
+@then("chaque paramètre de la feuille Config a un exemple")
+def _examples(world):
+    config = world["sheets"]["Config"]
+    column = config.header.index("Example")
+    assert [row[0] for row in config.rows if not row[column]] == []
+
+
 @then(parsers.parse('le chargement est refusé avec "{text}"'))
 def _refused(world, text):
     assert world["error"] is not None and text in world["error"], world["error"]

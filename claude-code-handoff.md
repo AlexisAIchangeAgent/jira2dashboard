@@ -175,6 +175,14 @@ MD5 of the current modules (LF line endings). Unchanged since the original hando
   time matches (`taskkill /T`). Tests: `tests\features\manual_test.feature` (the copy is read, no extraction),
   `tests\unit\test_mock_workbook.py`, `test_mock_scripts.py` (start/stop on a free port, a foreign port, a reused
   pid, ASCII scripts), `test_mock_main.py`, `test_build_workbook_pure.py`.
+- **Config column Example and --help everywhere (2026-11-05).** `params\config.md` has 5 columns: Parameter | Value |
+  Example | Mandatory | Description; every row needs an example (`_check_config`), never a client value. VBA and
+  Python read Config by header, the formulas read A and B only. Every script answers `--help`: the Python commands
+  through `cli/args.parser` (arguments parsed before any clean, Excel or server; `build`, `vba-tests`, `clean`,
+  `check-machine` no longer read `sys.argv` by hand, `--out` is checked by `bare_xlsm`), the children say they are
+  internal, the `.ps1` through comment-based help (`--help`, `-Help`, `-?` in a console) and refuse an unknown
+  argument (exit 2). `release.ps1 -Version` is no longer Mandatory (the script checks it). Tests:
+  `tests\unit\test_help.py`.
 
 | Module | MD5 |
 |---|---|
@@ -186,7 +194,7 @@ MD5 of the current modules (LF line endings). Unchanged since the original hando
 | modProxy.bas | 51d8e4d0c539e31a8743efae69f92312 |
 | modJira.bas | 4b02725acdb95b74ea4fe35280d43739 |
 | modFlow.bas | 69f021411e3989de981f8bbde8ec5d73 |
-| modParams.bas | fe97f1c40d82f7a4d9b894e633160b16 |
+| modParams.bas | badd41f7e5211a7d250d8c17f954a9b6 |
 | modExtract.bas | f1bd9e7f524afa6915146f4b2b7e07dc |
 | modJiraConfig.bas | b4529efc36a4d0323c9508a1b7bccc56 |
 | modFlowBuild.bas | bb2fbc8c73909f2ac82cf34b27c6ca08 |

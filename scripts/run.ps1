@@ -1,8 +1,63 @@
-# .\scripts\run.ps1 test | coverage | test-excel | test-network | vba-tests | check-machine | mock-jira | mock-workbook | build | clean  [extra args]
-# No venv activation needed. Plain $args (no [Parameter]) so that "--out", "--offline"... reach Python untouched.
-$commands = @("test", "coverage", "test-excel", "test-network", "vba-tests", "check-machine", "mock-jira", "mock-workbook", "build", "clean")
-if ($args.Count -lt 1 -or $commands -notcontains $args[0]) {
-    Write-Host ("Usage: .\scripts\run.ps1 <" + ($commands -join " | ") + "> [extra args]")
+<#
+.SYNOPSIS
+Runs a command of jira2dashboard with the Python of .venv (tests, build of the workbook, fake Jira...).
+
+.DESCRIPTION
+.\scripts\run.ps1 <command> [arguments of the command]
+
+No venv activation is needed: the script uses .venv\Scripts\python.exe and sets PYTHONPATH to src. The arguments
+after the command reach Python (or pytest) untouched, so ".\scripts\run.ps1 <command> --help" shows the options of
+that command. Create .venv first with scripts\setup.ps1 (-Dev for the test tools).
+
+Commands:
+  test           fast unit and Gherkin tests, no Excel (pytest arguments allowed)
+  coverage       the same, plus the coverage of the pure code; fails under 90 %
+  test-excel     the scenarios that drive Excel (marker excel, no network)
+  test-network   the Excel scenarios that need the network (marker network)
+  vba-tests      build, compile and run the VBA test suite (--offline, --bisect, --out name.xlsm)
+  check-machine  21 checks of this machine: Excel, access to the VBA project, compile...
+  mock-jira      the fake Jira on http://127.0.0.1:8099 (--anomalies, --issues, --port...)
+  mock-workbook  a copy of a workbook with Config, Periods and PIs filled for the fake Jira
+  build          the workbook to deliver: out\release\jira2dashboard.xlsm (--out name.xlsm: in out\inter)
+  clean          empty out\inter, except the test caches (build and vba-tests do it first)
+
+.PARAMETER Help
+Show this help. --help, -h and -? do the same.
+
+.EXAMPLE
+.\scripts\run.ps1 test
+Runs the fast tests.
+
+.EXAMPLE
+.\scripts\run.ps1 build --help
+Shows the options of the command build.
+
+.EXAMPLE
+.\scripts\run.ps1 test-excel tests/steps/test_flow_excel.py -k "contr" -q
+Runs some Excel scenarios, with pytest arguments.
+#>
+# Plain $args (no param block) so that "--out", "--offline"... reach Python untouched.
+$commands = [ordered]@{
+    "test"          = "fast unit and Gherkin tests, no Excel (pytest arguments allowed)"
+    "coverage"      = "the same, plus the coverage of the pure code; fails under 90 %"
+    "test-excel"    = "the scenarios that drive Excel (marker excel, no network)"
+    "test-network"  = "the Excel scenarios that need the network (marker network)"
+    "vba-tests"     = "build, compile and run the VBA test suite (--offline, --bisect, --out name.xlsm)"
+    "check-machine" = "21 checks of this machine: Excel, access to the VBA project, compile..."
+    "mock-jira"     = "the fake Jira on http://127.0.0.1:8099 (--anomalies, --issues, --port...)"
+    "mock-workbook" = "a copy of a workbook with Config, Periods and PIs filled for the fake Jira"
+    "build"         = "the workbook to deliver: out\release\jira2dashboard.xlsm (--out name.xlsm: in out\inter)"
+    "clean"         = "empty out\inter, except the test caches (build and vba-tests do it first)"
+}
+if ($args.Count -lt 1 -or @("--help", "-h", "-help", "help", "/?") -contains $args[0]) {
+    Write-Host "Usage: .\scripts\run.ps1 <command> [arguments]   (.\scripts\run.ps1 <command> --help: its options)"
+    Write-Host ""
+    foreach ($name in $commands.Keys) { Write-Host ("  {0,-14} {1}" -f $name, $commands[$name]) }
+    if ($args.Count -lt 1) { exit 2 }
+    exit 0
+}
+if (-not $commands.Contains($args[0])) {
+    Write-Host "run: unknown command '$($args[0])'. See .\scripts\run.ps1 --help"
     exit 2
 }
 $command = $args[0]

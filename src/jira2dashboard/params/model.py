@@ -48,7 +48,7 @@ PROJECT_ROLES = ("Program", "Team")
 _PROJECT_KEY = re.compile(r"[A-Z][A-Z0-9_]+")
 
 SPECS = (
-    SheetSpec("Config", "config.md", ("Parameter", "Value", "Mandatory", "Description")),
+    SheetSpec("Config", "config.md", ("Parameter", "Value", "Example", "Mandatory", "Description")),
     SheetSpec("Projects", "projects.md", ("Project", "Role", "Team")),
     SheetSpec("Periods", "periods.md", ("Period", "Start", "End")),
     SheetSpec("PIs", "pis.md", ("PI", "Start", "End")),
@@ -184,6 +184,8 @@ def _check_config(sheet: ParamSheet, problems: list[str]) -> None:
             problems.append(f"Config: parameter {name!r} listed twice")
     for _n, rec in _records(sheet):
         name, flag = rec["Parameter"], rec["Mandatory"]
+        if not rec["Example"]:
+            problems.append(f"Config: give {name} an example (column Example: the expected form of the value)")
         if flag not in ("True", "False"):
             problems.append(f"Config: Mandatory of {name} must be True or False, got {flag!r}")
         elif flag == "True" and name not in TYPED_AT_CLIENT and not rec["Value"]:

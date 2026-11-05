@@ -1,15 +1,15 @@
-"""Build the workbook to deliver: out\\release\\jira2dashboard.xlsm.
+"""Build the workbook to deliver: out\\release\\jira2dashboard.xlsm (needs Excel and access to the VBA project).
 
-Usage:  scripts\\run.ps1 build [--out name.xlsm]   (a variant named by --out goes to out\\inter: it is not delivered)
-
-The workbook holds the VBA that reads Jira and builds the flow sheets and the dashboard (no Python is needed to use
+It first empties out\\inter (scripts\\run.ps1 clean), then builds and compiles the workbook. The workbook holds the VBA that reads Jira and builds the flow sheets and the dashboard (no Python is needed to use
 it), the parameter sheets (Config, Projects, Periods, Workflows, Transitions, FieldMapping) and the plan of the flow
 sheets (FlowFormulas, ChartSpec). The client values stay empty: they are typed in the sheet Config after delivery.
+Exit code 0 when the VBA compiles, 1 otherwise.
 """
 import sys
 from pathlib import Path
 
 from jira2dashboard import clean
+from jira2dashboard.cli.args import bare_xlsm, parser
 from jira2dashboard.excel import com as R
 from jira2dashboard.flow.sheets import write_blueprint, write_manual
 from jira2dashboard.paths import INTER_DIR, RELEASE_DIR
@@ -25,7 +25,7 @@ def target_for(name: str) -> Path:
     return (RELEASE_DIR if name == DELIVERY_NAME else INTER_DIR) / name
 
 
-TARGET = target_for(rvt.out_name(DELIVERY_NAME))
+TARGET = target_for(DELIVERY_NAME)
 # No test module, no test button: modCoverage stays because the other modules call Cov (a no-op unless switched on).
 MODULES = ["modCoverage", "modLog", "modJson", "modText", "modHttp", "modProxy", "modJira", "modFlow", "modParams", "modExtract",
            "modJiraConfig", "modFlowBuild", "modActions"]
@@ -61,9 +61,25 @@ def build_delivery(target: Path = TARGET) -> Path:
     return target
 
 
-def main() -> int:
+EXAMPLES = """
+examples:
+  scripts\\run.ps1 build                    out\\release\\jira2dashboard.xlsm
+  scripts\\run.ps1 build --out try.xlsm     out\\inter\\try.xlsm (a variant, not the one to deliver)
+"""
+
+
+def parse(argv: list[str] | None = None):
+    p = parser("scripts\\run.ps1 build", __doc__, EXAMPLES)
+    p.add_argument("--out", type=bare_xlsm, default=DELIVERY_NAME, metavar="NAME.xlsm",
+                   help=f"name of the workbook: {DELIVERY_NAME} (default) goes to out\\release, any other name to "
+                        "out\\inter")
+    return p.parse_args(argv)
+
+
+def main(argv: list[str] | None = None) -> int:
+    target = target_for(parse(argv).out)
     clean.main()                                                       # no intermediates left from older runs
-    target = build_delivery()
+    build_delivery(target)
     print(f"built {target}")
     result = rvt.compile_ok(target)
     print("compile:", result)

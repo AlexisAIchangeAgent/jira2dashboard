@@ -166,7 +166,7 @@ Public Function AsOfFromConfig(ByVal wsConfig As Object) As Date
 End Function
 
 Public Function ConfigValue(ByVal wsConfig As Object, ByVal name As String, Optional ByVal defaultValue As String = "") As String
-    ' One value of the Config sheet (columns Parameter | Value | Mandatory | Description), trimmed like a pasted value.
+    ' One value of the Config sheet (columns read by header name: Parameter, Value), trimmed like a pasted value.
     ' An empty cell or an unknown parameter gives defaultValue.
     Cov "PRM14"
     Dim row As Variant, v As String

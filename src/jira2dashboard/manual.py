@@ -35,7 +35,8 @@ def manual(mandatory: tuple[str, ...]) -> list[tuple[str, str]]:
             "It needs Excel for Windows with macros. Python is not needed.",
         ]),
         ("Sheet Config", [
-            "One row per parameter: Parameter, Value, Mandatory, Description.",
+            "One row per parameter: Parameter, Value, Example, Mandatory, Description.",
+            "Example shows the expected form of the value (it is never read: only Value counts).",
             f'Mandatory = True: "{EXTRACT_CAPTION}" stops before calling Jira while the value is empty, and names it. '
             f'"{CONFIG_CAPTION}" needs only BaseUrl, Email and ApiToken.',
             'Mandatory = False: an empty value is allowed. A default is used, nothing is added (no filter, no proxy), '

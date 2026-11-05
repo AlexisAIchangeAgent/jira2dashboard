@@ -1,15 +1,43 @@
-# .\scripts\release.ps1 -Version v1.0.0 [-Publish]
-# Builds the two files of a release in out\release\<version>:
-#   jira2dashboard-<version>.zip  the code of HEAD (git archive; .gitattributes leaves out CLAUDE.md,
-#                                 claude-code-handoff.md, archive\, .claude\ and .venv\)
-#   jira2dashboard.xlsm           the workbook to deliver (scripts\run.ps1 build writes out\release\jira2dashboard.xlsm;
-#                                 needs Excel)
-# Without -Publish it stops there (dry run, nothing leaves the machine). With -Publish it creates the GitHub release
-# and its tag on HEAD, which must already be pushed. ASCII only: PowerShell 5.1 reads a file without BOM as ANSI.
+<#
+.SYNOPSIS
+Builds the files of a release in out\release\<version>; with -Publish, creates the GitHub release.
+
+.DESCRIPTION
+Needs a clean working tree (everything committed). Builds in out\release\<version>:
+  jira2dashboard-<version>.zip  the code of HEAD (git archive; .gitattributes leaves out CLAUDE.md,
+                                claude-code-handoff.md, archive\, .claude\ and .venv\)
+  jira2dashboard.xlsm           the workbook to deliver (.\scripts\run.ps1 build; needs Excel)
+  notes.md                      the release notes, with the SHA256 of both files
+Without -Publish it stops there: a dry run, nothing leaves the machine. With -Publish it creates the GitHub release
+and its tag on HEAD, which must already be pushed (gh must be logged in).
+ASCII only: PowerShell 5.1 reads a file without BOM as ANSI.
+
+.PARAMETER Version
+The version, like v1.0.0. Required.
+
+.PARAMETER Publish
+Also create the release and its tag on GitHub. Outward-facing: the two files become public.
+
+.PARAMETER Help
+Show this help. --help and -? do the same.
+
+.EXAMPLE
+.\scripts\release.ps1 -Version v1.0.0
+Dry run: the zip, the workbook and notes.md in out\release\v1.0.0.
+
+.EXAMPLE
+.\scripts\release.ps1 -Version v1.0.0 -Publish
+The same, then the GitHub release v1.0.0 with both files.
+#>
+[CmdletBinding(PositionalBinding = $false)]
 param(
-    [Parameter(Mandatory = $true)][string]$Version,
-    [switch]$Publish
+    [string]$Version = "",
+    [switch]$Publish,
+    [switch]$Help,
+    [Parameter(ValueFromRemainingArguments = $true)][string[]]$Rest = @()
 )
+if ($Help -or $Rest -contains "--help") { Get-Help $PSCommandPath -Detailed; exit 0 }
+if ($Rest.Count -gt 0) { Write-Host "release: unknown argument $($Rest -join ' '). See .\scripts\release.ps1 --help"; exit 2 }
 $ErrorActionPreference = "Stop"
 $root = Split-Path -Parent $PSScriptRoot
 Set-Location $root

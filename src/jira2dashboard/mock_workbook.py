@@ -1,17 +1,15 @@
 """Prepare a copy of a workbook to try it by hand against the fake Jira (scripts\\manual-test.ps1 runs it).
 
-Usage:  scripts\\run.ps1 mock-workbook [--workbook out\\release\\jira2dashboard.xlsm] [--port 8099]
-
 The copy, out\\inter\\jira2dashboard_mock.xlsm, gets what a client would type: in Config the address, account,
 reference date and custom field ids of the fake Jira of `run.ps1 mock-jira`; 14-day iterations in Periods; the PI of
 the known anomalies in PIs. The workbook given is never changed: the one to deliver keeps its client values empty.
 """
-import argparse
 import datetime as dt
 import shutil
 import sys
 from pathlib import Path
 
+from jira2dashboard.cli.args import parser
 from jira2dashboard.excel import com
 from jira2dashboard.flow.model import Period
 from jira2dashboard.mockjira.anomalies import PI, PI_WINDOW
@@ -76,11 +74,23 @@ def fill_copy(path: Path, url: str) -> None:
         del wb, app                                                   # release every COM proxy before Excel quits
 
 
+EXAMPLES = """
+examples:
+  scripts\\run.ps1 mock-workbook                                 the copy of out\\release\\jira2dashboard.xlsm
+  scripts\\run.ps1 mock-workbook --workbook C:\\x.xlsm --port 8100  another workbook, a fake Jira on port 8100
+"""
+
+
+def parse(argv: list[str] | None = None):
+    p = parser("scripts\\run.ps1 mock-workbook", __doc__, EXAMPLES)
+    p.add_argument("--workbook", default=str(RELEASE_DIR / "jira2dashboard.xlsm"),
+                   help="the workbook to copy (default out\\release\\jira2dashboard.xlsm); it is never changed")
+    p.add_argument("--port", type=int, default=8099, help="port of the fake Jira on 127.0.0.1 (default 8099)")
+    return p.parse_args(argv)
+
+
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("--workbook", default=str(RELEASE_DIR / "jira2dashboard.xlsm"))
-    parser.add_argument("--port", type=int, default=8099)
-    args = parser.parse_args(argv)
+    args = parse(argv)
     source = Path(args.workbook)
     if not source.is_file():
         print(f"mock-workbook: no workbook {source}: run scripts\\run.ps1 build first")

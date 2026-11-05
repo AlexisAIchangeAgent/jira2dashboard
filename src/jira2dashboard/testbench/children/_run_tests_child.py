@@ -1,21 +1,19 @@
-"""Child: open the test workbook with macros enabled, run the VBA tests, save, print a JSON report.
+"""Internal: run by testbench/run_vba_tests.py in a process of its own.
 
-    _run_tests_child.py <workbook> [--network] [--pac-url <url of a local proxy script, for T_ProxyScript>]
+Opens the test workbook with macros enabled in a new Excel, runs the VBA tests (modTests.RunWithCoverage), saves it,
+and prints a JSON report: summary, total, the KO rows and the coverage markers hit. Not meant to be run by hand.
 """
 import json
 import sys
 from pathlib import Path
 
+from jira2dashboard.cli.args import parser
 from jira2dashboard.excel import com as R
 
 
 def grid(value):
     """A range of one cell comes back as a scalar: make it a one-row table like any other."""
     return value if isinstance(value, tuple) else ((value,),)
-
-
-def option(args: list[str], flag: str) -> str:
-    return args[args.index(flag) + 1] if flag in args[:-1] else ""
 
 
 def main(path: str, network: bool, pac_url: str) -> None:
@@ -37,4 +35,9 @@ def main(path: str, network: bool, pac_url: str) -> None:
 
 
 if __name__ == "__main__":
-    main(sys.argv[1], "--network" in sys.argv[2:], option(sys.argv[2:], "--pac-url"))
+    p = parser("_run_tests_child.py", __doc__)
+    p.add_argument("workbook", help="the test workbook (.xlsm) built by run_vba_tests")
+    p.add_argument("--network", action="store_true", help="also run the network tests N_")
+    p.add_argument("--pac-url", default="", help="address of a local proxy script, for T_ProxyScript")
+    args = p.parse_args()
+    main(args.workbook, args.network, args.pac_url)

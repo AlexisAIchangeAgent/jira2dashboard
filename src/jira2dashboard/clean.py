@@ -1,8 +1,6 @@
 """Clean the folder out before a build: out\\release stays, out\\inter is emptied, nothing else stays at the root.
 
-Usage:  scripts\\run.ps1 clean   (build and vba-tests also clean first)
-
-out\\release holds what is delivered (the workbook of `build`, the release packages of scripts\\release.ps1): never
+build and vba-tests run it first. out\\release holds what is delivered (the workbook of `build`, the release packages of scripts\\release.ps1): never
 touched. out\\inter holds the rest (test workbooks, the manual-test copy, exports, logs): emptied, except the tool caches
 that pyproject.toml puts there (.coverage, .pytest_cache). Anything else at the root of out is a leftover of the old
 layout and goes. A file that a program still holds (Windows refuses to delete it) is kept and reported, never forced.
@@ -11,6 +9,7 @@ import shutil
 import sys
 from pathlib import Path
 
+from jira2dashboard.cli.args import parser
 from jira2dashboard.paths import INTER_DIR, OUT_DIR, RELEASE_DIR
 
 TOOL_CACHES = (".coverage", ".pytest_cache")
@@ -42,6 +41,10 @@ def clean(out_dir: Path = OUT_DIR) -> tuple[list[Path], list[Path]]:
     return removed, in_use
 
 
+def parse(argv: list[str] | None = None):
+    return parser("scripts\\run.ps1 clean", __doc__, "example:\n  scripts\\run.ps1 clean").parse_args(argv)
+
+
 def main(out_dir: Path = OUT_DIR) -> int:
     removed, in_use = clean(out_dir)
     print(f"clean: {len(removed)} intermediate(s) removed from {out_dir}")
@@ -51,4 +54,5 @@ def main(out_dir: Path = OUT_DIR) -> int:
 
 
 if __name__ == "__main__":
+    parse()
     sys.exit(main())

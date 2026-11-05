@@ -857,10 +857,11 @@ def _manual_sheet(world):
                                                                                  for kind, _text in rows]
 
 
-@then("la feuille Config a la colonne Mandatory")
+@then("la feuille Config a les colonnes Example et Mandatory")
 def _mandatory_column(world):
     ws = world["wb"].Worksheets("Config")
-    assert [ws.Cells(1, column).Value for column in range(1, 5)] == ["Parameter", "Value", "Mandatory", "Description"]
+    assert [ws.Cells(1, column).Value for column in range(1, 6)] == [
+        "Parameter", "Value", "Example", "Mandatory", "Description"]
 
 
 @when(parsers.parse('je vide le paramètre "{name}" de la feuille Config'))

@@ -34,9 +34,21 @@ Fonctionnalité: Paramètres écrits dans le classeur
 
   Scénario: Une valeur de Mandatory autre que True ou False est refusée
     Soit les fichiers de paramètres du dépôt
-    Quand je remplace "| Filter |  | False |" par "| Filter |  | Maybe |" dans "config.md"
+    Quand je remplace "| Filter |  | updated >= -90d | False |" par "| Filter |  | updated >= -90d | Maybe |" dans "config.md"
     Et je les charge
     Alors le chargement est refusé avec "Config: Mandatory of Filter must be True or False, got 'Maybe'"
+
+  Scénario: La feuille Config donne un exemple de chaque valeur, à côté de la valeur
+    Soit les fichiers de paramètres du dépôt
+    Quand je les charge
+    Alors les colonnes de la feuille Config sont "Parameter, Value, Example, Mandatory, Description"
+    Et chaque paramètre de la feuille Config a un exemple
+
+  Scénario: Un paramètre sans exemple est refusé
+    Soit les fichiers de paramètres du dépôt
+    Quand je remplace "| Filter |  | updated >= -90d |" par "| Filter |  |  |" dans "config.md"
+    Et je les charge
+    Alors le chargement est refusé avec "Config: give Filter an example"
 
   Scénario: Un paramètre obligatoire qui n'est pas une valeur du client a une valeur dans le dépôt
     Soit les fichiers de paramètres du dépôt

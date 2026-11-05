@@ -1,7 +1,12 @@
-"""Child: open an .xlsm, compile its VBA, optionally run Ping, print the result."""
+"""Internal: run by testbench/run_vba_tests.py and cli/check_machine.py in a process of its own.
+
+Opens an .xlsm in a new Excel, compiles its VBA, optionally runs modSelfTest.Ping, and prints COMPILED_OK or
+COMPILE_FAILED (and the answer of Ping). Not meant to be run by hand.
+"""
 import sys
 from pathlib import Path
 
+from jira2dashboard.cli.args import parser
 from jira2dashboard.excel.com import (
     MSO_AUTOMATION_SECURITY_FORCE_DISABLE, MSO_AUTOMATION_SECURITY_LOW,
     compile_vba_project, excel_pid, excel_session, run_macro,
@@ -21,4 +26,8 @@ def main(path: str, run_ping: bool) -> None:
         del wb
 
 if __name__ == "__main__":
-    main(sys.argv[1], run_ping="--ping" in sys.argv[2:])
+    p = parser("_check_child.py", __doc__)
+    p.add_argument("workbook", help="the .xlsm to compile")
+    p.add_argument("--ping", action="store_true", help="also run modSelfTest.Ping (macros enabled)")
+    args = p.parse_args()
+    main(args.workbook, run_ping=args.ping)

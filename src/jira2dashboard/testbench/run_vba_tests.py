@@ -1,9 +1,8 @@
-"""Build a workbook with the VBA modules in vba/, compile it, run the VBA tests, report results and coverage.
+"""Build a workbook with the VBA modules of vba\\, compile it, run the VBA tests, report results and coverage.
 
-Usage:  scripts\\run.ps1 vba-tests            (offline + network tests)
-        scripts\\run.ps1 vba-tests --offline  (no network tests)
-        scripts\\run.ps1 vba-tests --bisect   (find the first module that does not compile)
-        scripts\\run.ps1 vba-tests --out name.xlsm  (workbook name under out\\inter)
+It first empties out\\inter (scripts\\run.ps1 clean), then builds out\\inter\\vba_tests.xlsm with every module and the
+test buttons, compiles it and runs the tests T_ (offline) and N_ (network) in a separate Excel. Every Cov marker of
+the VBA must be hit (100 %). Exit code 0 when everything passes, 1 otherwise. Needs Excel and access to the VBA project.
 """
 import json
 import subprocess
@@ -15,6 +14,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 from jira2dashboard import clean
+from jira2dashboard.cli.args import bare_xlsm, parser
 from jira2dashboard.excel import com as R
 from jira2dashboard.flow.sheets import write_blueprint
 from jira2dashboard.mockjira.server import PAC_PATH, PAC_TYPE, pac_script
@@ -22,21 +22,7 @@ from jira2dashboard.params.model import load_all as load_params
 from jira2dashboard.params.write import write_params
 from jira2dashboard.paths import CHILDREN_DIR, INTER_DIR, VBA_DIR
 
-def option(flag: str, default: str) -> str:
-    """The value after `flag` on the command line, or the default (also when the flag is the last argument)."""
-    argv = sys.argv
-    return argv[argv.index(flag) + 1] if flag in argv[:-1] else default
-
-
-def out_name(default: str) -> str:
-    """The workbook name of --out: a bare file name, so that nothing outside the folder out is ever overwritten."""
-    name = option("--out", default)
-    if name != Path(name).name or not name.lower().endswith(".xlsm"):
-        raise SystemExit(f"--out takes a bare file name ending in .xlsm (it goes under the folder out), not {name!r}")
-    return name
-
-
-OUT = INTER_DIR / out_name("vba_tests.xlsm")
+OUT = INTER_DIR / "vba_tests.xlsm"
 ORDER = ["modCoverage", "modLog", "modJson", "modText", "modHttp", "modProxy", "modJira", "modFlow", "modParams", "modExtract",
          "modJiraConfig", "modFlowBuild", "modActions", "modBackground", "modTests", "modButtons"]
 BUTTONS = [("J2", "Lancer les tests (hors ligne)", "modButtons.BtnRunAllTests"),
@@ -161,20 +147,41 @@ def bisect() -> None:
             return
 
 
-def main() -> int:
+EXAMPLES = """
+examples:
+  scripts\\run.ps1 vba-tests                   offline and network tests
+  scripts\\run.ps1 vba-tests --offline         no network test (some markers are then not required)
+  scripts\\run.ps1 vba-tests --out try.xlsm    another workbook name, when vba_tests.xlsm is open in Excel
+  scripts\\run.ps1 vba-tests --bisect          find the first module that does not compile
+"""
+
+
+def parse(argv: list[str] | None = None):
+    p = parser("scripts\\run.ps1 vba-tests", __doc__, EXAMPLES)
+    p.add_argument("--offline", action="store_true", help="skip the network tests N_")
+    p.add_argument("--bisect", action="store_true",
+                   help="add the modules one by one and compile each step, to find the first that does not compile")
+    p.add_argument("--out", type=bare_xlsm, default=OUT.name, metavar="NAME.xlsm",
+                   help=f"name of the test workbook, in out\\inter (default {OUT.name})")
+    return p.parse_args(argv)
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = parse(argv)
+    out = INTER_DIR / args.out
     clean.main()                                                       # no intermediates left from older runs
-    if "--bisect" in sys.argv:
+    if args.bisect:
         bisect()
         return 0
-    markers = build(ORDER, OUT)
-    print(f"built {OUT} with {len(ORDER)} modules, {len(markers)} coverage markers")
-    result = compile_ok(OUT)
+    markers = build(ORDER, out)
+    print(f"built {out} with {len(ORDER)} modules, {len(markers)} coverage markers")
+    result = compile_ok(out)
     print("compile:", result)
     if result != "COMPILED_OK":
         print("Run with --bisect to find the module that does not compile.")
         return 1
     try:
-        report = run_tests(OUT, network="--offline" not in sys.argv)
+        report = run_tests(out, network=not args.offline)
     except (RuntimeError, subprocess.TimeoutExpired) as err:
         print(err)
         return 1
@@ -189,7 +196,7 @@ def main() -> int:
     if report["total"] == 0 or not markers:
         print("no test result or no marker: nothing was tested")
         return 1
-    if missed and "--offline" not in sys.argv:       # offline runs skip the network tests, which cover some markers
+    if missed and not args.offline:                  # offline runs skip the network tests, which cover some markers
         print("every marker must be hit (100 % required)")
         return 1
     return 0 if not report["ko"] else 1

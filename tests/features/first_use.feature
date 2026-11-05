@@ -9,7 +9,7 @@ Fonctionnalité: Première utilisation du classeur
     Soit le classeur à livrer
     Alors le Dashboard donne les premières étapes, avec « Read the Jira configuration » avant « Extract from Jira and compute »
     Et l'onglet Manual suit le Dashboard et reproduit le manuel
-    Et la feuille Config a la colonne Mandatory
+    Et la feuille Config a les colonnes Example et Mandatory
 
   @excel
   Scénario: Un paramètre obligatoire vide arrête l'extraction avant tout appel à Jira

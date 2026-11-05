@@ -326,3 +326,19 @@ def test_all_problems_are_reported_together(params_copy):
     with pytest.raises(ParamsError) as err:
         model.load_all(params_copy)
     assert "Actif" in str(err.value) and "Mandatory" in str(err.value)
+
+
+# --- Config: an example of each value, next to it ----------------------------------------------------
+
+def test_config_shows_an_example_next_to_each_value():
+    config = sheet(model.load_all(), "Config")
+    assert config.header == ("Parameter", "Value", "Example", "Mandatory", "Description")
+    examples = {row[0]: row[2] for row in config.rows}
+    assert [name for name, example in examples.items() if not example] == []
+    assert examples["BaseUrl"].startswith("https://") and examples["AsOf"] == "2026-11-03 18:00"
+
+
+def test_an_empty_example_is_refused(params_copy):
+    edit(params_copy, "config.md", "| Filter |  | updated >= -90d |", "| Filter |  |  |")
+    with pytest.raises(ParamsError, match="Config: give Filter an example"):
+        model.load_all(params_copy)

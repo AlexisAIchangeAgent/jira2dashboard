@@ -1,13 +1,43 @@
-# .\scripts\start-mock.ps1 [-Port 8099] [-Issues 1200] [-Hidden]
-# Starts the fake Jira (scripts\run.ps1 mock-jira, with the known data anomalies) in a minimized window of its own
-# (-Hidden: no window, for the tests) and waits until it answers. Stop it with scripts\stop-mock.ps1: the pid and the
-# start time of that window are kept in %TEMP%\jira2dashboard\mock-jira-<port>.pid, so that the stop script only ever
-# kills what this script started. ASCII only: PowerShell 5.1 reads a file without BOM as ANSI.
+<#
+.SYNOPSIS
+Starts the fake Jira (with the known data anomalies) in a window of its own and waits until it answers.
+
+.DESCRIPTION
+Runs ".\scripts\run.ps1 mock-jira --anomalies" in a minimized window (no window with -Hidden) and waits up to 60 s
+until the port answers. It fails at once if another program already holds the port, or if the fake Jira stops at
+once. The pid and the start time of the window are kept in %TEMP%\jira2dashboard\mock-jira-<port>.pid, so that
+stop-mock.ps1 only ever kills what this script started. Account of the fake Jira: mock@example.com / mock-token.
+ASCII only: PowerShell 5.1 reads a file without BOM as ANSI.
+
+.PARAMETER Port
+Port of the fake Jira, on 127.0.0.1. Default 8099.
+
+.PARAMETER Issues
+Number of generated issues, before the known anomalies are added. Default 1200.
+
+.PARAMETER Hidden
+No window at all (used by the tests). Without it the window is minimized and shows the address and the account.
+
+.EXAMPLE
+.\scripts\start-mock.ps1
+Fake Jira on http://127.0.0.1:8099 with 1200 issues and the known anomalies.
+
+.EXAMPLE
+.\scripts\start-mock.ps1 -Port 8100 -Issues 150
+A smaller fake Jira on another port. Stop it with .\scripts\stop-mock.ps1 -Port 8100.
+.PARAMETER Help
+Show this help. --help and -? do the same.
+#>
+[CmdletBinding(PositionalBinding = $false)]
 param(
     [int]$Port = 8099,
     [int]$Issues = 1200,
-    [switch]$Hidden
+    [switch]$Hidden,
+    [switch]$Help,
+    [Parameter(ValueFromRemainingArguments = $true)][string[]]$Rest = @()
 )
+if ($Help -or $Rest -contains "--help") { Get-Help $PSCommandPath -Detailed; exit 0 }
+if ($Rest.Count -gt 0) { Write-Host "start-mock: unknown argument $($Rest -join ' '). See .\scripts\start-mock.ps1 --help"; exit 2 }
 $ErrorActionPreference = "Stop"
 $pidFile = Join-Path (Join-Path $env:TEMP "jira2dashboard") "mock-jira-$Port.pid"
 
