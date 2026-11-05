@@ -225,7 +225,8 @@ extraction script (Copilot must read its proxy settings there; never copy the to
    `docs\safe-flow-metrics-and-data-checks.md` section 1. Active: En analyse, En developpement, En test;
    Wait: Pret, Planifie, A deployer (all decided). `FieldMapping` validated 2026-11-03. **Still open:** nothing on the status and field decisions.
    `Livre` = released (no use for now); PI format `PI#XX-YYYY` checked by DC29; custom field 11339 not needed.
-2. Rovo: **decided** one agent "ART Data Quality" with subagents (`docs\rovo-guide.md` section 4).
+2. Rovo: **decided** one agent "ART Data Quality" with subagents (`docs\rovo-guide.md` section 4). Superseded
+   on 2026-11-05: one agent "ART Flow Steering" with three jobs and no subagents (`rovo\rovo_train_steering.md`).
 3. Workflow validators: written as a proposal to validate with the teams; Depriorisé sets no resolution (decided).
 4. Sandbox of 20 seeded issues: table written (`docs\rovo-guide.md` section 7), to build in Jira.
 5. Placement `.github/copilot-instructions.md` + `docs/` (check the client Copilot version).
@@ -393,6 +394,18 @@ the repo): `rovo_flow_metric.md` (flow metrics per work item type, each number l
 no official figure comes from Rovo) and `rovo-guide.md`, the updated copy of `docs\rovo-guide.md` (which stays
 frozen): Studio options, counts and limits, the DC checks as JQL (10 exact, 9 partial, 1 to test, 9 workbook
 only), and the agent Flow Data Steward.
+Steering with Rovo (2026-11-05, AL's choice: hybrid). Rovo cannot reproduce the dashboard on its own: extraction,
+status intervals, metrics and charts stay in the workbook. The RTE publishes `Metrics`, `DataChecks` and the chart
+images on a Confluence page.
+- `rovo\confluence_flow_metrics_page.md`: the template of that page.
+- `rovo\rovo_train_steering.md`: the agent ART Flow Steering, which replaces Flow Data Steward. It has three jobs
+  (readiness, explain, steering), one `rovo\skills\<name>\SKILL.md` each. It reads the page and never computes a
+  metric.
+- `rovo\jira_dashboard_data_quality.md`: a Jira dashboard of saved filters `DQ DCxx`, built by hand.
+
+The page template follows the column names of `METRICS_COLUMNS` and `DATACHECKS_COLUMNS` and the chart titles: update
+it when they change. Still to check at the client: whether a custom skill can be attached to a Studio agent, and the
+page-read test (`rovo_train_steering.md` section 6).
 
 ## 9. Suggested next steps
 

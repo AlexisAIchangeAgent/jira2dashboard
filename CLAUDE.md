@@ -67,6 +67,11 @@ Before finishing a change run the full pass: `coverage`, `vba-tests`, `test-exce
   projects, issue types, statuses, workflows (`workflows/preview`) and fields into proposal sheets `Jira*`; it never writes
   the parameter sheets (calls and mapping: handoff section 8c). Its Rovo counterpart, to compare Jira with the workbook:
   `rovo/rovo_settings_analyser.md` (agent config, not code).
+- **Rovo side (md only, no code).** `rovo/` holds the master copies of the Rovo Studio agents. `rovo/rovo-guide.md` is
+  the current guide; `docs/rovo-guide.md` is frozen. Steering is hybrid: the workbook computes, and the RTE publishes
+  the figures on the page `rovo/confluence_flow_metrics_page.md`. The agent `rovo/rovo_train_steering.md` reads that
+  page and never computes a metric; its skills are in `rovo/skills/`. The page template copies the column names of
+  `METRICS_COLUMNS` and `DATACHECKS_COLUMNS` and the chart titles: update it when they change.
 - **Fake Jira.** `mockjira/` is a stdlib `http.server` Jira Cloud (search/jql, changelog bulkfetch, proxy/CONNECT, fault
   injection) fed by `dataset.py` (hand-written cases via `issue()`) and `generator.py` (seeded volume);
   `anomalies.py` adds known data-quality cases; `config.py` answers the configuration calls from the parameters (round
@@ -158,4 +163,5 @@ table in the handoff whenever a `.bas` changes. `README.md` (French) covers deli
 
 Real test at the client machine is still to be done by AL.
 Pending: a workflow per issue type (scenarios written, not bound; bind them once the client confirms the need); the Rovo
-agent Settings Analyser to try at the client (its section 5).
+agents to try at the client: Settings Analyser (its section 5) and ART Flow Steering (its section 6). For the second,
+also check whether a custom skill can be attached to a Studio agent.

@@ -199,8 +199,15 @@ barre de progression, résultats ligne par ligne, bouton Annuler.
     champs personnalisés d'un projet) pour comparer Jira avec le classeur ;
   - `rovo_flow_metric.md` : agent « Flow Metrics by Type » (métriques de flux par type de ticket, chaque nombre
     marqué exact, approché ou échantillon, avec sa JQL) ; les chiffres officiels restent ceux du classeur ;
-  - `rovo-guide.md` : copie à jour (2026-11-05) de `docs\rovo-guide.md`, qui reste figé ; agent « Flow Data
-    Steward » pour les contrôles DC01-DC29.
+  - `rovo_train_steering.md` : agent « ART Flow Steering » pour le pilotage du train. Il contrôle les données avant
+    l'extraction, explique les chiffres publiés et rédige une note de pilotage. Il ne calcule aucune métrique : le
+    classeur reste le moteur. Ses compétences sont dans `skills\` (un `SKILL.md` par étape) ;
+  - `confluence_flow_metrics_page.md` : modèle de la page Confluence « Flow metrics <PI> », où le RTE colle les
+    tableaux `Metrics` et `DataChecks` et les graphiques du classeur ;
+  - `jira_dashboard_data_quality.md` : tableau de bord Jira de filtres enregistrés `DQ DCxx`, monté à la main. Les
+    comptes sont calculés par Jira ;
+  - `rovo-guide.md` : copie à jour (2026-11-05) de `docs\rovo-guide.md`, qui reste figé. Son agent « Flow Data
+    Steward » est remplacé par « ART Flow Steering ».
 - `docs\cookbook_python.md` et `docs\vba-modules-tested.md` sont des **copies de code non maintenues**,
   périmées depuis la restructuration (le code vit dans `src\` et `vba\`).
 - `claude-code-handoff.md` est mis à jour (nouveau dossier, nouvelles commandes, règle `bootstrap_test 15/15`

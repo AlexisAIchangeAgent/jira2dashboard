@@ -3,8 +3,13 @@
 > **Updated copy, 2026-11-05.** The original is `docs/rovo-guide.md` (frozen: its MD5 is tracked in
 > `claude-code-handoff.md`); use this copy. Sections 1, 3 (coverage), 4, 5, 6 and 7 were revised with the research
 > report `C:\dev\reports\Agents Rovo Studio et métriques.md` (outside the repo). The agents of this folder:
-> `rovo_settings_analyser.md` (Jira configuration vs the workbook), `rovo_flow_metric.md` (flow metrics per work item
-> type, labelled), and the Flow Data Steward of section 4 (data checks).
+> - `rovo_settings_analyser.md`: the Jira configuration compared with the workbook.
+> - `rovo_flow_metric.md`: flow metrics per work item type, each one labelled.
+> - `rovo_train_steering.md`: the steering cycle. It runs the data checks, explains the figures published with
+>   `confluence_flow_metrics_page.md`, and drafts a steering note. Its skills are in `skills/`. It replaces the Flow
+>   Data Steward of section 4.
+>
+> The Jira dashboard of saved filters is in `jira_dashboard_data_quality.md`.
 
 For: **you** (Jira admin, using Rovo Chat and Rovo Studio) and **Copilot** (which builds the Excel side).
 Goal: find and fix the data anomalies that make the SAFe flow metrics wrong and keep the Jira **Plans**
@@ -272,6 +277,11 @@ CONSTRAINTS: Do not change anything. Wait for my explicit "apply" on a list of k
 
 ## 4. Agent to create in Rovo Studio: Flow Data Steward (revised 2026-11-05)
 
+> **Replaced, 2026-11-05.** For the steering cycle, create the agent ART Flow Steering (`rovo_train_steering.md`)
+> instead. It has one agent with three jobs and no subagents, and it reads the Confluence page "Flow metrics <PI>".
+> The procedure of subagent 1 below became its skill `skills/steering-readiness/SKILL.md`. This section stays for its
+> reasoning and for subagent 3 (Item investigator), which can come back as a fourth job if a changelog tool exists.
+
 This replaces the "ART Data Quality" sketch of the original guide, which predates subagent isolation, the
 forward-as-is mode and the evidence on counts. One rule above the others: **it never states a total it computed, and
 never computes a metric.** It gives three kinds of answer: JQL links and key lists for the checks, explanations of the
@@ -329,7 +339,7 @@ If the JQL fails, show it with the error, name the placeholder that is probably 
 
 **Plans readiness** (prompt P09) and **Backlog fixer** (P10, only after the rules are validated, with an edit tool,
 never more than 20 items, always with confirmation) stay possible later as their own agents; keep them out of the
-Flow Data Steward, which has no write tool.
+ART Flow Steering (`rovo_train_steering.md`), which has no write tool.
 
 ## 5. Skills (Beta) - one `SKILL.md` per family of checks
 
@@ -352,9 +362,10 @@ description: Check SAFe hierarchy links between features and team work items (DC
 1. Read the project keys and field names from the Confluence page "ART data rules".
 2. Search: project in (<TEAM_KEYS>) AND issuetype in (Story, Task) AND statusCategory != Done.
 3. Apply rules DC01, DC02, DC03 exactly as written on the page. Then search features for DC24.
-4. Output: summary per rule (id, count, %), then the table
+4. Output: one line per rule (id, items received, "complete" or "truncated", JQL link), then the table
    Check id | Work item key | Team | Field | Found value | Expected | Fix hint.
-5. More than 50 matches: count + first 50 keys + JQL.
+5. T or more items received (threshold T on the same page): the keys received, "truncated", and the JQL link.
+   Never a total of your own: the exact count is in Jira issue search or in DataChecks.
 6. Read only. Never edit. Never guess.
 ```
 
@@ -374,7 +385,8 @@ can already find, a **saved filter** gives the same list without touching the da
 1. **Detect with saved filters, not labels.** One saved filter per JQL-detectable check, named
    `DQ DC01 Story without feature`, ... (the JQL of section 3 of the metrics file and of the prompts above).
    Dashboard: "Filter results" gadgets, and a "Two dimensional filter statistics" gadget per filter
-   (for example Project x Status). Exact counts, history-free, no Rovo needed.
+   (for example Project x Status). Exact counts, history-free, no Rovo needed. The full list of filters and the
+   layout are in `jira_dashboard_data_quality.md`.
 2. **Prevent in the workflow** (you are Jira admin; this is the most reliable layer):
    - transition to *En développement*: **validator** "field required" for story points and Sprint (DC11, DC15);
    - transition to *Planifié* (features): validator for Target start, Target end, PI (DC17, DC19);
@@ -391,7 +403,7 @@ can already find, a **saved filter** gives the same list without touching the da
 | R02 DC01 | Work item created in a team project | issuetype in (Story, Task) and parent is empty | Comment: "Link this item to its feature (DC01)" |
 | R03 DC12 | `<POINTS_FIELD>` changed | issuetype is a sub-task | Comment: "Points on sub-tasks are counted twice (DC12)" |
 | R04 DC21 | `<BV_FIELD>` changed | issuetype = `<FEATURE_TYPE>` | Comment: "Business value belongs to PI objectives (DC21)" |
-| R05 weekly summary with Rovo | Scheduled, Monday 08:00 | Lookup work items with the JQL of the DC filters (one rule per family, to stay under the lookup size limit); continue only if the Jira-computed size is above 0 | **Use agent** (Flow Data Steward), prompt below with the size and at most 50 keys; continue only if `{{agentResponse}}` is not empty; then email it to the RTE |
+| R05 weekly summary with Rovo | Scheduled, Monday 08:00 | Lookup work items with the JQL of the DC filters (one rule per family, to stay under the lookup size limit); continue only if the Jira-computed size is above 0 | **Use agent** (ART Flow Steering, `rovo_train_steering.md`), prompt below with the size and at most 50 keys; continue only if `{{agentResponse}}` is not empty; then email it to the RTE |
 
 Settings for every rule: rule actor and notifications **Verify in UI** (avoid notifying on every comment);
 multi-project scope needs a Jira admin; check the site's automation usage limit and the Rovo usage of
@@ -410,7 +422,7 @@ Exact list: open the filter "<FILTER NAME>" in Jira.
 Revised 2026-11-05: the count in R05 comes from Jira (`{{lookupIssues.size}}`), never from the agent ("The count
 then comes from Jira, not the model", Community). A Champion reports that putting the JQL in the scheduled trigger
 instead of a lookup allows up to 999 work items (Community). Agents now act in automations unless blocked (ROVO-261):
-give the Flow Data Steward no write tool rather than relying on a toggle (the toggle **Let this agent take actions**
+give the ART Flow Steering no write tool rather than relying on a toggle (the toggle **Let this agent take actions**
 was not found in the 2026-11 docs: Verify in UI). Run R05 with the Agent's account if the admins can grant it. Use
 **Debug response** (the automation debug log shows subagent, agent and request, not the model) when an answer looks
 wrong.
@@ -470,7 +482,7 @@ Rovo answers change when the model, the data or your text changes. Treat prompts
 3. **Same ids everywhere**: Excel `DataChecks`, Rovo outputs, saved filter names, automation comments,
    Confluence page.
 4. **Weekly loop during the clean-up**: run the Excel extraction and checks -> compare counts with the
-   saved filters and with the ART Data Quality agent -> fix the gaps in the rules -> track counts per DC per week.
+   saved filters and with the ART Flow Steering agent -> fix the gaps in the rules -> track counts per DC per week.
 5. **Then per iteration**: R05 summary + Excel metrics before the iteration review; per PI: P08 and P09
    before PI planning.
 6. **Keep a prompt log**: prompts that gave wrong or vague answers, with the fix. Promote good prompts to skills.

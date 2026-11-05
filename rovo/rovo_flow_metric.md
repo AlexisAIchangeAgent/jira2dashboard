@@ -14,8 +14,8 @@ Labels, as in `rovo/rovo-guide.md`: **Documented** = Atlassian or Scaled Agile d
 
 The research concludes that **no official flow figure should come from a Rovo agent**. This agent therefore gives only
 numbers it can stand behind (small exact counts, a sample it shows item by item), each labelled, and points to the
-workbook for the rest. For the data checks alone, the agent "Flow Data Steward" (`rovo/rovo-guide.md` section 4) is
-the better fit.
+workbook for the rest. For the data checks and the steering cycle (explaining the figures the RTE publishes), the
+agent "ART Flow Steering" (`rovo/rovo_train_steering.md`) is the better fit.
 
 ---
 
@@ -195,15 +195,19 @@ instructions" exactly. Read only. Label every number exact, approximate or sampl
 ## 5. Anomalies and missing fields: what each check breaks
 
 The checks use the same ids as the workbook (`DataChecks`, `docs/safe-flow-metrics-and-data-checks.md` section 3).
-Twelve of the 29 can be written fully in JQL, seven partly; nine need the change history or a comparison between items
-and stay in the workbook only: DC02, DC03, DC06, DC07, DC18, DC20, DC24, DC27, DC29.
+The coverage follows `rovo/rovo-guide.md` section 3, which was checked against `src/jira2dashboard/flow/checks.py`:
+- 10 checks have an exact JQL;
+- 9 have only a partial one;
+- DC01 depends on a syntax test (`parent IS EMPTY`);
+- 9 need the change history or a comparison between items, and stay in the workbook only: DC02, DC03, DC06, DC07,
+  DC18, DC20, DC24, DC27 and DC29.
 
 | Check in the agent | Workbook id | Breaks | JQL status |
 |---|---|---|---|
 | done without resolution | DC04 | Velocity by resolution date | Documented operators |
 | resolution but not done | DC05 | Velocity by resolution date | Documented operators |
 | done without a start | DC09 (partly: the workbook also restarts after a return to Backlog) | Flow Time | Documented operators |
-| reopened | DC10 | Flow Time (item left out) | Documented operators |
+| reopened | DC10 (partly: exact only with one Done status per workflow) | Flow Time (item left out) | Documented operators |
 | status outside the classification | DC08 (current status only) | Flow Efficiency | Documented operators |
 | in progress without sprint | DC15 | Flow Load by sprint, planning | Documented operators |
 | missing story points / Team / work type | DC11, DC13, Distribution `Unmapped` | Velocity in points, team split, Distribution | Test `IS EMPTY` on the Team field first |
