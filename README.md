@@ -28,6 +28,7 @@ src/jira2dashboard/
                         ce plan ; modExtract.bas écrit les feuilles brutes Issues et StatusIntervals.
                         checks.py : les 29 contrôles de données DC01-DC29 (référence Python)
   build_workbook.py     construit le classeur à livrer out\jira2dashboard.xlsm (sans module de test)
+  clean.py              vide out\ avant un build : garde les .xlsm et les caches de test
   mockjira/             faux Jira Cloud sur localhost (E3) : dataset.py (historiques), generator.py (volume seedé),
                         jql.py, api.py (réponses pures), server.py (http.server + fautes injectables)
   paths.py              emplacements (repo, vba, params, out, children)
@@ -40,7 +41,7 @@ tests/features/         scénarios Gherkin (*.feature, en français)
 tests/steps/            steps pytest-bdd
 tests/integration/      tests marqués `excel` (vide pour l'instant ; le walking skeleton est dans features/steps)
 docs/                   les 7 md de contexte et de paramètres
-scripts/                setup.ps1, activate.ps1, run.ps1
+scripts/                setup.ps1, activate.ps1, run.ps1, release.ps1
 out/                    classeurs générés
 archive/                ancien code et sondes (rien n'a été supprimé)
 ```
@@ -58,7 +59,15 @@ powershell -ExecutionPolicy Bypass -File scripts\setup.ps1 -Dev    # crée .venv
 .\scripts\run.ps1 check-machine   # 21 contrôles de la machine
 .\scripts\run.ps1 mock-jira       # faux Jira sur http://127.0.0.1:8099, Ctrl+C pour arrêter
 .\scripts\run.ps1 build           # construit le classeur à livrer : out\jira2dashboard.xlsm (--out nom.xlsm)
+.\scripts\run.ps1 clean           # vide out\ sauf les .xlsm et les caches de test (build et vba-tests le font d'abord)
+.\scripts\release.ps1 -Version v1.0.0            # essai à blanc : zip du code + classeur dans out\release\v1.0.0
+.\scripts\release.ps1 -Version v1.0.0 -Publish   # idem, puis crée la release et son tag sur GitHub
 ```
+
+Release : le script part d'un arbre propre (tout est commité). Le zip est le code du dernier commit, sans
+`CLAUDE.md`, `claude-code-handoff.md`, `archive\`, `.claude\` ni `.venv\` (règles `export-ignore` de
+`.gitattributes`, vérifiées par `tests\unit\test_release_contents.py`). Avec `-Publish`, le commit doit déjà être
+poussé. Les liens « Source code » ajoutés par GitHub suivent les mêmes règles.
 
 ## Livraison : le classeur `out\jira2dashboard.xlsm` (E6)
 

@@ -11,6 +11,7 @@ import re
 import sys
 from pathlib import Path
 
+from jira2dashboard import clean
 from jira2dashboard.excel import com as R
 from jira2dashboard.flow.sheets import write_blueprint
 from jira2dashboard.params.model import load_all as load_params
@@ -124,6 +125,7 @@ def bisect() -> None:
 
 
 def main() -> int:
+    clean.main()                                                       # no intermediates left from older runs
     if "--bisect" in sys.argv:
         bisect()
         return 0

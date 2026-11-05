@@ -1,0 +1,87 @@
+# .\scripts\release.ps1 -Version v1.0.0 [-Publish]
+# Builds the two files of a release in out\release\<version>:
+#   jira2dashboard-<version>.zip  the code of HEAD (git archive; .gitattributes leaves out CLAUDE.md,
+#                                 claude-code-handoff.md, archive\, .claude\ and .venv\)
+#   jira2dashboard.xlsm           the workbook to deliver (scripts\run.ps1 build: needs Excel)
+# Without -Publish it stops there (dry run, nothing leaves the machine). With -Publish it creates the GitHub release
+# and its tag on HEAD, which must already be pushed. ASCII only: PowerShell 5.1 reads a file without BOM as ANSI.
+param(
+    [Parameter(Mandatory = $true)][string]$Version,
+    [switch]$Publish
+)
+$ErrorActionPreference = "Stop"
+$root = Split-Path -Parent $PSScriptRoot
+Set-Location $root
+
+function Fail([string]$message) {
+    Write-Host "release: $message"
+    exit 1
+}
+
+# 1. The release is a commit: a clean tree, and with -Publish that commit is on GitHub
+if ($Version -notmatch '^v\d+\.\d+\.\d+$') { Fail "the version must look like v1.0.0 (got '$Version')." }
+if (git status --porcelain) { Fail "the working tree has changes: commit or stash them first." }
+$head = (git rev-parse HEAD).Trim()
+if ($Publish) {
+    gh auth status          # no redirection: in PowerShell 5.1 a redirected stderr becomes an error under "Stop"
+    if ($LASTEXITCODE -ne 0) { Fail "gh is not logged in: run gh auth login." }
+    git fetch -q origin main
+    if ($LASTEXITCODE -ne 0) { Fail "git fetch failed." }
+    if ($head -ne (git rev-parse origin/main).Trim()) { Fail "HEAD is not origin/main: push first." }
+    if (git ls-remote --tags origin "refs/tags/$Version") { Fail "the tag $Version already exists on GitHub." }
+}
+
+# 2. The workbook, built from the same commit. First: the build cleans the folder out (intermediates, older releases)
+& (Join-Path $PSScriptRoot "run.ps1") build
+if ($LASTEXITCODE -ne 0) { Fail "the build of the workbook failed (see above)." }
+$name = "jira2dashboard-$Version"
+$dist = Join-Path $root "out\release\$Version"
+New-Item -ItemType Directory -Force $dist | Out-Null
+$xlsm = Join-Path $dist "jira2dashboard.xlsm"
+Copy-Item (Join-Path $root "out\jira2dashboard.xlsm") $xlsm
+Write-Host "release: $xlsm"
+
+# 3. The code: git archive of HEAD, then check what it holds
+$zip = Join-Path $dist "$name.zip"
+git archive --format=zip "--prefix=$name/" -o $zip HEAD
+if ($LASTEXITCODE -ne 0) { Fail "git archive failed." }
+Add-Type -AssemblyName System.IO.Compression.FileSystem
+$archive = [System.IO.Compression.ZipFile]::OpenRead($zip)
+try { $entries = @($archive.Entries | ForEach-Object { $_.FullName }) } finally { $archive.Dispose() }
+$leftOut = @($entries | Where-Object { $_ -match '^[^/]+/(CLAUDE\.md|claude-code-handoff\.md|archive/|\.claude/|\.venv/)' })
+if ($leftOut.Count -gt 0) { Fail ("the zip holds files it must leave out: " + ($leftOut -join ", ")) }
+foreach ($must in "README.md", "scripts/run.ps1", "scripts/setup.ps1", "src/jira2dashboard/build_workbook.py") {
+    if ($entries -notcontains "$name/$must") { Fail "the zip misses $must." }
+}
+Write-Host ("release: {0} ({1} entries)" -f $zip, $entries.Count)
+
+# 4. The release notes, with the SHA256 of both files
+$zipHash = (Get-FileHash $zip -Algorithm SHA256).Hash.ToLower()
+$xlsmHash = (Get-FileHash $xlsm -Algorithm SHA256).Hash.ToLower()
+$notes = @"
+jira2dashboard $Version (commit $head)
+
+Files:
+- jira2dashboard.xlsm: the workbook, ready to use on Windows with Excel (no Python needed). After the download:
+  right-click > Properties > Unblock (or Unblock-File .\jira2dashboard.xlsm), then open it and enable the content.
+- $name.zip: the code, to build the workbook yourself (Windows, Excel, Python 3.14):
+  scripts\setup.ps1, then scripts\run.ps1 build.
+
+Setup and use: README.md, section "Livraison".
+
+SHA256:
+- jira2dashboard.xlsm: $xlsmHash
+- $name.zip: $zipHash
+"@
+$notesFile = Join-Path $dist "notes.md"
+[System.IO.File]::WriteAllText($notesFile, $notes, (New-Object System.Text.UTF8Encoding $false))
+
+if (-not $Publish) {
+    Write-Host "release: dry run done, files in $dist. Run again with -Publish to create the release on GitHub."
+    exit 0
+}
+
+# 5. Publish: the tag is created on GitHub, on HEAD
+gh release create $Version $xlsm $zip --target $head --title "jira2dashboard $Version" --notes-file $notesFile
+if ($LASTEXITCODE -ne 0) { Fail "gh release create failed." }
+Write-Host "release: published $Version"

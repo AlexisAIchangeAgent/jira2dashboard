@@ -1,6 +1,6 @@
-# .\scripts\run.ps1 test | coverage | test-excel | test-network | vba-tests | check-machine | mock-jira | build  [extra args]
+# .\scripts\run.ps1 test | coverage | test-excel | test-network | vba-tests | check-machine | mock-jira | build | clean  [extra args]
 # No venv activation needed. Plain $args (no [Parameter]) so that "--out", "--offline"... reach Python untouched.
-$commands = @("test", "coverage", "test-excel", "test-network", "vba-tests", "check-machine", "mock-jira", "build")
+$commands = @("test", "coverage", "test-excel", "test-network", "vba-tests", "check-machine", "mock-jira", "build", "clean")
 if ($args.Count -lt 1 -or $commands -notcontains $args[0]) {
     Write-Host ("Usage: .\scripts\run.ps1 <" + ($commands -join " | ") + "> [extra args]")
     exit 2
@@ -26,5 +26,6 @@ switch ($command) {
     "check-machine" { & $python -m jira2dashboard.cli.check_machine @rest }
     "mock-jira"     { & $python -m jira2dashboard.mockjira @rest }
     "build"         { & $python -m jira2dashboard.build_workbook @rest }
+    "clean"         { & $python -m jira2dashboard.clean @rest }
 }
 exit $LASTEXITCODE

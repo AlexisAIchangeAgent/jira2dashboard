@@ -29,7 +29,12 @@ powershell -ExecutionPolicy Bypass -File scripts\setup.ps1 -Dev   # create .venv
 .\scripts\run.ps1 check-machine   # 21 checks of the machine (Excel, VBA trust...)
 .\scripts\run.ps1 mock-jira       # fake Jira on http://127.0.0.1:8099
 .\scripts\run.ps1 build           # delivery workbook out\jira2dashboard.xlsm (--out name.xlsm)
+.\scripts\run.ps1 clean           # empty out\ except the *.xlsm and the test caches (build and vba-tests do it first)
+.\scripts\release.ps1 -Version v1.0.0 [-Publish]   # zip of HEAD + built workbook in out\release; -Publish = GitHub release
 ```
+
+The release zip leaves out the `export-ignore` paths of `.gitattributes` (CLAUDE.md, the handoff, `archive/`,
+`.claude/`, `.venv/`); `tests/unit/test_release_contents.py` pins the list. `-Publish` is outward-facing: ask AL first.
 
 `test` and `coverage` skip the `excel` and `network` markers by default (`addopts` in `pyproject.toml`): use `test-excel` /
 `test-network` for those.
@@ -37,8 +42,9 @@ powershell -ExecutionPolicy Bypass -File scripts\setup.ps1 -Dev   # create .venv
 Single test: `.\scripts\run.ps1 test tests/unit/test_checks.py::test_name` or
 `.\scripts\run.ps1 test-excel tests/steps/test_flow_excel.py -k "contr" -q`. Call `run.ps1` directly from PowerShell: do not
 wrap it in `cmd /c` or redirect with `2>&1` (it stops on `$ErrorActionPreference='Stop'`).
-From Bash: `powershell -NoProfile -ExecutionPolicy Bypass -File scripts/run.ps1 test-excel > out/x.log 2>&1` works
-(the redirect is outside PowerShell).
+From Bash: `powershell -NoProfile -ExecutionPolicy Bypass -File scripts/run.ps1 test-excel > "$TEMP/x.log" 2>&1` works
+(the redirect is outside PowerShell). Write logs, benches and scratch files to `$TEMP` or the scratchpad, never to
+`out/`: `out/` holds the workbooks only, and `build` / `vba-tests` empty the rest (`src/jira2dashboard/clean.py`).
 
 Before finishing a change run the full pass: `coverage`, `vba-tests`, `test-excel`, `test-network`, `build`.
 

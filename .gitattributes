@@ -2,3 +2,10 @@
 # MD5 listed in claude-code-handoff.md, the docs keep their bytes.
 * -text
 *.bas text eol=lf
+# Left out of the release zip (scripts\release.ps1, git archive) and of GitHub's "Source code" archives.
+CLAUDE.md export-ignore
+claude-code-handoff.md export-ignore
+/archive export-ignore
+archive/** export-ignore
+.claude/** export-ignore
+.venv/** export-ignore

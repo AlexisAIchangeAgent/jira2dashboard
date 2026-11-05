@@ -9,6 +9,7 @@ sheets (FlowFormulas, ChartSpec). The client values stay empty: they are typed i
 import sys
 from pathlib import Path
 
+from jira2dashboard import clean
 from jira2dashboard.excel import com as R
 from jira2dashboard.flow.sheets import write_blueprint
 from jira2dashboard.paths import OUT_DIR
@@ -50,6 +51,7 @@ def build_delivery(target: Path = TARGET) -> Path:
 
 
 def main() -> int:
+    clean.main()                                                       # no intermediates left from older runs
     target = build_delivery()
     print(f"built {target}")
     result = rvt.compile_ok(target)
