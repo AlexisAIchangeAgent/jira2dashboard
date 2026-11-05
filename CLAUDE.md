@@ -118,6 +118,7 @@ Before finishing a change run the full pass: `coverage`, `vba-tests`, `test-exce
   `stop-mock.ps1` kills only that pid with that start time (`taskkill /T`), never a port owner it did not start.
   Limit: with `proxy_challenge`, the fake proxy accepts the first NTLM leg, which WinHTTP sends with an empty body,
   so a POST through it arrives empty; the Windows session sent to a proxy is tested with GET only.
+  Its request log stores header names in lower case (`proxy-authorization`).
 - **COM layer.** `excel/com.py` holds the pure helpers and `excel_session`; `testbench/` builds, compiles and runs the VBA
   tests; `testbench/children/` scripts run as separate processes by path. Files omitted from coverage because they need
   COM: `flow/sheets.py`, `cli/check_machine.py`, `mockjira/__main__.py`, and the `build*`/`main` functions (see
@@ -187,8 +188,10 @@ table in the handoff whenever a `.bas` changes. `README.md` (French) covers deli
 - **Excel vanishes in the Excel scenarios ("RPC server unavailable")**: watch the `EXCEL.EXE` exit code. `0xC0000005` is
   a crash; Office's crash recovery can also end it with 0 and start a new `EXCEL.EXE` in the same millisecond (do not
   read that as an Office update). The Application event log (Application Error, event 1000) names the faulting module:
-  ask AL before reading it. Before blaming a change for a flaky Excel run, run the last commit (`git stash`) the same
-  number of times. With a failure rate near 40 %, a fix is proven only by 5 green module runs in a row.
+  ask AL before reading it. It also hits `vba-tests`. Before blaming a change for a flaky Excel run, run the last commit
+  the same number of times: `git worktree add --detach <scratchpad>\wt HEAD`, then pytest there with the main `.venv`
+  python and `PYTHONPATH=<wt>\src` (`git stash` leaves new untracked files in place). With a failure rate near 40 %, a
+  fix is proven only by 5 green module runs in a row.
 - **Open defect:** Excel crashes (`0xC0000005`, a DEP fault inside VBA's engine, module "unknown") during the
   extraction, always right after the last search page (`END search page 30: 150 issues` in the local log). The button
   scenario alone crashed 7 times out of 10 on 2026-11-05 (`test-excel tests/steps/test_flow_excel.py -k bouton`): that is
@@ -196,6 +199,7 @@ table in the handoff whenever a `.bas` changes. `README.md` (French) covers deli
 - **Git Bash rewrites `/switch` arguments** of Windows programs into paths (`/update` -> `C:/.../Git/update`, also
   `wevtutil /q:`): prefix the command with `MSYS_NO_PATHCONV=1`.
 - The PowerShell tool is slow here (CIM / event-log queries time out): use Bash `tasklist` for processes.
+- Reading PowerShell output from Python (`Get-Help`, the scripts): `encoding="oem", errors="replace"`, not UTF-8.
 - Edit scripts with quotes, `\r\n` or backslashes (Windows paths in Markdown): write a `.py` file with the Write tool and
   run it, not a Bash heredoc (a heredoc turned `tests\\features` into a form feed in the handoff).
   Pattern: `assert s.count(old) == 1` before each replace, write with `newline="\n"`, run with `.venv/Scripts/python.exe`.
