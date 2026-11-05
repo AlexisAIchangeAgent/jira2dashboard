@@ -383,6 +383,12 @@ already shows whether two issue types of a project use different statuses.
 Traps: `GET /rest/api/3/workflow/search` was removed on 2026-06-01 (use `GET /rest/api/3/workflows/search` or the
 calls above); team-managed projects are not in `workflowscheme/project` (use `workflows/preview`).
 
+Rovo side (2026-11-05): `rovo\rovo_settings_analyser.md` configures a Rovo Studio agent "Settings Analyser" that
+lists, for one project, the work item types, the total per type, the statuses per type and the custom fields, with
+the headers of the `Jira*` sheets, to compare Jira (as Rovo sees it) with the workbook. Rovo agents read Jira with
+JQL search only (other tools: verify in Studio): workflows and transitions are not visible to them, counts carry
+their JQL. Not tried on a real site yet.
+
 ## 9. Suggested next steps
 
 1. Ask AL which of section 8 to validate first.

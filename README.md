@@ -194,6 +194,8 @@ barre de progression, résultats ligne par ligne, bouton Annuler.
 ## Documents
 
 - `docs\` : fichiers de contexte et de paramètres de l'application.
+- `rovo\rovo_settings_analyser.md` : configuration de l'agent Rovo « Settings Analyser » (types de ticket, totaux
+  par type, statuts par type, champs personnalisés d'un projet) pour comparer Jira avec le classeur.
 - `docs\cookbook_python.md` et `docs\vba-modules-tested.md` sont des **copies de code non maintenues**,
   périmées depuis la restructuration (le code vit dans `src\` et `vba\`).
 - `claude-code-handoff.md` est mis à jour (nouveau dossier, nouvelles commandes, règle `bootstrap_test 15/15`

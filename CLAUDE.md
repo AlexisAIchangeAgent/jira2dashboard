@@ -63,9 +63,13 @@ Before finishing a change run the full pass: `coverage`, `vba-tests`, `test-exce
   `modExtract` -> `modFlow` (status intervals) ; `modActions` is the dashboard button (`ExtractAndCompute`). The previous
   results are cleared only after Jira has answered. `modLog` writes the local log (`%LOCALAPPDATA%\jira2dashboard\logs`):
   RUN, BEGIN/END per step, ERROR; never pass it a token, URL, JQL or Jira answer (`test_vba_log_guard.py` checks).
+- **Jira configuration (VBA).** `modJiraConfig` (button Read the Jira configuration, `BtnReadJiraConfiguration`) reads
+  projects, issue types, statuses, workflows (`workflows/preview`) and fields into proposal sheets `Jira*`; it never writes
+  the parameter sheets (calls and mapping: handoff section 8c).
 - **Fake Jira.** `mockjira/` is a stdlib `http.server` Jira Cloud (search/jql, changelog bulkfetch, proxy/CONNECT, fault
   injection) fed by `dataset.py` (hand-written cases via `issue()`) and `generator.py` (seeded volume);
-  `anomalies.py` adds known data-quality cases. The real Jira is never called.
+  `anomalies.py` adds known data-quality cases; `config.py` answers the configuration calls from the parameters (round
+  trip). The real Jira is never called.
 - **COM layer.** `excel/com.py` holds the pure helpers and `excel_session`; `testbench/` builds, compiles and runs the VBA
   tests; `testbench/children/` scripts run as separate processes by path. Files omitted from coverage because they need
   COM: `flow/sheets.py`, `cli/check_machine.py`, `mockjira/__main__.py`, and the `build*`/`main` functions (see
