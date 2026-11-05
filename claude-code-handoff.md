@@ -332,6 +332,35 @@ the page protection; fewer late-bound calls in the changelog loop (8 to 13 s for
 read the last BEGIN without END of the local log after a crash (study: `C:\dev\reports\Journalisation des erreurs
 VBA.md`, outside the repo).
 
+## 8c. Jira configuration API (read-only, to fill the parameters)
+
+Found 2026-11-05 (Context7, Jira Cloud platform OpenAPI spec). In Jira a project's **workflow scheme** maps each issue
+type to a workflow: in one Team project, Bugs may follow another workflow than Stories. The workbook today picks the
+workflow by project role only (Program = Feature, Team = Team, `docs\safe-flow-metrics-and-data-checks.md` section 1).
+Scenarios for a workflow per issue type are written, not bound to steps yet: `tests\features\workflow_by_type.feature`.
+
+All calls below are read-only, made at the client from the client machine; their answers stay in the workbook.
+
+| Need (parameter) | Call | Permission | What to read |
+|---|---|---|---|
+| `Projects`: id, issue types, project style | `GET /rest/api/3/project/search?keys=AAA&keys=EEE&expand=issueTypes` (offset paging, `isLast`, max 100, up to 50 keys) | Browse projects | `values[].{id, key, name, style (classic/next-gen), issueTypes[].{id, name, subtask, hierarchyLevel}}` |
+| Statuses **per issue type** | `GET /rest/api/3/project/{key}/statuses` | Browse projects | array of `{id, name (issue type), subtask, statuses[].{id, name, statusCategory.key (new/indeterminate/done)}}` |
+| Workflow **of each issue type** | `GET /rest/api/3/workflowscheme/project?projectId=10000&projectId=10001` | Administer Jira | `values[].{projectIds, workflowScheme.{id, name, defaultWorkflow, issueTypeMappings {"<issue type id>": "<workflow name>"}}}`; team-managed projects are left out; the default scheme has no id |
+| Statuses **and transitions** of workflows | `POST /rest/api/3/workflows`, body `{"projectAndIssueTypes":[{"projectId":"10000","issueTypeId":"10004"}]}` or `{"workflowNames":["..."]}` | Administer Jira, or Administer projects / View (read-only) workflow | `statuses[].{id, name, statusReference, statusCategory (TODO/IN_PROGRESS/DONE)}`, `workflows[].{name, statuses[].statusReference, transitions[].{type (INITIAL/GLOBAL/DIRECTED), toStatusReference, links[].fromStatusReference}}` |
+| Same, read-only, per project | `POST /rest/api/3/workflows/preview`, body `{"projectId":"10000","issueTypeIds":["10004","10001"]}` (max 25 ids) | Administer projects or View (read-only) workflow | as above, plus `workflows[].queryContext[].{project, issueTypes}`: the issue types of the project that use each workflow |
+| Field ids (Config) | `GET /rest/api/3/field`, `GET /rest/api/3/field/{id}/context` | Browse | see `docs\jira-cloud-api-vba-reference.md` section 1 |
+
+How the answers fill the parameters: `queryContext` (or `issueTypeMappings`; unmapped types follow
+`defaultWorkflow`) gives issue type -> workflow; the statuses of a workflow give the `Status` column of `Workflows`;
+`statusCategory` gives a first proposal of `Category` (TODO -> Backlog, DONE -> Done, IN_PROGRESS -> Active or Wait,
+to decide); `Order`, `IsStart`, `IsEnd` stay a human decision. Each link of a `DIRECTED` transition gives a
+`Transitions` row From -> To (`Type` forward/back/exit to decide); a `GLOBAL` transition (from any status) means
+`IsFree = 1` on its target; `INITIAL` gives the creation status. Without admin rights, `project/{key}/statuses`
+already shows whether two issue types of a project use different statuses.
+
+Traps: `GET /rest/api/3/workflow/search` was removed on 2026-06-01 (use `GET /rest/api/3/workflows/search` or the
+calls above); team-managed projects are not in `workflowscheme/project` (use `workflows/preview`).
+
 ## 9. Suggested next steps
 
 1. Ask AL which of section 8 to validate first.
