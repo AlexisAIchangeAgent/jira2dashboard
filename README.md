@@ -27,11 +27,12 @@ src/jira2dashboard/
                         Les tables, formules et graphiques sont construits par le VBA (modFlowBuild.bas) depuis
                         ce plan ; modExtract.bas écrit les feuilles brutes Issues et StatusIntervals.
                         checks.py : les 29 contrôles de données DC01-DC29 (référence Python)
-  build_workbook.py     construit le classeur à livrer out\jira2dashboard.xlsm (sans module de test)
-  clean.py              vide out\ avant un build : garde les .xlsm et les caches de test
+  build_workbook.py     construit le classeur à livrer out\release\jira2dashboard.xlsm (sans module de test)
+  clean.py              vide out\inter avant un build (sauf les caches de test) ; out\release n'est jamais touché
+  mock_workbook.py      copie d'essai manuel remplie pour le faux Jira : out\inter\jira2dashboard_mock.xlsm
   mockjira/             faux Jira Cloud sur localhost (E3) : dataset.py (historiques), generator.py (volume seedé),
                         jql.py, api.py (réponses pures), server.py (http.server + fautes injectables)
-  paths.py              emplacements (repo, vba, params, out, children)
+  paths.py              emplacements (repo, vba, params, out\release, out\inter, children)
 params/                 workflows.md, transitions.md, field_mapping.md : les paramètres (statuts, transitions,
                         champs). On les modifie ici ou dans le classeur, jamais dans le code
 vba/                    13 modules .bas (ASCII uniquement), artefact de premier rang ; modParams.bas lit les feuilles,
@@ -41,8 +42,9 @@ tests/features/         scénarios Gherkin (*.feature, en français)
 tests/steps/            steps pytest-bdd
 tests/integration/      tests marqués `excel` (vide pour l'instant ; le walking skeleton est dans features/steps)
 docs/                   les 7 md de contexte et de paramètres
-scripts/                setup.ps1, activate.ps1, run.ps1, release.ps1
-out/                    classeurs générés
+scripts/                setup.ps1, activate.ps1, run.ps1, release.ps1, manual-test.ps1, start-mock.ps1, stop-mock.ps1
+out/release/            le classeur à livrer (build) et les paquets de release (out\release\<version>)
+out/inter/              tout le reste : classeurs de test, copie d'essai, exports, caches (vidé à chaque build)
 archive/                ancien code et sondes (rien n'a été supprimé)
 ```
 
@@ -57,9 +59,11 @@ powershell -ExecutionPolicy Bypass -File scripts\setup.ps1 -Dev    # crée .venv
 .\scripts\run.ps1 test-network    # scénarios qui pilotent Excel + réseau (couverture 100 %)
 .\scripts\run.ps1 vba-tests       # build + compile + tests VBA ; --offline, --bisect, --out nom.xlsm
 .\scripts\run.ps1 check-machine   # 21 contrôles de la machine
-.\scripts\run.ps1 mock-jira       # faux Jira sur http://127.0.0.1:8099, Ctrl+C pour arrêter
-.\scripts\run.ps1 build           # construit le classeur à livrer : out\jira2dashboard.xlsm (--out nom.xlsm)
-.\scripts\run.ps1 clean           # vide out\ sauf les .xlsm et les caches de test (build et vba-tests le font d'abord)
+.\scripts\run.ps1 mock-jira       # faux Jira sur http://127.0.0.1:8099 (--anomalies : avec les anomalies connues), Ctrl+C pour arrêter
+.\scripts\run.ps1 build           # construit le classeur à livrer : out\release\jira2dashboard.xlsm (--out nom.xlsm : dans out\inter)
+.\scripts\run.ps1 clean           # vide out\inter sauf les caches de test (build et vba-tests le font d'abord)
+.\scripts\manual-test.ps1         # essai manuel : faux Jira + copie remplie du classeur, ouverte dans un nouvel Excel
+.\scripts\stop-mock.ps1           # arrête le faux Jira lancé par manual-test.ps1 ou start-mock.ps1
 .\scripts\release.ps1 -Version v1.0.0            # essai à blanc : zip du code + classeur dans out\release\v1.0.0
 .\scripts\release.ps1 -Version v1.0.0 -Publish   # idem, puis crée la release et son tag sur GitHub
 ```
@@ -67,9 +71,36 @@ powershell -ExecutionPolicy Bypass -File scripts\setup.ps1 -Dev    # crée .venv
 Release : le script part d'un arbre propre (tout est commité). Le zip est le code du dernier commit, sans
 `CLAUDE.md`, `claude-code-handoff.md`, `archive\`, `.claude\` ni `.venv\` (règles `export-ignore` de
 `.gitattributes`, vérifiées par `tests\unit\test_release_contents.py`). Avec `-Publish`, le commit doit déjà être
-poussé. Les liens « Source code » ajoutés par GitHub suivent les mêmes règles.
+poussé. Les liens « Source code » ajoutés par GitHub suivent les mêmes règles. Le classeur de la release est
+`out\release\jira2dashboard.xlsm`, construit par le script à partir du même commit.
 
-## Livraison : le classeur `out\jira2dashboard.xlsm` (E6)
+## Essai manuel avec le faux Jira
+
+Pour essayer un classeur à la main, sans lancer les tests automatiques :
+
+```powershell
+.\scripts\manual-test.ps1                       # le classeur out\release\jira2dashboard.xlsm (construit s'il manque)
+.\scripts\manual-test.ps1 -Workbook C:\x.xlsm   # une autre version du classeur ; -Port 8100 si 8099 est pris
+.\scripts\stop-mock.ps1                         # à la fin : arrête le faux Jira
+```
+
+Le script :
+
+1. écrit la copie `out\inter\jira2dashboard_mock.xlsm`, dont les feuilles Config, Periods et PIs sont remplies
+   pour le faux Jira (adresse, compte, date de référence, champs) ;
+2. lance le faux Jira (1200 tickets et les anomalies connues) dans une fenêtre réduite ;
+3. ouvre la copie dans un nouvel Excel.
+
+Le classeur donné ne change pas. Dans la copie, activer le contenu, puis cliquer **Read the Jira configuration**,
+puis **Extract from Jira and compute**.
+
+Attention : Excel peut planter juste après la dernière page de recherche. C'est le défaut connu de
+l'extraction. La copie s'ouvre donc dans un Excel séparé : enregistrer son autre travail avant.
+
+`stop-mock.ps1` ne tue que le faux Jira que ces scripts ont lancé : le numéro et l'heure de démarrage du
+processus sont gardés dans `%TEMP%\jira2dashboard\`.
+
+## Livraison : le classeur `out\release\jira2dashboard.xlsm` (E6)
 
 Deux façons de livrer, au choix d'AL : **le fichier `.xlsm` tel quel**, ou **le code du projet**, à builder sur le
 poste client (Python 3.14 : `scripts\setup.ps1`, puis `scripts\run.ps1 build`). Le classeur n'a pas besoin de Python

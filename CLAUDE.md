@@ -27,9 +27,11 @@ powershell -ExecutionPolicy Bypass -File scripts\setup.ps1 -Dev   # create .venv
 .\scripts\run.ps1 test-network    # Excel + network scenarios (marker `network`)
 .\scripts\run.ps1 vba-tests       # build + compile + run the VBA test suite; --offline, --bisect, --out name.xlsm
 .\scripts\run.ps1 check-machine   # 21 checks of the machine (Excel, VBA trust...)
-.\scripts\run.ps1 mock-jira       # fake Jira on http://127.0.0.1:8099
-.\scripts\run.ps1 build           # delivery workbook out\jira2dashboard.xlsm (--out name.xlsm)
-.\scripts\run.ps1 clean           # empty out\ except the *.xlsm and the test caches (build and vba-tests do it first)
+.\scripts\run.ps1 mock-jira       # fake Jira on http://127.0.0.1:8099 (--anomalies: with the known data anomalies)
+.\scripts\run.ps1 build           # delivery workbook out\release\jira2dashboard.xlsm (--out name.xlsm: to out\inter)
+.\scripts\run.ps1 clean           # empty out\inter except the test caches (build and vba-tests do it first)
+.\scripts\manual-test.ps1         # manual try: fake Jira + pre-filled copy (mock-workbook), opened in a new Excel
+.\scripts\stop-mock.ps1           # kill the fake Jira that start-mock.ps1 / manual-test.ps1 started
 .\scripts\release.ps1 -Version v1.0.0 [-Publish]   # zip of HEAD + built workbook in out\release; -Publish = GitHub release
 ```
 
@@ -44,7 +46,9 @@ Single test: `.\scripts\run.ps1 test tests/unit/test_checks.py::test_name` or
 wrap it in `cmd /c` or redirect with `2>&1` (it stops on `$ErrorActionPreference='Stop'`).
 From Bash: `powershell -NoProfile -ExecutionPolicy Bypass -File scripts/run.ps1 test-excel > "$TEMP/x.log" 2>&1` works
 (the redirect is outside PowerShell). Write logs, benches and scratch files to `$TEMP` or the scratchpad, never to
-`out/`: `out/` holds the workbooks only, and `build` / `vba-tests` empty the rest (`src/jira2dashboard/clean.py`).
+`out/`. `out\release` holds what is delivered (the workbook of `build`, the packages of `release.ps1`) and is never
+cleaned; `out\inter` holds the rest (test workbooks, the manual-test copy, exports, `.coverage`, `.pytest_cache`),
+emptied by `build` / `vba-tests` except the caches (`src/jira2dashboard/clean.py`). Tests write to `INTER_DIR`.
 
 Before finishing a change run the full pass: `coverage`, `vba-tests`, `test-excel`, `test-network`, `build`.
 
@@ -90,7 +94,10 @@ Before finishing a change run the full pass: `coverage`, `vba-tests`, `test-exce
 - **Fake Jira.** `mockjira/` is a stdlib `http.server` Jira Cloud (search/jql, changelog bulkfetch, proxy/CONNECT, fault
   injection) fed by `dataset.py` (hand-written cases via `issue()`) and `generator.py` (seeded volume);
   `anomalies.py` adds known data-quality cases; `config.py` answers the configuration calls from the parameters (round
-  trip). The real Jira is never called.
+  trip). The real Jira is never called. Manual try: `scripts\manual-test.ps1` = `start-mock.ps1` (mock with
+  `--anomalies`, pid + start time in `%TEMP%\jira2dashboard`) + `mock_workbook.py` (a copy with Config, Periods, PIs
+  filled; the source stays empty) opened in its own Excel (`/x`). `stop-mock.ps1` kills only that pid with that start
+  time (`taskkill /T`), never a port owner it did not start.
 - **COM layer.** `excel/com.py` holds the pure helpers and `excel_session`; `testbench/` builds, compiles and runs the VBA
   tests; `testbench/children/` scripts run as separate processes by path. Files omitted from coverage because they need
   COM: `flow/sheets.py`, `cli/check_machine.py`, `mockjira/__main__.py`, and the `build*`/`main` functions (see

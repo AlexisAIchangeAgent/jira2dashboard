@@ -1,5 +1,6 @@
-"""The workbook to deliver, without Excel: which modules it holds and which macro its button runs."""
+"""The workbook to deliver, without Excel: which modules it holds, which macro its button runs, where it goes."""
 from jira2dashboard import build_workbook as bw
+from jira2dashboard.paths import INTER_DIR, RELEASE_DIR
 from jira2dashboard.testbench import run_vba_tests as rvt
 
 
@@ -25,3 +26,11 @@ def test_the_macro_of_the_button_calls_the_chain_the_scenario_tests():
     text = rvt.module_sources(["modActions"])["modActions"]
     for call in ("ExtractFlowData", "BuildFlowSheetsIn ThisWorkbook"):
         assert call in text
+
+
+def test_the_workbook_to_deliver_goes_to_out_release():
+    assert bw.TARGET == bw.target_for(bw.DELIVERY_NAME) == RELEASE_DIR / "jira2dashboard.xlsm"
+
+
+def test_a_variant_named_by_out_goes_to_out_inter():
+    assert bw.target_for("try.xlsm") == INTER_DIR / "try.xlsm"

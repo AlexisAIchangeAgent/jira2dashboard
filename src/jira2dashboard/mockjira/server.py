@@ -30,6 +30,8 @@ PROJECT_STATUSES = re.compile(r"/rest/api/3/project/([^/]+)/statuses")
 GONE_MESSAGE = "The requested API has been removed. Please migrate to the /rest/api/3/search/jql API."
 PAC_PATH = "/proxy.pac"                       # a proxy script (PAC) that sends every address to this fake as a proxy
 PAC_TYPE = "application/x-ns-proxy-autoconfig"
+MOCK_EMAIL = "mock@example.com"                # the account of `run.ps1 mock-jira` and of the manual-test copy
+MOCK_TOKEN = "mock-token"
 
 
 def pac_script(proxy: str) -> str:

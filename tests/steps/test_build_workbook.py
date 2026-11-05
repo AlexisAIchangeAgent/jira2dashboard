@@ -2,12 +2,12 @@
 import pytest
 from pytest_bdd import given, scenarios, then, when
 
-from jira2dashboard.paths import OUT_DIR
+from jira2dashboard.paths import INTER_DIR
 from jira2dashboard.testbench import run_vba_tests as rvt
 
 scenarios("../features/build_workbook.feature")
 
-TARGET = OUT_DIR / "walking_skeleton.xlsm"
+TARGET = INTER_DIR / "walking_skeleton.xlsm"
 
 
 @pytest.fixture

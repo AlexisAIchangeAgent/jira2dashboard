@@ -1,29 +1,30 @@
-"""Clean the folder out before a build: the workbooks stay, the intermediate files go.
+"""Clean the folder out before a build: out\\release stays, out\\inter is emptied, nothing else stays at the root.
 
 Usage:  scripts\\run.ps1 clean   (build and vba-tests also clean first)
 
-Kept, at the top of out: the workbooks (*.xlsm, which also keeps Excel's lock file ~$name.xlsm of an open workbook)
-and the tool caches that pyproject.toml puts there (.coverage, .pytest_cache). Everything else goes: logs, exports,
-temporary folders, old copies. A file that a program still holds (Windows refuses to delete it) is kept and reported,
-never forced.
+out\\release holds what is delivered (the workbook of `build`, the release packages of scripts\\release.ps1): never
+touched. out\\inter holds the rest (test workbooks, the manual-test copy, exports, logs): emptied, except the tool caches
+that pyproject.toml puts there (.coverage, .pytest_cache). Anything else at the root of out is a leftover of the old
+layout and goes. A file that a program still holds (Windows refuses to delete it) is kept and reported, never forced.
 """
 import shutil
 import sys
 from pathlib import Path
 
-from jira2dashboard.paths import OUT_DIR
+from jira2dashboard.paths import INTER_DIR, OUT_DIR, RELEASE_DIR
 
 TOOL_CACHES = (".coverage", ".pytest_cache")
+FOLDERS = (RELEASE_DIR.name, INTER_DIR.name)
 
 
-def is_kept(entry: Path) -> bool:
-    return entry.name in TOOL_CACHES or (entry.is_file() and entry.suffix.lower() == ".xlsm")
+def entries(folder: Path) -> list[Path]:
+    return list(folder.iterdir()) if folder.is_dir() else []
 
 
 def intermediates(out_dir: Path) -> list[Path]:
-    if not out_dir.is_dir():
-        return []
-    return sorted(entry for entry in out_dir.iterdir() if not is_kept(entry))
+    leftovers = [entry for entry in entries(out_dir) if entry.name not in FOLDERS]
+    inter = [entry for entry in entries(out_dir / INTER_DIR.name) if entry.name not in TOOL_CACHES]
+    return sorted(leftovers + inter)
 
 
 def clean(out_dir: Path = OUT_DIR) -> tuple[list[Path], list[Path]]:

@@ -2,7 +2,8 @@
 # Builds the two files of a release in out\release\<version>:
 #   jira2dashboard-<version>.zip  the code of HEAD (git archive; .gitattributes leaves out CLAUDE.md,
 #                                 claude-code-handoff.md, archive\, .claude\ and .venv\)
-#   jira2dashboard.xlsm           the workbook to deliver (scripts\run.ps1 build: needs Excel)
+#   jira2dashboard.xlsm           the workbook to deliver (scripts\run.ps1 build writes out\release\jira2dashboard.xlsm;
+#                                 needs Excel)
 # Without -Publish it stops there (dry run, nothing leaves the machine). With -Publish it creates the GitHub release
 # and its tag on HEAD, which must already be pushed. ASCII only: PowerShell 5.1 reads a file without BOM as ANSI.
 param(
@@ -31,14 +32,15 @@ if ($Publish) {
     if (git ls-remote --tags origin "refs/tags/$Version") { Fail "the tag $Version already exists on GitHub." }
 }
 
-# 2. The workbook, built from the same commit. First: the build cleans the folder out (intermediates, older releases)
+# 2. The workbook, built from the same commit. The build empties out\inter first; out\release and the packages of
+#    older releases (out\release\<version>) stay.
 & (Join-Path $PSScriptRoot "run.ps1") build
 if ($LASTEXITCODE -ne 0) { Fail "the build of the workbook failed (see above)." }
 $name = "jira2dashboard-$Version"
 $dist = Join-Path $root "out\release\$Version"
 New-Item -ItemType Directory -Force $dist | Out-Null
 $xlsm = Join-Path $dist "jira2dashboard.xlsm"
-Copy-Item (Join-Path $root "out\jira2dashboard.xlsm") $xlsm
+Copy-Item (Join-Path $root "out\release\jira2dashboard.xlsm") $xlsm
 Write-Host "release: $xlsm"
 
 # 3. The code: git archive of HEAD, then check what it holds

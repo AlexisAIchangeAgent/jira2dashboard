@@ -26,7 +26,7 @@ where = ["src"]
 # and `vba-tests` instead. When you add an Excel-bound function, add its name to this list.
 [tool.coverage.run]
 source = ["jira2dashboard"]
-data_file = "out/.coverage"
+data_file = "out/inter/.coverage"
 omit = ["*/cli/check_machine.py", "*/mockjira/__main__.py", "*/flow/sheets.py"]
 
 [tool.coverage.report]
@@ -38,11 +38,12 @@ exclude_also = [
     '''def (set_sheet_code_name|add_macro_button|open_without_macros|compile_vba_project|run_macro)\b''',
     '''def (run_child|_kill_child_excel|write_params)\b''',
     '''def (build|add_progress_bar|write_coverage_map|compile_ok|run_tests|bisect|main|build_delivery)\b''',
+    '''def (write_periods|write_config|fill_copy)\b''',
 ]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-cache_dir = "out/.pytest_cache"
+cache_dir = "out/inter/.pytest_cache"
 pythonpath = ["src"]
 markers = [
     "excel: drives a real Excel through COM (slow)",

@@ -3,7 +3,7 @@
 Usage:  scripts\\run.ps1 vba-tests            (offline + network tests)
         scripts\\run.ps1 vba-tests --offline  (no network tests)
         scripts\\run.ps1 vba-tests --bisect   (find the first module that does not compile)
-        scripts\\run.ps1 vba-tests --out name.xlsm  (workbook name under out\\)
+        scripts\\run.ps1 vba-tests --out name.xlsm  (workbook name under out\\inter)
 """
 import json
 import subprocess
@@ -20,7 +20,7 @@ from jira2dashboard.flow.sheets import write_blueprint
 from jira2dashboard.mockjira.server import PAC_PATH, PAC_TYPE, pac_script
 from jira2dashboard.params.model import load_all as load_params
 from jira2dashboard.params.write import write_params
-from jira2dashboard.paths import CHILDREN_DIR, OUT_DIR, VBA_DIR
+from jira2dashboard.paths import CHILDREN_DIR, INTER_DIR, VBA_DIR
 
 def option(flag: str, default: str) -> str:
     """The value after `flag` on the command line, or the default (also when the flag is the last argument)."""
@@ -36,7 +36,7 @@ def out_name(default: str) -> str:
     return name
 
 
-OUT = OUT_DIR / out_name("vba_tests.xlsm")
+OUT = INTER_DIR / out_name("vba_tests.xlsm")
 ORDER = ["modCoverage", "modLog", "modJson", "modText", "modHttp", "modProxy", "modJira", "modFlow", "modParams", "modExtract",
          "modJiraConfig", "modFlowBuild", "modActions", "modBackground", "modTests", "modButtons"]
 BUTTONS = [("J2", "Lancer les tests (hors ligne)", "modButtons.BtnRunAllTests"),
@@ -153,7 +153,7 @@ def run_tests(target: Path, network: bool) -> dict:
 def bisect() -> None:
     """Add modules one by one and compile each step to find the first failure."""
     for n in range(1, len(ORDER) + 1):
-        target = OUT_DIR / f"bisect_{n}.xlsm"
+        target = INTER_DIR / f"bisect_{n}.xlsm"
         build(ORDER[:n], target)
         result = compile_ok(target)
         print(f"{ORDER[n - 1]:14} -> {result}")

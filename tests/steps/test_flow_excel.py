@@ -12,7 +12,7 @@ import pytest
 import pywintypes
 from pytest_bdd import given, parsers, scenarios, then, when
 
-from jira2dashboard import manual
+from jira2dashboard import manual, mock_workbook
 from jira2dashboard.build_workbook import build_delivery
 from jira2dashboard.excel import com
 from jira2dashboard.flow import blueprint, sheets
@@ -20,7 +20,7 @@ from jira2dashboard.flow import dashboard_spec as D
 from jira2dashboard.flow.itemflow import item_flow
 from jira2dashboard.flow.load import daily_load
 from jira2dashboard.flow.metrics import BUCKETS, flow_metrics
-from jira2dashboard.flow.model import NOT_COMPUTABLE, Period, Rules
+from jira2dashboard.flow.model import NOT_COMPUTABLE, Rules
 from jira2dashboard.flow.checks import CHECKS, IDS, PER_ISSUE, CheckSettings, Moves, fill_rates, run_checks
 from jira2dashboard.mockjira.anomalies import PI, PI_WINDOW, with_anomalies
 from jira2dashboard.mockjira import config as jira_config
@@ -28,13 +28,13 @@ from jira2dashboard.mockjira.flow_adapter import to_flow_issues
 from jira2dashboard.mockjira.generator import generate
 from jira2dashboard.mockjira.server import MockJira
 from jira2dashboard.params.model import load_all, mandatory_parameters, project_keys
-from jira2dashboard.paths import OUT_DIR
+from jira2dashboard.paths import INTER_DIR
 
 scenarios("../features/flow_excel.feature")
 scenarios("../features/jira_config.feature")             # same workbook and fake Jira steps
 scenarios("../features/first_use.feature")
 
-TARGET = OUT_DIR / "flow_workbook.xlsm"
+TARGET = INTER_DIR / "flow_workbook.xlsm"
 TOLERANCE = 1e-6                    # days (0.09 s): Excel dates are doubles, the reference works in whole seconds
 
 
@@ -160,9 +160,7 @@ def _first_run(world, jira_server, n):
     set_config(wb, "AsOf", f"{world['dataset'].as_of:%Y-%m-%d %H:%M}")
 
 
-FIELD_IDS = {"StoryPointsField": "story_points", "BusinessValueField": "business_value", "PIField": "pi",
-             "TeamField": "team", "SprintField": "sprint", "TargetStartField": "target_start",
-             "TargetEndField": "target_end"}          # Config parameter -> attribute of dataset.fields
+FIELD_IDS = mock_workbook.FIELD_IDS          # Config parameter -> attribute of dataset.fields
 
 
 def put_pis(wb, rows):
@@ -193,15 +191,8 @@ def _check_fields_empty(world):
 
 @given(parsers.parse('les itérations de 14 jours depuis le "{first}" jusqu\'à la date de référence dans la feuille Periods'))
 def _periods(world, first):
-    ws, start, row, periods = world["wb"].Worksheets("Periods"), dt.datetime.fromisoformat(first), 2, []
-    ws.Range("A2:C200").ClearContents()                  # the periods of an earlier run must not stay
-    while start < world["dataset"].as_of:
-        end = start + dt.timedelta(days=14)
-        ws.Cells(row, 1).Value = com.as_cell(f"I{row - 1}")
-        ws.Cells(row, 2).Value2 = com.to_excel_serial(start)
-        ws.Cells(row, 3).Value2 = com.to_excel_serial(end)
-        periods.append(Period(f"I{row - 1}", start, end))
-        start, row = end, row + 1
+    periods = mock_workbook.iterations(dt.datetime.fromisoformat(first), world["dataset"].as_of)
+    mock_workbook.write_periods(world["wb"].Worksheets("Periods"), periods)    # the periods of an earlier run go
     world["periods"] = periods
 
 
@@ -654,7 +645,7 @@ def _distribution(world):
 
 @then("les graphiques sont exportés en PNG")
 def _png(world):
-    files = sheets.export_charts(world["wb"], OUT_DIR / "dashboard")
+    files = sheets.export_charts(world["wb"], INTER_DIR / "dashboard")
     assert set(files) == {s.name for s in D.CHARTS}
     for path in files.values():
         data = Path(path).read_bytes()

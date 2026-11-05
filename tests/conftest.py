@@ -10,11 +10,11 @@ import pytest
 
 from jira2dashboard.excel import com
 from jira2dashboard.mockjira.dataset import Dataset, issue
-from jira2dashboard.paths import OUT_DIR
+from jira2dashboard.paths import INTER_DIR
 from jira2dashboard.testbench import run_vba_tests as rvt
 
 AS_OF = dt.datetime(2026, 11, 3, 18, 0)
-SHARED_WORKBOOK = OUT_DIR / "workbook_test.xlsm"
+SHARED_WORKBOOK = INTER_DIR / "workbook_test.xlsm"
 
 
 @pytest.fixture(scope="session")

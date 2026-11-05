@@ -13,6 +13,8 @@ import dataclasses
 from jira2dashboard.mockjira.dataset import Change, Dataset, FieldIds, Issue, Sprint, StatusCatalog
 from jira2dashboard.params.model import ParamSheet, load_all
 
+AS_OF = dt.datetime(2026, 11, 3, 18, 0)       # the reference date of the generated data (Config AsOf)
+SINCE = dt.datetime(2026, 6, 1)               # the first issue is created after this date
 DEFAULT_PROJECTS = ("PRG", "TA", "TB")      # the first project is the Program (features), the others are teams
 AUTHORS = (("Ann Martin", "acc-ann"), ("Bob Durand", "acc-bob"), ("Chloe Petit", "acc-chloe"),
            ("Dan Roux", "acc-dan"), ("Eva Blanc", "acc-eva"))
@@ -137,8 +139,8 @@ def _decorate(issues: list[Issue], seed: int, as_of: dt.datetime, teams: dict[st
     return out
 
 
-def generate(seed: int = 1, issues: int = 1200, as_of: dt.datetime = dt.datetime(2026, 11, 3, 18, 0),
-             since: dt.datetime = dt.datetime(2026, 6, 1), sheets: list[ParamSheet] | None = None,
+def generate(seed: int = 1, issues: int = 1200, as_of: dt.datetime = AS_OF,
+             since: dt.datetime = SINCE, sheets: list[ParamSheet] | None = None,
              projects: tuple[str, ...] = DEFAULT_PROJECTS, fields: FieldIds | None = None) -> Dataset:
     """`issues` issues: about 10 % features in the first project (Program, Feature workflow), the rest in the
     other projects (teams, Team workflow). `fields` sets the ids of the custom fields (story points, ...)."""

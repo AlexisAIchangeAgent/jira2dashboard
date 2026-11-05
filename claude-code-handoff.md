@@ -162,6 +162,19 @@ MD5 of the current modules (LF line endings). Unchanged since the original hando
   `run_vba_tests.pac_server` on 127.0.0.1, address given by `SetPacUrl`), `M_AutoProxyPac` (the fake Jira serves
   `/proxy.pac` and is reached as the detected proxy). `RunTests` gives every test direct settings first, so no test
   depends on the proxy of the machine. Still to verify at the client: a real PAC or WPAD network.
+- **out\release, out\inter and the manual try (2026-11-05).** `build` writes `out\release\jira2dashboard.xlsm`
+  (`--out` variants go to `out\inter`); `release.ps1` takes it from there and keeps its packages in
+  `out\release\<version>`. Every other file (test workbooks, exports, `.coverage`, `.pytest_cache`) is under
+  `out\inter` (`paths.INTER_DIR`), which `clean` empties except the caches; anything else at the root of `out` is a
+  leftover and goes. Manual try without the automatic tests: `scripts\manual-test.ps1` stops an earlier mock, builds
+  the workbook if missing, writes the copy `out\inter\jira2dashboard_mock.xlsm` (`mock_workbook.py`: Config with the
+  mock address, account `MOCK_EMAIL`/`MOCK_TOKEN`, `AsOf` = `generator.AS_OF` and the field ids; 14-day Periods from
+  `generator.SINCE`; the PI of the anomalies), starts the mock (`start-mock.ps1`: `mock-jira --anomalies`, minimized,
+  pid + start time in `%TEMP%\jira2dashboard\mock-jira-<port>.pid`) and opens the copy in a new Excel (`excel /x`,
+  so the known extraction crash cannot take AL's other workbooks). `stop-mock.ps1` kills that pid only if its start
+  time matches (`taskkill /T`). Tests: `tests\features\manual_test.feature` (the copy is read, no extraction),
+  `tests\unit\test_mock_workbook.py`, `test_mock_scripts.py` (start/stop on a free port, a foreign port, a reused
+  pid, ASCII scripts), `test_mock_main.py`, `test_build_workbook_pure.py`.
 
 | Module | MD5 |
 |---|---|
@@ -453,7 +466,9 @@ powershell -ExecutionPolicy Bypass -File scripts\setup.ps1 -Dev
 .\scripts\run.ps1 test-network
 .\scripts\run.ps1 check-machine
 .\scripts\run.ps1 vba-tests --out vba_tests_v6.xlsm
-start "" out\vba_tests_v6.xlsm
+start "" out\inter\vba_tests_v6.xlsm
+.\scripts\manual-test.ps1          # try the workbook by hand against the fake Jira
+.\scripts\stop-mock.ps1
 ```
 
 If a workbook is open in AL's Excel, write to a new `--out` name (the open file is locked).

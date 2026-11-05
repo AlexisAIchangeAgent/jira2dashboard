@@ -7,10 +7,10 @@ import traceback
 from pathlib import Path
 
 from jira2dashboard.excel import com as R
-from jira2dashboard.paths import CHILDREN_DIR, OUT_DIR
+from jira2dashboard.paths import CHILDREN_DIR, INTER_DIR
 
 logging.basicConfig(level=logging.INFO, format="  log: %(message)s")
-OUT = OUT_DIR
+OUT = INTER_DIR
 RESULTS: list[tuple[str, str, str]] = []
 
 MOD_MAIN = r'''
@@ -257,7 +257,7 @@ def reopen_checks(app, path: Path):
 
 
 def main() -> int:
-    OUT.mkdir(exist_ok=True)
+    OUT.mkdir(parents=True, exist_ok=True)
     base = excel_count()
     print(f"Python {sys.version.split()[0]}, Excel processes before: {base}")
     check_pure()
