@@ -30,6 +30,8 @@ src/jira2dashboard/
   build_workbook.py     construit le classeur à livrer out\release\jira2dashboard.xlsm (sans module de test)
   clean.py              vide out\inter avant un build (sauf les caches de test) ; out\release n'est jamais touché
   mock_workbook.py      copie d'essai manuel remplie pour le faux Jira : out\inter\jira2dashboard_mock.xlsm
+  standalone/           le chemin Python sans VBA (run.ps1 extract) : lit les paramètres du classeur, lit Jira
+                        (WinHTTP), calcule avec flow/ et écrit jira2dashboard.xlsx (valeurs + graphiques SVG)
   mockjira/             faux Jira Cloud sur localhost (E3) : dataset.py (historiques), generator.py (volume seedé),
                         jql.py, api.py (réponses pures), server.py (http.server + fautes injectables)
   paths.py              emplacements (repo, vba, params, out\release, out\inter, children)
@@ -66,6 +68,7 @@ powershell -ExecutionPolicy Bypass -File scripts\setup.ps1 -Dev    # crée .venv
 .\scripts\run.ps1 mock-jira       # faux Jira sur http://127.0.0.1:8099 (--anomalies : avec les anomalies connues), Ctrl+C pour arrêter
 .\scripts\run.ps1 build           # construit le classeur à livrer : out\release\jira2dashboard.xlsm (--out nom.xlsm : dans out\inter)
 .\scripts\run.ps1 clean           # vide out\inter sauf les caches de test (build et vba-tests le font d'abord)
+.\scripts\run.ps1 extract         # sans VBA : Jira lu par Python, résultats dans jira2dashboard.xlsx (voir plus bas)
 .\scripts\manual-test.ps1         # essai manuel : faux Jira + copie remplie du classeur, ouverte dans un nouvel Excel
 .\scripts\stop-mock.ps1           # arrête le faux Jira lancé par manual-test.ps1 ou start-mock.ps1
 .\scripts\release.ps1 -Version v1.0.0            # essai à blanc : zip du code + classeur dans out\release\v1.0.0
@@ -103,6 +106,35 @@ l'extraction. La copie s'ouvre donc dans un Excel séparé : enregistrer son aut
 
 `stop-mock.ps1` ne tue que le faux Jira que ces scripts ont lancé : le numéro et l'heure de démarrage du
 processus sont gardés dans `%TEMP%\jira2dashboard\`.
+
+## Extraction Python sans VBA : `jira2dashboard.xlsx`
+
+Si les macros du classeur ne marchent pas (Excel qui plante, macros bloquées), Python fait leur travail :
+
+```powershell
+.\scripts\run.ps1 extract --workbook C:\Data\jira2dashboard.xlsm   # écrit C:\Data\jira2dashboard.xlsx
+.\scripts\run.ps1 extract --help                                   # toutes les options
+.\scripts\manual-test.ps1 -Python                                  # l'essayer contre le faux Jira
+```
+
+1. Il lit les feuilles de paramètres du classeur rempli (Config, Projects, Periods, PIs, Workflows,
+   Transitions) comme un fichier, sans ouvrir Excel : **enregistrer le classeur avant**. Les valeurs
+   obligatoires (Mandatory = True) doivent être remplies, comme pour les macros.
+2. Il lit Jira comme les macros : même proxy (ProxyServer, ou celui des réglages Windows), même session Windows
+   envoyée au proxy, mêmes nouvelles tentatives après 429 et 5xx.
+3. Il calcule les données et les résultats avec la référence Python (celle qui vérifie le classeur cellule par
+   cellule) et écrit `jira2dashboard.xlsx` à côté du classeur lu (ou `--out`) : feuilles Run, Charts (les 8
+   graphiques du Dashboard, en images SVG), Metrics, DataChecks, FillRates, ItemFlow, DailyLoad, Issues,
+   StatusIntervals, IssueLinks, Errors, et les paramètres utilisés (ApiToken masqué). Des valeurs : aucune
+   formule, aucun VBA. Les colonnes de Metrics et DataChecks sont celles du classeur.
+4. Si Jira ou un paramètre fait défaut, rien n'est écrit : le fichier précédent reste.
+
+Le journal `%LOCALAPPDATA%\jira2dashboard\logs\python.log` donne chaque étape, chaque appel à Jira qui échoue
+(statut, appel, tentative, attente, message de Jira) et chaque erreur avec sa trace Python. Il ne contient jamais
+le token ni l'en-tête Authorization. Il contient en revanche la JQL (les projets et le Filter), le chemin du
+classeur, l'adresse du proxy trouvé et les messages de Jira (contrairement au journal des macros) : le relire avant
+de le partager.
+Python 3.14 et pywin32 doivent être installés (`scripts\setup.ps1`, sans `-Dev`).
 
 ## Livraison : le classeur `out\release\jira2dashboard.xlsm` (E6)
 

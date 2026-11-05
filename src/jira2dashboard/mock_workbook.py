@@ -16,7 +16,9 @@ from jira2dashboard.mockjira.anomalies import PI, PI_WINDOW
 from jira2dashboard.mockjira.dataset import FieldIds
 from jira2dashboard.mockjira.generator import AS_OF, SINCE
 from jira2dashboard.mockjira.server import MOCK_EMAIL, MOCK_TOKEN
+from jira2dashboard.params.model import load_all
 from jira2dashboard.paths import INTER_DIR, RELEASE_DIR
+from jira2dashboard.standalone.xlsx_write import Sheet, write_xlsx
 
 COPY_NAME = "jira2dashboard_mock.xlsm"
 COPY = INTER_DIR / COPY_NAME
@@ -45,6 +47,29 @@ def iterations(first: dt.datetime = SINCE, as_of: dt.datetime = AS_OF, days: int
         periods.append(Period(f"I{len(periods) + 1}", start, end))
         start = end
     return periods
+
+
+def params_book(url: str, values: dict[str, str] | None = None) -> list[Sheet]:
+    """The parameter sheets of params/*.md filled for the fake Jira at `url`, as sheets of an xlsx (no Excel): Config
+    with config_values (and `values` over them), the iterations in Periods and the PI of the anomalies in PIs, as
+    dates. What the Python extraction reads from a filled workbook."""
+    filled = config_values(url) | (values or {})
+    out = []
+    for sheet in load_all():
+        rows = list(sheet.rows)
+        if sheet.name == "FieldMapping":
+            continue
+        if sheet.name == "Config":
+            value = sheet.header.index("Value")
+            rows = [row[:value] + (filled.get(row[0], row[value]),) + row[value + 1:] for row in rows]
+        elif sheet.name in ("Periods", "PIs"):
+            rows = [(p.name, p.start, p.end) for p in (iterations() if sheet.name == "Periods" else PIS)]
+        out.append(Sheet(sheet.name, sheet.header, rows))
+    return out
+
+
+def write_params_book(path: Path, url: str, values: dict[str, str] | None = None) -> Path:
+    return write_xlsx(path, params_book(url, values))
 
 
 def write_periods(ws, periods: list[Period]) -> None:

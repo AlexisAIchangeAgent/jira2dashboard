@@ -20,6 +20,7 @@ Commands:
   mock-workbook  a copy of a workbook with Config, Periods and PIs filled for the fake Jira
   build          the workbook to deliver: out\release\jira2dashboard.xlsm (--out name.xlsm: in out\inter)
   clean          empty out\inter, except the test caches (build and vba-tests do it first)
+  extract        without VBA: read Jira with Python, write data, results and charts to jira2dashboard.xlsx
 
 .PARAMETER Help
 Show this help. --help, -h and -? do the same.
@@ -48,6 +49,7 @@ $commands = [ordered]@{
     "mock-workbook" = "a copy of a workbook with Config, Periods and PIs filled for the fake Jira"
     "build"         = "the workbook to deliver: out\release\jira2dashboard.xlsm (--out name.xlsm: in out\inter)"
     "clean"         = "empty out\inter, except the test caches (build and vba-tests do it first)"
+    "extract"       = "without VBA: read Jira with Python, write data, results and charts to jira2dashboard.xlsx"
 }
 if ($args.Count -lt 1 -or @("--help", "-h", "-help", "help", "/?") -contains $args[0]) {
     Write-Host "Usage: .\scripts\run.ps1 <command> [arguments]   (.\scripts\run.ps1 <command> --help: its options)"
@@ -83,5 +85,6 @@ switch ($command) {
     "mock-workbook" { & $python -m jira2dashboard.mock_workbook @rest }
     "build"         { & $python -m jira2dashboard.build_workbook @rest }
     "clean"         { & $python -m jira2dashboard.clean @rest }
+    "extract"       { & $python -m jira2dashboard.standalone @rest }
 }
 exit $LASTEXITCODE

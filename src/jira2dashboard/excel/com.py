@@ -19,6 +19,7 @@ XL_BUTTON_CONTROL = 0                     # XlFormControl: Form button
 MSO_AUTOMATION_SECURITY_LOW = 1           # macros enabled for files opened by code
 MSO_AUTOMATION_SECURITY_BY_UI = 2         # use Trust Center setting
 MSO_AUTOMATION_SECURITY_FORCE_DISABLE = 3 # macros disabled for files opened by code
+MSO_GRAPHIC = 28                          # MsoShapeType of an SVG picture (msoPicture is 13)
 
 # VBE component types (vbext_ComponentType)
 VBEXT_CT_STD_MODULE = 1

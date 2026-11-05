@@ -30,6 +30,7 @@ powershell -ExecutionPolicy Bypass -File scripts\setup.ps1 -Dev   # create .venv
 .\scripts\run.ps1 mock-jira       # fake Jira on http://127.0.0.1:8099 (--anomalies: with the known data anomalies)
 .\scripts\run.ps1 build           # delivery workbook out\release\jira2dashboard.xlsm (--out name.xlsm: to out\inter)
 .\scripts\run.ps1 clean           # empty out\inter except the test caches (build and vba-tests do it first)
+.\scripts\run.ps1 extract         # Python path without VBA: Jira -> jira2dashboard.xlsx (values + SVG charts)
 .\scripts\manual-test.ps1         # manual try: fake Jira + pre-filled copy (mock-workbook), opened in a new Excel
 .\scripts\stop-mock.ps1           # kill the fake Jira that start-mock.ps1 / manual-test.ps1 started
 .\scripts\release.ps1 -Version v1.0.0 [-Publish]   # zip of HEAD + built workbook in out\release; -Publish = GitHub release
@@ -85,6 +86,17 @@ Before finishing a change run the full pass: `coverage`, `vba-tests`, `test-exce
   `modExtract` -> `modFlow` (status intervals) ; `modActions` is the dashboard button (`ExtractAndCompute`). The previous
   results are cleared only after Jira has answered. `modLog` writes the local log (`%LOCALAPPDATA%\jira2dashboard\logs`):
   RUN, BEGIN/END per step, ERROR; never pass it a token, URL, JQL or Jira answer (`test_vba_log_guard.py` checks).
+- **Python path without VBA (`standalone/`, `run.ps1 extract`).** A second consumer of the flow reference: it reads
+  the parameter sheets of the filled workbook as a zip (`xlsx_read`, by header name, shape rules shared with
+  params/*.md through `params.model.shape_problems`, Config rules of the VBA in `params_book`), calls Jira with the
+  WinHTTP COM object (`http_winhttp`: same proxy, Windows auth and retry rules as `modHttp`; body read from
+  ResponseBody as UTF-8; injectable sleep) after `proxy.py` (ctypes port of `modProxy`), maps the JSON like
+  `modExtract`/`modFlow` (`mapping`, oracle: `test_mapping` against `flow_adapter`), computes with `flow/`
+  (`results`, same column names as `formulas.TABLES`), draws the 8 charts as SVG (`charts_svg`) and writes values +
+  pictures with zipfile (`xlsx_write`: SVG with a blank PNG fallback, Excel 365 shows msoGraphic). Keep it in step
+  with the VBA when an extraction rule changes. Its log (`python.log`, same folder as the VBA log) is complete on
+  purpose (AL's choice): status, call, Jira's message, tracebacks; never the token nor the Authorization header
+  (`Scrubbed` formatter; `test_extract_main` checks).
 - **Jira configuration (VBA).** `modJiraConfig` (button Read the Jira configuration, `BtnReadJiraConfiguration`) reads
   projects, issue types, statuses, workflows (`workflows/preview`) and fields into proposal sheets `Jira*`; it never writes
   the parameter sheets (calls and mapping: handoff section 8c). Its Rovo counterpart, to compare Jira with the workbook:
@@ -102,8 +114,10 @@ Before finishing a change run the full pass: `coverage`, `vba-tests`, `test-exce
   `anomalies.py` adds known data-quality cases; `config.py` answers the configuration calls from the parameters (round
   trip). The real Jira is never called. Manual try: `scripts\manual-test.ps1` = `start-mock.ps1` (mock with
   `--anomalies`, pid + start time in `%TEMP%\jira2dashboard`) + `mock_workbook.py` (a copy with Config, Periods, PIs
-  filled; the source stays empty) opened in its own Excel (`/x`). `stop-mock.ps1` kills only that pid with that start
-  time (`taskkill /T`), never a port owner it did not start.
+  filled; the source stays empty) opened in its own Excel (`/x`); `-Python` runs `extract` on the copy instead.
+  `stop-mock.ps1` kills only that pid with that start time (`taskkill /T`), never a port owner it did not start.
+  Limit: with `proxy_challenge`, the fake proxy accepts the first NTLM leg, which WinHTTP sends with an empty body,
+  so a POST through it arrives empty; the Windows session sent to a proxy is tested with GET only.
 - **COM layer.** `excel/com.py` holds the pure helpers and `excel_session`; `testbench/` builds, compiles and runs the VBA
   tests; `testbench/children/` scripts run as separate processes by path. Files omitted from coverage because they need
   COM: `flow/sheets.py`, `cli/check_machine.py`, `mockjira/__main__.py`, and the `build*`/`main` functions (see

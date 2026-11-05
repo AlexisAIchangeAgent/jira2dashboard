@@ -292,18 +292,27 @@ def load_all(params_dir: Path = PARAMS_DIR) -> list[ParamSheet]:
     sheets = {spec.name: _read(spec, params_dir, problems) for spec in SPECS}
     if sheets["Config"]:
         _check_config(sheets["Config"], problems)
-    if sheets["Projects"]:
-        _check_projects(sheets["Projects"], problems)
-    if sheets["Periods"]:
-        _check_periods(sheets["Periods"], problems)
-    if sheets["PIs"]:
-        _check_periods(sheets["PIs"], problems, "PI")
-    if sheets["Workflows"]:
-        _check_workflows(sheets["Workflows"], problems)
-    if sheets["Transitions"] and sheets["Workflows"]:
-        _check_transitions(sheets["Transitions"], sheets["Workflows"], problems)
+    problems += shape_problems(sheets)
     if sheets["FieldMapping"]:
         _check_field_mapping(sheets["FieldMapping"], problems)
     if problems:
         raise ParamsError("\n".join(problems))
     return [sheets[spec.name] for spec in SPECS]
+
+
+def shape_problems(sheets: dict[str, "ParamSheet | None"]) -> list[str]:
+    """The rules of Projects, Periods, PIs, Workflows and Transitions, the same for params/*.md and for the sheets of a
+    filled workbook (the Python extraction reads those). Config has its own rules on each side: the repo keeps the
+    client values empty, the workbook holds them."""
+    problems: list[str] = []
+    if sheets.get("Projects"):
+        _check_projects(sheets["Projects"], problems)
+    if sheets.get("Periods"):
+        _check_periods(sheets["Periods"], problems)
+    if sheets.get("PIs"):
+        _check_periods(sheets["PIs"], problems, "PI")
+    if sheets.get("Workflows"):
+        _check_workflows(sheets["Workflows"], problems)
+    if sheets.get("Transitions") and sheets.get("Workflows"):
+        _check_transitions(sheets["Transitions"], sheets["Workflows"], problems)
+    return problems

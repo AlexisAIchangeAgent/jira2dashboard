@@ -183,6 +183,25 @@ MD5 of the current modules (LF line endings). Unchanged since the original hando
   internal, the `.ps1` through comment-based help (`--help`, `-Help`, `-?` in a console) and refuse an unknown
   argument (exit 2). `release.ps1 -Version` is no longer Mandatory (the script checks it). Tests:
   `tests\unit\test_help.py`.
+- **Python path without VBA (2026-11-05).** `scripts\run.ps1 extract` (`src\jira2dashboard\standalone\`) does the
+  work of the macros in Python and writes `jira2dashboard.xlsx` next to the workbook read: values (Run, Metrics,
+  DataChecks, FillRates, ItemFlow, DailyLoad, Issues, StatusIntervals, IssueLinks, Errors, the parameters with
+  ApiToken masked) and the 8 Dashboard charts as SVG pictures (spike of 2026-11-05: Excel 365 opens an SVG written by
+  hand with a blank PNG fallback, shape type 28 msoGraphic). Parameters: the sheets of the filled workbook read as a
+  zip (no Excel), by header name (an older Config without Example or Mandatory is accepted); Config rules of the VBA
+  (defaults, 608 mandatory message, AsOf 604, no period 703). Jira: WinHTTP COM through pywin32 (Windows auth on the
+  proxy), ctypes port of `modProxy`, retries of `modHttp` with an injectable sleep. Same JQL, fields, paging and
+  error numbers as the VBA (`jira_api.py`). The mapping is proven against `flow_adapter.to_flow_issues` on the fake
+  Jira's JSON (to the second: the milliseconds are dropped, as in the VBA). Flow Distribution: `--team`, default
+  'All teams' (the selector's default). Log `python.log`: complete (AL's choice) but scrubbed of the token and the
+  Authorization header. `manual-test.ps1 -Python` tries it against the fake Jira. Fake proxy limit: with
+  `proxy_challenge` a POST arrives empty (WinHTTP sends the first NTLM leg with no body; a hand-made NTLM type-2
+  challenge was refused by SSPI), so the proxy scenario of `standalone.feature` uses a proxy without auth and the
+  Windows session is tested with GET (`test_http_winhttp.py`). Tests: `tests\features\standalone.feature` (5
+  scenarios without Excel, 1 `@excel` on the copy saved by Excel), unit tests `test_xlsx`, `test_params_book`,
+  `test_jira_api`, `test_mapping`, `test_http_winhttp`, `test_proxy`, `test_charts_svg`, `test_extract_main`.
+  Still to verify at the client: a real run through the client's proxy (PAC or WPAD, and the Windows session on the
+  POST of the changelogs). The log also holds the JQL, the workbook path and the proxy address (said in README).
 
 | Module | MD5 |
 |---|---|

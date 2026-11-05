@@ -15,6 +15,7 @@ from jira2dashboard import build_workbook, clean, mock_workbook
 from jira2dashboard.cli import args, check_machine
 from jira2dashboard.mockjira import __main__ as mock_jira
 from jira2dashboard.paths import CHILDREN_DIR, REPO_ROOT
+from jira2dashboard.standalone import __main__ as extract
 from jira2dashboard.testbench import run_vba_tests
 
 SCRIPTS = REPO_ROOT / "scripts"
@@ -25,6 +26,7 @@ PYTHON_COMMANDS = {                      # run.ps1 command -> (parse function, a
     "check-machine": (check_machine.parse, "Excel"),
     "mock-jira": (mock_jira.parse, "--anomalies"),
     "mock-workbook": (mock_workbook.parse, "jira2dashboard_mock.xlsm"),
+    "extract": (extract.parse, "jira2dashboard.xlsx"),
 }
 
 
@@ -66,7 +68,8 @@ def test_out_takes_a_bare_xlsm_name():
             args.bare_xlsm(wrong)
 
 
-MODULES = ("build_workbook", "testbench.run_vba_tests", "clean", "cli.check_machine", "mockjira", "mock_workbook")
+MODULES = ("build_workbook", "testbench.run_vba_tests", "clean", "cli.check_machine", "mockjira", "mock_workbook",
+           "standalone")
 
 
 @pytest.mark.parametrize("module", MODULES)

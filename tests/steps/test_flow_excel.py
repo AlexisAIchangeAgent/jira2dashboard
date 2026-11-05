@@ -29,6 +29,7 @@ from jira2dashboard.mockjira.generator import generate
 from jira2dashboard.mockjira.server import MockJira
 from jira2dashboard.params.model import load_all, mandatory_parameters, project_keys
 from jira2dashboard.paths import INTER_DIR
+from jira2dashboard.standalone.results import data_check_rows
 
 scenarios("../features/flow_excel.feature")
 scenarios("../features/jira_config.feature")             # same workbook and fake Jira steps
@@ -424,12 +425,11 @@ def _data_checks(world):
     assert all(row[c] in (0, 1) for row in table_dicts(world["wb"], "ItemFlow") for c in PER_ISSUE)
     rows = {row["Id"]: row for row in table_dicts(world["wb"], "DataChecks")}
     assert list(rows) == list(IDS)                                         # same ids, same order as the plan
-    below = sum(1 for r in world["fill_rates"] if r.below)
-    for check in CHECKS:
-        row = rows[check.id]
-        count = below if check.source == "FillRates" else sum(1 for ids in expected.values() if check.id in ids)
-        wanted = (check.title, check.severity, count, "OK" if count == 0 else "KO") if settings.ready(check)             else (check.title, check.severity, "", "not computable")
-        assert (row["Title"], row["Severity"], row["Items"], row["Result"]) == wanted, check.id
+    reference_rows = data_check_rows(expected, world["fill_rates"], settings)     # also what the Python path writes
+    for _id, title, severity, *_needs, _source, _ready, items, result in reference_rows:
+        row = rows[_id]
+        wanted = (title, severity, "" if items is None else items, result)
+        assert (row["Title"], row["Severity"], row["Items"], row["Result"]) == wanted, _id
 
 
 @then("la table FillRates reproduit les taux de remplissage de la référence Python")

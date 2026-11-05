@@ -10,6 +10,8 @@ Try a workbook by hand against the fake Jira, without the automatic tests.
 4. Starts the fake Jira, 1200 issues and the known anomalies, in a minimized window (start-mock.ps1).
 5. Opens the copy in a new Excel of its own, so that a crash cannot take other workbooks with it. Then click
    "Read the Jira configuration", then "Extract from Jira and compute".
+   With -Python: runs the Python extraction on the copy instead (.\scripts\run.ps1 extract, no macro), then opens
+   out\inter\jira2dashboard.xlsx (values and SVG charts) in a new Excel.
 Stop the fake Jira with .\scripts\stop-mock.ps1. Close the copy before running this script again.
 ASCII only: PowerShell 5.1 reads a file without BOM as ANSI.
 
@@ -19,6 +21,9 @@ The workbook to try. Default out\release\jira2dashboard.xlsm (built if missing).
 .PARAMETER Port
 Port of the fake Jira. Default 8099.
 
+.PARAMETER Python
+Try the Python path without VBA instead of the macros: .\scripts\run.ps1 extract on the copy.
+
 .EXAMPLE
 .\scripts\manual-test.ps1
 Tries the workbook of out\release.
@@ -26,6 +31,11 @@ Tries the workbook of out\release.
 .EXAMPLE
 .\scripts\manual-test.ps1 -Workbook C:\Downloads\jira2dashboard.xlsm -Port 8100
 Tries another version of the workbook, with a fake Jira on port 8100.
+
+.EXAMPLE
+.\scripts\manual-test.ps1 -Python
+Tries the Python extraction: its jira2dashboard.xlsx opens in a new Excel.
+
 .PARAMETER Help
 Show this help. --help and -? do the same.
 #>
@@ -33,6 +43,7 @@ Show this help. --help and -? do the same.
 param(
     [string]$Workbook = "",
     [int]$Port = 8099,
+    [switch]$Python,
     [switch]$Help,
     [Parameter(ValueFromRemainingArguments = $true)][string[]]$Rest = @()
 )
@@ -61,6 +72,15 @@ if ($LASTEXITCODE -ne 0) { Fail "the copy could not be prepared (see above)." }
 if ($LASTEXITCODE -ne 0) { Fail "the fake Jira did not start (see above)." }
 
 $copy = Join-Path $root "out\inter\jira2dashboard_mock.xlsm"
+if ($Python) {
+    & (Join-Path $PSScriptRoot "run.ps1") extract --workbook $copy
+    if ($LASTEXITCODE -ne 0) { Fail "the Python extraction failed (see above and its log)." }
+    $result = Join-Path $root "out\inter\jira2dashboard.xlsx"
+    Start-Process excel.exe -ArgumentList "/x", "`"$result`""
+    Write-Host "manual-test: $result opens in a new Excel: the data, the results and the charts, no macro."
+    Write-Host "manual-test: stop the fake Jira with .\scripts\stop-mock.ps1 -Port $Port"
+    exit 0
+}
 Write-Host "manual-test: Excel may crash right after the last search page (known defect). Save your other work first."
 Start-Process excel.exe -ArgumentList "/x", "`"$copy`""
 Write-Host "manual-test: $copy opens in a new Excel. Enable the content, then click the Dashboard buttons in this order:"
