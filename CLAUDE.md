@@ -126,7 +126,8 @@ Before finishing a change run the full pass: `coverage`, `vba-tests`, `test-exce
 
 Domain decisions and the metric definitions are in `docs/` (7 md files, **never edit them**: their MD5 is tracked in
 `claude-code-handoff.md`, which also holds the roadmap, review dispositions and the MD5 of every `.bas`). Update the MD5
-table in the handoff whenever a `.bas` changes. `README.md` (French) covers delivery to the client machine.
+table in the handoff whenever a `.bas` changes. `README.md` (English) is the engineering guide: architecture,
+scripts, configuration, client use, logs and debugging.
 
 ## Adding a data check
 
