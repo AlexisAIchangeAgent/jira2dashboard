@@ -9,11 +9,15 @@ import json
 import subprocess
 import re
 import sys
+import threading
+from contextlib import contextmanager
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 from jira2dashboard import clean
 from jira2dashboard.excel import com as R
 from jira2dashboard.flow.sheets import write_blueprint
+from jira2dashboard.mockjira.server import PAC_PATH, PAC_TYPE, pac_script
 from jira2dashboard.params.model import load_all as load_params
 from jira2dashboard.params.write import write_params
 from jira2dashboard.paths import CHILDREN_DIR, OUT_DIR, VBA_DIR
@@ -33,7 +37,7 @@ def out_name(default: str) -> str:
 
 
 OUT = OUT_DIR / out_name("vba_tests.xlsm")
-ORDER = ["modCoverage", "modLog", "modJson", "modText", "modHttp", "modJira", "modFlow", "modParams", "modExtract",
+ORDER = ["modCoverage", "modLog", "modJson", "modText", "modHttp", "modProxy", "modJira", "modFlow", "modParams", "modExtract",
          "modJiraConfig", "modFlowBuild", "modActions", "modBackground", "modTests", "modButtons"]
 BUTTONS = [("J2", "Lancer les tests (hors ligne)", "modButtons.BtnRunAllTests"),
            ("J4", "Lancer les tests + reseau", "modButtons.BtnRunNetworkTests"),
@@ -104,10 +108,43 @@ def compile_ok(target: Path) -> str:
     return R.run_child(CHILDREN_DIR / "_check_child.py", target, timeout_s=120)
 
 
+PAC_PROXY = "127.0.0.1:9"       # the proxy that the local script gives: T_ProxyScript only reads it, nothing goes there
+
+
+@contextmanager
+def pac_server():
+    """A local HTTP server with one proxy script (PAC), for T_ProxyScript: WinHTTP downloads and runs it, as it would
+    the script of the Windows settings. Yields its address; it stops when the tests are done."""
+    body = pac_script(PAC_PROXY).encode("ascii")
+
+    class Handler(BaseHTTPRequestHandler):
+        def do_GET(self):                                               # noqa: N802 - the name http.server calls
+            found = self.path == PAC_PATH
+            self.send_response(200 if found else 404)
+            self.send_header("Content-Type", PAC_TYPE if found else "text/plain")
+            self.send_header("Content-Length", str(len(body) if found else 0))
+            self.end_headers()
+            if found:
+                self.wfile.write(body)
+
+        def log_message(self, *args):                                   # quiet: the report is the test results
+            pass
+
+    server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    try:
+        yield f"http://127.0.0.1:{server.server_address[1]}{PAC_PATH}"
+    finally:
+        server.shutdown()
+        server.server_close()
+
+
 def run_tests(target: Path, network: bool) -> dict:
     """Open the workbook in a child process, run the VBA tests; return the child's JSON report."""
     args = ["--network"] if network else []
-    last_line = R.run_child(CHILDREN_DIR / "_run_tests_child.py", target, *args, timeout_s=600)   # kills its Excel on timeout
+    with pac_server() as pac_url:
+        last_line = R.run_child(CHILDREN_DIR / "_run_tests_child.py", target, *args, "--pac-url", pac_url,
+                                timeout_s=600)                                                  # kills its Excel on timeout
     if not last_line:
         raise RuntimeError("the test child printed no report")
     return json.loads(last_line)

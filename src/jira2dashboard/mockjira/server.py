@@ -8,6 +8,7 @@
 The same fault injection is reachable over HTTP, so that VBA tests can trigger it:
     POST /__mock__/fail   {"method":"GET","path":"/rest/api/3/search/jql","status":429,"times":2,"retryAfter":"0"}
     POST /__mock__/reset  clears the faults and the request log
+    GET /proxy.pac        a proxy script (PAC) that sends every address to this fake as a proxy (no account asked)
 """
 import base64
 import json
@@ -27,6 +28,14 @@ from jira2dashboard.mockjira.errors import ApiError
 GONE_PATHS = ("/rest/api/3/search", "/rest/api/3/search/id")
 PROJECT_STATUSES = re.compile(r"/rest/api/3/project/([^/]+)/statuses")
 GONE_MESSAGE = "The requested API has been removed. Please migrate to the /rest/api/3/search/jql API."
+PAC_PATH = "/proxy.pac"                       # a proxy script (PAC) that sends every address to this fake as a proxy
+PAC_TYPE = "application/x-ns-proxy-autoconfig"
+
+
+def pac_script(proxy: str) -> str:
+    """A proxy script (PAC) that sends every address to `proxy` (host:port): the Windows setting in the tests of the
+    proxy detection (VBA M_AutoProxyPac with this fake, T_ProxyScript with run_vba_tests.pac_server)."""
+    return f'function FindProxyForURL(url, host) {{ return "PROXY {proxy}"; }}\n'
 
 
 @dataclass
@@ -132,12 +141,13 @@ def _make_handler(state: _State):
             return bool(state.proxy_challenge) and not self.headers.get("Proxy-Authorization")
 
         def _send(self, status: int, body, headers: dict | None = None):
+            headers = dict(headers or {})
             if isinstance(body, str):
                 raw, kind = body.encode("utf-8"), "text/plain;charset=UTF-8"
             else:
                 raw, kind = json.dumps(body, ensure_ascii=False).encode("utf-8"), "application/json;charset=UTF-8"
             self.send_response(status)
-            self.send_header("Content-Type", kind)
+            self.send_header("Content-Type", headers.pop("Content-Type", kind))
             self.send_header("Content-Length", str(len(raw)))
             if state.near_limit:
                 self.send_header("X-RateLimit-NearLimit", "true")
@@ -171,6 +181,8 @@ def _make_handler(state: _State):
         def _dispatch(self, path: str, query: dict, text: str):
             if path.startswith("/__mock__/"):
                 return self._control(path, text)
+            if (self.command, path) == ("GET", PAC_PATH) and not self.path.startswith(("http://", "https://")):
+                return 200, pac_script(state.base_url.removeprefix("http://")), {"Content-Type": PAC_TYPE}    # Windows asks with no account
             if self.path.startswith(("http://", "https://")) and self._proxy_auth_missing():    # came through the proxy
                 return 407, {"errorMessages": ["Proxy Authentication Required"], "errors": {}}, \
                     {"Proxy-Authenticate": state.proxy_challenge}

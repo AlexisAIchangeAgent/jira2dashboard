@@ -19,7 +19,7 @@ from jira2dashboard.testbench import run_vba_tests as rvt
 
 TARGET = OUT_DIR / rvt.out_name("jira2dashboard.xlsm")
 # No test module, no test button: modCoverage stays because the other modules call Cov (a no-op unless switched on).
-MODULES = ["modCoverage", "modLog", "modJson", "modText", "modHttp", "modJira", "modFlow", "modParams", "modExtract",
+MODULES = ["modCoverage", "modLog", "modJson", "modText", "modHttp", "modProxy", "modJira", "modFlow", "modParams", "modExtract",
            "modJiraConfig", "modFlowBuild", "modActions"]
 BUTTON_MACRO = "modActions.BtnExtractAndCompute"
 # The handler of the workbook: a slice of the extraction still scheduled when the workbook is closed would reopen it.

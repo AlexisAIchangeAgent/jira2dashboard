@@ -291,6 +291,19 @@ def _proxy_got_windows_auth(world):
     assert without, "ProxyWindowsAuth = No: the client must not send it (the 407 test)"
 
 
+@then("la réponse est un script PAC qui envoie toute adresse vers le proxy du faux Jira")
+def _pac_script(world):
+    result, proxy = world["result"], world["jira"].base_url.removeprefix("http://")
+    assert result.headers.get("Content-Type", "").startswith("application/x-ns-proxy-autoconfig"), result.headers
+    assert result.raw.decode("ascii") == f'function FindProxyForURL(url, host) {{ return "PROXY {proxy}"; }}\n'
+
+
+@then("Windows a lu le script PAC du faux Jira pour trouver le proxy")
+def _pac_read(world):
+    """M_AutoProxyPac: an empty ProxyServer makes the client ask WinHTTP, which downloads the script of the settings."""
+    assert [r for r in world["jira"].requests if (r.method, r.path) == ("GET", "/proxy.pac")]
+
+
 @then(parsers.parse('le faux Jira a reçu des requêtes adressées au site "{host}"'))
 def _requests_for_the_site(world, host):
     hosts = [r.headers.get("host") for r in world["jira"].requests]

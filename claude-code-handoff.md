@@ -78,7 +78,7 @@ Created under `C:\dev` to avoid antivirus issues (renamed from `xlsm-check`). Ho
 | `src\jira2dashboard\testbench\run_vba_tests.py` | VBA harness (options `--offline`, `--bisect`, `--out name.xlsm`) |
 | `src\jira2dashboard\testbench\children\` | Children: `_check_child.py` (compile + Ping), `_run_tests_child.py`, `_hang_child.py` (timeout test) |
 | `src\jira2dashboard\cli\check_machine.py` | Machine readiness check, 21 checks (was `check_reference.py`) |
-| `vba\*.bas` | The 10 tested modules (MD5 below); `modParams.bas` (E2) reads the parameter sheets |
+| `vba\*.bas` | The 16 VBA modules (MD5 below); `modParams.bas` (E2) reads the parameter sheets |
 | `params\*.md` | **Parameters of the application** (E2): `config.md`, `projects.md`, `workflows.md`, `transitions.md`, `field_mapping.md`, one table each. `src\jira2dashboard\params\` reads and validates them (`mdtable.py`, `model.py`) and writes them into the sheets `Config`, `Projects`, `Workflows`, `Transitions`, `FieldMapping` (`write.py`). **`Projects`** (`Project | Role | Team`) lists the projects to extract and says which one is the Program (exactly one, default `TTT`, the first key of the extraction script; the other keys are the script's anonymised keys, to replace in the workbook); `modParams.ProjectKeys` (Program first), `ProgramProject`, `TeamOfProject` read it. **`Config.Filter`** is an extra JQL restriction added with `AND` to the project list (`modJira.ExtractionJql`); it must not contain `ORDER BY`. Tests keep them equal to `docs\safe-flow-metrics-and-data-checks.md`. **`Config` holds the connection and the proxy** (`BaseUrl`, `Email`, `ApiToken`, `ProxyServer`, `ProxyBypass`, `ProxyWindowsAuth`, `TimeoutSeconds`, `MaxRetries`): the client values stay empty in the repo, `ApiToken` is refused if filled in `config.md`, and everything is typed in the workbook. `modJira.JiraConfigFromSheet` turns the sheet into the HTTP configuration |
 | `src\jira2dashboard\flow\` | **Reference implementation of the six flow metrics** (E4 stage 1, pure Python, no Excel), written from `docs\safe-flow-metrics-and-data-checks.md` section 2 and used as the oracle for the Excel formulas. Decisions taken with AL on 2026-11-04: DC01-DC29 are a separate step after E4; Flow Time and Flow Efficiency leave out issues done without a valid start (SkippedStart) or reopened after Done (counted in `flow_time_excluded`, so included + excluded = done); Flow Load is a snapshot at the end of each UTC day on half-open intervals [entered, left), mode A by default (`Config.FlowLoadMode`), days without a finished snapshot at `Config.AsOf` are left out; Program features are reported under the team `ART`. Periods come from the sheet `Periods` (empty in the repo). A figure that cannot be computed is the text `not computable`, never 0; Flow Predictability is always `not computable` (no PI objectives in Jira). Tests: 9 hand-worked issues (`tests\unit\test_flow_reference.py`), properties on 1200 generated issues (`test_flow_properties.py`), Gherkin per metric (`tests\features\flow_metrics.feature`) |
 | `src\jira2dashboard\flow\formulas.py`, `sheets.py` | **The Excel side of E4 (stage 2).** `formulas.py` holds the formulas as text (pure, unit-tested: every `Table[Column]` and `[@Column]` resolves, no status name or team name appears in a formula, same vocabulary as the Python reference). **Since E6 the tables and formulas are built by VBA (`modFlowBuild`) from the sheet `FlowFormulas`; `sheets.py` now only writes that plan and reads tables for tests.** Historically `sheets.py` (COM) turned the raw sheets `Issues` and `StatusIntervals` into tables, adds helper columns (IsStart, IsEnd, PrevCategory, Team, Bucket, FirstStart, LeftEff, Counted) and builds the tables `ItemFlow` (one row per issue, docs 2.1), `DailyLoad` (day x team) and `Metrics` (period x team, docs 2.2) with **visible formulas** (`MINIFS`, `MAXIFS`, `SUMIFS`, `COUNTIFS`, `FILTER`, `PERCENTILE.INC`...). The control cells `Metrics!B1` (as-of date, `AsOfUtc`) and `Metrics!B2` (mode, `cfg_FlowLoadMode`) are formulas that read `Config`; change `FlowLoadMode` there and everything recalculates. Dates are compared with a half-second margin (Excel turns a bound into text with 15 digits). **Differential test** `tests\features\flow_excel.feature`: fake Jira (250 issues) -> VBA extraction -> formulas -> cell-by-cell comparison with the Python reference, for `StatusIntervals`, `ItemFlow`, `DailyLoad` and `Metrics`, in mode A then B; a deliberate mutation of a formula was checked to make it fail. (Done in E6: the delivered workbook rebuilds everything itself.) **Excel traps found:** a formula typed in one cell of a table column becomes the formula of the whole column (write key columns before creating the table); a structured reference to a column whose name contains `_` is refused (`[@WipCount_Feature]`), so column names have none |
@@ -151,6 +151,17 @@ MD5 of the current modules (LF line endings). Unchanged since the original hando
   the first steps in the order of the buttons on the Dashboard from T1 (beside the charts: a rebuild clears only A4:R400;
   one line per row, no wrap, so the chart rows keep their height), and the sheet `Manual` right after the Dashboard (delivery
   build only). The button captions are constants of `dashboard_spec.py`. Scenarios: `tests\features\first_use.feature`.
+- **Proxy of the Windows settings (2026-11-05).** `modProxy` (new): when `ProxyServer` is empty,
+  `modJira.JiraConfigFromSheet` asks Windows for the proxy of the Jira site, as the browser does: the automatic
+  detection (WPAD) and the proxy script (PAC, AutoConfigURL) through `WinHttpGetProxyForUrl`, then the fixed proxy of
+  `WinHttpGetIEProxyConfigForCurrentUser`, else direct. Once per run; a typed `ProxyBypass` stays; `ProxyServer = DIRECT`
+  forces no proxy; the log gets the mode only (`BEGIN/END proxy detection`), never an address. **The WinHTTP structures
+  are byte buffers with explicit offsets** (pointer 8 bytes in 64-bit, 4 in 32-bit): a VBA `Type` for
+  WINHTTP_CURRENT_USER_IE_PROXY_CONFIG crashed 64-bit Excel (RPC server unavailable) on 2026-11-05. Tests: `T_ProxyDetect`
+  (fake settings `gProxyFake`, a PAC on a closed port, the real settings read), `T_ProxyScript` (a PAC served by
+  `run_vba_tests.pac_server` on 127.0.0.1, address given by `SetPacUrl`), `M_AutoProxyPac` (the fake Jira serves
+  `/proxy.pac` and is reached as the detected proxy). `RunTests` gives every test direct settings first, so no test
+  depends on the proxy of the machine. Still to verify at the client: a real PAC or WPAD network.
 
 | Module | MD5 |
 |---|---|
@@ -159,7 +170,8 @@ MD5 of the current modules (LF line endings). Unchanged since the original hando
 | modJson.bas | e051a7775e419b2b49d2de6014a8719e |
 | modText.bas | 2f23c0bc24c95cae731f331dbe42c047 |
 | modHttp.bas | 849a7542964572acbece130c0d9bf086 |
-| modJira.bas | 3e91019bff4c37532ad75d3beca54096 |
+| modProxy.bas | 51d8e4d0c539e31a8743efae69f92312 |
+| modJira.bas | 4b02725acdb95b74ea4fe35280d43739 |
 | modFlow.bas | 69f021411e3989de981f8bbde8ec5d73 |
 | modParams.bas | fe97f1c40d82f7a4d9b894e633160b16 |
 | modExtract.bas | f1bd9e7f524afa6915146f4b2b7e07dc |
@@ -167,7 +179,7 @@ MD5 of the current modules (LF line endings). Unchanged since the original hando
 | modFlowBuild.bas | bb2fbc8c73909f2ac82cf34b27c6ca08 |
 | modActions.bas | bc39936af9bf15fd9b90e1715b8d9a3e |
 | modBackground.bas | 1d098ce38925b8dc55bcf54404cf314f |
-| modTests.bas | 5e198d34a64e7d6fc07a422cabd18abe |
+| modTests.bas | b9f2e065a9ccd6c3fb6c2294241e35a2 |
 | modButtons.bas | 3bbe95b810cc0722eabed5c2bdbabbb2 |
 
 The Python files are no longer hashed (they were moved and edited; the code is covered by tests). If you
@@ -188,8 +200,9 @@ extraction script (Copilot must read its proxy settings there; never copy the to
 
 ## 6. Test status (2026-11-05, with the button Read the Jira configuration)
 
-- `scripts\run.ps1 vba-tests` (2026-11-05, column Mandatory): COMPILED_OK, **382 offline + 8 network OK, 0 KO**,
-  coverage **193/193 markers = 100 %** (PRM26-PRM29: the column Mandatory; `modJiraConfig`: JCF01-JCF23; `modLog`: LOG01-LOG13; review markers: section 8b; earlier: E2: `modParams`; E3: `TrimWhite`; proxy work: `Config` sheet reader, proxy
+- `scripts\run.ps1 vba-tests` (2026-11-05, proxy detection): COMPILED_OK, **394 offline + 8 network OK, 0 KO**,
+  coverage **206/206 markers = 100 %** (PXY01-PXY11 and JIR26-27: the proxy of the Windows settings; PRM26-PRM29: the
+  column Mandatory; `modJiraConfig`: JCF01-JCF23; `modLog`: LOG01-LOG13; review markers: section 8b; earlier: E2: `modParams`; E3: `TrimWhite`; proxy work: `Config` sheet reader, proxy
   normalization, status hints; projects and filter; E4: `modExtract`, `ParseMoment`).
   The `M_` tests against the fake Jira are not in these counts: they run from `scripts\run.ps1 test-excel`.
 - **Flaky Excel sessions while Office updates itself:** if `OfficeClickToRun` / `OfficeC2RClient` runs, Windows
@@ -202,7 +215,9 @@ extraction script (Copilot must read its proxy settings there; never copy the to
 - `scripts\run.ps1 check-machine`: **21 checks, 0 failed**.
 - `scripts\run.ps1 coverage`: **655 passed**, 98.8 %. `test-network`: 1 passed. `build`: COMPILED_OK.
 - `scripts\run.ps1 test-excel`: **38 of 38** on 2026-11-05 with the three scenarios of `first_use.feature` (the crash
-  below did not show in that run). Before: 34 of 35 (2026-11-05, with the two scenarios of `jira_config.feature`
+  below did not show in that run). With the proxy detection: 36 of 38, then green: the log scenario of the
+  configuration button now expects `proxy detection` first (fixed); the cancel scenario lost its Excel right after
+  `END search page 30: 150 issues` (the open defect below; proxy detection had ended 5 s before), then passed 3 of 3. Before: 34 of 35 (2026-11-05, with the two scenarios of `jira_config.feature`
   and `M_JiraConfig` in the fake Jira scenario); the button scenario lost its Excel right after `END search page 30:
   150 issues` (**open defect**, section 8b; run alone it also crashes: 7 out of 10 that night). Earlier: 9 module runs out of 10 green with a fresh Excel
   per scenario.

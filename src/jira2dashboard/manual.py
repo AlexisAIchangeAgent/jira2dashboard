@@ -42,6 +42,8 @@ def manual(mandatory: tuple[str, ...]) -> list[tuple[str, str]]:
             'or the data checks that need the value show "not computable".',
             f"The mandatory parameters: {', '.join(mandatory)}.",
             "AsOf: the UTC date and time of the extraction, for example 2026-11-03 18:00. Open statuses run up to it.",
+            "ProxyServer: empty = the proxy of the Windows settings, found as the browser finds it (automatic "
+            "detection, proxy script or fixed proxy). DIRECT = no proxy. Or type host:port.",
             "ApiToken stays in clear in this sheet: empty it before you send the workbook to anyone.",
         ]),
         ("Sheets Projects, Periods and PIs", [

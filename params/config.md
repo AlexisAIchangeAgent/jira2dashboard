@@ -19,8 +19,8 @@ empty here, and **`ApiToken` must stay empty** (a test refuses a token in this f
 | ApiToken |  | True | Type the API token in the workbook only. Spaces and line breaks around it are removed |
 | Filter |  | False | Extra JQL restriction added with AND to the project list (sheet Projects), for example updated >= -90d. Empty = none |
 | WorkTypeField |  | False | Id of the custom field that holds the work type (TypeCategorie: Feature, Enabler, Defect, Autre), for example customfield_10200. Find it with GET /rest/api/3/field. Empty = every item counts as Unmapped in Flow Distribution |
-| ProxyServer |  | False | Proxy as host:port or http://host:port. Empty = no explicit proxy (WinHTTP default) |
-| ProxyBypass |  | False | Hosts that skip the proxy, for example *.client.local;<local> |
+| ProxyServer |  | False | Proxy as host:port or http://host:port. Empty = the proxy of the Windows settings, found as the browser finds it (automatic detection WPAD, proxy script PAC, then the fixed proxy). DIRECT = no proxy |
+| ProxyBypass |  | False | Hosts that skip the proxy, for example *.client.local;<local>. Empty with an empty ProxyServer = the list of the Windows settings |
 | ProxyWindowsAuth | Yes | False | Yes = answer the proxy's Windows authentication with the Windows session. No = never send it |
 | FlowLoadMode | A | True | A = a ticket counts from its first start until it is done or removed, except while in a Backlog status. B = only from its last start (after the last return to backlog) |
 | AsOf |  | True | UTC date and time of the extraction, for example 2026-11-03 18:00. Open statuses run up to it. Required to extract: the macro stops with a message if it is empty |

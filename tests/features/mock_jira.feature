@@ -63,6 +63,12 @@ Fonctionnalité: Faux Jira Cloud
     Quand j'ouvre un tunnel CONNECT vers "jira.mock.invalid:443" avec "NTLM TlRMTVNT"
     Alors la requête dans le tunnel répond 200
 
+  Scénario: Le faux Jira sert un script PAC qui envoie toute adresse vers son proxy
+    Soit un faux Jira avec les cinq tickets écrits à la main qui exige le compte "genericemail@domain.com" et le token "tok-123"
+    Quand j'appelle "GET /proxy.pac"
+    Alors la réponse est 200
+    Et la réponse est un script PAC qui envoie toute adresse vers le proxy du faux Jira
+
   Scénario: Le faux Jira donne les projets demandés avec l'id et les types de ticket de chacun
     Soit un faux Jira avec 250 tickets générés
     Quand j'appelle "GET /rest/api/3/project/search?keys=PRG&keys=TA&expand=issueTypes"
@@ -102,3 +108,4 @@ Fonctionnalité: Faux Jira Cloud
     Alors tous les tests VBA contre le faux Jira passent
     Et le faux Jira a reçu des requêtes adressées au site "jira.mock.invalid"
     Et le proxy a reçu l'authentification Windows du client
+    Et Windows a lu le script PAC du faux Jira pour trouver le proxy

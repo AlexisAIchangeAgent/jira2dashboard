@@ -8,6 +8,7 @@ Private mCurrent As String
 Private mTotalPlanned As Long      ' tests planned for this run (progress bar total)
 Private mDone As Long              ' tests finished in this run
 Private mNextRow As Long           ' next free row in TestResults
+Private mPacUrl As String          ' a proxy script served by run_vba_tests (SetPacUrl, used by T_ProxyScript)
 Private mMockUrl As String         ' base URL of the fake Jira (set by MockSetup, used by the M_ tests)
 Private mMockEmail As String       ' account the fake Jira accepts (Basic auth: email + API token)
 Private mMockToken As String
@@ -52,7 +53,7 @@ Private Function TestNames() As Variant
         "T_HttpNetworkAndCancel", "T_RetryExhausted", "T_ChangelogChunks", "T_IssueRows", "T_WriteTable", "T_StatusIntervals", _
         "T_StatusChanges", "T_RetryDelay", "T_SafeAccess", "T_FilesUtf8", "T_StringifyBadObject", _
         "T_TooManyPages", "T_BackgroundExport", "T_TextNotConverted", "T_ParamsTables", "T_ParamsOnWorkbook", _
-        "T_TrimWhite", "T_ConfigSheet", "T_MandatoryConfig", "T_ProjectsSheet", "T_ParseMoment", "T_ExtractFlowData", "T_ExtractJob", "T_ExtractCheckFields", "T_FlowBuild", "T_BaseUrlHttps", "T_Log", _
+        "T_TrimWhite", "T_ConfigSheet", "T_MandatoryConfig", "T_ProxyDetect", "T_ProxyScript", "T_ProjectsSheet", "T_ParseMoment", "T_ExtractFlowData", "T_ExtractJob", "T_ExtractCheckFields", "T_FlowBuild", "T_BaseUrlHttps", "T_Log", _
         "T_JiraConfig")
 End Function
 
@@ -84,6 +85,7 @@ Private Function RunTests(ByVal names As Variant) As String
     For Each nm In names
         Application.StatusBar = "Test " & (mDone + 1) & "/" & mTotalPlanned & ": " & nm & "..."
         mCurrent = nm
+        Set gProxyFake = FakeProxySettings(False, "", "", "")   ' the proxy of this computer must not change a test
         On Error Resume Next
         Err.Clear
         Application.Run "modTests." & nm
@@ -98,6 +100,7 @@ Private Function RunTests(ByVal names As Variant) As String
     For Each r In mRows
         If r(6) = "OK" Then ok = ok + 1 Else ko = ko + 1
     Next r
+    Set gProxyFake = Nothing
     Application.StatusBar = False
     If standalone Then mTotalPlanned = 0
     RunTests = ok & " OK, " & ko & " KO"
@@ -281,6 +284,59 @@ Public Sub T_MandatoryConfig()
     Check "mandatory", "a sheet without the column has nothing to check", "3 columns", "", MissingMandatory(ws)
     Check "mandatory", "the real Config sheet: the client values are mandatory and empty", "Config", _
           "BaseUrl, Email, ApiToken, AsOf", MissingMandatory(ThisWorkbook.Worksheets("Config"))
+End Sub
+
+Public Sub SetPacUrl(ByVal url As String)
+    ' run_vba_tests serves a proxy script (PAC) on this computer for T_ProxyScript and gives its address here.
+    mPacUrl = url
+End Sub
+
+Public Sub T_ProxyDetect()
+    ' ProxyServer empty: the proxy of the Windows settings, found as the browser finds it; DIRECT: none; typed: that one.
+    Dim d As Object, ws As Object, c As Object, real As Object
+    Set gProxyFake = FakeProxySettings(False, "", "fixed.proxy:8080", "<local>")
+    Set d = DetectProxy("https://x.atlassian.net")
+    Check "proxy", "the fixed proxy of the Windows settings", "Proxy fixed.proxy:8080", "fixed.proxy:8080|<local>", d("Server") & "|" & d("Bypass")
+    Check "proxy", "the mode names no address", "fixed proxy", "the fixed proxy of the Windows settings", d("Mode")
+    Set gProxyFake = FakeProxySettings(False, "", "", "")
+    Set d = DetectProxy("https://x.atlassian.net")
+    Check "proxy", "nothing in the Windows settings: direct", "all empty", "|direct (no proxy in the Windows settings)", d("Server") & "|" & d("Mode")
+    ' A proxy script that cannot be downloaded (nothing listens on port 9): WinHTTP fails, the fixed proxy is used
+    Set gProxyFake = FakeProxySettings(False, "http://127.0.0.1:9/none.pac", "fixed.proxy:8080", "")
+    Set d = DetectProxy("https://x.atlassian.net")
+    Check "proxy", "a script that cannot run: the fixed proxy", "PAC on port 9", "fixed.proxy:8080", d("Server")
+    Check "proxy", "the mode says the script found nothing", "PAC on port 9", True, _
+          d("Mode") Like "proxy script (PAC) found nothing (Windows error *), then the fixed proxy of the Windows settings"
+    ' The Config sheet
+    Set ws = ThisWorkbook.Worksheets("TestScratch")
+    Set gProxyFake = FakeProxySettings(False, "", "http://fixed.proxy:8080/", "*.corp")
+    ConfigRows ws, Array("BaseUrl", "https://x.atlassian.net", "ProxyServer", "")
+    Set c = JiraConfigFromSheet(ws)
+    Check "proxy", "empty ProxyServer: the Windows proxy, normalized", "ProxyServer empty", "fixed.proxy:8080|*.corp", c("ProxyServer") & "|" & c("ProxyBypass")
+    ConfigRows ws, Array("BaseUrl", "https://x.atlassian.net", "ProxyServer", "", "ProxyBypass", "<local>")
+    Set c = JiraConfigFromSheet(ws)
+    Check "proxy", "a typed bypass stays", "ProxyBypass <local>", "fixed.proxy:8080|<local>", c("ProxyServer") & "|" & c("ProxyBypass")
+    ConfigRows ws, Array("BaseUrl", "https://x.atlassian.net", "ProxyServer", "direct")
+    Set c = JiraConfigFromSheet(ws)
+    Check "proxy", "DIRECT: no proxy, whatever Windows says", "ProxyServer direct", "|direct (ProxyServer = DIRECT in the Config sheet)", c("ProxyServer") & "|" & c("ProxyMode")
+    ConfigRows ws, Array("BaseUrl", "https://x.atlassian.net", "ProxyServer", "typed.proxy:3128")
+    Set c = JiraConfigFromSheet(ws)
+    Check "proxy", "a typed proxy wins", "ProxyServer typed", "typed.proxy:3128|the proxy of the Config sheet", c("ProxyServer") & "|" & c("ProxyMode")
+    ' The real Windows settings of this computer: read without error (their values depend on the computer)
+    Set gProxyFake = Nothing
+    Set real = WindowsProxySettings()
+    Check "proxy", "the real Windows settings are read", "WinHttpGetIEProxyConfigForCurrentUser", "AutoDetect AutoConfigUrl Proxy Bypass", Join(real.Keys, " ")
+End Sub
+
+Public Sub T_ProxyScript()
+    ' A proxy script (PAC) served on this computer by run_vba_tests: WinHTTP downloads and runs it, and DetectProxy gives
+    ' its proxy before the fixed one. Run from the buttons of the workbook there is no such server: nothing to check.
+    Dim d As Object
+    If Len(mPacUrl) = 0 Then Exit Sub
+    Set gProxyFake = FakeProxySettings(False, mPacUrl, "fixed.proxy:8080", "")
+    Set d = DetectProxy("https://x.atlassian.net/rest/api/3/myself")
+    Check "proxy", "the proxy of the PAC script, before the fixed one", "PROXY 127.0.0.1:9", "127.0.0.1:9", d("Server")
+    Check "proxy", "found by the script", "PAC", "proxy script (PAC): a proxy", d("Mode")
 End Sub
 
 Private Function HintOf(ByVal status As Long) As String
@@ -1478,7 +1534,7 @@ Public Function RunMockTests() As String
     ' M_JiraConfig resets the fake Jira (its faults): it runs before the proxy tests, whose requests a scenario reads after.
     RunMockTests = RunTests(Array("M_SearchAll", "M_Changelogs", "M_FlowFromMock", "M_Retry429", "M_ErrorsNotRetried", _
                                   "M_JiraConfig", "M_Credentials", "M_ThroughProxy", "M_ProxyWithoutWindowsAuth", _
-                                  "M_FilterFromConfig"))
+                                  "M_AutoProxyPac", "M_FilterFromConfig"))
 End Function
 
 Private Function MockConfig() As Object
@@ -1686,6 +1742,22 @@ Public Sub M_ThroughProxy()
     Check "mock", "the site is reached through the proxy", "GET /myself", 200, resp("Status")
     Set issues = JiraSearchAll(cfg, ProjectsJql(MockProjects()), names)
     Check "mock", "a full search works through the proxy", "all pages", mMockIssues, issues.Count
+End Sub
+
+Public Sub M_AutoProxyPac()
+    ' ProxyServer empty, and the Windows settings give a proxy script (PAC) served by the fake Jira that sends every
+    ' address to the fake as a proxy. The site name cannot be resolved: an answer proves that the detected proxy is used.
+    Dim c As Object, resp As Object
+    Set gProxyFake = FakeProxySettings(False, mMockUrl & "/proxy.pac", "", "")
+    ConfigRows ThisWorkbook.Worksheets("TestScratch"), Array("BaseUrl", "http://jira.mock.invalid", _
+        "Email", mMockEmail, "ApiToken", mMockToken, "ProxyServer", "", _
+        "ProxyWindowsAuth", "Yes", "TimeoutSeconds", "30", "MaxRetries", "2")
+    Set c = JiraConfigFromSheet(ThisWorkbook.Worksheets("TestScratch"))
+    c("RetryBaseMs") = 5: c("RetryMaxMs") = 20
+    Check "mock", "the proxy of the PAC script", "ProxyServer empty", Mid$(mMockUrl, 8), c("ProxyServer")
+    Check "mock", "found by the script", "PAC", "proxy script (PAC): a proxy", c("ProxyMode")
+    Set resp = HttpRequest(c, "GET", c("BaseUrl") & "/rest/api/3/myself")
+    Check "mock", "the site is reached through the detected proxy", "GET /myself", 200, resp("Status")
 End Sub
 
 Public Sub M_ProxyWithoutWindowsAuth()

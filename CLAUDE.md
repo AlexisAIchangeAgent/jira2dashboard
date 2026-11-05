@@ -69,7 +69,9 @@ Before finishing a change run the full pass: `coverage`, `vba-tests`, `test-exce
   stops the buttons before any call to Jira (`modParams.RequireMandatory`, error 608).
 - **User manual.** `src/jira2dashboard/manual.py` (pure text) is written by `flow/sheets.write_manual` at the delivery
   build: the first steps on the Dashboard from T1, and the sheet `Manual`. Update it when a button, sheet or step changes.
-- **Extraction (VBA).** `modHttp` (WinHTTP, proxy with Windows auth, retries) -> `modJira` (search, bulk changelog) ->
+- **Extraction (VBA).** `modHttp` (WinHTTP, proxy with Windows auth, retries; `modProxy` finds the proxy of the Windows
+  settings when `ProxyServer` is empty: WPAD, PAC or fixed, via WinHTTP API calls on byte buffers, not VBA Types, which
+  crashed 64-bit Excel) -> `modJira` (search, bulk changelog) ->
   `modExtract` -> `modFlow` (status intervals) ; `modActions` is the dashboard button (`ExtractAndCompute`). The previous
   results are cleared only after Jira has answered. `modLog` writes the local log (`%LOCALAPPDATA%\jira2dashboard\logs`):
   RUN, BEGIN/END per step, ERROR; never pass it a token, URL, JQL or Jira answer (`test_vba_log_guard.py` checks).

@@ -82,8 +82,9 @@ Sur le poste client (le classeur le rappelle : les premières étapes dans l'ord
    bloque les macros) : clic droit sur le fichier > Propriétés > cocher « Débloquer », ou
    `Unblock-File .\jira2dashboard.xlsm` dans PowerShell. Ouvrir le classeur et cliquer sur « Activer le contenu ».
 2. Feuille **Config** : `BaseUrl`, `Email`, `ApiToken`, `WorkTypeField` (id du champ type de travail), `AsOf` (date
-   de l'extraction, UTC), et `ProxyServer` / `ProxyBypass` si besoin. Feuille **Projects** : les projets Jira et
-   lequel est le Program. Feuille **Periods** : les itérations (`Period | Start | End`, fin exclue).
+   de l'extraction, UTC). `ProxyServer` vide : le proxy des réglages Windows est trouvé comme le fait le navigateur
+   (détection automatique WPAD, script PAC, puis proxy fixe) ; `DIRECT` : pas de proxy ; sinon `hôte:port`.
+   Feuille **Projects** : les projets Jira et lequel est le Program. Feuille **Periods** : les itérations (`Period | Start | End`, fin exclue).
    La colonne **Mandatory** de `Config` dit si une valeur vide est permise. `True` : le bouton **Extract from Jira and
    compute** s'arrête avant d'appeler Jira et nomme les valeurs vides (le bouton **Read the Jira configuration** ne
    demande que `BaseUrl`, `Email` et `ApiToken`). `False` : une valeur vide est permise (valeur par défaut, pas de

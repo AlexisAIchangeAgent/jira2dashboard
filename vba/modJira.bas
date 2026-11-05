@@ -55,11 +55,27 @@ End Function
 Public Function JiraConfigFromSheet(ByVal wsConfig As Object) As Object
     ' The connection and the proxy come from the Config sheet of the workbook (written from params\config.md);
     ' nothing about the client is in the code.
+    ' ProxyServer: typed = that proxy; DIRECT = no proxy; empty = the proxy of the Windows settings, found as the browser
+    ' finds it (modProxy.DetectProxy: WPAD, PAC script or fixed proxy), once per run. A typed ProxyBypass stays.
     Cov "JIR15"
-    Dim c As Object, secs As Long
+    Dim c As Object, secs As Long, proxy As String, bypass As String, found As Object
+    proxy = ConfigValue(wsConfig, "ProxyServer"): bypass = ConfigValue(wsConfig, "ProxyBypass")
     Set c = JiraConfig(ConfigValue(wsConfig, "BaseUrl"), ConfigValue(wsConfig, "Email"), ConfigValue(wsConfig, "ApiToken"), _
-                       ConfigValue(wsConfig, "ProxyServer"), ConfigValue(wsConfig, "ProxyBypass"), _
-                       IsYes(ConfigValue(wsConfig, "ProxyWindowsAuth", "Yes")))
+                       IIf(UCase$(proxy) = "DIRECT", "", proxy), bypass, IsYes(ConfigValue(wsConfig, "ProxyWindowsAuth", "Yes")))
+    If UCase$(proxy) = "DIRECT" Then
+        Cov "JIR26"
+        c("ProxyMode") = "direct (ProxyServer = DIRECT in the Config sheet)"
+    ElseIf Len(proxy) = 0 Then
+        Cov "JIR27"
+        LogBegin "proxy detection"
+        Set found = DetectProxy(c("BaseUrl"))
+        c("ProxyServer") = NormalizeProxy(found("Server"))
+        If Len(bypass) = 0 Then c("ProxyBypass") = found("Bypass")
+        c("ProxyMode") = found("Mode")
+        LogEnd "proxy detection: " & found("Mode")
+    Else
+        c("ProxyMode") = "the proxy of the Config sheet"
+    End If
     secs = CLng(Val(ConfigValue(wsConfig, "TimeoutSeconds", "60")))
     If secs < 1 Then secs = 60
     c("ConnectMs") = secs * 1000: c("SendMs") = secs * 1000: c("ReceiveMs") = secs * 1000
@@ -186,7 +202,7 @@ Private Function StatusHint(ByVal status As Long) As String
     Select Case status
         Case 407: Cov "JIR16": StatusHint = " Hint: the proxy asks for authentication. In the Config sheet check ProxyServer and ProxyWindowsAuth (Yes = the Windows session is sent to the proxy)."
         Case 401: Cov "JIR17": StatusHint = " Hint: Jira refused the account. In the Config sheet check Email and ApiToken."
-        Case 0: Cov "JIR18": StatusHint = " Hint: no answer. In the Config sheet check BaseUrl, ProxyServer and ProxyBypass."
+        Case 0: Cov "JIR18": StatusHint = " Hint: no answer. In the Config sheet check BaseUrl, ProxyServer and ProxyBypass (ProxyServer empty = the proxy of the Windows settings, DIRECT = no proxy)."
     End Select
 End Function
 

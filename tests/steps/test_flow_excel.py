@@ -821,8 +821,8 @@ def _configuration_log(world):
     assert kinds[1:-1] == ["BEGIN", "END"] * ((len(kinds) - 2) // 2), kinds
     begun = [rest[0] for kind, *rest in lines if kind == "BEGIN"]
     count = len(project_keys())
-    assert begun == ["projects"] + [f"configuration of project {n} of {count}" for n in range(1, count + 1)] + \
-        ["fields", "proposal sheets"], begun
+    assert begun == ["proxy detection", "projects"] + \
+        [f"configuration of project {n} of {count}" for n in range(1, count + 1)] + ["fields", "proposal sheets"], begun
     for secret in ("tok-123", "me@example.com", "127.0.0.1", "http", "{", "workflows/preview"):
         assert secret not in text, secret
 

@@ -1,4 +1,7 @@
-"""Child: open the test workbook with macros enabled, run the VBA tests, save, print a JSON report."""
+"""Child: open the test workbook with macros enabled, run the VBA tests, save, print a JSON report.
+
+    _run_tests_child.py <workbook> [--network] [--pac-url <url of a local proxy script, for T_ProxyScript>]
+"""
 import json
 import sys
 from pathlib import Path
@@ -11,11 +14,16 @@ def grid(value):
     return value if isinstance(value, tuple) else ((value,),)
 
 
-def main(path: str, network: bool) -> None:
+def option(args: list[str], flag: str) -> str:
+    return args[args.index(flag) + 1] if flag in args[:-1] else ""
+
+
+def main(path: str, network: bool, pac_url: str) -> None:
     with R.excel_session() as app:
         print(f"child excel pid {R.excel_pid(app)}", file=sys.stderr, flush=True)
         app.AutomationSecurity = R.MSO_AUTOMATION_SECURITY_LOW
         wb = app.Workbooks.Open(str(Path(path).resolve()))
+        app.Run(f"'{wb.Name}'!modTests.SetPacUrl", pac_url)                   # "" = T_ProxyScript checks nothing
         summary = app.Run(f"'{wb.Name}'!modTests.RunWithCoverage", network)   # positional argument
         rows = grid(wb.Worksheets("TestResults").UsedRange.Value)
         hits = grid(wb.Worksheets("CoverageHits").UsedRange.Value)
@@ -29,4 +37,4 @@ def main(path: str, network: bool) -> None:
 
 
 if __name__ == "__main__":
-    main(sys.argv[1], "--network" in sys.argv[2:])
+    main(sys.argv[1], "--network" in sys.argv[2:], option(sys.argv[2:], "--pac-url"))
