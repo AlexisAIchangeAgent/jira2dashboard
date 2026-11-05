@@ -52,7 +52,8 @@ Private Function TestNames() As Variant
         "T_HttpNetworkAndCancel", "T_RetryExhausted", "T_ChangelogChunks", "T_IssueRows", "T_WriteTable", "T_StatusIntervals", _
         "T_StatusChanges", "T_RetryDelay", "T_SafeAccess", "T_FilesUtf8", "T_StringifyBadObject", _
         "T_TooManyPages", "T_BackgroundExport", "T_TextNotConverted", "T_ParamsTables", "T_ParamsOnWorkbook", _
-        "T_TrimWhite", "T_ConfigSheet", "T_ProjectsSheet", "T_ParseMoment", "T_ExtractFlowData", "T_ExtractJob", "T_ExtractCheckFields", "T_FlowBuild", "T_BaseUrlHttps", "T_Log")
+        "T_TrimWhite", "T_ConfigSheet", "T_ProjectsSheet", "T_ParseMoment", "T_ExtractFlowData", "T_ExtractJob", "T_ExtractCheckFields", "T_FlowBuild", "T_BaseUrlHttps", "T_Log", _
+        "T_JiraConfig")
 End Function
 
 Public Function RunAllTests() As String
@@ -1275,6 +1276,157 @@ Public Sub T_ParamsOnWorkbook()
     Check "params", "logical name of Cle", "Cle", "Key", LogicalNames(wsF)("Cle")
 End Sub
 
+Public Sub T_JiraConfig()
+    ' The proposal sheets from fake Jira answers: 3 projects of 4 keys (two pages), one workflow shared by two projects
+    ' (written once), a project whose issue types follow two workflows, a third project whose workflows the account may
+    ' not read (401), both category enums, an error that leaves the proposal sheets as they were.
+    Dim cfg As Object, keys As New Collection, base As String, summary As String, nm As Variant, e As Variant, wf As String
+    Dim wfB As String, statusesB As String, rowsW As New Collection, rowsM As New Collection
+    Dim wsT As Object, wsS As Object, wsW As Object, wsM As Object, wsF As Object, previews As String, raised As Long
+    Dim many As New Collection, one As New Collection, i As Long
+    Set cfg = TestConfig()
+    base = cfg("BaseUrl")
+    keys.Add "PRG": keys.Add "TA": keys.Add "TB": keys.Add "XX"
+    Application.DisplayAlerts = False
+    For Each nm In Array("JiraIssueTypes", "JiraStatuses", "JiraWorkflows", "JiraTransitions", "JiraFields")
+        If SheetExists(ThisWorkbook, CStr(nm)) Then ThisWorkbook.Worksheets(CStr(nm)).Delete
+    Next nm
+    Application.DisplayAlerts = True
+    wf = "{'statuses':[{'statusReference':'r1','name':'Open','statusCategory':'TODO'}," & _
+         "{'statusReference':'r2','name':'Doing','statusCategory':'IN_PROGRESS'}," & _
+         "{'statusReference':'r3','name':'Closed','statusCategory':'DONE'},{'statusReference':'r4','name':'Parked','statusCategory':'TODO'}" & _
+         "MORE_STATUSES]," & _
+         "'workflows':[{'name':'WF-A','queryContext':[{'project':'P','issueTypes':[TYPES]}]," & _
+         "'statuses':[{'statusReference':'r1'},{'statusReference':'r2'},{'statusReference':'r3'},{'statusReference':'r4'}]," & _
+         "'transitions':[{'type':'INITIAL','name':'Create','toStatusReference':'r1','links':[]}," & _
+         "{'type':'DIRECTED','name':'Start','toStatusReference':'r2','links':[{'fromStatusReference':'r1'},{'fromStatusReference':'r4'}]}," & _
+         "{'type':'DIRECTED','name':'Close','toStatusReference':'r3','links':[{'fromStatusReference':'r2'},{'fromStatusReference':'zz'}]}," & _
+         "{'type':'GLOBAL','name':'Park','toStatusReference':'r4','links':[]}]}MORE_WORKFLOWS]}"
+    ' TA: its stories follow WF-A (also the workflow of PRG), its sub-tasks follow WF-B.
+    statusesB = ",{'statusReference':'r5','name':'Triage','statusCategory':'TODO'},{'statusReference':'r6','name':'Fixed','statusCategory':'DONE'}"
+    wfB = ",{'name':'WF-B','queryContext':[{'project':'P','issueTypes':['10005']}]," & _
+          "'statuses':[{'statusReference':'r5'},{'statusReference':'r6'}]," & _
+          "'transitions':[{'type':'INITIAL','name':'Create','toStatusReference':'r5','links':[]}," & _
+          "{'type':'DIRECTED','name':'Fix','toStatusReference':'r6','links':[{'fromStatusReference':'r5'}]}]}"
+    FakeReset
+    FakeAdd "GET", ProjectSearchUrl(base, keys, 1, 0), 200, J("{'startAt':0,'isLast':false,'values':[{'id':'10100','key':'PRG'," & _
+        "'style':'classic','issueTypes':[{'id':'10001','name':'Feature','subtask':false,'hierarchyLevel':1}]}]}")
+    FakeAdd "GET", ProjectSearchUrl(base, keys, 1, 1), 200, J("{'startAt':1,'isLast':true,'values':[" & _
+        "{'id':'10101','key':'TA','style':'next-gen','issueTypes':[{'id':'10002','name':'Story','subtask':false,'hierarchyLevel':0}," & _
+        "{'id':'10005','name':'Sub-task','subtask':true,'hierarchyLevel':-1}]}," & _
+        "{'id':'10102','key':'TB','style':'classic','issueTypes':[{'id':'10002','name':'Story','subtask':false,'hierarchyLevel':0}]}]}")
+    FakeAdd "POST", base & "/rest/api/3/workflows/preview", 200, _
+        J(Replace(Replace(Replace(wf, "TYPES", "'10001'"), "MORE_STATUSES", ""), "MORE_WORKFLOWS", ""))
+    FakeAdd "POST", base & "/rest/api/3/workflows/preview", 200, _
+        J(Replace(Replace(Replace(wf, "TYPES", "'10002'"), "MORE_STATUSES", statusesB), "MORE_WORKFLOWS", wfB))
+    FakeAdd "POST", base & "/rest/api/3/workflows/preview", 401, J("{'errorMessages':['no permission']}")
+    For Each nm In Array("PRG", "TA", "TB")
+        FakeAdd "GET", StatusesUrl(base, CStr(nm)), 200, J("[{'id':'1','name':'Story','subtask':false,'statuses':[" & _
+            "{'id':'5','name':'Doing','statusCategory':{'key':'indeterminate','name':'In progress'}}]}]")
+    Next nm
+    FakeAdd "GET", base & "/rest/api/3/field", 200, J("[{'id':'customfield_1','name':'Team','custom':true,'schema':{'type':'team'," & _
+        "'custom':'com.atlassian.teams:rm-teams-custom-field-team'}},{'id':'status','name':'Status','custom':false," & _
+        "'schema':{'type':'status','system':'status'}}]")
+    summary = ReadJiraConfiguration(cfg, keys, ThisWorkbook)
+    Set wsT = ThisWorkbook.Worksheets("JiraIssueTypes"): Set wsS = ThisWorkbook.Worksheets("JiraStatuses")
+    Set wsW = ThisWorkbook.Worksheets("JiraWorkflows"): Set wsM = ThisWorkbook.Worksheets("JiraTransitions")
+    Set wsF = ThisWorkbook.Worksheets("JiraFields")
+    Check "jiraconfig", "summary counts", "3 of 4 keys, 2 workflows, 2 fields", True, _
+          InStr(summary, "Jira configuration read: 3 project(s), 2 workflow(s), 2 field(s).") = 1
+    Check "jiraconfig", "a key that Jira does not know is told", "XX", True, InStr(summary, "1 project key(s) of the Projects sheet not found") > 0
+    Check "jiraconfig", "a project whose workflows cannot be read is told", "401 on TB", True, InStr(summary, "could not be read for 1 project(s)") > 0
+    Check "jiraconfig", "issue type of the first page", "PRG", "PRG|Feature|WF-A|No|1|classic", RowText(wsT, 2, 6)
+    Check "jiraconfig", "one project, two workflows: the story", "TA Story", "TA|Story|WF-A|No|0|next-gen", RowText(wsT, 3, 6)
+    Check "jiraconfig", "one project, two workflows: the sub-task", "TA Sub-task", "TA|Sub-task|WF-B|Yes|-1|next-gen", RowText(wsT, 4, 6)
+    Check "jiraconfig", "no workflow when it could not be read", "TB Story", "TB|Story||No|0|classic", RowText(wsT, 5, 6)
+    Check "jiraconfig", "a workflow shared by two projects is written once", "header + WF-A 4 + WF-B 2", 7, LastRow(wsW)
+    Check "jiraconfig", "the second workflow of a project has its own statuses", "WF-B", _
+          "WF-B|1|Triage|Backlog|||0|TODO;WF-B||Fixed|Done|||0|DONE", RowText(wsW, 6, 8) & ";" & RowText(wsW, 7, 8)
+    Check "jiraconfig", "status of creation: Order 1; to do -> Backlog", "Open", "WF-A|1|Open|Backlog|||0|TODO", RowText(wsW, 2, 8)
+    Check "jiraconfig", "in progress: Active or Wait is left to a human", "Doing", "WF-A||Doing||||0|IN_PROGRESS", RowText(wsW, 3, 8)
+    Check "jiraconfig", "done -> Done", "Closed", "WF-A||Closed|Done|||0|DONE", RowText(wsW, 4, 8)
+    Check "jiraconfig", "a GLOBAL transition makes its status free", "Parked", "WF-A||Parked|Backlog|||1|TODO", RowText(wsW, 5, 8)
+    Check "jiraconfig", "one move per link of a DIRECTED transition", "Start from Open and Parked", _
+          "WF-A|Open|Doing||Start;WF-A|Parked|Doing||Start", RowText(wsM, 2, 5) & ";" & RowText(wsM, 3, 5)
+    Check "jiraconfig", "a reference the answer does not list is shown, not hidden", "zz", "WF-A|zz|Closed||Close", RowText(wsM, 5, 5)
+    Check "jiraconfig", "the moves of the second workflow follow", "WF-B", "WF-B|Triage|Fixed||Fix", RowText(wsM, 6, 5)
+    Check "jiraconfig", "4 + 1 moves, the shared workflow written once", "rows", 6, LastRow(wsM)
+    Check "jiraconfig", "statuses per issue type with the category key", "PRG", "PRG|Story|Doing|indeterminate", RowText(wsS, 2, 4)
+    Check "jiraconfig", "one status row per project", "3 projects", 4, LastRow(wsS)
+    Check "jiraconfig", "a custom field: id, name, custom, type, custom type", "Team", _
+          "customfield_1|Team|Yes|team|com.atlassian.teams:rm-teams-custom-field-team", RowText(wsF, 2, 5)
+    Check "jiraconfig", "a system field shows its system name", "status", "status|Status|No|status|status", RowText(wsF, 3, 5)
+    For Each e In gHttpLog
+        If InStr(e(1), "/workflows/preview") > 0 Then previews = previews & e(2) & ";"
+    Next e
+    Check "jiraconfig", "one preview per project, with its id and its issue types", "request bodies", _
+          J("{'projectId':'10100','issueTypeIds':['10001']};{'projectId':'10101','issueTypeIds':['10002','10005']};" & _
+            "{'projectId':'10102','issueTypeIds':['10002']};"), previews
+    ' An error after some answers: nothing is written, the proposals of the run before stay.
+    FakeReset
+    FakeAdd "GET", ProjectSearchUrl(base, keys, 1, 0), 200, J("{'isLast':true,'values':[{'id':'10100','key':'PRG','issueTypes':[]}]}")
+    FakeAdd "GET", StatusesUrl(base, "PRG"), 400, J("{'errorMessages':['bad']}")
+    On Error Resume Next
+    ReadJiraConfiguration cfg, keys, ThisWorkbook
+    raised = Err.Number - vbObjectError
+    On Error GoTo 0
+    Check "jiraconfig", "an error on the statuses call stops the run", "HTTP 400", 602, raised
+    Check "jiraconfig", "an error leaves the proposal sheets as they were", "JiraWorkflows", 7, LastRow(wsW)
+    On Error Resume Next
+    ReadJiraConfiguration cfg, New Collection, ThisWorkbook
+    raised = Err.Number - vbObjectError
+    On Error GoTo 0
+    Check "jiraconfig", "no project in the Projects sheet is refused", "no key", 620, raised
+    ' A project/search that never says isLast stops after 100 pages.
+    one.Add "K"
+    FakeReset
+    For i = 0 To 100
+        FakeAdd "GET", ProjectSearchUrl(base, one, 1, i), 200, J("{'isLast':false,'values':[{'key':'K'}]}")
+    Next i
+    On Error Resume Next
+    ReadProjects cfg, one
+    raised = Err.Number - vbObjectError
+    On Error GoTo 0
+    Check "jiraconfig", "paging is bounded", "isLast never true", 621, raised
+    FakeOff
+    ' Pure helpers: the two category enums, the 50 keys and 25 issue types per call, the rights.
+    Check "jiraconfig", "category key new -> Backlog", "new", "Backlog", ProposedCategory("new")
+    Check "jiraconfig", "category key indeterminate -> human choice", "indeterminate", "", ProposedCategory("indeterminate")
+    Check "jiraconfig", "category key done -> Done", " done ", "Done", ProposedCategory(" done ")
+    For i = 1 To 51
+        many.Add "K" & i
+    Next i
+    Check "jiraconfig", "keys 51 and up go to the next call", "51 keys", _
+          base & "/rest/api/3/project/search?keys=K51&expand=issueTypes&startAt=0&maxResults=50", ProjectSearchUrl(base, many, 51, 0)
+    Check "jiraconfig", "a key is URL-encoded", "A B", True, InStr(ProjectSearchUrl(base, ColOf("A B"), 1, 0), "keys=A%20B&") > 0
+    Check "jiraconfig", "issue types 26 and up go to the next preview", "27 ids", J("{'projectId':'7','issueTypeIds':['K26','K27']}"), _
+          PreviewBody("7", Head(many, 27), 26)
+    Check "jiraconfig", "401, 403 and 404 mean no right to read the workflows; 500 does not", "401|403|404|500", _
+          "1110", IIf(IsNotAllowed(401), 1, 0) & IIf(IsNotAllowed(403), 1, 0) & IIf(IsNotAllowed(404), 1, 0) & IIf(IsNotAllowed(500), 1, 0)
+    ' Workflows are told apart by id: two project-scoped workflows with the same name are both written, the same id once.
+    AddWorkflowRows JsonParse(J("{'statuses':[{'statusReference':'a','name':'S'}],'workflows':[" & _
+        "{'id':'1','name':'W','statuses':[{'statusReference':'a'}]},{'id':'2','name':'W','statuses':[{'statusReference':'a'}]}," & _
+        "{'id':'1','name':'W','statuses':[{'statusReference':'a'}]}]}")), CreateObject("Scripting.Dictionary"), _
+        CreateObject("Scripting.Dictionary"), rowsW, rowsM
+    Check "jiraconfig", "same name, two ids: both written; the same id once", "ids 1, 2, 1", 2, rowsW.Count
+End Sub
+
+Private Function ColOf(ParamArray items() As Variant) As Collection
+    Dim c As New Collection, item As Variant
+    For Each item In items
+        c.Add item
+    Next item
+    Set ColOf = c
+End Function
+
+Private Function Head(ByVal items As Collection, ByVal n As Long) As Collection
+    Dim c As New Collection, i As Long
+    For i = 1 To n
+        c.Add items(i)
+    Next i
+    Set Head = c
+End Function
+
 ' ================= Fake Jira (localhost; started by the Python tests, never part of the offline run) =================
 ' The M_ tests talk to the fake Jira of src\jira2dashboard\mockjira. Python calls MockSetup with its URL and the
 ' sizes of its dataset, then RunMockTests. Faults (429, 503) are requested over HTTP: POST /__mock__/fail.
@@ -1286,8 +1438,10 @@ Public Sub MockSetup(ByVal baseUrl As String, ByVal email As String, ByVal token
 End Sub
 
 Public Function RunMockTests() As String
+    ' M_JiraConfig resets the fake Jira (its faults): it runs before the proxy tests, whose requests a scenario reads after.
     RunMockTests = RunTests(Array("M_SearchAll", "M_Changelogs", "M_FlowFromMock", "M_Retry429", "M_ErrorsNotRetried", _
-                                  "M_Credentials", "M_ThroughProxy", "M_ProxyWithoutWindowsAuth", "M_FilterFromConfig"))
+                                  "M_JiraConfig", "M_Credentials", "M_ThroughProxy", "M_ProxyWithoutWindowsAuth", _
+                                  "M_FilterFromConfig"))
 End Function
 
 Private Function MockConfig() As Object
@@ -1302,9 +1456,10 @@ Private Function MockProjects() As Collection
     Set MockProjects = ProjectKeys(ThisWorkbook.Worksheets("Projects"))
 End Function
 
-Private Sub MockFault(ByVal cfg As Object, ByVal path As String, ByVal status As Long, ByVal times As Long)
+Private Sub MockFault(ByVal cfg As Object, ByVal path As String, ByVal status As Long, ByVal times As Long, _
+                      Optional ByVal method As String = "GET")
     Dim body As String
-    body = "{""method"":""GET"",""path"":""" & path & """,""status"":" & status & ",""times"":" & times & ",""retryAfter"":""0""}"
+    body = "{""method"":""" & method & """,""path"":""" & path & """,""status"":" & status & ",""times"":" & times & ",""retryAfter"":""0""}"
     HttpRequest cfg, "POST", mMockUrl & "/__mock__/fail", body
 End Sub
 
@@ -1525,4 +1680,63 @@ Public Function RunWithCoverage(ByVal includeNetwork As Boolean) As String
     CovWrite ThisWorkbook.Worksheets("CoverageHits")
     mTotalPlanned = 0
     RunWithCoverage = s
+End Function
+
+Public Sub M_JiraConfig()
+    ' Round trip: the fake Jira is built from the parameters of the repo, so the proposals give them back (every status of
+    ' the sheet Workflows with its free flag, every move of the sheet Transitions); a 401 on the preview keeps the rest.
+    Dim cfg As Object, summary As String, row As Variant, want As Object, got As Object, program As String, wrong As Long
+    Set cfg = MockConfig()
+    MockReset cfg
+    summary = ReadJiraConfiguration(cfg, MockProjects(), ThisWorkbook)
+    Check "mock", "the configuration is read", "summary", True, _
+          InStr(summary, "Jira configuration read: " & MockProjects().Count & " project(s), 2 workflow(s),") = 1
+    Set want = CreateObject("Scripting.Dictionary"): Set got = CreateObject("Scripting.Dictionary")
+    For Each row In ReadTable(ThisWorkbook.Worksheets("Workflows"))
+        want(row("Workflow") & "|" & row("Status") & "|" & row("IsFree")) = True
+    Next row
+    For Each row In ReadTable(ThisWorkbook.Worksheets("JiraWorkflows"))
+        got(row("Workflow") & "|" & row("Status") & "|" & row("IsFree")) = True
+    Next row
+    Check "mock", "JiraWorkflows gives back the statuses and the free flags of Workflows", "Workflow|Status|IsFree", _
+          SortedKeys(want), SortedKeys(got)
+    Set want = CreateObject("Scripting.Dictionary"): Set got = CreateObject("Scripting.Dictionary")
+    For Each row In ReadTable(ThisWorkbook.Worksheets("Transitions"))
+        want(row("Workflow") & "|" & row("From") & "|" & row("To")) = True
+    Next row
+    For Each row In ReadTable(ThisWorkbook.Worksheets("JiraTransitions"))
+        got(row("Workflow") & "|" & row("From") & "|" & row("To")) = True
+    Next row
+    Check "mock", "JiraTransitions gives back the moves of Transitions", "Workflow|From|To", SortedKeys(want), SortedKeys(got)
+    program = ProgramProject(ThisWorkbook.Worksheets("Projects"))
+    For Each row In ReadTable(ThisWorkbook.Worksheets("JiraIssueTypes"))
+        If (row("Project") = program) <> (row("Workflow") = "Feature") Or Len(row("Workflow") & "") = 0 Then wrong = wrong + 1
+    Next row
+    Check "mock", "the Program types follow Feature, the team types Team", "JiraIssueTypes", 0, wrong
+    MockFault cfg, "/rest/api/3/workflows/preview", 401, 100, "POST"
+    summary = ReadJiraConfiguration(cfg, MockProjects(), ThisWorkbook)
+    Check "mock", "without the right to read workflows the run says so", "401 on the preview", True, _
+          InStr(summary, "could not be read for " & MockProjects().Count & " project(s)") > 0
+    Check "mock", "and writes no workflow", "JiraWorkflows", 1, LastRow(ThisWorkbook.Worksheets("JiraWorkflows"))
+    Check "mock", "but the statuses of each issue type", "JiraStatuses", True, LastRow(ThisWorkbook.Worksheets("JiraStatuses")) > 1
+    MockReset cfg
+End Sub
+
+Private Function SortedKeys(ByVal d As Object) As String
+    ' The keys of a Dictionary, sorted and joined with ";" (two sets compare as two texts).
+    Dim k As Variant, items() As String, i As Long, j As Long, t As String
+    If d.Count = 0 Then Exit Function
+    ReDim items(0 To d.Count - 1)
+    For Each k In d.Keys
+        items(i) = CStr(k): i = i + 1
+    Next k
+    For i = 1 To UBound(items)
+        t = items(i): j = i - 1
+        Do While j >= 0
+            If items(j) <= t Then Exit Do
+            items(j + 1) = items(j): j = j - 1
+        Loop
+        items(j + 1) = t
+    Next i
+    SortedKeys = Join(items, ";")
 End Function

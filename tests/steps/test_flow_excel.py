@@ -1,4 +1,5 @@
-"""Steps of features/flow_excel.feature: the Excel formulas against the Python reference, cell by cell."""
+"""Steps of features/flow_excel.feature (the Excel formulas against the Python reference, cell by cell) and of
+features/jira_config.feature (the button that reads the Jira configuration into proposal sheets)."""
 import dataclasses
 import datetime as dt
 import gc
@@ -20,6 +21,7 @@ from jira2dashboard.flow.metrics import BUCKETS, flow_metrics
 from jira2dashboard.flow.model import NOT_COMPUTABLE, Period, Rules
 from jira2dashboard.flow.checks import CHECKS, IDS, PER_ISSUE, CheckSettings, Moves, fill_rates, run_checks
 from jira2dashboard.mockjira.anomalies import PI, PI_WINDOW, with_anomalies
+from jira2dashboard.mockjira import config as jira_config
 from jira2dashboard.mockjira.flow_adapter import to_flow_issues
 from jira2dashboard.mockjira.generator import generate
 from jira2dashboard.mockjira.server import MockJira
@@ -27,6 +29,7 @@ from jira2dashboard.params.model import load_all, project_keys
 from jira2dashboard.paths import OUT_DIR
 
 scenarios("../features/flow_excel.feature")
+scenarios("../features/jira_config.feature")             # same workbook and fake Jira steps
 
 TARGET = OUT_DIR / "flow_workbook.xlsm"
 TOLERANCE = 1e-6                    # days (0.09 s): Excel dates are doubles, the reference works in whole seconds
@@ -692,3 +695,130 @@ def _metrics(world, mode):
     assert seen == len(expected) > 20
     figures = [r["FlowTimeMedian"] for r in rows if r["FlowTimeMedian"] != NOT_COMPUTABLE]
     assert len(figures) > 5 and any(r["FlowEfficiency"] != NOT_COMPUTABLE for r in rows)
+
+
+# --- jira_config.feature: the button Read the Jira configuration ----------------------------------------------------
+
+PARAMETER_SHEETS = ("Config", "Projects", "Workflows", "Transitions", "FieldMapping", "Periods")
+PREVIEW = "/rest/api/3/workflows/preview"
+MSO_FORM_CONTROL = 8                 # Shape.Type of a Form button
+
+
+def sheet_rows(wb, name):
+    """Rows of a proposal sheet as dicts (header -> value); empty cells as ""."""
+    values = wb.Worksheets(name).UsedRange.Value
+    header, rows = values[0], values[1:]
+    return [{h: ("" if v is None else v) for h, v in zip(header, row)} for row in rows]
+
+
+def param_rows(sheet):
+    return next(s for s in load_all() if s.name == sheet).rows
+
+
+def number_or_text(value):
+    return int(value) if isinstance(value, float) and value.is_integer() else value
+
+
+@given(parsers.parse("le faux Jira refuse l'aperçu des workflows avec {status:d}"))
+def _preview_refused(world, status):
+    world["jira"].fail_next("POST", PREVIEW, status, times=100)
+
+
+@when("je clique sur le bouton Lire la configuration Jira")
+def _read_configuration(world):
+    wb = world["wb"]
+    world["params_before"] = {name: wb.Worksheets(name).UsedRange.Value for name in PARAMETER_SHEETS}
+    world["log_from"] = LOG_FILE.stat().st_size if LOG_FILE.exists() else 0
+    buttons = {shape.TextFrame.Characters().Text: (shape.OnAction, shape.TopLeftCell.Address)
+               for shape in wb.Worksheets("Dashboard").Shapes if shape.Type == MSO_FORM_CONTROL}
+    on_action, cell = buttons["Read the Jira configuration"]                  # the button the user clicks is there
+    assert on_action.endswith(sheets.CONFIG_MACRO), on_action
+    assert cell.replace("$", "") == D.CONFIG_CELL, cell
+    macro(world, on_action.rpartition(".")[2])                                 # and runs what its OnAction names
+    world["status"] = macro(world, "ProgressSnapshot").partition("|")[2]
+
+
+@then("l'état du tableau de bord dit que la configuration est lue")
+def _configuration_read(world):
+    assert world["status"].startswith(f"Jira configuration read: {len(project_keys())} project(s), 2 workflow(s), "), world["status"]
+    assert "could not be read" not in world["status"] and "not found" not in world["status"], world["status"]
+
+
+@then("l'état du tableau de bord dit que les workflows n'ont pas pu être lus")
+def _workflows_not_read(world):
+    assert f"The workflows could not be read for {len(project_keys())} project(s)" in world["status"], world["status"]
+
+
+@then("la feuille JiraIssueTypes donne le workflow de chaque type de ticket de chaque projet de la feuille Projects")
+def _issue_types(world):
+    issues = world["dataset"].issues
+    expected = {(key, i.type, i.workflow) for key in project_keys() for i in issues if i.project == key}
+    rows = sheet_rows(world["wb"], "JiraIssueTypes")
+    assert {(r["Project"], r["IssueType"], r["Workflow"]) for r in rows} == expected
+    assert len(rows) == len(expected)
+    assert {r["Subtask"] for r in rows if r["IssueType"] == "Sub-task"} == {"Yes"}
+
+
+@then("la feuille JiraStatuses donne les statuts de chaque type de ticket avec leur catégorie Jira")
+def _statuses(world):
+    dataset = world["dataset"]
+    keys = [p["key"] for p in jira_config.project_search(dataset, {"keys": list(project_keys())})["values"]]  # Jira's order
+    expected = [(key, t["name"], s["name"], s["statusCategory"]["key"]) for key in keys
+                for t in jira_config.project_statuses(dataset, key) for s in t["statuses"]]
+    rows = sheet_rows(world["wb"], "JiraStatuses")
+    assert [(r["Project"], r["IssueType"], r["Status"], r["JiraCategory"]) for r in rows] == expected
+
+
+@then("la feuille JiraWorkflows redonne les statuts de la feuille Workflows, avec une catégorie proposée et les statuts libres")
+def _workflows(world):
+    proposed = {"Backlog": "Backlog", "Active": "", "Wait": "", "Done": "Done", "Removed": "Done"}  # Jira has 3 categories
+    expected = {(wf, status): (1 if order == 1 else "", proposed[category], free)
+                for wf, order, status, category, _start, _end, free in param_rows("Workflows")}
+    rows = sheet_rows(world["wb"], "JiraWorkflows")
+    got = {(r["Workflow"], r["Status"]): (number_or_text(r["Order"]), r["Category"], number_or_text(r["IsFree"])) for r in rows}
+    assert got == expected
+    assert len(rows) == len(expected)
+    assert {(r["IsStart"], r["IsEnd"]) for r in rows} == {("", "")}               # a human decision
+
+
+@then("la feuille JiraTransitions redonne les passages de la feuille Transitions")
+def _transitions(world):
+    rows = sheet_rows(world["wb"], "JiraTransitions")
+    assert sorted((r["Workflow"], r["From"], r["To"]) for r in rows) == sorted(row[:3] for row in param_rows("Transitions"))
+    assert {r["Type"] for r in rows} == {""}                                        # forward, back, exit: a human decision
+
+
+@then("la feuille JiraFields liste les champs du faux Jira avec leur identifiant")
+def _fields(world):
+    rows = sheet_rows(world["wb"], "JiraFields")
+    assert [(r["Id"], r["Name"]) for r in rows] == [(f["id"], f["name"]) for f in world["dataset"].fields.catalog()]
+
+
+@then("les feuilles de paramètres n'ont pas changé")
+def _parameters_kept(world):
+    wb = world["wb"]
+    assert {name: wb.Worksheets(name).UsedRange.Value for name in PARAMETER_SHEETS} == world["params_before"]
+
+
+@then("les feuilles JiraWorkflows et JiraTransitions n'ont que leurs en-têtes")
+def _no_workflow(world):
+    for name in ("JiraWorkflows", "JiraTransitions"):
+        assert sheet_rows(world["wb"], name) == [], name
+
+
+@then("le journal local décrit la lecture de la configuration, sans jeton, adresse ni réponse de Jira")
+def _configuration_log(world):
+    raw = LOG_FILE.read_bytes()
+    start = world["log_from"] if len(raw) >= world["log_from"] else 0
+    text = raw[start:].decode("ascii")
+    lines = [line.split(" ", 3)[2:] for line in text.splitlines() if " RUN previous run did not end " not in line]
+    kinds = [kind for kind, *_ in lines]
+    assert lines[0][1].startswith("button Read the Jira configuration | Excel "), lines[0]
+    assert lines[-1] == ["RUN", "end ok"], lines[-1]
+    assert kinds[1:-1] == ["BEGIN", "END"] * ((len(kinds) - 2) // 2), kinds
+    begun = [rest[0] for kind, *rest in lines if kind == "BEGIN"]
+    count = len(project_keys())
+    assert begun == ["projects"] + [f"configuration of project {n} of {count}" for n in range(1, count + 1)] + \
+        ["fields", "proposal sheets"], begun
+    for secret in ("tok-123", "me@example.com", "127.0.0.1", "http", "{", "workflows/preview"):
+        assert secret not in text, secret

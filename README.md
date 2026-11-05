@@ -104,6 +104,22 @@ Sur le poste client :
    `Errors` (seulement le début, la fin et les erreurs). Si une exécution ne s'est pas terminée (Excel fermé ou planté),
    la suivante écrit `RUN previous run did not end (started ...)` : un indicateur est gardé dans le registre de
    l'utilisateur (`HKCU\Software\VB and VBA Program Settings\jira2dashboard`).
+8. **Lire la configuration Jira** (bouton **Read the Jira configuration** du `Dashboard`, module `modJiraConfig`) :
+   lit Jira en lecture seule pour les projets de la feuille `Projects` et écrit des **feuilles de propositions**,
+   jamais les feuilles de paramètres :
+   - `JiraIssueTypes` : le workflow de chaque type de ticket de chaque projet (un projet peut avoir un workflow par
+     type) ;
+   - `JiraStatuses` : les statuts de chaque type, avec la catégorie Jira (il suffit du droit de consulter le projet) ;
+   - `JiraWorkflows` : mêmes premières colonnes que `Workflows`. Catégorie proposée : à faire → `Backlog`, terminé →
+     `Done` ; « en cours » reste vide (Active ou Wait à décider). `IsFree = 1` si Jira autorise ce statut depuis tous
+     les autres. `Order = 1` pour le statut de création ;
+   - `JiraTransitions` : mêmes premières colonnes que `Transitions`, une ligne par passage autorisé ;
+   - `JiraFields` : les identifiants des champs, pour les lignes `...Field` de `Config`.
+
+   Restent à décider à la main : `Order`, `IsStart`, `IsEnd`, Active ou Wait, `Removed` au lieu de `Done`, le `Type`
+   d'un passage. Relire, puis recopier ce qui convient dans les feuilles de paramètres. Si le compte n'a pas le droit
+   de lire les workflows (« View (read-only) workflow »), les autres feuilles sont quand même remplies et la cellule
+   d'état le dit. Appels : `claude-code-handoff.md` section 8c. Rien ne sort du poste.
 
 **Formules Excel (E4)** : le test `tests\features\flow_excel.feature` compare cellule par cellule les formules du
 classeur à la référence Python (faux Jira, extraction VBA, formules, en mode A puis B). `Config.WorkTypeField` est

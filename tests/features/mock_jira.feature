@@ -63,6 +63,37 @@ Fonctionnalité: Faux Jira Cloud
     Quand j'ouvre un tunnel CONNECT vers "jira.mock.invalid:443" avec "NTLM TlRMTVNT"
     Alors la requête dans le tunnel répond 200
 
+  Scénario: Le faux Jira donne les projets demandés avec l'id et les types de ticket de chacun
+    Soit un faux Jira avec 250 tickets générés
+    Quand j'appelle "GET /rest/api/3/project/search?keys=PRG&keys=TA&expand=issueTypes"
+    Alors la réponse est 200
+    Et la réponse donne les projets "PRG, TA", chacun avec un id et les types de ses tickets
+
+  Plan du scénario: Le faux Jira donne les statuts de chaque type de ticket d'un projet, avec leur catégorie Jira
+    Soit un faux Jira avec 250 tickets générés
+    Quand j'appelle "GET /rest/api/3/project/<projet>/statuses"
+    Alors la réponse est 200
+    Et chaque type de ticket de "<projet>" a les statuts du workflow "<workflow>" de la feuille Workflows
+
+    Exemples:
+      | projet | workflow |
+      | TA     | Team     |
+      | PRG    | Feature  |
+
+  Plan du scénario: L'aperçu des workflows d'un projet redonne les statuts et les transitions des paramètres
+    Soit un faux Jira avec 250 tickets générés
+    Quand je demande l'aperçu des workflows du projet "<projet>" pour tous ses types de ticket
+    Alors la réponse est 200
+    Et l'aperçu donne le seul workflow "<workflow>", utilisé par tous les types de ticket de "<projet>"
+    Et ses statuts sont ceux du workflow "<workflow>" de la feuille Workflows
+    Et ses transitions dirigées sont celles du workflow "<workflow>" de la feuille Transitions
+    Et ses transitions globales mènent aux statuts libres du workflow "<workflow>"
+
+    Exemples:
+      | projet | workflow |
+      | TA     | Team     |
+      | PRG    | Feature  |
+
   @excel
   Scénario: Le client VBA lit tous les tickets et tous les historiques du faux Jira, en direct et via le proxy
     Soit un faux Jira avec 250 tickets générés qui exige le compte "genericemail@domain.com" et le token "tok-123" derrière un proxy qui exige "Negotiate"

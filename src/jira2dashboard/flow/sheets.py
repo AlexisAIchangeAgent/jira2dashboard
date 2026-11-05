@@ -35,6 +35,7 @@ def error_cells(wb) -> dict[str, int]:
 
 
 CANCEL_MACRO = "modActions.BtnCancelExtraction"
+CONFIG_MACRO = "modActions.BtnReadJiraConfiguration"
 
 
 def write_blueprint(wb, dash=None, button_macro: str | None = None) -> None:
@@ -53,7 +54,7 @@ def write_blueprint(wb, dash=None, button_macro: str | None = None) -> None:
 
 def write_dashboard_frame(wb, dash, button_macro: str | None = None) -> None:
     """Title, the team selector (B2, name dashTeam), the as-of date, the status cell (name dashStatus) and, with the button, the
-    buttons Extract and Cancel and the progress bar. The charts come after each extraction."""
+    buttons Extract, Cancel and Read the Jira configuration and the progress bar. The charts come after each extraction."""
     dash.Range("A1").Value = "Flow metrics"
     dash.Range("A1").Font.Bold = True
     dash.Range("A2").Value = "Team of the Distribution chart"
@@ -68,6 +69,7 @@ def write_dashboard_frame(wb, dash, button_macro: str | None = None) -> None:
     if button_macro:
         R.add_macro_button(dash, "J1", "Extract from Jira and compute", button_macro, 190, 26)
         R.add_macro_button(dash, D.CANCEL_CELL, "Cancel", CANCEL_MACRO, 80, 26)
+        R.add_macro_button(dash, D.CONFIG_CELL, "Read the Jira configuration", CONFIG_MACRO, 170, 26)
         R.add_progress_bar(dash, D.BAR_CELL, 190, 14)
 
 

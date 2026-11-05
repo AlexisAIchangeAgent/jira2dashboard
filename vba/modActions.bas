@@ -15,7 +15,7 @@ Option Explicit
 
 Private mBusy As Boolean
 Private mCancel As Boolean
-Private mExtracting As Boolean              ' True while the extraction job runs, False while the flow sheets are built
+Private mExtracting As Boolean              ' True while Jira is read (extraction job or configuration): Cancel works
 Private mNextSlice As Date
 
 Private Function SliceName() As String
@@ -75,6 +75,34 @@ Public Sub BtnCancelExtraction()
         LogLine "RUN", "cancel asked too late (building the flow sheets)"
         ShowProgress -1, "Too late to cancel: the flow sheets are being built."
     End If
+End Sub
+
+Public Sub BtnReadJiraConfiguration()
+    ' Reads the configuration of Jira (read-only) into the proposal sheets JiraIssueTypes, JiraStatuses, JiraWorkflows,
+    ' JiraTransitions and JiraFields (modJiraConfig). One go, about two calls per project: no slices. Cancel works during
+    ' a wait for Jira; the proposal sheets are written only at the end, so a cancel or an error leaves them as they were.
+    Dim num As Long, desc As String, summary As String
+    If mBusy Then Beep: Exit Sub
+    On Error GoTo Failed
+    mBusy = True: mCancel = False: mExtracting = True: gHttpCancel = False
+    LogRunStart "button Read the Jira configuration", LogLevelSetting()
+    ShowProgress 0, "Reading the Jira configuration..."
+    summary = ReadJiraConfiguration(JiraConfigFromWorkbook(), ProjectKeys(ThisWorkbook.Worksheets("Projects")), ThisWorkbook)
+    LogRunEnd "ok"
+    mExtracting = False
+    EndRun summary, 1
+    Exit Sub
+Failed:
+    num = Err.Number: desc = Err.Description                        ' first: the calls below may clear Err
+    mExtracting = False
+    If num = vbObjectError + 610 Then                                ' the Cancel button, pressed during a wait for Jira
+        LogRunEnd "cancelled during a wait for Jira"
+        EndRun "Cancelled: the proposal sheets are kept as they were.", 0
+        Exit Sub
+    End If
+    LogError "BtnReadJiraConfiguration", num, desc
+    LogRunEnd "stopped"
+    EndRun "Stopped: " & num & " - " & desc, 0
 End Sub
 
 Public Sub ExtractSlice()

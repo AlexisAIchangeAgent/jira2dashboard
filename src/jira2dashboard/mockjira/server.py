@@ -11,6 +11,7 @@ The same fault injection is reachable over HTTP, so that VBA tests can trigger i
 """
 import base64
 import json
+import re
 import select
 import socket
 import threading
@@ -19,11 +20,12 @@ import urllib.parse
 from dataclasses import dataclass, field
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
-from jira2dashboard.mockjira import api
+from jira2dashboard.mockjira import api, config
 from jira2dashboard.mockjira.dataset import Dataset
 from jira2dashboard.mockjira.errors import ApiError
 
 GONE_PATHS = ("/rest/api/3/search", "/rest/api/3/search/id")
+PROJECT_STATUSES = re.compile(r"/rest/api/3/project/([^/]+)/statuses")
 GONE_MESSAGE = "The requested API has been removed. Please migrate to the /rest/api/3/search/jql API."
 
 
@@ -203,8 +205,16 @@ def _make_handler(state: _State):
                 return 200, api.field_catalog(ds), {}
             if (method, path) == ("GET", "/rest/api/3/myself"):
                 return 200, api.myself(), {}
+            if (method, path) == ("GET", "/rest/api/3/project/search"):
+                return 200, config.project_search(ds, query), {}
+            statuses = PROJECT_STATUSES.fullmatch(path)
+            if method == "GET" and statuses:
+                return 200, config.project_statuses(ds, urllib.parse.unquote(statuses.group(1))), {}
+            if (method, path) == ("POST", "/rest/api/3/workflows/preview"):
+                return 200, config.workflows_preview(ds, body), {}
             known = {"/rest/api/3/search/jql", "/rest/api/3/search/approximate-count",
-                     "/rest/api/3/changelog/bulkfetch", "/rest/api/3/field", "/rest/api/3/myself"}
+                     "/rest/api/3/changelog/bulkfetch", "/rest/api/3/field", "/rest/api/3/myself",
+                     "/rest/api/3/project/search", "/rest/api/3/workflows/preview"}
             if path in known:
                 return 405, {"errorMessages": [f"Method {method} is not allowed on {path}."], "errors": {}}, {}
             return 404, {"errorMessages": ["Not Found"], "errors": {}}, {}
@@ -264,6 +274,10 @@ class MockJira:
     def base_url(self) -> str:
         host, port = self._server.server_address[:2]
         return f"http://{host}:{port}"
+
+    @property
+    def dataset(self) -> Dataset:
+        return self._state.dataset
 
     @property
     def requests(self) -> list[Request]:

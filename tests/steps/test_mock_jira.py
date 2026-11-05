@@ -7,7 +7,7 @@ from pytest_bdd import given, parsers, scenarios, then, when
 
 from jira2dashboard.mockjira.generator import generate
 from jira2dashboard.mockjira.server import MockJira
-from jira2dashboard.params.model import project_keys
+from jira2dashboard.params.model import load_all, project_keys
 
 scenarios("../features/mock_jira.feature")
 SEARCH = "/rest/api/3/search/jql"
@@ -300,3 +300,72 @@ def _requests_for_the_site(world, host):
 @then(parsers.parse("la réponse est {status:d}"))
 def _response_is(world, status):
     assert world["result"].status == status
+
+
+# --- the Jira configuration (projects, issue types, statuses, workflows) ------------------------------------------
+
+def _rows(sheet):
+    return next(s for s in load_all() if s.name == sheet).rows
+
+
+@when(parsers.parse('je demande l\'aperçu des workflows du projet "{key}" pour tous ses types de ticket'))
+def _preview(world, call, key):
+    found = call(world["jira"], "GET", f"/rest/api/3/project/search?keys={key}&expand=issueTypes").json["values"][0]
+    world["project"] = found
+    world["result"] = call(world["jira"], "POST", "/rest/api/3/workflows/preview",
+                           {"projectId": found["id"], "issueTypeIds": [t["id"] for t in found["issueTypes"]]})
+
+
+@then(parsers.parse('la réponse donne les projets "{keys}", chacun avec un id et les types de ses tickets'))
+def _projects(world, keys):
+    values = world["result"].json["values"]
+    assert sorted(p["key"] for p in values) == sorted(keys.split(", "))
+    for found in values:
+        assert found["id"].isdigit(), found
+        types = {i.type for i in world["jira"].dataset.issues if i.project == found["key"]}
+        assert {t["name"] for t in found["issueTypes"]} == types, found["key"]
+
+
+@then(parsers.parse('chaque type de ticket de "{key}" a les statuts du workflow "{workflow}" de la feuille Workflows'))
+def _statuses_per_type(world, key, workflow):
+    expected = [row[2] for row in _rows("Workflows") if row[0] == workflow]
+    answer = world["result"].json
+    assert {t["name"] for t in answer} == {i.type for i in world["jira"].dataset.issues if i.project == key}
+    for issue_type in answer:
+        assert [s["name"] for s in issue_type["statuses"]] == expected, issue_type["name"]
+        assert {s["statusCategory"]["key"] for s in issue_type["statuses"]} <= {"new", "indeterminate", "done"}
+
+
+def _workflow(world):
+    answer = world["result"].json
+    names = {s["statusReference"]: s["name"] for s in answer["statuses"]}
+    return names, answer["workflows"][0]
+
+
+@then(parsers.parse('l\'aperçu donne le seul workflow "{workflow}", utilisé par tous les types de ticket de "{key}"'))
+def _only_workflow(world, workflow, key):
+    workflows = world["result"].json["workflows"]
+    assert [w["name"] for w in workflows] == [workflow]
+    project = world["project"]
+    assert workflows[0]["queryContext"] == [{"project": project["id"], "issueTypes": [t["id"] for t in project["issueTypes"]]}]
+
+
+@then(parsers.parse('ses statuts sont ceux du workflow "{workflow}" de la feuille Workflows'))
+def _preview_statuses(world, workflow):
+    names, found = _workflow(world)
+    assert [names[s["statusReference"]] for s in found["statuses"]] == [r[2] for r in _rows("Workflows") if r[0] == workflow]
+
+
+@then(parsers.parse('ses transitions dirigées sont celles du workflow "{workflow}" de la feuille Transitions'))
+def _preview_moves(world, workflow):
+    names, found = _workflow(world)
+    moves = [(names[link["fromStatusReference"]], names[t["toStatusReference"]])
+             for t in found["transitions"] if t["type"] == "DIRECTED" for link in t["links"]]
+    assert sorted(moves) == sorted((r[1], r[2]) for r in _rows("Transitions") if r[0] == workflow)
+
+
+@then(parsers.parse('ses transitions globales mènent aux statuts libres du workflow "{workflow}"'))
+def _preview_free(world, workflow):
+    names, found = _workflow(world)
+    targets = [names[t["toStatusReference"]] for t in found["transitions"] if t["type"] == "GLOBAL"]
+    assert targets == [r[2] for r in _rows("Workflows") if r[0] == workflow and r[6] == 1]
