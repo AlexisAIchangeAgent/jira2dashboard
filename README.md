@@ -194,8 +194,13 @@ barre de progression, résultats ligne par ligne, bouton Annuler.
 ## Documents
 
 - `docs\` : fichiers de contexte et de paramètres de l'application.
-- `rovo\rovo_settings_analyser.md` : configuration de l'agent Rovo « Settings Analyser » (types de ticket, totaux
-  par type, statuts par type, champs personnalisés d'un projet) pour comparer Jira avec le classeur.
+- `rovo\` : les agents Rovo, à recopier dans Rovo Studio (ces fichiers sont la version de référence).
+  - `rovo_settings_analyser.md` : agent « Settings Analyser » (types de ticket, totaux par type, statuts par type,
+    champs personnalisés d'un projet) pour comparer Jira avec le classeur ;
+  - `rovo_flow_metric.md` : agent « Flow Metrics by Type » (métriques de flux par type de ticket, chaque nombre
+    marqué exact, approché ou échantillon, avec sa JQL) ; les chiffres officiels restent ceux du classeur ;
+  - `rovo-guide.md` : copie à jour (2026-11-05) de `docs\rovo-guide.md`, qui reste figé ; agent « Flow Data
+    Steward » pour les contrôles DC01-DC29.
 - `docs\cookbook_python.md` et `docs\vba-modules-tested.md` sont des **copies de code non maintenues**,
   périmées depuis la restructuration (le code vit dans `src\` et `vba\`).
 - `claude-code-handoff.md` est mis à jour (nouveau dossier, nouvelles commandes, règle `bootstrap_test 15/15`

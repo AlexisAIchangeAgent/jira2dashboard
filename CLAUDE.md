@@ -65,7 +65,8 @@ Before finishing a change run the full pass: `coverage`, `vba-tests`, `test-exce
   RUN, BEGIN/END per step, ERROR; never pass it a token, URL, JQL or Jira answer (`test_vba_log_guard.py` checks).
 - **Jira configuration (VBA).** `modJiraConfig` (button Read the Jira configuration, `BtnReadJiraConfiguration`) reads
   projects, issue types, statuses, workflows (`workflows/preview`) and fields into proposal sheets `Jira*`; it never writes
-  the parameter sheets (calls and mapping: handoff section 8c).
+  the parameter sheets (calls and mapping: handoff section 8c). Its Rovo counterpart, to compare Jira with the workbook:
+  `rovo/rovo_settings_analyser.md` (agent config, not code).
 - **Fake Jira.** `mockjira/` is a stdlib `http.server` Jira Cloud (search/jql, changelog bulkfetch, proxy/CONNECT, fault
   injection) fed by `dataset.py` (hand-written cases via `issue()`) and `generator.py` (seeded volume);
   `anomalies.py` adds known data-quality cases; `config.py` answers the configuration calls from the parameters (round
@@ -107,8 +108,14 @@ table in the handoff whenever a `.bas` changes. `README.md` (French) covers deli
 - **VBA traps.** A one-cell `Range.Value` is not an array; assigning an object to a Variant needs `Set` (error 450);
   `Application.OnTime` has a 1 s granularity; a COM call to an Excel that runs a macro is rejected (see `retry()` in
   `tests/steps/test_flow_excel.py`).
-- **Test markers.** `excel` and `network` tests are excluded from the default run; Excel scenarios share one delivered
-  workbook per module.
+- **Test markers.** `excel` and `network` tests are excluded from the default run; Excel scenarios build the delivered
+  workbook once per module and open it in a fresh Excel per scenario.
+- **pytest-bdd binding.** Steps are local to their module: a new `.feature` that reuses Excel steps is bound with a second
+  `scenarios()` call in `tests/steps/test_flow_excel.py`. A `.feature` bound by no `scenarios()` call is not run (used for
+  scenarios written ahead, e.g. `workflow_by_type.feature`).
+- **`M_` tests** (VBA against the fake Jira) run only in the `@excel` scenario of `mock_jira.feature`, not in `vba-tests`
+  (`T_` and `N_` only). `MockReset` clears the fake Jira's request log, which that scenario reads after the proxy tests:
+  keep tests that reset before `M_ThroughProxy` in `RunMockTests`.
 
 ## Hard constraints
 
@@ -136,14 +143,19 @@ table in the handoff whenever a `.bas` changes. `README.md` (French) covers deli
   ask AL before reading it. Before blaming a change for a flaky Excel run, run the last commit (`git stash`) the same
   number of times. With a failure rate near 40 %, a fix is proven only by 5 green module runs in a row.
 - **Open defect:** Excel crashes (`0xC0000005`, a DEP fault inside VBA's engine, module "unknown") during the
-  extraction: about 2 module runs out of 5 with one Excel per module, 1 out of 10 with a fresh Excel per scenario (what
-  the scenarios now do). It predates the 2026-11-04 review. Read handoff section 8b before chasing it. Test a fix in
-  the stress setup (`J2D_ONE_EXCEL=1`: one Excel per module): with a fresh Excel per scenario, 5 green runs prove nothing.
+  extraction, always right after the last search page (`END search page 30: 150 issues` in the local log). The button
+  scenario alone crashed 7 times out of 10 on 2026-11-05 (`test-excel tests/steps/test_flow_excel.py -k bouton`): that is
+  the quickest repro. It predates the 2026-11-04 review. Read handoff section 8b before chasing it.
 - **Git Bash rewrites `/switch` arguments** of Windows programs into paths (`/update` -> `C:/.../Git/update`, also
   `wevtutil /q:`): prefix the command with `MSYS_NO_PATHCONV=1`.
 - The PowerShell tool is slow here (CIM / event-log queries time out): use Bash `tasklist` for processes.
-- Edit scripts with many quotes or `\r\n`: write a `.py` file with the Write tool and run it, not a Bash heredoc.
+- Edit scripts with quotes, `\r\n` or backslashes (Windows paths in Markdown): write a `.py` file with the Write tool and
+  run it, not a Bash heredoc (a heredoc turned `tests\\features` into a form feed in the handoff).
+- `Windows fatal exception: code 0x800706be` (or `0x800706ba`) printed after Excel scenarios is teardown noise, also in
+  green runs: only the test result counts.
 
 ## Roadmap not done yet (ask before starting)
 
 Real test at the client machine is still to be done by AL.
+Pending: a workflow per issue type (scenarios written, not bound; bind them once the client confirms the need); the Rovo
+agent Settings Analyser to try at the client (its section 5).

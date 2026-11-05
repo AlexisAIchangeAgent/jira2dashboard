@@ -388,6 +388,11 @@ lists, for one project, the work item types, the total per type, the statuses pe
 the headers of the `Jira*` sheets, to compare Jira (as Rovo sees it) with the workbook. Rovo agents read Jira with
 JQL search only (other tools: verify in Studio): workflows and transitions are not visible to them, counts carry
 their JQL. Not tried on a real site yet.
+Also in `rovo\` (2026-11-05, from the research report `C:\dev\reports\Agents Rovo Studio et métriques.md`, outside
+the repo): `rovo_flow_metric.md` (flow metrics per work item type, each number labelled exact, approximate or sample;
+no official figure comes from Rovo) and `rovo-guide.md`, the updated copy of `docs\rovo-guide.md` (which stays
+frozen): Studio options, counts and limits, the DC checks as JQL (10 exact, 9 partial, 1 to test, 9 workbook
+only), and the agent Flow Data Steward.
 
 ## 9. Suggested next steps
 
