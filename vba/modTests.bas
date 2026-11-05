@@ -52,7 +52,7 @@ Private Function TestNames() As Variant
         "T_HttpNetworkAndCancel", "T_RetryExhausted", "T_ChangelogChunks", "T_IssueRows", "T_WriteTable", "T_StatusIntervals", _
         "T_StatusChanges", "T_RetryDelay", "T_SafeAccess", "T_FilesUtf8", "T_StringifyBadObject", _
         "T_TooManyPages", "T_BackgroundExport", "T_TextNotConverted", "T_ParamsTables", "T_ParamsOnWorkbook", _
-        "T_TrimWhite", "T_ConfigSheet", "T_ProjectsSheet", "T_ParseMoment", "T_ExtractFlowData", "T_ExtractJob", "T_ExtractCheckFields", "T_FlowBuild", "T_BaseUrlHttps", "T_Log", _
+        "T_TrimWhite", "T_ConfigSheet", "T_MandatoryConfig", "T_ProjectsSheet", "T_ParseMoment", "T_ExtractFlowData", "T_ExtractJob", "T_ExtractCheckFields", "T_FlowBuild", "T_BaseUrlHttps", "T_Log", _
         "T_JiraConfig")
 End Function
 
@@ -245,6 +245,43 @@ Private Function ConfigRows(ByVal ws As Object, ByVal pairs As Variant) As Objec
     WriteTable ws, Array("Parameter", "Value", "Description"), rows
     Set ConfigRows = ws
 End Function
+
+Private Function MandatoryRows(ByVal ws As Object, ByVal triples As Variant) As Object
+    ' Writes a Config sheet with the column Mandatory: triples = Array("Name", "Value", "Mandatory", ...).
+    Dim rows As New Collection, i As Long
+    For i = LBound(triples) To UBound(triples) Step 3
+        rows.Add Array(triples(i), triples(i + 1), triples(i + 2), "test")
+    Next i
+    WriteTable ws, Array("Parameter", "Value", "Mandatory", "Description"), rows
+    Set MandatoryRows = ws
+End Function
+
+Private Function RequireError(ByVal ws As Object, ByVal onlyNames As String) As String
+    ' "number|description" of RequireMandatory, or "" when it does not stop.
+    On Error Resume Next
+    RequireMandatory ws, onlyNames
+    If Err.Number <> 0 Then RequireError = (Err.Number - vbObjectError) & "|" & Err.Description
+    Err.Clear
+End Function
+
+Public Sub T_MandatoryConfig()
+    ' The column Mandatory of the Config sheet: an empty mandatory value stops the buttons before any call to Jira.
+    Dim ws As Object
+    Set ws = ThisWorkbook.Worksheets("TestScratch")
+    MandatoryRows ws, Array("BaseUrl", "", "True", "Email", "me@x.com", "True", "Filter", "", "False", _
+                            "FlowLoadMode", " ", "VRAI", "FeatureTypes", "Feature", True, "AsOf", "", True)
+    Check "mandatory", "empty mandatory values, in the order of the sheet", "BaseUrl, blank FlowLoadMode, AsOf", _
+          "BaseUrl, FlowLoadMode, AsOf", MissingMandatory(ws)
+    Check "mandatory", "an empty value that is not mandatory is fine", "Filter", 0, InStr(MissingMandatory(ws), "Filter")
+    Check "mandatory", "limited to the connection", "BaseUrl,Email,ApiToken", "BaseUrl", MissingMandatory(ws, "BaseUrl,Email,ApiToken")
+    Check "mandatory", "the stop names them", "error 608", "608|Fill these values of the Config sheet first (Mandatory = True): BaseUrl, FlowLoadMode, AsOf", _
+          RequireError(ws, "")
+    Check "mandatory", "nothing missing: no stop", "Email, Filter", "", RequireError(ws, "Email, Filter")
+    ConfigRows ws, Array("BaseUrl", "", "AsOf", "")
+    Check "mandatory", "a sheet without the column has nothing to check", "3 columns", "", MissingMandatory(ws)
+    Check "mandatory", "the real Config sheet: the client values are mandatory and empty", "Config", _
+          "BaseUrl, Email, ApiToken, AsOf", MissingMandatory(ThisWorkbook.Worksheets("Config"))
+End Sub
 
 Private Function HintOf(ByVal status As Long) As String
     Dim resp As Object, msg As String

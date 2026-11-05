@@ -65,6 +65,10 @@ Before finishing a change run the full pass: `coverage`, `vba-tests`, `test-exce
 - **Parameters live in the workbook, never in code.** `params/*.md` (config, projects, workflows, transitions,
   field_mapping, periods) are read and validated by `src/jira2dashboard/params/`, written into sheets, and read by VBA
   (`modParams`). Status names, team names and extract columns must not appear as literals in VBA (a guard test enforces it).
+  `Config` columns: Parameter | Value | Mandatory | Description (formulas read A and B). An empty Mandatory=True value
+  stops the buttons before any call to Jira (`modParams.RequireMandatory`, error 608).
+- **User manual.** `src/jira2dashboard/manual.py` (pure text) is written by `flow/sheets.write_manual` at the delivery
+  build: the first steps on the Dashboard from T1, and the sheet `Manual`. Update it when a button, sheet or step changes.
 - **Extraction (VBA).** `modHttp` (WinHTTP, proxy with Windows auth, retries) -> `modJira` (search, bulk changelog) ->
   `modExtract` -> `modFlow` (status intervals) ; `modActions` is the dashboard button (`ExtractAndCompute`). The previous
   results are cleared only after Jira has answered. `modLog` writes the local log (`%LOCALAPPDATA%\jira2dashboard\logs`):

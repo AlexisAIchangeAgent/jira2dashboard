@@ -8,6 +8,7 @@ workbook needs no Python to refresh. Here are also the readers the tests use (ta
 from jira2dashboard.excel import com as R
 from jira2dashboard.flow import blueprint as B
 from jira2dashboard.flow import dashboard_spec as D
+from jira2dashboard import manual as M
 
 EXCEL_ERRORS = {-2146826281: "#DIV/0!", -2146826246: "#N/A", -2146826259: "#NAME?", -2146826288: "#NULL!",
                 -2146826252: "#NUM!", -2146826265: "#REF!", -2146826273: "#VALUE!", -2146826254: "#CALC!"}
@@ -67,10 +68,26 @@ def write_dashboard_frame(wb, dash, button_macro: str | None = None) -> None:
     dash.Range(D.STATUS_CELL).Value = "Ready"
     wb.Names.Add(D.STATUS, "=Dashboard!" + dash.Range(D.STATUS_CELL).Address)
     if button_macro:
-        R.add_macro_button(dash, "J1", "Extract from Jira and compute", button_macro, 190, 26)
-        R.add_macro_button(dash, D.CANCEL_CELL, "Cancel", CANCEL_MACRO, 80, 26)
-        R.add_macro_button(dash, D.CONFIG_CELL, "Read the Jira configuration", CONFIG_MACRO, 170, 26)
+        R.add_macro_button(dash, "J1", D.EXTRACT_CAPTION, button_macro, 190, 26)
+        R.add_macro_button(dash, D.CANCEL_CELL, D.CANCEL_CAPTION, CANCEL_MACRO, 80, 26)
+        R.add_macro_button(dash, D.CONFIG_CELL, D.CONFIG_CAPTION, CONFIG_MACRO, 170, 26)
         R.add_progress_bar(dash, D.BAR_CELL, 190, 14)
+
+
+def write_manual(wb, dash, mandatory: tuple[str, ...]) -> None:
+    """The first steps on the Dashboard (from STEPS_CELL down, beside the charts: one line per row, no wrap, so the rows
+    keep the height the charts are sized from) and the sheet Manual right after the Dashboard."""
+    first = dash.Range(D.STEPS_CELL)
+    R.write_block(dash, first.Row, first.Column, [[line] for line in M.first_steps()])
+    first.Font.Bold = True
+    ws = wb.Worksheets.Add(None, dash)                       # positional: (Before, After)
+    ws.Name = M.MANUAL_SHEET
+    rows = M.manual(mandatory)
+    R.write_block(ws, 1, 1, [[text] for _kind, text in rows])
+    for n, (kind, _text) in enumerate(rows, start=1):
+        if kind == M.HEADING:
+            ws.Cells(n, 1).Font.Bold = True
+    ws.Columns("A").ColumnWidth = 120
 
 
 def export_charts(wb, folder) -> dict[str, str]:

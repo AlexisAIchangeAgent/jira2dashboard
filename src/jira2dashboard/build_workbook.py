@@ -11,9 +11,9 @@ from pathlib import Path
 
 from jira2dashboard import clean
 from jira2dashboard.excel import com as R
-from jira2dashboard.flow.sheets import write_blueprint
+from jira2dashboard.flow.sheets import write_blueprint, write_manual
 from jira2dashboard.paths import OUT_DIR
-from jira2dashboard.params.model import load_all
+from jira2dashboard.params.model import load_all, mandatory_parameters
 from jira2dashboard.params.write import write_params
 from jira2dashboard.testbench import run_vba_tests as rvt
 
@@ -38,8 +38,11 @@ def build_delivery(target: Path = TARGET) -> Path:
         R.assert_vba_access(wb)                                       # fail now, not deep inside the module import
         dash = wb.Worksheets(1)
         dash.Name = "Dashboard"
-        write_params(wb, load_all())                                  # Config, Projects, Periods, Workflows, ...
+        params = load_all()
+        write_params(wb, params)                                      # Config, Projects, Periods, Workflows, ...
         write_blueprint(wb, dash, BUTTON_MACRO)
+        config = next(sheet for sheet in params if sheet.name == "Config")
+        write_manual(wb, dash, mandatory_parameters(config))          # first steps on the Dashboard, sheet Manual
         for name, code in sources.items():
             R.add_or_replace_module(wb, name, code)
         R.set_module_code(R.workbook_component(wb), THISWORKBOOK_CODE)

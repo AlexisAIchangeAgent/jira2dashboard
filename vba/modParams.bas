@@ -166,7 +166,7 @@ Public Function AsOfFromConfig(ByVal wsConfig As Object) As Date
 End Function
 
 Public Function ConfigValue(ByVal wsConfig As Object, ByVal name As String, Optional ByVal defaultValue As String = "") As String
-    ' One value of the Config sheet (columns Parameter | Value | Description), trimmed like a pasted value.
+    ' One value of the Config sheet (columns Parameter | Value | Mandatory | Description), trimmed like a pasted value.
     ' An empty cell or an unknown parameter gives defaultValue.
     Cov "PRM14"
     Dim row As Variant, v As String
@@ -181,6 +181,36 @@ Public Function ConfigValue(ByVal wsConfig As Object, ByVal name As String, Opti
     Cov "PRM16"
     ConfigValue = defaultValue
 End Function
+
+Public Function MissingMandatory(ByVal wsConfig As Object, Optional ByVal onlyNames As String = "") As String
+    ' The parameters of the Config sheet whose Mandatory is True and whose Value is empty, as "BaseUrl, AsOf" ("" = none),
+    ' in the order of the sheet. onlyNames ("BaseUrl,Email") limits the check to those parameters; "" = all of them.
+    ' A sheet without the column Mandatory (a workbook built before it) has nothing to check.
+    Cov "PRM26"
+    Dim row As Variant, name As String, out As String
+    For Each row In ReadTable(wsConfig)
+        If Not row.Exists("Mandatory") Then Cov "PRM27": Exit Function
+        name = CStr(row("Parameter") & "")
+        If IsYes(CStr(row("Mandatory") & "")) And Len(TrimWhite(CStr(row("Value") & ""))) = 0 Then
+            If Len(onlyNames) = 0 Or InStr(1, "," & Replace(onlyNames, " ", "") & ",", "," & name & ",", vbTextCompare) > 0 Then
+                Cov "PRM28"
+                If Len(out) > 0 Then out = out & ", "
+                out = out & name
+            End If
+        End If
+    Next row
+    MissingMandatory = out
+End Function
+
+Public Sub RequireMandatory(ByVal wsConfig As Object, Optional ByVal onlyNames As String = "")
+    ' Stops a button before any call to Jira while a mandatory value of the Config sheet is empty (error 608).
+    Dim missing As String
+    missing = MissingMandatory(wsConfig, onlyNames)
+    If Len(missing) > 0 Then
+        Cov "PRM29"
+        Err.Raise vbObjectError + 608, "RequireMandatory", "Fill these values of the Config sheet first (Mandatory = True): " & missing
+    End If
+End Sub
 
 Public Function IsYes(ByVal text As String) As Boolean
     ' The sheet is read in a French Excel: Yes / Oui / True / Vrai / 1 mean yes.

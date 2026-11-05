@@ -87,6 +87,7 @@ Public Sub BtnReadJiraConfiguration()
     mBusy = True: mCancel = False: mExtracting = True: gHttpCancel = False
     LogRunStart "button Read the Jira configuration", LogLevelSetting()
     ShowProgress 0, "Reading the Jira configuration..."
+    RequireMandatory ThisWorkbook.Worksheets("Config"), "BaseUrl,Email,ApiToken"      ' only the connection is needed here
     summary = ReadJiraConfiguration(JiraConfigFromWorkbook(), ProjectKeys(ThisWorkbook.Worksheets("Projects")), ThisWorkbook)
     LogRunEnd "ok"
     mExtracting = False

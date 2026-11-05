@@ -138,7 +138,19 @@ MD5 of the current modules (LF line endings). Unchanged since the original hando
   `M_JiraConfig` (round trip with the fake Jira), `tests\features\jira_config.feature` (two `@excel` scenarios; the
   first one also checks that the Dashboard button is at O1 and runs this macro). The fake
   Jira answers these calls (`mockjira\config.py`), built from the parameters, so the proposals must give them back.
-- `modTests`: `T_FlowBuild` (builds twice, smaller the second time), parameter tests, `T_TrimWhite`, `T_ConfigSheet`, and the `M_` tests against the fake Jira.
+- `modTests`: `T_FlowBuild` (builds twice, smaller the second time), parameter tests, `T_TrimWhite`, `T_ConfigSheet`, `T_MandatoryConfig`, and the `M_` tests against the fake Jira.
+- **Column Mandatory of `Config` (2026-11-05).** `params\config.md` has 4 columns: Parameter | Value | Mandatory | Description
+  (Parameter stays in A and Value in B: the formulas read `Config!$A:$A` / `$B:$B`). Mandatory = True for BaseUrl, Email,
+  ApiToken, FlowLoadMode, AsOf, FeatureTypes, BlocksLinkType, FillRateThreshold: empty, a request fails or a figure or a
+  check is silently wrong (FlowLoadMode: #N/A loads; FillRateThreshold: #VALUE! in DC25; FeatureTypes: false KO/OK;
+  BlocksLinkType: DC22/DC23 say OK). `modParams.MissingMandatory` / `RequireMandatory` (error 608, PRM26-PRM29):
+  `ExtractParameters` checks every mandatory value first (before `ValidateBuildInputs`), `BtnReadJiraConfiguration` only
+  BaseUrl, Email and ApiToken. A sheet without the column (older workbook) is not checked. `params\model.py`: Mandatory is
+  True or False, and a mandatory value outside `TYPED_AT_CLIENT` (BaseUrl, Email, ApiToken, AsOf) needs a value in the repo.
+- **First steps and sheet Manual (2026-11-05).** `src\jira2dashboard\manual.py` (pure text) and `flow\sheets.write_manual`:
+  the first steps in the order of the buttons on the Dashboard from T1 (beside the charts: a rebuild clears only A4:R400;
+  one line per row, no wrap, so the chart rows keep their height), and the sheet `Manual` right after the Dashboard (delivery
+  build only). The button captions are constants of `dashboard_spec.py`. Scenarios: `tests\features\first_use.feature`.
 
 | Module | MD5 |
 |---|---|
@@ -149,13 +161,13 @@ MD5 of the current modules (LF line endings). Unchanged since the original hando
 | modHttp.bas | 849a7542964572acbece130c0d9bf086 |
 | modJira.bas | 3e91019bff4c37532ad75d3beca54096 |
 | modFlow.bas | 69f021411e3989de981f8bbde8ec5d73 |
-| modParams.bas | 718b90c97703dde1073480eb4cee0d3c |
-| modExtract.bas | d78be88ec4c062903dbfaf42586b9fa6 |
+| modParams.bas | fe97f1c40d82f7a4d9b894e633160b16 |
+| modExtract.bas | f1bd9e7f524afa6915146f4b2b7e07dc |
 | modJiraConfig.bas | b4529efc36a4d0323c9508a1b7bccc56 |
 | modFlowBuild.bas | bb2fbc8c73909f2ac82cf34b27c6ca08 |
-| modActions.bas | 09b9bacac7238a8704fba4e8e51ba120 |
+| modActions.bas | bc39936af9bf15fd9b90e1715b8d9a3e |
 | modBackground.bas | 1d098ce38925b8dc55bcf54404cf314f |
-| modTests.bas | 941f7fada66f76266b2cc55a9a76e94b |
+| modTests.bas | 5e198d34a64e7d6fc07a422cabd18abe |
 | modButtons.bas | 3bbe95b810cc0722eabed5c2bdbabbb2 |
 
 The Python files are no longer hashed (they were moved and edited; the code is covered by tests). If you
@@ -176,8 +188,8 @@ extraction script (Copilot must read its proxy settings there; never copy the to
 
 ## 6. Test status (2026-11-05, with the button Read the Jira configuration)
 
-- `scripts\run.ps1 vba-tests --out vba_tests_v11.xlsm`: COMPILED_OK, **375 offline + 8 network OK, 0 KO**,
-  coverage **189/189 markers = 100 %** (`modJiraConfig`: JCF01-JCF23; `modLog`: LOG01-LOG13; review markers: section 8b; earlier: E2: `modParams`; E3: `TrimWhite`; proxy work: `Config` sheet reader, proxy
+- `scripts\run.ps1 vba-tests` (2026-11-05, column Mandatory): COMPILED_OK, **382 offline + 8 network OK, 0 KO**,
+  coverage **193/193 markers = 100 %** (PRM26-PRM29: the column Mandatory; `modJiraConfig`: JCF01-JCF23; `modLog`: LOG01-LOG13; review markers: section 8b; earlier: E2: `modParams`; E3: `TrimWhite`; proxy work: `Config` sheet reader, proxy
   normalization, status hints; projects and filter; E4: `modExtract`, `ParseMoment`).
   The `M_` tests against the fake Jira are not in these counts: they run from `scripts\run.ps1 test-excel`.
 - **Flaky Excel sessions while Office updates itself:** if `OfficeClickToRun` / `OfficeC2RClient` runs, Windows
@@ -188,8 +200,9 @@ extraction script (Copilot must read its proxy settings there; never copy the to
   and after an Office update; Office's crash recovery can end the process with code 0 and start a new `EXCEL.EXE`, so
   the diagnosis above may have been the same crash. Check the exit code first (section 8b).
 - `scripts\run.ps1 check-machine`: **21 checks, 0 failed**.
-- `scripts\run.ps1 coverage`: **623 passed**, 98.9 %. `test-network`: 1 passed. `build`: COMPILED_OK.
-- `scripts\run.ps1 test-excel`: 34 of 35 on the last run (2026-11-05, with the two scenarios of `jira_config.feature`
+- `scripts\run.ps1 coverage`: **655 passed**, 98.8 %. `test-network`: 1 passed. `build`: COMPILED_OK.
+- `scripts\run.ps1 test-excel`: **38 of 38** on 2026-11-05 with the three scenarios of `first_use.feature` (the crash
+  below did not show in that run). Before: 34 of 35 (2026-11-05, with the two scenarios of `jira_config.feature`
   and `M_JiraConfig` in the fake Jira scenario); the button scenario lost its Excel right after `END search page 30:
   150 issues` (**open defect**, section 8b; run alone it also crashes: 7 out of 10 that night). Earlier: 9 module runs out of 10 green with a fresh Excel
   per scenario.

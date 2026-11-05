@@ -36,6 +36,11 @@ class ChartSpec:
     band: tuple[float, float] | None = None     # a target band drawn as two constant series (proposal: SAFe 80-100 %)
 
 
+EXTRACT_CAPTION = "Extract from Jira and compute"     # the captions of the Dashboard buttons (flow/sheets.py)
+CANCEL_CAPTION = "Cancel"
+CONFIG_CAPTION = "Read the Jira configuration"
+STEPS_CELL = "T1"           # the first steps (manual.first_steps): beside the charts; a rebuild clears only A4:R400
+
 CHARTS = (
     ChartSpec("velocity", "Velocity - items done per period", "Velocity", XL_COLUMN_CLUSTERED),
     ChartSpec("flow_time", "Flow Time - median, in days", "FlowTimeMedian", XL_LINE_MARKERS),

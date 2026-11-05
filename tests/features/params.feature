@@ -27,6 +27,23 @@ Fonctionnalité: Paramètres écrits dans le classeur
     Quand je les charge
     Alors la feuille "Config" a 26 lignes
 
+  Scénario: La feuille Config dit quels paramètres sont obligatoires
+    Soit les fichiers de paramètres du dépôt
+    Quand je les charge
+    Alors les paramètres obligatoires de la feuille Config sont "BaseUrl, Email, ApiToken, FlowLoadMode, AsOf, FeatureTypes, BlocksLinkType, FillRateThreshold"
+
+  Scénario: Une valeur de Mandatory autre que True ou False est refusée
+    Soit les fichiers de paramètres du dépôt
+    Quand je remplace "| Filter |  | False |" par "| Filter |  | Maybe |" dans "config.md"
+    Et je les charge
+    Alors le chargement est refusé avec "Config: Mandatory of Filter must be True or False, got 'Maybe'"
+
+  Scénario: Un paramètre obligatoire qui n'est pas une valeur du client a une valeur dans le dépôt
+    Soit les fichiers de paramètres du dépôt
+    Quand je remplace "| BlocksLinkType | Blocks |" par "| BlocksLinkType |  |" dans "config.md"
+    Et je les charge
+    Alors le chargement est refusé avec "Config: BlocksLinkType is mandatory: give it a value"
+
   Scénario: Les projets à extraire et le rôle de chacun sont dans la feuille Projects
     Soit les fichiers de paramètres du dépôt
     Quand je les charge

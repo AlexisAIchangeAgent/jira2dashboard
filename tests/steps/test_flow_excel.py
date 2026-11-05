@@ -1,5 +1,6 @@
-"""Steps of features/flow_excel.feature (the Excel formulas against the Python reference, cell by cell) and of
-features/jira_config.feature (the button that reads the Jira configuration into proposal sheets)."""
+"""Steps of features/flow_excel.feature (the Excel formulas against the Python reference, cell by cell), of
+features/jira_config.feature (the button that reads the Jira configuration into proposal sheets) and of
+features/first_use.feature (the first steps, the sheet Manual and the column Mandatory of Config)."""
 import dataclasses
 import datetime as dt
 import gc
@@ -11,6 +12,7 @@ import pytest
 import pywintypes
 from pytest_bdd import given, parsers, scenarios, then, when
 
+from jira2dashboard import manual
 from jira2dashboard.build_workbook import build_delivery
 from jira2dashboard.excel import com
 from jira2dashboard.flow import blueprint, sheets
@@ -25,11 +27,12 @@ from jira2dashboard.mockjira import config as jira_config
 from jira2dashboard.mockjira.flow_adapter import to_flow_issues
 from jira2dashboard.mockjira.generator import generate
 from jira2dashboard.mockjira.server import MockJira
-from jira2dashboard.params.model import load_all, project_keys
+from jira2dashboard.params.model import load_all, mandatory_parameters, project_keys
 from jira2dashboard.paths import OUT_DIR
 
 scenarios("../features/flow_excel.feature")
 scenarios("../features/jira_config.feature")             # same workbook and fake Jira steps
+scenarios("../features/first_use.feature")
 
 TARGET = OUT_DIR / "flow_workbook.xlsm"
 TOLERANCE = 1e-6                    # days (0.09 s): Excel dates are doubles, the reference works in whole seconds
@@ -822,3 +825,72 @@ def _configuration_log(world):
         ["fields", "proposal sheets"], begun
     for secret in ("tok-123", "me@example.com", "127.0.0.1", "http", "{", "workflows/preview"):
         assert secret not in text, secret
+
+
+# --- first use: the first steps, the sheet Manual and the column Mandatory of Config (first_use.feature) --------------
+
+def dashboard_buttons(wb):
+    """{caption: OnAction} of the Form buttons of the Dashboard."""
+    return {shape.TextFrame.Characters().Text: shape.OnAction
+            for shape in wb.Worksheets("Dashboard").Shapes if shape.Type == MSO_FORM_CONTROL}
+
+
+def column_values(ws, row, column, count):
+    return [cells[0] for cells in ws.Range(ws.Cells(row, column), ws.Cells(row + count - 1, column)).Value]
+
+
+@given("le classeur à livrer")
+def _delivered(world, flow_workbook):
+    world["wb"] = flow_workbook["wb"]
+
+
+@then("le Dashboard donne les premières étapes, avec « Read the Jira configuration » avant « Extract from Jira and compute »")
+def _first_steps(world):
+    dash, steps = world["wb"].Worksheets("Dashboard"), manual.first_steps()
+    first = dash.Range(D.STEPS_CELL)
+    assert column_values(dash, first.Row, first.Column, len(steps) + 1) == steps + [None]     # nothing after the block
+    assert first.Font.Bold
+    order = [next(n for n, line in enumerate(steps) if caption in line) for caption in (D.CONFIG_CAPTION, D.EXTRACT_CAPTION)]
+    assert order[0] < order[1], order
+    assert {D.CONFIG_CAPTION, D.EXTRACT_CAPTION, D.CANCEL_CAPTION} <= set(dashboard_buttons(world["wb"]))
+
+
+@then("l'onglet Manual suit le Dashboard et reproduit le manuel")
+def _manual_sheet(world):
+    wb = world["wb"]
+    assert [wb.Worksheets(1).Name, wb.Worksheets(2).Name] == ["Dashboard", manual.MANUAL_SHEET]
+    config = next(sheet for sheet in load_all() if sheet.name == "Config")
+    rows, ws = manual.manual(mandatory_parameters(config)), wb.Worksheets(manual.MANUAL_SHEET)
+    assert column_values(ws, 1, 1, len(rows) + 1) == [text for _kind, text in rows] + [None]
+    assert [bool(ws.Cells(n, 1).Font.Bold) for n in range(1, len(rows) + 1)] == [kind == manual.HEADING
+                                                                                 for kind, _text in rows]
+
+
+@then("la feuille Config a la colonne Mandatory")
+def _mandatory_column(world):
+    ws = world["wb"].Worksheets("Config")
+    assert [ws.Cells(1, column).Value for column in range(1, 5)] == ["Parameter", "Value", "Mandatory", "Description"]
+
+
+@when(parsers.parse('je vide le paramètre "{name}" de la feuille Config'))
+def _empty_parameter(world, name):
+    set_config(world["wb"], name, "")
+
+
+@when("je clique sur le bouton Extraire et calculer")
+def _click_extract(world, request):
+    request.addfinalizer(lambda: macro(world, "AbortExtraction"))        # no slice must outlive the scenario
+    on_action = dashboard_buttons(world["wb"])[D.EXTRACT_CAPTION]          # the button the user clicks
+    macro(world, on_action.rpartition(".")[2])
+    world["status"] = macro(world, "ProgressSnapshot").partition("|")[2]
+
+
+@then(parsers.parse("l'état du tableau de bord nomme les paramètres obligatoires vides \"{names}\""))
+def _mandatory_named(world, names):
+    assert world["status"].startswith("Stopped: "), world["status"]
+    assert world["status"].endswith(f"(Mandatory = True): {names}"), world["status"]
+
+
+@then("le faux Jira n'a reçu aucune requête")
+def _no_request(world):
+    assert world["jira"].requests == []

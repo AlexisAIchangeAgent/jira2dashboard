@@ -13,8 +13,10 @@ Private mPhase As Long                  ' 0 no job, 1 search, 2 changelogs, 3 bu
 
 Private Sub ExtractParameters(ByRef cfg As Object, ByRef jql As String, ByRef settings As Object)
     Dim wsConfig As Object
-    ValidateBuildInputs ThisWorkbook                 ' before any call to Jira: nothing is read or cleared if the build cannot run
     Set wsConfig = ThisWorkbook.Worksheets("Config")
+    RequireMandatory wsConfig                        ' first, as in the first steps: an empty mandatory value would fail a
+                                                     ' request or give wrong figures
+    ValidateBuildInputs ThisWorkbook                 ' before any call to Jira: nothing is read or cleared if the build cannot run
     Set cfg = JiraConfigFromSheet(wsConfig)
     jql = ExtractionJql(ThisWorkbook.Worksheets("Projects"), wsConfig)
     Set settings = FieldSettings(wsConfig)

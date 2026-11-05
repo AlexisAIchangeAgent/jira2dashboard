@@ -41,11 +41,14 @@ CONFIG_PARAMETERS = ("BaseUrl", "Email", "ApiToken", "Filter", "WorkTypeField", 
                      "FeatureTypes", "SubTaskTypes", "PointsRequiredTypes", "StoryPointsField", "BusinessValueField",
                      "PIField", "TeamField", "SprintField", "TargetStartField", "TargetEndField", "BlocksLinkType",
                      "FillRateThreshold", "LogLevel")
+# Mandatory parameters typed in the workbook at the client: they stay empty in the repo. Every other mandatory
+# parameter needs a value in params/config.md, or the delivered workbook would refuse to extract.
+TYPED_AT_CLIENT = ("BaseUrl", "Email", "ApiToken", "AsOf")
 PROJECT_ROLES = ("Program", "Team")
 _PROJECT_KEY = re.compile(r"[A-Z][A-Z0-9_]+")
 
 SPECS = (
-    SheetSpec("Config", "config.md", ("Parameter", "Value", "Description")),
+    SheetSpec("Config", "config.md", ("Parameter", "Value", "Mandatory", "Description")),
     SheetSpec("Projects", "projects.md", ("Project", "Role", "Team")),
     SheetSpec("Periods", "periods.md", ("Period", "Start", "End")),
     SheetSpec("PIs", "pis.md", ("PI", "Start", "End")),
@@ -179,6 +182,13 @@ def _check_config(sheet: ParamSheet, problems: list[str]) -> None:
     for name, count in Counter(names).items():
         if count > 1:
             problems.append(f"Config: parameter {name!r} listed twice")
+    for _n, rec in _records(sheet):
+        name, flag = rec["Parameter"], rec["Mandatory"]
+        if flag not in ("True", "False"):
+            problems.append(f"Config: Mandatory of {name} must be True or False, got {flag!r}")
+        elif flag == "True" and name not in TYPED_AT_CLIENT and not rec["Value"]:
+            problems.append(f"Config: {name} is mandatory: give it a value (only {', '.join(TYPED_AT_CLIENT)} "
+                            "are typed at the client)")
     values = {row[0]: row[1] for row in sheet.rows}
     if values.get("ApiToken"):
         problems.append("Config: ApiToken must stay empty in params/config.md (type the token in the workbook)")
@@ -261,6 +271,11 @@ def _check_projects(sheet: ParamSheet, problems: list[str]) -> None:
         problems.append(f"Projects: exactly one Program project is needed, found {len(programs)}")
     if not any(rec["Role"] == "Team" for _n, rec in _records(sheet)):
         problems.append("Projects: at least one Team project is needed")
+
+
+def mandatory_parameters(config: ParamSheet) -> tuple[str, ...]:
+    """The parameters of Config whose Mandatory is True, in the order of the sheet."""
+    return tuple(rec["Parameter"] for _n, rec in _records(config) if rec["Mandatory"] == "True")
 
 
 def project_keys(sheets: list[ParamSheet] | None = None) -> tuple[str, ...]:

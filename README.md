@@ -75,7 +75,8 @@ Deux façons de livrer, au choix d'AL : **le fichier `.xlsm` tel quel**, ou **le
 poste client (Python 3.14 : `scripts\setup.ps1`, puis `scripts\run.ps1 build`). Le classeur n'a pas besoin de Python
 pour fonctionner : le VBA lit Jira et construit les tables, les formules et les graphiques.
 
-Sur le poste client :
+Sur le poste client (le classeur le rappelle : les premières étapes dans l'ordre des boutons sont sur le
+**Dashboard**, à partir de la cellule T1, et le manuel complet est dans l'onglet **Manual**, juste après) :
 
 1. **Débloquer le fichier** s'il vient d'un téléchargement ou d'un mail (marque « Mark of the Web », sinon Excel
    bloque les macros) : clic droit sur le fichier > Propriétés > cocher « Débloquer », ou
@@ -83,6 +84,10 @@ Sur le poste client :
 2. Feuille **Config** : `BaseUrl`, `Email`, `ApiToken`, `WorkTypeField` (id du champ type de travail), `AsOf` (date
    de l'extraction, UTC), et `ProxyServer` / `ProxyBypass` si besoin. Feuille **Projects** : les projets Jira et
    lequel est le Program. Feuille **Periods** : les itérations (`Period | Start | End`, fin exclue).
+   La colonne **Mandatory** de `Config` dit si une valeur vide est permise. `True` : le bouton **Extract from Jira and
+   compute** s'arrête avant d'appeler Jira et nomme les valeurs vides (le bouton **Read the Jira configuration** ne
+   demande que `BaseUrl`, `Email` et `ApiToken`). `False` : une valeur vide est permise (valeur par défaut, pas de
+   filtre, pas de proxy, ou contrôles « not computable »).
 3. Feuille **Dashboard** : bouton **Extract from Jira and compute**. L'extraction se fait par petites tranches : la barre
    de progression de la feuille (à côté du bouton) avance, la cellule `A3` dit ce qui se passe, Excel reste utilisable entre
    deux tranches et le bouton **Cancel** arrête l'extraction avant l'écriture des feuilles brutes (les résultats

@@ -54,6 +54,12 @@ def _row_count(world, name, count):
     assert len(world["sheets"][name].rows) == count
 
 
+@then(parsers.parse('les paramètres obligatoires de la feuille Config sont "{names}"'))
+def _mandatory(world, names):
+    assert world["error"] is None, world["error"]
+    assert ", ".join(model.mandatory_parameters(world["sheets"]["Config"])) == names
+
+
 @then(parsers.parse('le chargement est refusé avec "{text}"'))
 def _refused(world, text):
     assert world["error"] is not None and text in world["error"], world["error"]
