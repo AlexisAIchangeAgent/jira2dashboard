@@ -50,6 +50,82 @@ out/inter/              tout le reste : classeurs de test, copie d'essai, export
 archive/                ancien code et sondes (rien n'a été supprimé)
 ```
 
+## Scripts : lesquels lancer et dans quel ordre
+
+Les scripts sont dans `scripts\`. Ils se lancent depuis une console PowerShell 5.1.
+
+### Lancer un script
+
+```powershell
+.\scripts\run.ps1 test                                            # la forme habituelle
+powershell -ExecutionPolicy Bypass -File scripts\setup.ps1 -Dev   # si PowerShell refuse de lancer les scripts
+. .\scripts\activate.ps1                                          # activate.ps1 seulement : avec « . » devant
+.\scripts\manual-test.ps1 --help                                  # l'aide d'un script : --help, -Help ou -?
+```
+
+- Chaque script se place lui-même dans le dossier du projet. Un chemin relatif donné en argument part donc de ce
+  dossier.
+- Les options d'un script commencent par `-` (`-Port 8100`). Celles d'une commande de `run.ps1` commencent par `--`
+  (`--port 8100`) : elles passent telles quelles à Python ou à pytest.
+- Lancer `run.ps1` directement dans PowerShell, pas dans `cmd /c` ni avec `2>&1` : sinon il s'arrête dès que
+  Python écrit sur la sortie d'erreur.
+- `-?` marche dans une console PowerShell, pas avec `powershell -File`. `--help` marche partout.
+
+### Ce que fait chaque script
+
+- **`setup.ps1`** : crée `.venv` avec Python 3.14 et installe pywin32 (le build et l'extraction Python). Avec `-Dev`,
+  il installe aussi les outils de test (pytest, pytest-bdd, pytest-cov). Il vérifie à la fin que pywin32 se charge. À
+  lancer une fois, puis quand `requirements.txt` ou `requirements-dev.txt` change.
+  `powershell -ExecutionPolicy Bypass -File scripts\setup.ps1 [-Dev] [-Proxy http://hôte:port]`
+- **`activate.ps1`** : facultatif. Active `.venv` dans la console, pour lancer `python -m jira2dashboard...` à la main.
+  `run.ps1` n'en a pas besoin. `. .\scripts\activate.ps1`
+- **`run.ps1`** : lance une commande du projet avec le Python de `.venv` : tests, build du classeur, faux Jira,
+  extraction Python. Les commandes sont listées dans la section suivante.
+  `.\scripts\run.ps1 <commande> [options]`, et `.\scripts\run.ps1 <commande> --help` pour les options.
+- **`start-mock.ps1`** : lance le faux Jira (1200 tickets et les anomalies connues) dans une fenêtre réduite et
+  attend qu'il réponde. Compte : `mock@example.com` / `mock-token`. Il garde le numéro du processus pour
+  `stop-mock.ps1`. `.\scripts\start-mock.ps1 [-Port 8099] [-Issues 1200] [-Hidden]`
+- **`stop-mock.ps1`** : arrête le faux Jira que `start-mock.ps1` ou `manual-test.ps1` a lancé sur ce port, et rien
+  d'autre. `.\scripts\stop-mock.ps1 [-Port 8099]`
+- **`manual-test.ps1`** : essai à la main contre le faux Jira (détails plus bas). Il prépare une copie remplie du
+  classeur, lance le faux Jira, puis ouvre la copie dans un nouvel Excel. Avec `-Python`, il lance l'extraction
+  Python à la place des macros et ouvre `jira2dashboard.xlsx`.
+  `.\scripts\manual-test.ps1 [-Workbook C:\x.xlsm] [-Port 8100] [-Python]`
+- **`release.ps1`** : prépare une release dans `out\release\<version>` : le zip du code, le classeur et les notes
+  (avec les SHA256). Il faut que tout soit commité. Avec `-Publish`, il crée aussi la release sur GitHub : les
+  fichiers deviennent publics. `.\scripts\release.ps1 -Version v1.0.0 [-Publish]`
+
+### Dans quel ordre
+
+**Poste de développement, la première fois :**
+
+1. `setup.ps1 -Dev` : l'environnement Python.
+2. `run.ps1 check-machine` : vérifie Excel et l'accès au projet VBA. Corriger ce qui est en échec avant la suite.
+3. `run.ps1 test` : les tests rapides, sans Excel.
+4. `run.ps1 build` : le classeur `out\release\jira2dashboard.xlsm`.
+5. `manual-test.ps1` (ou `manual-test.ps1 -Python`) : essayer le classeur à la main contre le faux Jira.
+6. `stop-mock.ps1` : arrêter le faux Jira à la fin de l'essai.
+
+**Pendant un changement :** `run.ps1 test` à chaque pas (moins d'une minute).
+
+**Avant de finir un changement**, la passe complète, dans cet ordre : `run.ps1 coverage`, `run.ps1 vba-tests`,
+`run.ps1 test-excel`, `run.ps1 test-network`, `run.ps1 build`.
+
+**Release :**
+
+1. Tout commiter, et pousser si on publie.
+2. `release.ps1 -Version v1.0.0` : essai à blanc, rien ne sort du poste. Vérifier `out\release\v1.0.0`.
+3. `release.ps1 -Version v1.0.0 -Publish` : la release GitHub.
+
+**Poste client :**
+
+- On livre le fichier `.xlsm` seul : aucun script. Suivre la section « Livraison » plus bas.
+- On livre le code : `setup.ps1` (sans `-Dev` ; `-Proxy` si pip doit passer par un proxy), puis
+  `run.ps1 check-machine`, puis `run.ps1 build`. Remplir ensuite le classeur et cliquer ses boutons (section
+  « Livraison »).
+- Les macros ne marchent pas : enregistrer le classeur rempli, puis `run.ps1 extract --workbook <classeur>`
+  (section « Extraction Python sans VBA »). Il faut avoir lancé `setup.ps1` avant.
+
 ## Commandes
 
 Chaque script et chaque commande expliquent leur fonctionnement et leurs arguments avec `--help` :
