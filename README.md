@@ -131,7 +131,7 @@ src/jira2dashboard/
   build_workbook.py     builds the workbook to deliver: out\release\jira2dashboard.xlsm (13 modules, no test module)
   clean.py              empties out\inter before a build (keeps the test caches); never touches out\release
   manual.py             text of the sheet Manual and of the first steps on the Dashboard
-  mock_workbook.py      manual-test copy filled for the fake Jira: out\inter\jira2dashboard_mock.xlsm
+  mock_workbook.py      manual-test copy filled for the fake Jira: out\manual_test\jira2dashboard4manualtest.xlsm
   paths.py              locations: repo, vba, params, out\release, out\inter, children
   cli/                  args.py (shared --help parser), check_machine.py (21 checks of the machine)
   excel/com.py          COM layer (Excel, VBA project, workbook); pure helpers tested without Excel
@@ -160,7 +160,9 @@ scripts/                setup, activate, run, start-mock, stop-mock, manual-test
 docs/                   7 context and reference documents (frozen)
 rovo/                   Rovo Studio agents, skills and the Confluence page template
 out/release/            what is delivered: the workbook of build and the release packages (never cleaned)
-out/inter/              everything else: test workbooks, manual-test copy, exports, test caches (emptied by build)
+out/manual_test/        jira2dashboard4manualtest.xlsm, filled for the fake Jira, and its -Python result (never
+                        cleaned; rewritten by each manual-test.ps1 run)
+out/inter/              everything else: test workbooks, exports, test caches (emptied by build)
 archive/                old code and probes, kept for reference
 ```
 
@@ -225,7 +227,7 @@ powershell -ExecutionPolicy Bypass -File scripts\setup.ps1 -Dev   # when PowerSh
 | `run.ps1` | Runs a command of the project with the Python of `.venv`. No activation needed. | `<command> [options]` |
 | `start-mock.ps1` | Starts the fake Jira with the known anomalies in a minimized window and waits until it answers. Account `mock@example.com` / `mock-token`. | `-Port 8099`, `-Issues 1200`, `-Hidden` |
 | `stop-mock.ps1` | Stops the fake Jira that `start-mock.ps1` or `manual-test.ps1` started on that port, and nothing else. | `-Port 8099` |
-| `manual-test.ps1` | Manual try: stops an old fake Jira, builds the workbook if missing, writes a filled copy, starts the fake Jira, opens the copy in a new Excel. `-Python` runs `extract` instead and opens `jira2dashboard.xlsx`. | `-Workbook C:\x.xlsm`, `-Port 8099`, `-Python` |
+| `manual-test.ps1` | Manual try: stops an old fake Jira, builds the workbook if missing, writes the filled copy `out\manual_test\jira2dashboard4manualtest.xlsm`, starts the fake Jira, opens the copy in a new Excel. `-Python` runs `extract` instead and opens `jira2dashboard.xlsx`. | `-Workbook C:\x.xlsm`, `-Port 8099`, `-Python` |
 | `release.ps1` | Builds a release in `out\release\<version>`: the code zip, the workbook, notes with SHA256. Needs a clean tree. `-Publish` also creates the GitHub release (public). | `-Version v1.0.0`, `-Publish` |
 
 ### Commands of `run.ps1`
@@ -239,7 +241,7 @@ powershell -ExecutionPolicy Bypass -File scripts\setup.ps1 -Dev   # when PowerSh
 | `vba-tests` | Builds, compiles and runs the VBA test suite; reports coverage of the VBA markers | `--offline`, `--bisect`, `--out name.xlsm` |
 | `check-machine` | 21 checks of the machine: Python, pywin32, Excel, VBA project access, compile, child processes | none |
 | `mock-jira` | The fake Jira on `http://127.0.0.1:8099`, until Ctrl+C | `--anomalies`, `--issues`, `--port`, `--projects`, `--seed`, `--no-auth`, `--proxy-challenge` |
-| `mock-workbook` | A copy of a workbook with `Config`, `Periods` and `PIs` filled for the fake Jira | `--workbook`, `--port` |
+| `mock-workbook` | A copy of a workbook with `Config`, `Periods` and `PIs` filled for the fake Jira: `out\manual_test\jira2dashboard4manualtest.xlsm` | `--workbook`, `--port` |
 | `build` | The workbook to deliver: `out\release\jira2dashboard.xlsm` | `--out name.xlsm` (goes to `out\inter`) |
 | `clean` | Empties `out\inter` except the test caches (`build` and `vba-tests` do it first) | none |
 | `extract` | Without VBA: reads Jira with Python and writes `jira2dashboard.xlsx` | `--workbook`, `--out`, `--team`, `--log`, `--verbose` |
@@ -421,7 +423,7 @@ proposals to validate with the teams.
 | Fake Jira pid file | `%TEMP%\jira2dashboard\mock-jira-<port>.pid` | `start-mock.ps1` | Pid and start time, so that `stop-mock.ps1` kills only what it started. |
 | Fake Jira window | minimized PowerShell window | `start-mock.ps1` | Shows the address, the account and the field ids. Requests are not printed. |
 | Test workbooks | `out\inter\vba_tests.xlsm`, `out\inter\bisect_<n>.xlsm` | `vba-tests` | The workbook the VBA tests ran in; with `--bisect`, one per step. |
-| Manual-test copy | `out\inter\jira2dashboard_mock.xlsm`, `out\inter\jira2dashboard.xlsx` | `manual-test.ps1` | The filled copy, and the result of `-Python`. |
+| Manual-test copy | `out\manual_test\jira2dashboard4manualtest.xlsm`, `out\manual_test\jira2dashboard.xlsx` | `manual-test.ps1` | The copy filled for the fake Jira, and the result of `-Python`. Never cleaned. |
 | Chart exports | `out\inter\dashboard\*.png` | `flow_excel.feature` | The Dashboard charts as images, to look at after an Excel test run. |
 | Test caches | `out\inter\.coverage`, `out\inter\.pytest_cache` | pytest | Coverage data and the last failed tests (`--lf`). |
 | Windows event log | Event Viewer > Windows Logs > Application, event 1000 "Application Error" | Windows | Names the faulting module when Excel crashes (exit code `0xC0000005`). |

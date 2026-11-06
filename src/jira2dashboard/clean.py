@@ -1,19 +1,22 @@
-"""Clean the folder out before a build: out\\release stays, out\\inter is emptied, nothing else stays at the root.
+"""Clean the folder out before a build: out\\release and out\\manual_test stay, out\\inter is emptied, nothing else
+stays at the root.
 
-build and vba-tests run it first. out\\release holds what is delivered (the workbook of `build`, the release packages of scripts\\release.ps1): never
-touched. out\\inter holds the rest (test workbooks, the manual-test copy, exports, logs): emptied, except the tool caches
-that pyproject.toml puts there (.coverage, .pytest_cache). Anything else at the root of out is a leftover of the old
-layout and goes. A file that a program still holds (Windows refuses to delete it) is kept and reported, never forced.
+build and vba-tests run it first. out\\release holds what is delivered (the workbook of `build`, the release packages
+of scripts\\release.ps1) and out\\manual_test the copy of scripts\\manual-test.ps1 (jira2dashboard4manualtest.xlsm,
+filled for the fake Jira): never touched. out\\inter holds the rest (test workbooks, exports, logs): emptied, except
+the tool caches that pyproject.toml puts there (.coverage, .pytest_cache). Anything else at the root of out is a
+leftover of the old layout and goes. A file that a program still holds (Windows refuses to delete it) is kept and
+reported, never forced.
 """
 import shutil
 import sys
 from pathlib import Path
 
 from jira2dashboard.cli.args import parser
-from jira2dashboard.paths import INTER_DIR, OUT_DIR, RELEASE_DIR
+from jira2dashboard.paths import INTER_DIR, MANUAL_TEST_DIR, OUT_DIR, RELEASE_DIR
 
 TOOL_CACHES = (".coverage", ".pytest_cache")
-FOLDERS = (RELEASE_DIR.name, INTER_DIR.name)
+FOLDERS = (RELEASE_DIR.name, INTER_DIR.name, MANUAL_TEST_DIR.name)
 
 
 def entries(folder: Path) -> list[Path]:

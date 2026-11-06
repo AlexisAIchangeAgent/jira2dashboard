@@ -54,7 +54,8 @@ wrap it in `cmd /c` or redirect with `2>&1` (it stops on `$ErrorActionPreference
 From Bash: `powershell -NoProfile -ExecutionPolicy Bypass -File scripts/run.ps1 test-excel > "$TEMP/x.log" 2>&1` works
 (the redirect is outside PowerShell). Write logs, benches and scratch files to `$TEMP` or the scratchpad, never to
 `out/`. `out\release` holds what is delivered (the workbook of `build`, the packages of `release.ps1`) and is never
-cleaned; `out\inter` holds the rest (test workbooks, the manual-test copy, exports, `.coverage`, `.pytest_cache`),
+cleaned; `out\manual_test` holds the manual-test copy `jira2dashboard4manualtest.xlsm` (and its `-Python` xlsx),
+never cleaned either; `out\inter` holds the rest (test workbooks, exports, `.coverage`, `.pytest_cache`),
 emptied by `build` / `vba-tests` except the caches (`src/jira2dashboard/clean.py`). Tests write to `INTER_DIR`.
 
 Before finishing a change run the full pass: `coverage`, `vba-tests`, `test-excel`, `test-network`, `build`.
@@ -113,8 +114,9 @@ Before finishing a change run the full pass: `coverage`, `vba-tests`, `test-exce
   injection) fed by `dataset.py` (hand-written cases via `issue()`) and `generator.py` (seeded volume);
   `anomalies.py` adds known data-quality cases; `config.py` answers the configuration calls from the parameters (round
   trip). The real Jira is never called. Manual try: `scripts\manual-test.ps1` = `start-mock.ps1` (mock with
-  `--anomalies`, pid + start time in `%TEMP%\jira2dashboard`) + `mock_workbook.py` (a copy with Config, Periods, PIs
-  filled; the source stays empty) opened in its own Excel (`/x`); `-Python` runs `extract` on the copy instead.
+  `--anomalies`, pid + start time in `%TEMP%\jira2dashboard`) + `mock_workbook.py` (the copy
+  `out\manual_test\jira2dashboard4manualtest.xlsm`, Config, Periods, PIs filled; the source stays empty) opened in
+  its own Excel (`/x`); `-Python` runs `extract` on the copy instead.
   `stop-mock.ps1` kills only that pid with that start time (`taskkill /T`), never a port owner it did not start.
   Limit: with `proxy_challenge`, the fake proxy accepts the first NTLM leg, which WinHTTP sends with an empty body,
   so a POST through it arrives empty; the Windows session sent to a proxy is tested with GET only.

@@ -9,4 +9,5 @@ PARAMS_DIR = REPO_ROOT / "params"
 OUT_DIR = REPO_ROOT / "out"
 RELEASE_DIR = OUT_DIR / "release"       # what is delivered: the workbook of `build`, the release packages
 INTER_DIR = OUT_DIR / "inter"           # everything else: test workbooks, copies, exports (emptied by clean)
+MANUAL_TEST_DIR = OUT_DIR / "manual_test"   # the copy filled for the fake Jira, to try by hand (never cleaned)
 CHILDREN_DIR = PACKAGE_DIR / "testbench" / "children"

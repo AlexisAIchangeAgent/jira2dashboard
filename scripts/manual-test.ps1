@@ -5,13 +5,13 @@ Try a workbook by hand against the fake Jira, without the automatic tests.
 .DESCRIPTION
 1. Stops a fake Jira that these scripts started earlier on that port.
 2. Builds out\release\jira2dashboard.xlsm if it is missing (when no -Workbook is given).
-3. Writes the copy out\inter\jira2dashboard_mock.xlsm, with Config, Periods and PIs filled for the fake Jira
-   (.\scripts\run.ps1 mock-workbook). The workbook given is not changed.
+3. Writes the copy out\manual_test\jira2dashboard4manualtest.xlsm, with Config, Periods and PIs filled for the fake
+   Jira (.\scripts\run.ps1 mock-workbook). The workbook given is not changed. out\manual_test is never cleaned.
 4. Starts the fake Jira, 1200 issues and the known anomalies, in a minimized window (start-mock.ps1).
 5. Opens the copy in a new Excel of its own, so that a crash cannot take other workbooks with it. Then click
    "Read the Jira configuration", then "Extract from Jira and compute".
    With -Python: runs the Python extraction on the copy instead (.\scripts\run.ps1 extract, no macro), then opens
-   out\inter\jira2dashboard.xlsx (values and SVG charts) in a new Excel.
+   out\manual_test\jira2dashboard.xlsx (values and SVG charts) in a new Excel.
 Stop the fake Jira with .\scripts\stop-mock.ps1. Close the copy before running this script again.
 ASCII only: PowerShell 5.1 reads a file without BOM as ANSI.
 
@@ -71,11 +71,11 @@ if ($LASTEXITCODE -ne 0) { Fail "the copy could not be prepared (see above)." }
 & (Join-Path $PSScriptRoot "start-mock.ps1") -Port $Port
 if ($LASTEXITCODE -ne 0) { Fail "the fake Jira did not start (see above)." }
 
-$copy = Join-Path $root "out\inter\jira2dashboard_mock.xlsm"
+$copy = Join-Path $root "out\manual_test\jira2dashboard4manualtest.xlsm"
 if ($Python) {
     & (Join-Path $PSScriptRoot "run.ps1") extract --workbook $copy
     if ($LASTEXITCODE -ne 0) { Fail "the Python extraction failed (see above and its log)." }
-    $result = Join-Path $root "out\inter\jira2dashboard.xlsx"
+    $result = Join-Path $root "out\manual_test\jira2dashboard.xlsx"
     Start-Process excel.exe -ArgumentList "/x", "`"$result`""
     Write-Host "manual-test: $result opens in a new Excel: the data, the results and the charts, no macro."
     Write-Host "manual-test: stop the fake Jira with .\scripts\stop-mock.ps1 -Port $Port"

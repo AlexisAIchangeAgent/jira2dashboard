@@ -167,7 +167,8 @@ MD5 of the current modules (LF line endings). Unchanged since the original hando
   `out\release\<version>`. Every other file (test workbooks, exports, `.coverage`, `.pytest_cache`) is under
   `out\inter` (`paths.INTER_DIR`), which `clean` empties except the caches; anything else at the root of `out` is a
   leftover and goes. Manual try without the automatic tests: `scripts\manual-test.ps1` stops an earlier mock, builds
-  the workbook if missing, writes the copy `out\inter\jira2dashboard_mock.xlsm` (`mock_workbook.py`: Config with the
+  the workbook if missing, writes the copy `out\manual_test\jira2dashboard4manualtest.xlsm` (never cleaned since
+  2026-11-06; `mock_workbook.py`: Config with the
   mock address, account `MOCK_EMAIL`/`MOCK_TOKEN`, `AsOf` = `generator.AS_OF` and the field ids; 14-day Periods from
   `generator.SINCE`; the PI of the anomalies), starts the mock (`start-mock.ps1`: `mock-jira --anomalies`, minimized,
   pid + start time in `%TEMP%\jira2dashboard\mock-jira-<port>.pid`) and opens the copy in a new Excel (`excel /x`,

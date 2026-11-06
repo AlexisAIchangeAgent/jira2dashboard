@@ -25,7 +25,7 @@ PYTHON_COMMANDS = {                      # run.ps1 command -> (parse function, a
     "clean": (clean.parse, "out\\inter"),
     "check-machine": (check_machine.parse, "Excel"),
     "mock-jira": (mock_jira.parse, "--anomalies"),
-    "mock-workbook": (mock_workbook.parse, "jira2dashboard_mock.xlsm"),
+    "mock-workbook": (mock_workbook.parse, "out\\manual_test\\jira2dashboard4manualtest.xlsm"),
     "extract": (extract.parse, "jira2dashboard.xlsx"),
 }
 

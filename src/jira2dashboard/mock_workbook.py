@@ -1,8 +1,9 @@
 """Prepare a copy of a workbook to try it by hand against the fake Jira (scripts\\manual-test.ps1 runs it).
 
-The copy, out\\inter\\jira2dashboard_mock.xlsm, gets what a client would type: in Config the address, account,
-reference date and custom field ids of the fake Jira of `run.ps1 mock-jira`; 14-day iterations in Periods; the PI of
-the known anomalies in PIs. The workbook given is never changed: the one to deliver keeps its client values empty.
+The copy, out\\manual_test\\jira2dashboard4manualtest.xlsm, gets what a client would type: in Config the address,
+account, reference date and custom field ids of the fake Jira of `run.ps1 mock-jira`; 14-day iterations in Periods;
+the PI of the known anomalies in PIs. The workbook given is never changed: the one to deliver keeps its client values
+empty. out\\manual_test is never emptied by clean, build or vba-tests; the copy is rewritten at each run.
 """
 import datetime as dt
 import shutil
@@ -17,11 +18,11 @@ from jira2dashboard.mockjira.dataset import FieldIds
 from jira2dashboard.mockjira.generator import AS_OF, SINCE
 from jira2dashboard.mockjira.server import MOCK_EMAIL, MOCK_TOKEN
 from jira2dashboard.params.model import load_all
-from jira2dashboard.paths import INTER_DIR, RELEASE_DIR
+from jira2dashboard.paths import MANUAL_TEST_DIR, RELEASE_DIR
 from jira2dashboard.standalone.xlsx_write import Sheet, write_xlsx
 
-COPY_NAME = "jira2dashboard_mock.xlsm"
-COPY = INTER_DIR / COPY_NAME
+COPY_NAME = "jira2dashboard4manualtest.xlsm"
+COPY = MANUAL_TEST_DIR / COPY_NAME
 FIELD_IDS = {"StoryPointsField": "story_points", "BusinessValueField": "business_value", "PIField": "pi",
              "TeamField": "team", "SprintField": "sprint", "TargetStartField": "target_start",
              "TargetEndField": "target_end"}          # Config parameter of a data check -> attribute of FieldIds

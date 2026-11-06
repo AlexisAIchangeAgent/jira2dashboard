@@ -1,12 +1,14 @@
 """The copy of a workbook for a manual test against the fake Jira: what goes into Config, Periods and PIs."""
 import datetime as dt
 
+from jira2dashboard import clean
 from jira2dashboard import mock_workbook as M
 from jira2dashboard.mockjira.anomalies import PI, PI_WINDOW
 from jira2dashboard.mockjira.dataset import FieldIds
 from jira2dashboard.mockjira.generator import AS_OF, SINCE, generate
 from jira2dashboard.mockjira.server import MOCK_EMAIL, MOCK_TOKEN
 from jira2dashboard.params.model import load_all
+from jira2dashboard.paths import OUT_DIR
 
 
 def test_the_config_points_to_the_fake_jira_on_the_port_with_its_account_and_reference_date():
@@ -45,6 +47,15 @@ def test_the_iterations_last_14_days_follow_each_other_from_the_first_issue_and_
 
 def test_the_pis_sheet_gets_the_pi_of_the_known_anomalies():
     assert [(p.name, p.start, p.end) for p in M.PIS] == [(PI, *PI_WINDOW)]
+
+
+def test_the_copy_is_jira2dashboard4manualtest_in_out_manual_test_which_clean_never_empties(tmp_path):
+    assert (M.COPY.parent.name, M.COPY.name) == ("manual_test", "jira2dashboard4manualtest.xlsm")
+    copy = tmp_path / M.COPY.relative_to(OUT_DIR)
+    copy.parent.mkdir(parents=True)
+    copy.write_bytes(b"x")
+    clean.clean(tmp_path)
+    assert copy.exists()
 
 
 def test_a_missing_workbook_is_refused(tmp_path, capsys):
