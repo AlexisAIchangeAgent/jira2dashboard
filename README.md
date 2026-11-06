@@ -265,33 +265,30 @@ powershell -ExecutionPolicy Bypass -File scripts\setup.ps1 -Dev   # when PowerSh
 
 ## 7. Typical workflows
 
-**First time on a developer machine**
+Run the commands of each workflow in this order.
 
-1. `setup.ps1 -Dev`: the Python environment.
-2. `run.ps1 check-machine`: fix anything that is KO before going on.
-3. `run.ps1 test`: the fast tests.
-4. `run.ps1 build`: the workbook `out\release\jira2dashboard.xlsm`.
-5. `manual-test.ps1` (or `manual-test.ps1 -Python`): try it by hand against the fake Jira.
-6. `stop-mock.ps1`: stop the fake Jira after the try.
-
-**During a change:** `run.ps1 test` at each step (under a minute).
-
-**Before finishing a change** (the full pass, in this order): `run.ps1 coverage`, `run.ps1 vba-tests`,
-`run.ps1 test-excel`, `run.ps1 test-network`, `run.ps1 build`.
-
-**Release**
-
-1. Commit everything, and push if you publish.
-2. `release.ps1 -Version v1.0.0`: dry run, nothing leaves the machine. Check `out\release\v1.0.0`.
-3. `release.ps1 -Version v1.0.0 -Publish`: the GitHub release.
-
-**User machine**
-
-- The `.xlsm` is delivered alone: no script. Follow section [9](#9-using-the-workbook).
-- The code is delivered: `setup.ps1` (no `-Dev`; `-Proxy` if pip needs a proxy), `run.ps1 check-machine`, then
-  `run.ps1 build`. Then fill the workbook and use its buttons.
-- The macros do not work: save the filled workbook, then `run.ps1 extract --workbook <workbook>`
-  (section [10](#10-python-extraction-without-vba)). `setup.ps1` must have run.
+| Workflow | Step | Command | Purpose |
+|---|---|---|---|
+| **First time on a developer machine** | 1 | `setup.ps1 -Dev` | The Python environment |
+| | 2 | `run.ps1 check-machine` | Fix anything that is KO before going on |
+| | 3 | `run.ps1 test` | The fast tests |
+| | 4 | `run.ps1 build` | The workbook `out\release\jira2dashboard.xlsm` |
+| | 5 | `manual-test.ps1` (or `-Python`) | Try it by hand against the fake Jira |
+| | 6 | `stop-mock.ps1` | Stop the fake Jira after the try |
+| **During a change** | 1 | `run.ps1 test` | At each step, under a minute |
+| **Before finishing a change** | 1 | `run.ps1 coverage` | Fast tests and coverage of the pure code |
+| | 2 | `run.ps1 vba-tests` | VBA tests, every coverage marker hit |
+| | 3 | `run.ps1 test-excel` | Excel scenarios |
+| | 4 | `run.ps1 test-network` | Excel and network scenarios |
+| | 5 | `run.ps1 build` | The workbook to deliver |
+| **Release** | 1 | `git commit`, `git push` | A clean tree; pushed before publishing |
+| | 2 | `release.ps1 -Version v1.0.0` | Dry run: check `out\release\v1.0.0` |
+| | 3 | `release.ps1 -Version v1.0.0 -Publish` | The GitHub release (public) |
+| **User machine, `.xlsm` delivered alone** | 1 | none | Follow section [9](#9-using-the-workbook) |
+| **User machine, code delivered** | 1 | `setup.ps1` | No `-Dev`; `-Proxy` if pip needs a proxy |
+| | 2 | `run.ps1 check-machine` | The machine is ready |
+| | 3 | `run.ps1 build` | Then fill the workbook and use its buttons |
+| **Macros do not work** | 1 | `run.ps1 extract --workbook <workbook>` | Save the workbook first; needs `setup.ps1` (section [10](#10-python-extraction-without-vba)) |
 
 ## 8. Configuration
 
