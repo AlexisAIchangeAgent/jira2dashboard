@@ -2,7 +2,9 @@
 
 No Excel: a fake Jira of 30 issues with no window (-Hidden), on a free port of its own for each test.
 """
+import hashlib
 import os
+import re
 import socket
 import subprocess
 import sys
@@ -61,6 +63,20 @@ def port():
     port = free_port()
     yield port
     stop(port)                                          # never leave a fake Jira behind, whatever the test did
+
+
+def test_start_names_the_program_that_serves_the_fake_jira(port):
+    """What an endpoint protection may have to allow: the path and the hashes of the real interpreter, not of a launcher."""
+    started = start(port)
+    assert started.returncode == 0, started.stdout + started.stderr
+    line = next(l for l in started.stdout.splitlines() if l.startswith("start-mock: python: "))
+    found = re.fullmatch(r"start-mock: python: (.+) \(MD5 ([0-9a-f]{32}), SHA256 ([0-9a-f]{64})\)", line)
+    assert found, line
+    program = Path(found.group(1))
+    assert program.name.lower().startswith("python") and program.is_file()
+    content = program.read_bytes()
+    assert hashlib.md5(content).hexdigest() == found.group(2)
+    assert hashlib.sha256(content).hexdigest() == found.group(3)
 
 
 def test_start_then_stop(port):

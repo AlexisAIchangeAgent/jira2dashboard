@@ -139,10 +139,10 @@ directly, without `cmd /c` or `2>&1`.
 | `setup.ps1` | Creates `.venv`, installs pywin32 (plus test tools with `-Dev`) | `-Dev`, `-Proxy` |
 | `activate.ps1` | Optional: activates `.venv` in the console (dot-source it) | none |
 | `run.ps1` | Runs a command (table below) | `<command> [options]` |
-| `start-mock.ps1` | Starts the fake Jira (`mock@example.com` / `mock-token`) | `-Port`, `-Issues`, `-Hidden` |
+| `start-mock.ps1` | Starts the fake Jira (`mock@example.com` / `mock-token`), prints the `python.exe` that serves it | `-Port`, `-Issues`, `-Hidden` |
 | `stop-mock.ps1` | Stops the fake Jira these scripts started, nothing else | `-Port` |
 | `manual-test.ps1` | Writes `out\manual_test\jira2dashboard4manualtest.xlsm`, starts the fake Jira, opens the copy | `-Workbook`, `-Port`, `-Python` |
-| `release.ps1` | Builds a release in `out\release\<version>` | `-Version`, `-Publish` |
+| `release.ps1` | Builds a release in `out\release\<version>`; `notes.md` has the SHA-256 and MD5 of both files | `-Version`, `-Publish` |
 
 | Command | What it does | Main options |
 |---|---|---|
@@ -152,6 +152,7 @@ directly, without `cmd /c` or `2>&1`.
 | `test-network` | Excel scenarios that also need the network | pytest arguments |
 | `vba-tests` | Builds, compiles and runs the VBA tests | `--offline`, `--bisect`, `--out` |
 | `check-machine` | 21 checks: Python, Excel, VBA project access, compile | none |
+| `diagnose` | Report to paste into a ticket when the macros are blocked | `--workbook` |
 | `mock-jira` | The fake Jira on `http://127.0.0.1:8099` | `--anomalies`, `--issues`, `--port` |
 | `mock-workbook` | Writes the manual-test copy | `--workbook`, `--port` |
 | `build` | Builds `out\release\jira2dashboard.xlsm` | `--out` (to `out\inter`) |
@@ -314,6 +315,10 @@ messages: **reread a log before sharing it**.
 - **Proxy:** see the `END proxy` line of the Python log; set `ProxyServer` to `host:port` or `DIRECT`.
 - **VBA does not compile:** `run.ps1 vba-tests --bisect`. **Machine not ready:** `run.ps1 check-machine`.
 - **Flaky Excel test:** `J2D_ONE_EXCEL=1` (one Excel per module); a fix needs 5 green runs in a row.
+- **Macros blocked by the endpoint protection:** `run.ps1 diagnose`, then attach the report to the ticket (hashes,
+  Mark of the Web, Office macro policies, security products, VBA log tail; it never opens the workbook nor reads
+  `python.log`). Ask for an allow-list on the path or a signature: the MD5 changes with every build (`release.ps1`
+  writes it in `notes.md`). `start-mock.ps1` prints the `python.exe` to allow for the fake Jira.
 
 ## 13. Testing
 

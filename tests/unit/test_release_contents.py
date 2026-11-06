@@ -31,3 +31,21 @@ def test_the_release_zip_leaves_out(path):
 @pytest.mark.parametrize("path", KEPT)
 def test_the_release_zip_keeps(path):
     assert not export_ignored(path)
+
+
+def release_notes_template() -> str:
+    script = (REPO_ROOT / "scripts" / "release.ps1").read_text(encoding="utf-8")
+    return script.split('$notes = @"', 1)[1].split('"@', 1)[0]
+
+
+@pytest.mark.parametrize("algorithm", ("SHA256", "MD5"))
+def test_the_release_script_hashes_both_files(algorithm):
+    script = (REPO_ROOT / "scripts" / "release.ps1").read_text(encoding="utf-8")
+    for file in ("$zip", "$xlsm"):
+        assert f"Get-FileHash {file} -Algorithm {algorithm}" in script
+
+
+def test_the_release_notes_give_the_md5_and_the_size_for_allow_lists():
+    notes = release_notes_template()
+    assert "MD5" in notes and "$xlsmMd5" in notes and "$zipMd5" in notes
+    assert "$xlsmSize" in notes

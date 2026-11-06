@@ -16,6 +16,7 @@ Commands:
   test-network   the Excel scenarios that need the network (marker network)
   vba-tests      build, compile and run the VBA test suite (--offline, --bisect, --out name.xlsm)
   check-machine  21 checks of this machine: Excel, access to the VBA project, compile...
+  diagnose       a report to paste into a ticket when the macros are blocked (hashes, origin, Office, security products)
   mock-jira      the fake Jira on http://127.0.0.1:8099 (--anomalies, --issues, --port...)
   mock-workbook  a copy of a workbook with Config, Periods and PIs filled for the fake Jira
   build          the workbook to deliver: out\release\jira2dashboard.xlsm (--out name.xlsm: in out\inter)
@@ -45,6 +46,7 @@ $commands = [ordered]@{
     "test-network"  = "the Excel scenarios that need the network (marker network)"
     "vba-tests"     = "build, compile and run the VBA test suite (--offline, --bisect, --out name.xlsm)"
     "check-machine" = "21 checks of this machine: Excel, access to the VBA project, compile..."
+    "diagnose"      = "a report to paste into a ticket when the macros are blocked (hashes, origin, Office, security products)"
     "mock-jira"     = "the fake Jira on http://127.0.0.1:8099 (--anomalies, --issues, --port...)"
     "mock-workbook" = "a copy of a workbook with Config, Periods and PIs filled for the fake Jira"
     "build"         = "the workbook to deliver: out\release\jira2dashboard.xlsm (--out name.xlsm: in out\inter)"
@@ -81,6 +83,7 @@ switch ($command) {
     "test-network"  { & $python -m pytest -m "excel and network" @rest }
     "vba-tests"     { & $python -m jira2dashboard.testbench.run_vba_tests @rest }
     "check-machine" { & $python -m jira2dashboard.cli.check_machine @rest }
+    "diagnose"      { & $python -m jira2dashboard.cli.diagnose @rest }
     "mock-jira"     { & $python -m jira2dashboard.mockjira @rest }
     "mock-workbook" { & $python -m jira2dashboard.mock_workbook @rest }
     "build"         { & $python -m jira2dashboard.build_workbook @rest }

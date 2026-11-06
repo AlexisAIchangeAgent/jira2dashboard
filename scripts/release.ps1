@@ -85,9 +85,12 @@ foreach ($must in "README.md", "scripts/run.ps1", "scripts/setup.ps1", "src/jira
 }
 Write-Host ("release: {0} ({1} entries)" -f $zip, $entries.Count)
 
-# 4. The release notes, with the SHA256 of both files
+# 4. The release notes, with the SHA256 and the MD5 of both files (an allow-list of an endpoint protection often asks for the MD5)
 $zipHash = (Get-FileHash $zip -Algorithm SHA256).Hash.ToLower()
 $xlsmHash = (Get-FileHash $xlsm -Algorithm SHA256).Hash.ToLower()
+$zipMd5 = (Get-FileHash $zip -Algorithm MD5).Hash.ToLower()
+$xlsmMd5 = (Get-FileHash $xlsm -Algorithm MD5).Hash.ToLower()
+$xlsmSize = (Get-Item $xlsm).Length
 $notes = @"
 jira2dashboard $Version (commit $head)
 
@@ -102,6 +105,10 @@ Setup and use: README.md, section "Livraison".
 SHA256:
 - jira2dashboard.xlsm: $xlsmHash
 - $name.zip: $zipHash
+
+MD5 (for allow-lists that ask for it; it changes with every build, a path or a signature rule lasts longer):
+- jira2dashboard.xlsm: $xlsmMd5 ($xlsmSize bytes)
+- $name.zip: $zipMd5
 "@
 $notesFile = Join-Path $dist "notes.md"
 [System.IO.File]::WriteAllText($notesFile, $notes, (New-Object System.Text.UTF8Encoding $false))

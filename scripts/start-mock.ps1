@@ -6,7 +6,8 @@ Starts the fake Jira (with the known data anomalies) in a window of its own and 
 Runs ".\scripts\run.ps1 mock-jira --anomalies" in a minimized window (no window with -Hidden) and waits up to 60 s
 until the port answers. It fails at once if another program already holds the port, or if the fake Jira stops at
 once. The pid and the start time of the window are kept in %TEMP%\jira2dashboard\mock-jira-<port>.pid, so that
-stop-mock.ps1 only ever kills what this script started. Account of the fake Jira: mock@example.com / mock-token.
+stop-mock.ps1 only ever kills what this script started. It prints the path and the MD5 and SHA256 hashes of the python.exe
+that serves the fake Jira (the program an endpoint protection may have to allow); read only. Account of the fake Jira: mock@example.com / mock-token.
 ASCII only: PowerShell 5.1 reads a file without BOM as ANSI.
 
 .PARAMETER Port
@@ -60,6 +61,25 @@ function Started {
     return $null
 }
 
+function Show-Interpreter([int]$port) {
+    # The program that serves the fake Jira, for an allow-list of an endpoint protection (the venv python.exe is only a
+    # launcher: the listener is the real interpreter). Read only, and never an error.
+    try {
+        $listener = $null
+        foreach ($entry in (netstat -ano -p tcp)) {
+            if ($entry -match "^\s*TCP\s+127\.0\.0\.1:$port\s+\S+\s+LISTENING\s+(\d+)\s*$") { $listener = [int]$Matches[1]; break }
+        }
+        if (-not $listener) { throw "no listener" }
+        $path = (Get-Process -Id $listener -ErrorAction Stop).Path
+        if (-not $path) { throw "no path" }
+        $md5 = (Get-FileHash $path -Algorithm MD5).Hash.ToLower()
+        $sha = (Get-FileHash $path -Algorithm SHA256).Hash.ToLower()
+        Write-Host "start-mock: python: $path (MD5 $md5, SHA256 $sha)"
+    } catch {
+        Write-Host "start-mock: python: not found (not an error)"
+    }
+}
+
 if (Started) {
     Write-Host "start-mock: a fake Jira started by these scripts already runs on http://127.0.0.1:$Port"
     exit 0
@@ -87,5 +107,6 @@ while (-not (Answers $Port)) {
     Start-Sleep -Milliseconds 300
 }
 Write-Host "start-mock: fake Jira on http://127.0.0.1:$Port ($Issues issues and the known anomalies)."
+Show-Interpreter $Port
 Write-Host "start-mock: stop it with .\scripts\stop-mock.ps1 -Port $Port"
 exit 0

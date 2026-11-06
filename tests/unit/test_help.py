@@ -12,7 +12,7 @@ import sys
 import pytest
 
 from jira2dashboard import build_workbook, clean, mock_workbook
-from jira2dashboard.cli import args, check_machine
+from jira2dashboard.cli import args, check_machine, diagnose
 from jira2dashboard.mockjira import __main__ as mock_jira
 from jira2dashboard.paths import CHILDREN_DIR, REPO_ROOT
 from jira2dashboard.standalone import __main__ as extract
@@ -24,6 +24,7 @@ PYTHON_COMMANDS = {                      # run.ps1 command -> (parse function, a
     "vba-tests": (run_vba_tests.parse, "--bisect"),
     "clean": (clean.parse, "out\\inter"),
     "check-machine": (check_machine.parse, "Excel"),
+    "diagnose": (diagnose.parse, "endpoint protection"),
     "mock-jira": (mock_jira.parse, "--anomalies"),
     "mock-workbook": (mock_workbook.parse, "out\\manual_test\\jira2dashboard4manualtest.xlsm"),
     "extract": (extract.parse, "jira2dashboard.xlsx"),

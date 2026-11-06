@@ -27,7 +27,7 @@ where = ["src"]
 [tool.coverage.run]
 source = ["jira2dashboard"]
 data_file = "out/inter/.coverage"
-omit = ["*/cli/check_machine.py", "*/mockjira/__main__.py", "*/flow/sheets.py"]
+omit = ["*/cli/check_machine.py", "*/cli/diagnose.py", "*/mockjira/__main__.py", "*/flow/sheets.py"]
 
 [tool.coverage.report]
 fail_under = 90
