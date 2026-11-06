@@ -5,12 +5,12 @@ from pytest_bdd import given, parsers, scenarios, then, when
 from conftest import FLOW_AS_OF, at
 from jira2dashboard.flow.itemflow import item_flow
 from jira2dashboard.flow.load import daily_load
-from jira2dashboard.flow.metrics import team_period_metrics
-from jira2dashboard.flow.model import NOT_COMPUTABLE, Period, Rules
+from jira2dashboard.flow.metrics import team_iteration_metrics
+from jira2dashboard.flow.model import NOT_COMPUTABLE, Iteration, Rules
 
 scenarios("../features/flow_metrics.feature")
 
-PERIODS = {"P1": Period("P1", at("10-05"), at("10-19")), "P2": Period("P2", at("10-19"), at("11-02"))}
+ITERATIONS = {"P1": Iteration("P1", at("10-05"), at("10-19")), "P2": Iteration("P2", at("10-19"), at("11-02"))}
 METRICS = {
     "Flow Velocity": "velocity", "Flow Time médiane": "flow_time_median", "Flow Time P85": "flow_time_p85",
     "Flow Time exclus": "flow_time_excluded", "Flow Efficiency": "flow_efficiency",
@@ -35,14 +35,14 @@ def _row(world, key):
     world["row"] = next(i for i in world["items"] if i.key == key)
 
 
-@when(parsers.parse('je calcule les métriques de l\'équipe "{team}" pour la période "{period}" en mode "{mode}"'))
-def _metrics(world, team, period, mode):
-    world["metrics"] = team_period_metrics(world["items"], team, PERIODS[period], mode, FLOW_AS_OF)
+@when(parsers.parse('je calcule les métriques de l\'équipe "{team}" pour la période "{iteration}" en mode "{mode}"'))
+def _metrics(world, team, iteration, mode):
+    world["metrics"] = team_iteration_metrics(world["items"], team, ITERATIONS[iteration], mode, FLOW_AS_OF)
 
 
-@when(parsers.parse('je calcule le Flow Load de l\'équipe "{team}" en mode "{mode}" pour la période "{period}"'))
-def _load(world, team, mode, period):
-    p = PERIODS[period]
+@when(parsers.parse('je calcule le Flow Load de l\'équipe "{team}" en mode "{mode}" pour la période "{iteration}"'))
+def _load(world, team, mode, iteration):
+    p = ITERATIONS[iteration]
     world["load"] = daily_load(world["items"], mode, team, p.start, p.end, FLOW_AS_OF)
 
 

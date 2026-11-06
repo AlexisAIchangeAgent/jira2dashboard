@@ -782,7 +782,7 @@ Private Sub FlowRaw(ByVal withStory As Boolean)
         "LeftUtc", "DurationDays", "IsOpen", "ChangeId", "Check"), ivs
 End Sub
 
-Private Sub FlowPeriods(ByVal start1 As Variant, ByVal end1 As Variant, Optional ByVal second As Boolean = False)
+Private Sub FlowIterations(ByVal start1 As Variant, ByVal end1 As Variant, Optional ByVal second As Boolean = False)
     Dim ws As Object
     Set ws = ThisWorkbook.Worksheets("Iterations")
     ws.Range("A2:C10").ClearContents
@@ -822,14 +822,14 @@ Public Sub T_FlowBuild()
     Set wb = ThisWorkbook
     Set dash = wb.Worksheets("Dashboard")
     ClearFlowSheets wb
-    FlowPeriods "x", "y"
+    FlowIterations "x", "y"
     FlowRaw True
     Check "flowbuild", "text that is not a date is refused", "Start x", 701, FlowBuildError()
-    FlowPeriods DateSerial(2026, 10, 15), DateSerial(2026, 10, 1)
-    Check "flowbuild", "a period that ends before it starts is refused", "15 Oct -> 1 Oct", 704, FlowBuildError()
+    FlowIterations DateSerial(2026, 10, 15), DateSerial(2026, 10, 1)
+    Check "flowbuild", "an iteration that ends before it starts is refused", "15 Oct -> 1 Oct", 704, FlowBuildError()
     wb.Worksheets("Iterations").Range("A2:C10").ClearContents
-    Check "flowbuild", "no period is refused", "empty Iterations", 703, FlowBuildError()
-    FlowPeriods DateSerial(2026, 10, 1), DateSerial(2026, 10, 15), True
+    Check "flowbuild", "no iteration is refused", "empty Iterations", 703, FlowBuildError()
+    FlowIterations DateSerial(2026, 10, 1), DateSerial(2026, 10, 15), True
     ClearFlowSheets wb
     Check "flowbuild", "no extracted data is refused", "empty Issues", 702, FlowBuildError()
     FlowRaw True
@@ -838,7 +838,7 @@ Public Sub T_FlowBuild()
     Check "flowbuild", "ItemFlow: one row per issue", "2 issues", 2, TableRows("ItemFlow")
     Check "flowbuild", "Issues and StatusIntervals become tables", "2 + 3 rows", "2|3", TableRows("Issues") & "|" & TableRows("StatusIntervals")
     Check "flowbuild", "DailyLoad: one row per day and team", "28 days x 9", 28 * teams, TableRows("DailyLoad")
-    Check "flowbuild", "Metrics: one row per iteration and team", "2 periods x 9", 2 * teams, TableRows("Metrics")
+    Check "flowbuild", "Metrics: one row per iteration and team", "2 iterations x 9", 2 * teams, TableRows("Metrics")
     Check "flowbuild", "eight charts", "Dashboard", 8, dash.ChartObjects.Count
     Check "flowbuild", "DataChecks: one row per check of ChecksSpec", "29 checks", 29, TableRows("DataChecks")
     Check "flowbuild", "DataChecks: the first check, and the check that needs a field is not computable", "DC01 / DC11", "DC01|OK|not computable", _
@@ -850,7 +850,7 @@ Public Sub T_FlowBuild()
     Check "flowbuild", "the Predictability chart has two more series: the 80-100 % band", "Predictability", teams + 2, dash.ChartObjects("flow_predictability").Chart.SeriesCollection.Count
     Check "flowbuild", "the daily Flow Load curve has one series per team and one point per day", "28 days", teams & "|" & 28, _
           dash.ChartObjects("flow_load_daily").Chart.SeriesCollection.Count & "|" & UBound(dash.ChartObjects("flow_load_daily").Chart.SeriesCollection(1).Values)
-    Check "flowbuild", "the period axis of a chart lists the periods in order", "P1, P2", "P1|P2", AxisEnds(dash.ChartObjects("velocity").Chart, False)
+    Check "flowbuild", "the iteration axis of a chart lists the iterations in order", "P1, P2", "P1|P2", AxisEnds(dash.ChartObjects("velocity").Chart, False)
     Check "flowbuild", "the day axis starts on the first day, one row per day", "2026-10-01, 28 days", "46296|27", _
           AxisEnds(dash.ChartObjects("flow_load_daily").Chart, True)
     Check "flowbuild", "the formulas give the issue keys", "ItemFlow.Key", "TTT-1|AAA-1", _
@@ -863,11 +863,11 @@ Public Sub T_FlowBuild()
     sheetCount = wb.Worksheets.Count
     ' a second, smaller run: no row, no sheet and no chart of the first one stays
     FlowRaw False
-    FlowPeriods 46296, 46310                                      ' 2026-10-01 .. 2026-10-15 as plain numbers
+    FlowIterations 46296, 46310                                      ' 2026-10-01 .. 2026-10-15 as plain numbers
     wb.Worksheets("Dashboard").Range("B2").Value = "Nowhere"
     BuildFlowSheetsIn wb
     Check "flowbuild", "smaller data: ItemFlow shrinks", "1 issue", 1, TableRows("ItemFlow")
-    Check "flowbuild", "smaller data: DailyLoad and Metrics shrink", "14 days, 1 period", (14 * teams) & "|" & teams, TableRows("DailyLoad") & "|" & TableRows("Metrics")
+    Check "flowbuild", "smaller data: DailyLoad and Metrics shrink", "14 days, 1 iteration", (14 * teams) & "|" & teams, TableRows("DailyLoad") & "|" & TableRows("Metrics")
     Check "flowbuild", "smaller data: StatusIntervals", "1 interval", 1, TableRows("StatusIntervals")
     Check "flowbuild", "smaller data: FillRates follows the issue types", "3 x 9 x 1", 27, TableRows("FillRates")
     Check "flowbuild", "the sheets are the same", "count", sheetCount, wb.Worksheets.Count

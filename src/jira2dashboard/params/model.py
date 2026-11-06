@@ -231,7 +231,7 @@ def _parse_moment(text: str):
         return None
 
 
-def _check_periods(sheet: ParamSheet, problems: list[str], column: str = "Iteration-label") -> None:
+def _check_iterations(sheet: ParamSheet, problems: list[str], column: str = "Iteration-label") -> None:
     """Iterations (column Iteration-label) and PIs (column PI): a name, two dates, Start before End, no name twice."""
     seen: Counter = Counter()
     label = sheet.name
@@ -308,9 +308,9 @@ def shape_problems(sheets: dict[str, "ParamSheet | None"]) -> list[str]:
     if sheets.get("Projects"):
         _check_projects(sheets["Projects"], problems)
     if sheets.get("Iterations"):
-        _check_periods(sheets["Iterations"], problems)
+        _check_iterations(sheets["Iterations"], problems)
     if sheets.get("PIs"):
-        _check_periods(sheets["PIs"], problems, "PI")
+        _check_iterations(sheets["PIs"], problems, "PI")
     if sheets.get("Workflows"):
         _check_workflows(sheets["Workflows"], problems)
     if sheets.get("Transitions") and sheets.get("Workflows"):

@@ -226,7 +226,7 @@ def test_data_check_parameters_have_defaults_and_are_checked(params_copy):
         model.load_all(params_copy)
 
 
-def test_pis_are_empty_in_the_repo_and_checked_like_periods(params_copy):
+def test_pis_are_empty_in_the_repo_and_checked_like_iterations(params_copy):
     assert sheet(model.load_all(), "PIs").rows == ()
     path = params_copy / "pis.md"
     rows = ["| PI#01-2026 | 2026-01-05 | 2026-03-30 |", "| PI#01-2026 | 2026-04-01 | tomorrow |",
@@ -273,12 +273,12 @@ def test_as_of_accepts_a_date_or_a_date_and_time(params_copy, moment):
 
 # --- Iterations: the iterations, empty in the repo -----------------------------------------------------
 
-def test_periods_are_empty_in_the_repo_because_the_calendar_is_the_clients():
-    periods = sheet(model.load_all(), "Iterations")
-    assert periods.header == ("Iteration-label", "Start", "End") and periods.rows == ()
+def test_iterations_are_empty_in_the_repo_because_the_calendar_is_the_clients():
+    iterations = sheet(model.load_all(), "Iterations")
+    assert iterations.header == ("Iteration-label", "Start", "End") and iterations.rows == ()
 
 
-def test_period_rows_are_checked(params_copy):
+def test_iteration_rows_are_checked(params_copy):
     path = params_copy / "iterations.md"
     path.write_text(path.read_text(encoding="utf-8") + "| I1 | 2026-10-05 | 2026-10-19 |\n| I1 | 2026-10-19 | soon |\n"
                     "| I3 | 2026-11-02 | 2026-10-26 |\n|  | 2026-11-02 | 2026-11-16 |\n", encoding="utf-8")
@@ -289,7 +289,7 @@ def test_period_rows_are_checked(params_copy):
     assert "Iterations row 3: Start must be before End" in text and "Iterations row 4: Iteration-label needs a name" in text
 
 
-def test_valid_period_rows_are_accepted(params_copy):
+def test_valid_iteration_rows_are_accepted(params_copy):
     path = params_copy / "iterations.md"
     path.write_text(path.read_text(encoding="utf-8") + "| I1 | 2026-10-05 | 2026-10-19 |\n| I2 | 2026-10-19 | 2026-11-02 |\n",
                     encoding="utf-8")

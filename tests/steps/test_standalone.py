@@ -19,7 +19,7 @@ from jira2dashboard.flow.blueprint import team_names
 from jira2dashboard.flow.checks import PER_ISSUE, CheckSettings, Moves, fill_rates, run_checks
 from jira2dashboard.flow.itemflow import item_flow
 from jira2dashboard.flow.load import daily_load
-from jira2dashboard.flow.metrics import BUCKETS, team_period_metrics
+from jira2dashboard.flow.metrics import BUCKETS, team_iteration_metrics
 from jira2dashboard.flow.model import NOT_COMPUTABLE, Change, Rules
 from jira2dashboard.mockjira.anomalies import PI, PI_WINDOW, with_anomalies
 from jira2dashboard.mockjira.flow_adapter import to_flow_issues
@@ -173,7 +173,7 @@ def reference(world):
         items = [item_flow(i, as_of, rules) for i in issues]
         projects = [row for s in load_all() if s.name == "Projects" for row in s.rows]
         world["reference"] = dict(
-            as_of=as_of, issues=issues, items=items, teams=team_names(projects), periods=M.iterations(),
+            as_of=as_of, issues=issues, items=items, teams=team_names(projects), iterations=M.iterations(),
             flags=run_checks(issues, as_of, rules, Moves.from_params(), settings), settings=settings,
             fill=fill_rates(issues, settings, sorted({i.team for i in issues}), sorted({i.type for i in issues})))
     return world["reference"]
@@ -203,10 +203,10 @@ def _results(world):
     ref, got = reference(world), sheets(world)
     as_of, items, wrong = ref["as_of"], ref["items"], []
     metrics = {(r["Iteration-label"], r["Team"]): r for r in got["Metrics"]}
-    assert set(metrics) == {(p.name, t) for p in ref["periods"] for t in ref["teams"]}
-    for period in ref["periods"]:
+    assert set(metrics) == {(p.name, t) for p in ref["iterations"] for t in ref["teams"]}
+    for iteration in ref["iterations"]:
         for team in ref["teams"]:
-            m, row = team_period_metrics(items, team, period, "A", as_of), metrics[(period.name, team)]
+            m, row = team_iteration_metrics(items, team, iteration, "A", as_of), metrics[(iteration.name, team)]
             pairs = {"Velocity": m.velocity, "FlowTimeCount": m.flow_time_count, "FlowTimeMedian": m.flow_time_median,
                      "FlowTimeP85": m.flow_time_p85, "FlowLoadAverage": m.flow_load_average,
                      "FlowLoadEnd": m.flow_load_end, "FlowEfficiency": m.flow_efficiency,
@@ -214,8 +214,8 @@ def _results(world):
             for bucket in BUCKETS:
                 for column, shares in ((f"DistDone{bucket}", m.distribution_done), (f"DistWip{bucket}", m.distribution_wip)):
                     pairs[column] = NOT_COMPUTABLE if shares == NOT_COMPUTABLE else shares[bucket]
-            wrong += [(period.name, team, c, row[c], v) for c, v in pairs.items() if not same(row[c], v)]
-    first, end = ref["periods"][0].start, ref["periods"][-1].end
+            wrong += [(iteration.name, team, c, row[c], v) for c, v in pairs.items() if not same(row[c], v)]
+    first, end = ref["iterations"][0].start, ref["iterations"][-1].end
     loads = {team: daily_load(items, "A", team, first, end, as_of) for team in ref["teams"]}
     for row in got["DailyLoad"]:
         day = moment(row["Date"])

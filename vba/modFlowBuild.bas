@@ -107,11 +107,11 @@ Private Function TeamNames(ByVal wsProjects As Object, ByVal programTeam As Stri
     Set TeamNames = out
 End Function
 
-Private Function PeriodRows(ByVal wsPeriods As Object) As Collection
+Private Function IterationRows(ByVal wsIterations As Object) As Collection
     ' Iteration-label | Start | End -> Collection of Array(name, start serial, end serial)
     Cov "FLB09"
     Dim out As New Collection, row As Variant, s As Variant, e As Variant
-    For Each row In ReadTable(wsPeriods)
+    For Each row In ReadTable(wsIterations)
         s = SerialOf(row("Start")): e = SerialOf(row("End"))
         If IsEmpty(s) Or IsEmpty(e) Then
             Cov "FLB28"
@@ -123,7 +123,7 @@ Private Function PeriodRows(ByVal wsPeriods As Object) As Collection
         End If
         out.Add Array(CStr(row("Iteration-label")), s, e)
     Next row
-    Set PeriodRows = out
+    Set IterationRows = out
 End Function
 
 Private Function SerialOf(ByVal v As Variant) As Variant
@@ -209,7 +209,7 @@ Private Sub RequireDynamicArrays()
     End If
 End Sub
 
-Private Sub LoadPlan(ByVal wb As Object, ByRef spec As Object, ByRef teams As Collection, ByRef periods As Collection)
+Private Sub LoadPlan(ByVal wb As Object, ByRef spec As Object, ByRef teams As Collection, ByRef iterations As Collection)
     ' Everything the build needs from the sheets, checked: the errors come before anything is changed.
     Dim nm As Variant
     RequireDynamicArrays
@@ -221,8 +221,8 @@ Private Sub LoadPlan(ByVal wb As Object, ByRef spec As Object, ByRef teams As Co
     Next nm
     Set spec = ReadFormulas(wb)
     Set teams = TeamNames(wb.Worksheets("Projects"), SettingOf(spec, "Dashboard", "ProgramTeam"))
-    Set periods = PeriodRows(wb.Worksheets("Iterations"))
-    If periods.Count = 0 Then
+    Set iterations = IterationRows(wb.Worksheets("Iterations"))
+    If iterations.Count = 0 Then
         Cov "FLB15"
         Err.Raise vbObjectError + 703, "BuildFlowSheets", "Sheet Iterations has no iteration: fill Iteration-label, Start and End first."
     End If
@@ -231,22 +231,22 @@ End Sub
 Public Sub ValidateBuildInputs(ByVal wb As Object)
     ' Called before the extraction: a bad Iterations sheet or an old Excel must not be found after ten minutes of reading Jira,
     ' with the earlier results already cleared.
-    Dim spec As Object, teams As Collection, periods As Collection
-    LoadPlan wb, spec, teams, periods
+    Dim spec As Object, teams As Collection, iterations As Collection
+    LoadPlan wb, spec, teams, iterations
 End Sub
 
 Public Sub BuildFlowSheetsIn(ByVal wb As Object)
     Cov "FLB14"
-    Dim spec As Object, teams As Collection, periods As Collection, calcMode As Long, screen As Boolean
+    Dim spec As Object, teams As Collection, iterations As Collection, calcMode As Long, screen As Boolean
     Dim num As Long, desc As String
-    LoadPlan wb, spec, teams, periods
+    LoadPlan wb, spec, teams, iterations
     LogBegin "flow sheets and charts"
     calcMode = Application.Calculation
     screen = Application.ScreenUpdating
     On Error GoTo Failed                                              ' from here Failed gives both back
     Application.ScreenUpdating = False
     Application.Calculation = XL_CALC_MANUAL
-    BuildAll wb, spec, teams, periods
+    BuildAll wb, spec, teams, iterations
     Application.Calculation = calcMode                   ' back to automatic: Excel calculates everything now
     If calcMode <> XL_CALC_AUTOMATIC Then Cov "FLB36": Application.CalculateFull      ' Excel left in manual mode by the user
     Application.ScreenUpdating = screen
@@ -261,7 +261,7 @@ Failed:
     Err.Raise num, "BuildFlowSheets", desc
 End Sub
 
-Private Sub BuildAll(ByVal wb As Object, ByVal spec As Object, ByVal teams As Collection, ByVal periods As Collection)
+Private Sub BuildAll(ByVal wb As Object, ByVal spec As Object, ByVal teams As Collection, ByVal iterations As Collection)
     Cov "FLB16"
     Dim wsI As Object, wsS As Object, wsF As Object, wsD As Object, wsM As Object, wsC As Object, wsL As Object, wsR As Object
     Dim loI As Object, loS As Object, loF As Object, loD As Object, loM As Object, loC As Object, loL As Object, loR As Object
@@ -276,16 +276,16 @@ Private Sub BuildAll(ByVal wb As Object, ByVal spec As Object, ByVal teams As Co
     BuildControls wb, spec
     Set wsF = AddSheet(wb, "ItemFlow"): Set wsD = AddSheet(wb, "DailyLoad"): Set wsM = AddSheet(wb, "Metrics")
     Set wsC = AddSheet(wb, "DataChecks"): Set wsR = AddSheet(wb, "FillRates")
-    WriteDailyKeys wsD, periods, teams
-    WriteMetricKeys wsM, periods, teams
+    WriteDailyKeys wsD, iterations, teams
+    WriteMetricKeys wsM, iterations, teams
     checks = WriteCheckKeys(wsC, wb.Worksheets("ChecksSpec"))
     fills = WriteFillKeys(wsR, spec("FillFields"), wb, teams)
     ' every table exists before any formula is written: the formulas refer to each other's columns
     Set loI = CreateTable(wsI, "Issues", spec("Issues"), issues)
     Set loS = CreateTable(wsS, "StatusIntervals", spec("StatusIntervals"), UsedRows(wsS))
     Set loF = CreateTable(wsF, "ItemFlow", spec("ItemFlow"), issues)
-    Set loD = CreateTable(wsD, "DailyLoad", spec("DailyLoad"), DaysOf(periods) * teams.Count)
-    Set loM = CreateTable(wsM, "Metrics", spec("Metrics"), periods.Count * teams.Count)
+    Set loD = CreateTable(wsD, "DailyLoad", spec("DailyLoad"), DaysOf(iterations) * teams.Count)
+    Set loM = CreateTable(wsM, "Metrics", spec("Metrics"), iterations.Count * teams.Count)
     Set loC = CreateTable(wsC, "DataChecks", spec("DataChecks"), checks)
     Set loL = CreateTable(wsL, "IssueLinks", spec("IssueLinks"), UsedRows(wsL))
     Set loR = CreateTable(wsR, "FillRates", spec("FillRates"), fills)
@@ -298,7 +298,7 @@ Private Sub BuildAll(ByVal wb As Object, ByVal spec As Object, ByVal teams As Co
     FillFormulas loM, spec("Metrics")
     wsD.Columns(1).NumberFormat = "yyyy-mm-dd"
     wsM.Range(wsM.Columns(2), wsM.Columns(3)).NumberFormat = "yyyy-mm-dd"
-    BuildCharts wb, spec, teams, periods
+    BuildCharts wb, spec, teams, iterations
 End Sub
 
 Private Sub BuildControls(ByVal wb As Object, ByVal spec As Object)
@@ -315,30 +315,30 @@ Private Sub BuildControls(ByVal wb As Object, ByVal spec As Object)
     ws.Columns("A:B").AutoFit
 End Sub
 
-Private Function DaysOf(ByVal periods As Collection) As Long
-    ' Whole days from the first period start to the last iteration end (end excluded).
+Private Function DaysOf(ByVal iterations As Collection) As Long
+    ' Whole days from the first iteration start to the last iteration end (end excluded).
     Cov "FLB18"
     Dim p As Variant, first As Double, last As Double
-    first = Int(periods(1)(1)): last = Int(periods(1)(2))
-    For Each p In periods
+    first = Int(iterations(1)(1)): last = Int(iterations(1)(2))
+    For Each p In iterations
         If Int(p(1)) < first Then first = Int(p(1))
         If Int(p(2)) > last Then last = Int(p(2))
     Next p
     DaysOf = CLng(last - first)
 End Function
 
-Private Sub WriteDailyKeys(ByVal ws As Object, ByVal periods As Collection, ByVal teams As Collection)
+Private Sub WriteDailyKeys(ByVal ws As Object, ByVal iterations As Collection, ByVal teams As Collection)
     ' Date | Team, one row per day and team. Values, not formulas: a formula typed in a table column fills the whole column.
     Cov "FLB19"
     Dim p As Variant, first As Double, n As Long, d As Long, t As Long, r As Long, data() As Variant
-    first = Int(periods(1)(1))
-    For Each p In periods
+    first = Int(iterations(1)(1))
+    For Each p In iterations
         If Int(p(1)) < first Then first = Int(p(1))
     Next p
-    n = DaysOf(periods) * teams.Count
+    n = DaysOf(iterations) * teams.Count
     If n = 0 Then Exit Sub
     ReDim data(1 To n, 1 To 2)
-    For d = 0 To DaysOf(periods) - 1
+    For d = 0 To DaysOf(iterations) - 1
         For t = 1 To teams.Count
             r = r + 1
             data(r, 1) = first + d
@@ -348,12 +348,12 @@ Private Sub WriteDailyKeys(ByVal ws As Object, ByVal periods As Collection, ByVa
     ws.Range(ws.Cells(2, 1), ws.Cells(n + 1, 2)).Value = data
 End Sub
 
-Private Sub WriteMetricKeys(ByVal ws As Object, ByVal periods As Collection, ByVal teams As Collection)
+Private Sub WriteMetricKeys(ByVal ws As Object, ByVal iterations As Collection, ByVal teams As Collection)
     ' Iteration-label | IterationStart | IterationEnd | Team, one row per iteration and team.
     Cov "FLB20"
     Dim p As Variant, t As Long, r As Long, data() As Variant
-    ReDim data(1 To periods.Count * teams.Count, 1 To 4)
-    For Each p In periods
+    ReDim data(1 To iterations.Count * teams.Count, 1 To 4)
+    For Each p In iterations
         For t = 1 To teams.Count
             r = r + 1
             data(r, 1) = AsText(CStr(p(0))): data(r, 2) = p(1): data(r, 3) = p(2): data(r, 4) = AsText(CStr(teams(t)))
@@ -437,14 +437,14 @@ End Function
 
 ' --- the dashboard: ChartData (one block of formulas per chart) and the charts -----------------------------------
 
-Private Sub BuildCharts(ByVal wb As Object, ByVal spec As Object, ByVal teams As Collection, ByVal periods As Collection)
+Private Sub BuildCharts(ByVal wb As Object, ByVal spec As Object, ByVal teams As Collection, ByVal iterations As Collection)
     Cov "FLB21"
     Dim data As Object, dash As Object, row As Variant, index As Long
     Set dash = wb.Worksheets("Dashboard")
     Set data = AddSheet(wb, "ChartData")
     WriteSelectorList wb, dash, data, spec, teams
     For Each row In ReadTable(wb.Worksheets("ChartSpec"))
-        BuildChart dash, data, row, 1 + index * (periods.Count + 4), teams, periods
+        BuildChart dash, data, row, 1 + index * (iterations.Count + 4), teams, iterations
         index = index + 1
     Next row
 End Sub
@@ -471,7 +471,7 @@ Private Sub WriteSelectorList(ByVal wb As Object, ByVal dash As Object, ByVal da
 End Sub
 
 Private Sub BuildChart(ByVal dash As Object, ByVal data As Object, ByVal row As Variant, ByVal top As Long, _
-                       ByVal teams As Collection, ByVal periods As Collection)
+                       ByVal teams As Collection, ByVal iterations As Collection)
     Cov "FLB24"
     Dim names() As String, count As Long, i As Long, j As Long, first As Long, last As Long, point As String
     Dim area As Object, shape As Object, ch As Object, s As Object, rng As Object
@@ -484,8 +484,8 @@ Private Sub BuildChart(ByVal dash As Object, ByVal data As Object, ByVal row As 
     End If
     count = UBound(names) + 1
     isDay = (CStr(row("Axis")) = "day")                      ' one row per day (daily curve) or per iteration
-    rowsCount = periods.Count
-    If isDay Then rowsCount = DaysOf(periods)
+    rowsCount = iterations.Count
+    If isDay Then rowsCount = DaysOf(iterations)
     first = top + 2: last = first + rowsCount - 1
     ReDim axis(1 To rowsCount, 1 To 1)
     data.Cells(top, 1).Value = CStr(row("Title"))
@@ -493,8 +493,8 @@ Private Sub BuildChart(ByVal dash As Object, ByVal data As Object, ByVal row As 
     If isDay Then
         Cov "FLB33"
         data.Cells(top + 1, 1).Value = "Day"
-        firstDay = Int(periods(1)(1))
-        For Each p In periods
+        firstDay = Int(iterations(1)(1))
+        For Each p In iterations
             If Int(p(1)) < firstDay Then firstDay = Int(p(1))
         Next p
         For i = 1 To rowsCount
@@ -505,14 +505,14 @@ Private Sub BuildChart(ByVal dash As Object, ByVal data As Object, ByVal row As 
     Else
         data.Cells(top + 1, 1).Value = "Iteration-label"
         For i = 1 To rowsCount
-            axis(i, 1) = AsText(CStr(periods(i)(0)))
+            axis(i, 1) = AsText(CStr(iterations(i)(0)))
         Next i
         data.Range(data.Cells(first, 1), data.Cells(last, 1)).Value = axis
     End If
     For j = 1 To count
         data.Cells(top + 1, 1 + j).Value = AsText(names(j - 1))
     Next j
-    point = Replace(CStr(row("PointFormula")), "{period}", "$A" & first)
+    point = Replace(CStr(row("PointFormula")), "{iteration}", "$A" & first)
     If InStr(point, "{series}") > 0 Then
         Cov "FLB25"                                          ' one formula per series: the name is part of the text
         For j = 1 To count

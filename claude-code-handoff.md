@@ -217,10 +217,10 @@ MD5 of the current modules (LF line endings). Unchanged since the original hando
 | modParams.bas | 983bbaf44422557d28b929158459c674 |
 | modExtract.bas | 2503c6ed41dd07047ed6d1536bfe10db |
 | modJiraConfig.bas | b4529efc36a4d0323c9508a1b7bccc56 |
-| modFlowBuild.bas | 4dda8ce1c183f430c3e4f8cc59a38450 |
+| modFlowBuild.bas | 3920da75fe0f6cfe9552aa7b9df2bd87 |
 | modActions.bas | 41bd99d6dd0ee90e7e474a269645be25 |
 | modBackground.bas | 1d098ce38925b8dc55bcf54404cf314f |
-| modTests.bas | ff9863a6cf5a6f327d62e3bcd88c64b8 |
+| modTests.bas | a01fa4ceccfd73e7ac29da5e81d250b6 |
 | modButtons.bas | 3bbe95b810cc0722eabed5c2bdbabbb2 |
 
 The Python files are no longer hashed (they were moved and edited; the code is covered by tests). If you

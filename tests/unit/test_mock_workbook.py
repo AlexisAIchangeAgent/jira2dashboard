@@ -37,12 +37,12 @@ def test_every_name_the_copy_writes_is_a_parameter_of_the_config_sheet():
 
 
 def test_the_iterations_last_14_days_follow_each_other_from_the_first_issue_and_the_last_holds_the_reference_date():
-    periods = M.iterations()
-    assert periods[0].name == "I1" and periods[0].start == SINCE
-    assert all(p.end - p.start == dt.timedelta(days=14) for p in periods)
-    assert all(a.end == b.start for a, b in zip(periods, periods[1:]))
-    assert periods[-1].contains(AS_OF) and not periods[-2].contains(AS_OF)
-    assert [p.name for p in periods] == [f"I{n}" for n in range(1, len(periods) + 1)]
+    iterations = M.iterations()
+    assert iterations[0].name == "I1" and iterations[0].start == SINCE
+    assert all(p.end - p.start == dt.timedelta(days=14) for p in iterations)
+    assert all(a.end == b.start for a, b in zip(iterations, iterations[1:]))
+    assert iterations[-1].contains(AS_OF) and not iterations[-2].contains(AS_OF)
+    assert [p.name for p in iterations] == [f"I{n}" for n in range(1, len(iterations) + 1)]
 
 
 def test_the_pis_sheet_gets_the_pi_of_the_known_anomalies():

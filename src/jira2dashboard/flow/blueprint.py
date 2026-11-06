@@ -55,13 +55,13 @@ def chart_rows() -> list[tuple]:
     rows = []
     for index, spec in enumerate(D.CHARTS):
         if spec.axis == D.DAY_AXIS:
-            point = D.day_point("{period}", "{name}")                # {period} is the day here
+            point = D.day_point("{iteration}", "{name}")                # {iteration} is the day here
             series = ""
         elif spec.series == D.TEAMS:
-            point = D.team_point(spec.column, "{period}", "{name}")
+            point = D.team_point(spec.column, "{iteration}", "{name}")
             series = ""
         else:
-            point = D.bucket_point("{series}", "{period}")
+            point = D.bucket_point("{series}", "{iteration}")
             series = ",".join(D.series_names(spec))
         row, column = D.chart_anchor(index)
         rows.append((spec.name, spec.title, spec.chart_type, spec.axis_format or "", series, point,

@@ -9,7 +9,7 @@ import math
 from xml.sax.saxutils import escape
 
 from jira2dashboard.flow import dashboard_spec as D
-from jira2dashboard.flow.metrics import BUCKETS, TeamPeriodMetrics
+from jira2dashboard.flow.metrics import BUCKETS, TeamIterationMetrics
 from jira2dashboard.flow.model import NOT_COMPUTABLE
 from jira2dashboard.standalone.xlsx_write import Picture
 
@@ -143,11 +143,11 @@ def _number(value) -> float | None:
     return None if value == NOT_COMPUTABLE or value is None else float(value)
 
 
-def distribution(metrics: list[TeamPeriodMetrics], periods: list[str], team: str) -> dict[str, list[float | None]]:
-    """The share of each work type among the items done in each period: one team, or all teams weighted by velocity."""
+def distribution(metrics: list[TeamIterationMetrics], iterations: list[str], team: str) -> dict[str, list[float | None]]:
+    """The share of each work type among the items done in each iteration: one team, or all teams weighted by velocity."""
     out = {bucket: [] for bucket in BUCKETS}
-    for period in periods:
-        rows = [m for m in metrics if m.period == period and (team == D.ALL_TEAMS or m.team == team)]
+    for iteration in iterations:
+        rows = [m for m in metrics if m.iteration == iteration and (team == D.ALL_TEAMS or m.team == team)]
         done = sum(m.velocity for m in rows)
         for bucket in BUCKETS:
             if not done:
@@ -157,11 +157,11 @@ def distribution(metrics: list[TeamPeriodMetrics], periods: list[str], team: str
     return out
 
 
-def chart_pictures(metrics: list[TeamPeriodMetrics], teams: list[str], periods: list[str],
+def chart_pictures(metrics: list[TeamIterationMetrics], teams: list[str], iterations: list[str],
                    loads: dict[str, dict[dt.datetime, int]], days: list[dt.datetime],
                    team: str = D.ALL_TEAMS) -> list[Picture]:
     """The 8 charts, in the order of dashboard_spec.CHARTS."""
-    by_key = {(m.period, m.team): m for m in metrics}
+    by_key = {(m.iteration, m.team): m for m in metrics}
     attribute = {"Velocity": "velocity", "FlowTimeMedian": "flow_time_median", "FlowTimeP85": "flow_time_p85",
                  "FlowLoadAverage": "flow_load_average", "FlowEfficiency": "flow_efficiency",
                  "FlowPredictability": "flow_predictability"}
@@ -172,13 +172,13 @@ def chart_pictures(metrics: list[TeamPeriodMetrics], teams: list[str], periods: 
             categories = [f"{d:%m-%d}" for d in days]
             series = {t: [loads[t].get(d) for d in days] for t in teams}
         elif spec.series == D.BUCKET_SERIES:
-            categories = periods
-            series = distribution(metrics, periods, team)
+            categories = iterations
+            series = distribution(metrics, iterations, team)
             title = title.replace("team of the selector", team)
         else:
-            categories = periods
+            categories = iterations
             series = {t: [_number(getattr(by_key[(p, t)], attribute[spec.column])) if (p, t) in by_key else None
-                          for p in periods] for t in teams}
+                          for p in iterations] for t in teams}
         svg = draw(title, categories, series, KINDS[spec.chart_type], spec.axis_format == "0%", spec.band,
                    gaps_note(series, spec.reason))
         pictures.append(Picture(spec.name, title, svg, WIDTH, HEIGHT))

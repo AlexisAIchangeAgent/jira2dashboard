@@ -54,11 +54,11 @@ def test_predictability_explains_why_it_has_gaps():
 
 
 def test_blocks_of_chart_data_do_not_overlap():
-    periods = 11
-    tops = [d.block_top(i, periods) for i in range(len(d.CHARTS))]
+    iterations = 11
+    tops = [d.block_top(i, iterations) for i in range(len(d.CHARTS))]
     assert tops[0] == 1
     for first, second in zip(tops, tops[1:]):
-        assert second - first >= periods + 3          # title + series names + periods, and a blank row
+        assert second - first >= iterations + 3          # title + series names + iterations, and a blank row
 
 
 def test_charts_on_the_dashboard_do_not_overlap():
@@ -75,7 +75,7 @@ def test_charts_on_the_dashboard_do_not_overlap():
 
 def test_the_daily_curve_is_last_and_has_a_gap_for_days_without_snapshot():
     daily = d.CHARTS[-1]
-    assert daily.axis == d.DAY_AXIS and all(c.axis == d.PERIOD_AXIS for c in d.CHARTS[:-1])      # its block is the longest
+    assert daily.axis == d.DAY_AXIS and all(c.axis == d.ITERATION_AXIS for c in d.CHARTS[:-1])      # its block is the longest
     text = d.day_point("$A6", "B$5")
     assert "NA()" in text and "DailyLoad[Load]" in text and text.count("(") == text.count(")")
 

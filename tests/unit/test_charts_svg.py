@@ -5,7 +5,7 @@ from xml.etree import ElementTree
 import pytest
 
 from jira2dashboard.flow import dashboard_spec as D
-from jira2dashboard.flow.metrics import BUCKETS, TeamPeriodMetrics
+from jira2dashboard.flow.metrics import BUCKETS, TeamIterationMetrics
 from jira2dashboard.flow.model import NOT_COMPUTABLE
 from jira2dashboard.standalone import charts_svg as C
 
@@ -61,9 +61,9 @@ def test_text_is_escaped():
     assert "A <b> & c" in texts(svg) and "R&D" in texts(svg)
 
 
-def metrics(period, team, velocity, done=None, median=NOT_COMPUTABLE):
+def metrics(iteration, team, velocity, done=None, median=NOT_COMPUTABLE):
     shares = done or {b: (1.0 if b == "Feature" else 0.0) for b in BUCKETS}
-    return TeamPeriodMetrics(period, team, velocity, velocity, 0, median, median, 1.0, 1, 0.5,
+    return TeamIterationMetrics(iteration, team, velocity, velocity, 0, median, median, 1.0, 1, 0.5,
                              shares if velocity else NOT_COMPUTABLE, NOT_COMPUTABLE, NOT_COMPUTABLE)
 
 
@@ -76,11 +76,11 @@ def test_all_teams_weights_each_team_by_its_velocity():
 
 
 def test_the_eight_charts_of_the_dashboard():
-    teams, periods = ["ART", "Alpha"], ["I1", "I2"]
-    rows = [metrics(p, t, v, median=2.5) for p in periods for t, v in zip(teams, (2, 0))]
+    teams, iterations = ["ART", "Alpha"], ["I1", "I2"]
+    rows = [metrics(p, t, v, median=2.5) for p in iterations for t, v in zip(teams, (2, 0))]
     days = [dt.datetime(2026, 10, 1) + dt.timedelta(days=n) for n in range(5)]
     loads = {"ART": {d: 1 for d in days[:3]}, "Alpha": {d: 0 for d in days[:3]}}
-    pictures = C.chart_pictures(rows, teams, periods, loads, days, "ART")
+    pictures = C.chart_pictures(rows, teams, iterations, loads, days, "ART")
     assert [p.name for p in pictures] == [spec.name for spec in D.CHARTS]
     for picture in pictures:
         ElementTree.fromstring(picture.svg)

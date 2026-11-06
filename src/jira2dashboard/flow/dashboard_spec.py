@@ -19,7 +19,7 @@ CONFIG_CELL = "O1"                            # the button that reads the Jira c
 XL_COLUMN_CLUSTERED, XL_LINE_MARKERS, XL_COLUMN_STACKED_100, XL_LINE = 51, 65, 53, 4
 
 TEAMS, BUCKET_SERIES = "team", "bucket"
-PERIOD_AXIS, DAY_AXIS = "period", "day"          # one point per iteration (table Metrics) or per day (table DailyLoad)
+ITERATION_AXIS, DAY_AXIS = "iteration", "day"          # one point per iteration (table Metrics) or per day (table DailyLoad)
 BAND_NAMES = ("Target band low", "Target band high")
 
 
@@ -32,7 +32,7 @@ class ChartSpec:
     axis_format: str | None = None
     series: str = TEAMS             # one series per team, or one per work type bucket
     reason: str = ""                # shown under the chart when points are not computable
-    axis: str = PERIOD_AXIS         # what a row of the block of ChartData is: a period or a day
+    axis: str = ITERATION_AXIS         # what a row of the block of ChartData is: an iteration or a day
     band: tuple[float, float] | None = None     # a target band drawn as two constant series (proposal: SAFe 80-100 %)
 
 
@@ -61,9 +61,9 @@ CHART_SPACING = 20                              # rows between two charts (chart
 CHARTS_PER_ROW = 2
 
 
-def block_top(index: int, periods: int) -> int:
+def block_top(index: int, iterations: int) -> int:
     """First row of the block of chart `index` in ChartData: title, series names, then one row per iteration."""
-    return 1 + index * (periods + 4)
+    return 1 + index * (iterations + 4)
 
 
 def chart_anchor(index: int) -> tuple[int, int]:
@@ -71,9 +71,9 @@ def chart_anchor(index: int) -> tuple[int, int]:
     return 4 + (index // CHARTS_PER_ROW) * CHART_SPACING, 1 + (index % CHARTS_PER_ROW) * (COLUMNS_PER_CHART + 1)
 
 
-def team_point(column: str, period_cell: str, team_cell: str) -> str:
-    """One point of a team series: the figure of Metrics for this period and team, or #N/A."""
-    return (f'=LET(v,XLOOKUP(1,(Metrics[[Iteration-label]]={period_cell})*(Metrics[Team]={team_cell}),Metrics[{column}],""),'
+def team_point(column: str, iteration_cell: str, team_cell: str) -> str:
+    """One point of a team series: the figure of Metrics for this iteration and team, or #N/A."""
+    return (f'=LET(v,XLOOKUP(1,(Metrics[[Iteration-label]]={iteration_cell})*(Metrics[Team]={team_cell}),Metrics[{column}],""),'
             "IF(ISNUMBER(v),v,NA()))")
 
 
@@ -89,13 +89,13 @@ def band_text(spec: ChartSpec) -> str:
     return f"{spec.band[0]};{spec.band[1]}" if spec.band else ""
 
 
-def bucket_point(bucket: str, period_cell: str) -> str:
-    """One point of the Distribution chart: the share of one work type among the items done in the period, for the
+def bucket_point(bucket: str, iteration_cell: str) -> str:
+    """One point of the Distribution chart: the share of one work type among the items done in the iteration, for the
     team picked in the selector, or for all teams together (each team's share weighted by its velocity)."""
     column = f"Metrics[DistDone{bucket}]"
-    one_team = f'XLOOKUP(1,(Metrics[[Iteration-label]]={period_cell})*(Metrics[Team]={SELECTOR}),{column},"")'
-    all_teams = (f"SUMPRODUCT((Metrics[[Iteration-label]]={period_cell})*Metrics[Velocity]*IFERROR(1*{column},0))"
-                 f"/SUMIFS(Metrics[Velocity],Metrics[[Iteration-label]],{period_cell})")
+    one_team = f'XLOOKUP(1,(Metrics[[Iteration-label]]={iteration_cell})*(Metrics[Team]={SELECTOR}),{column},"")'
+    all_teams = (f"SUMPRODUCT((Metrics[[Iteration-label]]={iteration_cell})*Metrics[Velocity]*IFERROR(1*{column},0))"
+                 f"/SUMIFS(Metrics[Velocity],Metrics[[Iteration-label]],{iteration_cell})")
     return f'=IFERROR(IF({SELECTOR}="{ALL_TEAMS}",{all_teams},1*{one_team}),NA())'
 
 

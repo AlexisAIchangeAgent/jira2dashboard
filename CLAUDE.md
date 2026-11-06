@@ -90,7 +90,7 @@ VBA guard tests after each edit of `vba/*.bas` (`.claude/hooks/bas_guard.py`); s
   real delivered workbook against the fake Jira and compare Excel with this reference **cell by cell** (Flow Load modes A
   and B). Keep the two sides in step: a formula change needs the reference change and vice versa.
 - **Parameters live in the workbook, never in code.** `params/*.md` (config, projects, workflows, transitions,
-  field_mapping, periods) are read and validated by `src/jira2dashboard/params/`, written into sheets, and read by VBA
+  field_mapping, iterations) are read and validated by `src/jira2dashboard/params/`, written into sheets, and read by VBA
   (`modParams`). Status names, team names and extract columns must not appear as literals in VBA (a guard test enforces it).
   `Config` columns: Parameter | Value | Example | Mandatory | Description (formulas read A and B; the rest by header). An empty Mandatory=True value
   stops the buttons before any call to Jira (`modParams.RequireMandatory`, error 608).
@@ -193,7 +193,7 @@ then `mermaid.parse`), and check every `](#anchor)` link against the headings.
 ## Hard constraints
 
 - **Nothing from the client may leave the client machine** (no scripts, no data). Client values (`BaseUrl`, `Email`,
-  `ApiToken`, `ProxyServer`, `ProxyBypass`, `Filter`, `WorkTypeField`, `AsOf`, the periods calendar) stay **empty** in the
+  `ApiToken`, `ProxyServer`, `ProxyBypass`, `Filter`, `WorkTypeField`, `AsOf`, the iterations calendar) stay **empty** in the
   repo; the API token must never be written to `params/config.md` (a test refuses it).
 - **Never kill an `EXCEL.EXE` the scripts did not start** (the user may have their own), except one hung for long on a
   VBA error dialog (AL allows it). A modal VB dialog (an untrapped VBA error) is the usual cause of a hung Excel run.

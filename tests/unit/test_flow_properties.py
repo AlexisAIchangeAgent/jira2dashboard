@@ -7,7 +7,7 @@ from jira2dashboard.flow import blueprint
 from jira2dashboard.flow.itemflow import item_flow
 from jira2dashboard.flow.load import ONE_DAY, in_process_at, snapshot_days
 from jira2dashboard.flow.metrics import flow_metrics
-from jira2dashboard.flow.model import NOT_COMPUTABLE, Period, Rules
+from jira2dashboard.flow.model import NOT_COMPUTABLE, Iteration, Rules
 from jira2dashboard.mockjira.flow_adapter import to_flow_issues
 from jira2dashboard.mockjira.generator import generate
 from jira2dashboard.params.model import load_all, project_keys
@@ -31,18 +31,18 @@ def items(issues, dataset):
 
 
 @pytest.fixture(scope="module")
-def periods(dataset):
+def iterations(dataset):
     """Iterations of 14 days from 2026-06-01 up to the as-of date (the last one is cut by it)."""
     first, out = dt.datetime(2026, 6, 1), []
     while first < dataset.as_of:
-        out.append(Period(f"I{len(out) + 1}", first, first + dt.timedelta(days=14)))
+        out.append(Iteration(f"I{len(out) + 1}", first, first + dt.timedelta(days=14)))
         first += dt.timedelta(days=14)
     return out
 
 
 @pytest.fixture(scope="module", params=["A", "B"])
-def results(request, items, periods, dataset):
-    return request.param, flow_metrics(items, periods, request.param, dataset.as_of)
+def results(request, items, iterations, dataset):
+    return request.param, flow_metrics(items, iterations, request.param, dataset.as_of)
 
 
 def numbers(values):
@@ -62,17 +62,17 @@ def test_program_issues_are_the_art_team_and_nobody_else_is(issues):
     assert all(i.team != "ART" for i in issues if i.type != "Feature")
 
 
-def test_velocity_is_the_number_of_done_dates_in_the_period(items, periods, results):
+def test_velocity_is_the_number_of_done_dates_in_the_iteration(items, iterations, results):
     mode, metrics = results
     for m in metrics:
-        period = next(p for p in periods if p.name == m.period)
-        assert m.velocity == sum(1 for i in items if i.team == m.team and period.contains(i.done))
+        iteration = next(p for p in iterations if p.name == m.iteration)
+        assert m.velocity == sum(1 for i in items if i.team == m.team and iteration.contains(i.done))
 
 
-def test_every_done_issue_falls_in_exactly_one_period(items, periods, results):
+def test_every_done_issue_falls_in_exactly_one_iteration(items, iterations, results):
     mode, metrics = results
     covered = sum(m.velocity for m in metrics)
-    in_window = sum(1 for i in items if i.done and periods[0].start <= i.done < periods[-1].end)
+    in_window = sum(1 for i in items if i.done and iterations[0].start <= i.done < iterations[-1].end)
     assert covered == in_window == sum(1 for i in items if i.done)
 
 
@@ -105,22 +105,22 @@ def test_a_distribution_adds_up_to_100_percent(results):
     assert all(m.velocity == 0 for m in done_missing)           # not computable only when nothing was done
 
 
-def test_the_load_at_the_end_of_a_period_is_the_number_of_issues_in_process_then(items, periods, results, dataset):
+def test_the_load_at_the_end_of_a_iteration_is_the_number_of_issues_in_process_then(items, iterations, results, dataset):
     """Independent count: replay each issue's changes to get its status at the instant, without using intervals."""
     mode, metrics = results
     rules = STATIC_RULES
     by_team = {}
     for m in metrics:
-        by_team.setdefault(m.period, {})[m.team] = m.flow_load_end
+        by_team.setdefault(m.iteration, {})[m.team] = m.flow_load_end
     checked = 0
-    for period in periods:
-        days = snapshot_days(period.start, period.end, dataset.as_of)
+    for iteration in iterations:
+        days = snapshot_days(iteration.start, iteration.end, dataset.as_of)
         if not days:
             continue
         instant = days[-1] + ONE_DAY
-        for team, reported in by_team[period.name].items():
+        for team, reported in by_team[iteration.name].items():
             expected = sum(1 for i in items if i.team == team and _in_process_by_replay(i, instant, mode, rules, dataset))
-            assert reported == expected, (period.name, team)
+            assert reported == expected, (iteration.name, team)
             checked += 1
     assert checked > 50
 

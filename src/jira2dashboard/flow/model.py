@@ -90,7 +90,7 @@ class Interval:
 
 
 @dataclass(frozen=True)
-class Period:
+class Iteration:
     """An iteration or a PI. Half-open: start <= date < end."""
     name: str
     start: dt.datetime

@@ -10,11 +10,11 @@ import pytest
 from conftest import FLOW_AS_OF, at
 from jira2dashboard.flow.itemflow import item_flow
 from jira2dashboard.flow.load import daily_load, in_process_at, snapshot_days
-from jira2dashboard.flow.metrics import flow_metrics, percentile_inc, team_period_metrics
-from jira2dashboard.flow.model import NOT_COMPUTABLE, Period, Rules
+from jira2dashboard.flow.metrics import flow_metrics, percentile_inc, team_iteration_metrics
+from jira2dashboard.flow.model import NOT_COMPUTABLE, Iteration, Rules
 
-P1 = Period("P1", at("10-05"), at("10-19"))
-P2 = Period("P2", at("10-19"), at("11-02"))
+P1 = Iteration("P1", at("10-05"), at("10-19"))
+P2 = Iteration("P2", at("10-19"), at("11-02"))
 
 
 @pytest.fixture(scope="module")
@@ -107,8 +107,8 @@ def test_changes_given_out_of_order_give_the_same_row(flow_cases, rules):
 
 # --- Flow Load: end-of-day snapshots in UTC, half-open intervals -----------------------------------
 
-def load(items, mode, team, period):
-    return daily_load(items, mode, team, period.start, period.end, FLOW_AS_OF)
+def load(items, mode, team, iteration):
+    return daily_load(items, mode, team, iteration.start, iteration.end, FLOW_AS_OF)
 
 
 def alpha_p1(items, mode):
@@ -154,8 +154,8 @@ def test_snapshot_days_stop_before_the_as_of_instant():
 
 # --- the six metrics --------------------------------------------------------------------------------
 
-def metrics(items, team, period, mode="A"):
-    return team_period_metrics(items, team, period, mode, FLOW_AS_OF)
+def metrics(items, team, iteration, mode="A"):
+    return team_iteration_metrics(items, team, iteration, mode, FLOW_AS_OF)
 
 
 def test_alpha_first_iteration(items):
@@ -171,7 +171,7 @@ def test_alpha_first_iteration(items):
     assert m.flow_predictability == NOT_COMPUTABLE
 
 
-def test_a_period_with_nothing_done_is_not_computable_not_zero(items):
+def test_a_iteration_with_nothing_done_is_not_computable_not_zero(items):
     m = metrics(items, "Alpha", P2)
     assert m.velocity == 0                                     # zero is a real count
     assert m.flow_time_median == m.flow_time_p85 == m.flow_efficiency == NOT_COMPUTABLE
@@ -208,19 +208,19 @@ def test_program_features_are_reported_apart_under_art(items):
     assert m2.flow_load_average == pytest.approx(1 / 14) and m2.flow_load_end == 0
 
 
-def test_flow_metrics_lists_every_period_and_team(items):
+def test_flow_metrics_lists_every_iteration_and_team(items):
     result = flow_metrics(items, [P1, P2], "A", FLOW_AS_OF)
-    assert [(m.period, m.team) for m in result] == [
+    assert [(m.iteration, m.team) for m in result] == [
         ("P1", "ART"), ("P1", "Alpha"), ("P1", "Beta"), ("P2", "ART"), ("P2", "Alpha"), ("P2", "Beta")]
 
 
-def test_a_period_after_the_as_of_date_has_no_load_figure(items):
-    future = Period("F", at("11-02"), at("11-16"))
+def test_a_iteration_after_the_as_of_date_has_no_load_figure(items):
+    future = Iteration("F", at("11-02"), at("11-16"))
     m = metrics(items, "Alpha", future)
     assert m.flow_load_average == m.flow_load_end == m.distribution_wip == NOT_COMPUTABLE
 
 
-def test_periods_are_half_open():
+def test_iterations_are_half_open():
     assert P1.contains(at("10-05")) and not P1.contains(at("10-19")) and P2.contains(at("10-19"))
     assert not P1.contains(None)
 

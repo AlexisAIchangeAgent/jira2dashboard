@@ -143,7 +143,7 @@ def run(args, formatter: Scrubbed, collected: Collected, sleep=time.sleep, detec
     base = J.check_base_url(c.base_url)
     jql = J.projects_jql(settings.projects, settings.filter)
     fields = J.search_fields(settings.work_type_field, settings.fields)
-    log.info("END parameters: %d periods, AsOf %s, FlowLoadMode %s", len(settings.periods), settings.as_of,
+    log.info("END parameters: %d iterations, AsOf %s, FlowLoadMode %s", len(settings.iterations), settings.as_of,
              settings.mode)
     proxy = choose_proxy(c.proxy_server, c.proxy_bypass, base, detect)
     log.info("END proxy: %s%s", proxy.mode, f" ({proxy.server})" if proxy.server else "")
@@ -163,8 +163,8 @@ def run(args, formatter: Scrubbed, collected: Collected, sleep=time.sleep, detec
         log.warning("statuses not in the sheet Workflows (category Unclassified, data check DC08): %s",
                     ", ".join(unknown))
     results = R.compute(extract.flow, settings)
-    first, end = settings.periods[0].start, settings.periods[-1].end
-    pictures = chart_pictures(results.metrics, results.teams, [p.name for p in settings.periods], results.loads,
+    first, end = settings.iterations[0].start, settings.iterations[-1].end
+    pictures = chart_pictures(results.metrics, results.teams, [p.name for p in settings.iterations], results.loads,
                               R.days_of(first, end), args.team)
     log.info("END results: %d items, %d metrics rows, %d charts", len(results.items), len(results.metrics),
              len(pictures))
@@ -172,7 +172,7 @@ def run(args, formatter: Scrubbed, collected: Collected, sleep=time.sleep, detec
         ("Made by", "jira2dashboard, Python path without VBA (scripts\\run.ps1 extract): values, no formula"),
         ("Started (UTC)", started_at), ("Workbook read", str(workbook.resolve())), ("Jira", base), ("JQL", jql),
         ("Proxy", proxy.mode), ("AsOf (UTC)", settings.as_of), ("FlowLoadMode", settings.mode),
-        ("Iterations", f"{len(settings.periods)}: {settings.periods[0].name} to {settings.periods[-1].name}"),
+        ("Iterations", f"{len(settings.iterations)}: {settings.iterations[0].name} to {settings.iterations[-1].name}"),
         ("Issues", len(extract.rows)), ("Changelog items", extract.changelog_items),
         ("Status intervals", len(intervals)), ("Blocking links", len(extract.links)),
         ("Retries of a call to Jira", client.retries), ("Flow Distribution chart", args.team),

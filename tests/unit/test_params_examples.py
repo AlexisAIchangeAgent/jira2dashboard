@@ -5,7 +5,7 @@ import re
 from jira2dashboard.params.write import EXAMPLES
 
 
-def test_periods_and_pis_have_one_example_per_column():
+def test_iterations_and_pis_have_one_example_per_column():
     assert set(EXAMPLES) == {"Iterations", "PIs"}
     assert all(len(lines) == 3 for lines in EXAMPLES.values())
     for lines, labels in ((EXAMPLES["Iterations"], ("Iteration-label:", "Start:", "End:")), (EXAMPLES["PIs"], ("PI:", "Start:", "End:"))):

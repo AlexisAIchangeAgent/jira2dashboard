@@ -191,10 +191,10 @@ def _check_fields_empty(world):
 
 
 @given(parsers.parse('les itérations de 14 jours depuis le "{first}" jusqu\'à la date de référence dans la feuille Iterations'))
-def _periods(world, first):
-    periods = mock_workbook.iterations(dt.datetime.fromisoformat(first), world["dataset"].as_of)
-    mock_workbook.write_periods(world["wb"].Worksheets("Iterations"), periods)    # the periods of an earlier run go
-    world["periods"] = periods
+def _iterations(world, first):
+    iterations = mock_workbook.iterations(dt.datetime.fromisoformat(first), world["dataset"].as_of)
+    mock_workbook.write_iterations(world["wb"].Worksheets("Iterations"), iterations)    # the iterations of an earlier run go
+    world["iterations"] = iterations
 
 
 # --- when --------------------------------------------------------------------------------------------
@@ -461,7 +461,7 @@ def _unconfigured(world):
 @then(parsers.parse('la table DailyLoad reproduit la référence Python en mode "{mode}"'))
 def _daily_load(world, mode):
     as_of, items = world["dataset"].as_of, world["items"]
-    first, end = world["periods"][0].start, world["periods"][-1].end
+    first, end = world["iterations"][0].start, world["iterations"][-1].end
     expected = {team: daily_load(items, mode, team, first, end, as_of) for team in {i.team for i in items}}
     rows = table_dicts(world["wb"], "DailyLoad")
     keys = [(row["Team"], dt.datetime(1899, 12, 30) + dt.timedelta(days=row["Date"])) for row in rows]
@@ -488,14 +488,14 @@ REFERENCE_FIELD = {"Velocity": "velocity", "FlowTimeMedian": "flow_time_median",
 
 
 def chart_blocks(wb, world):
-    """{chart name: (series names, row keys, rows of points)} read from the sheet ChartData. A row is a period, or a day
+    """{chart name: (series names, row keys, rows of points)} read from the sheet ChartData. A row is an iteration, or a day
     for the daily curve; the series of a band are not in the names (they are checked on their own)."""
-    ws, periods = wb.Worksheets("ChartData"), len(world["periods"])
-    days = (world["periods"][-1].end - world["periods"][0].start).days
+    ws, iterations = wb.Worksheets("ChartData"), len(world["iterations"])
+    days = (world["iterations"][-1].end - world["iterations"][0].start).days
     blocks = {}
     for index, spec in enumerate(D.CHARTS):
-        n = days if spec.axis == D.DAY_AXIS else periods
-        top, count = D.block_top(index, periods), len(D.series_names(spec) or team_names())
+        n = days if spec.axis == D.DAY_AXIS else iterations
+        top, count = D.block_top(index, iterations), len(D.series_names(spec) or team_names())
         grid = ws.Range(ws.Cells(top + 1, 1), ws.Cells(top + 1 + n, 1 + count + (2 if spec.band else 0))).Value2
         blocks[spec.name] = ([grid[0][c] for c in range(1, count + 1)], [grid[r][0] for r in range(1, n + 1)],
                              [list(grid[r][1:count + 1]) for r in range(1, n + 1)])
@@ -512,22 +512,22 @@ def team_names():
 
 @then("les feuilles de flux ont exactement la taille des nouvelles données")
 def _sizes(world):
-    wb, teams, periods = world["wb"], team_names(), world["periods"]
+    wb, teams, iterations = world["wb"], team_names(), world["iterations"]
     size = {name: len(table_dicts(wb, name)) for name in ("Issues", "StatusIntervals", "ItemFlow", "DailyLoad", "Metrics")}
     assert size["Issues"] == size["ItemFlow"] == len(world["items"]) == 120
     assert size["StatusIntervals"] == sum(len(item.intervals) for item in world["items"])
-    assert size["DailyLoad"] == (periods[-1].end - periods[0].start).days * len(teams)
-    assert size["Metrics"] == len(periods) * len(teams)
+    assert size["DailyLoad"] == (iterations[-1].end - iterations[0].start).days * len(teams)
+    assert size["Metrics"] == len(iterations) * len(teams)
     assert wb.Worksheets("Dashboard").ChartObjects().Count == len(D.CHARTS) == 8
     names = [sheet.Name for sheet in wb.Worksheets]
     assert len(names) == len(set(names)), names
 
 
-def expected_point(spec, period, team, expected, metrics_rows):
+def expected_point(spec, iteration, team, expected, metrics_rows):
     """Reference figure as drawn: a number, or NA for « not computable ». Where the reference has no row (a team
     without any issue) the figure is the one of the Metrics table (checked against the reference elsewhere)."""
-    want = expected.get((period, team))
-    value = getattr(want, REFERENCE_FIELD[spec.column]) if want else metrics_rows[(period, team)][spec.column]
+    want = expected.get((iteration, team))
+    value = getattr(want, REFERENCE_FIELD[spec.column]) if want else metrics_rows[(iteration, team)][spec.column]
     return NA if isinstance(value, str) else value
 
 
@@ -537,8 +537,8 @@ def same_point(got, wanted) -> bool:
     return not isinstance(got, str) and got != NA and abs(got - wanted) < TOLERANCE
 
 
-def expected_distribution(period, selected, expected, bucket):
-    rows = [m for (p, t), m in expected.items() if p == period and (selected == D.ALL_TEAMS or t == selected)]
+def expected_distribution(iteration, selected, expected, bucket):
+    rows = [m for (p, t), m in expected.items() if p == iteration and (selected == D.ALL_TEAMS or t == selected)]
     if selected == D.ALL_TEAMS:
         total = sum(m.velocity for m in rows)
         return NA if total == 0 else sum(m.distribution_done[bucket] * m.velocity for m in rows
@@ -552,7 +552,7 @@ def daily_curve_differences(world, mode, block):
     """The daily Flow Load curve against the reference: the load at the end of each day, a gap after the as-of date."""
     names, days, rows = block
     as_of, items = world["dataset"].as_of, world["items"]
-    first, end = world["periods"][0].start, world["periods"][-1].end
+    first, end = world["iterations"][0].start, world["iterations"][-1].end
     reference = {team: daily_load(items, mode, team, first, end, as_of) for team in {i.team for i in items}}
     wrong = []
     for serial, row in zip(days, rows):
@@ -569,14 +569,14 @@ def daily_curve_differences(world, mode, block):
                     "avec #N/A pour « not computable »"))
 def _chart_data(world, mode):
     wb, as_of = world["wb"], world["dataset"].as_of
-    expected = {(m.period, m.team): m for m in flow_metrics(world["items"], world["periods"], mode, as_of)}
+    expected = {(m.iteration, m.team): m for m in flow_metrics(world["items"], world["iterations"], mode, as_of)}
     metrics_rows = {(r["Iteration-label"], r["Team"]): r for r in table_dicts(wb, "Metrics")}
     blocks, wrong, gaps = chart_blocks(wb, world), [], 0
     for spec in D.CHARTS:
         names, labels, rows = blocks[spec.name]
         if spec.column is None:
             continue
-        assert names == team_names() and labels == [p.name for p in world["periods"]]
+        assert names == team_names() and labels == [p.name for p in world["iterations"]]
         for label, row in zip(labels, rows):
             for team, got in zip(names, row):
                 wanted = expected_point(spec, label, team, expected, metrics_rows)
@@ -619,7 +619,7 @@ def _series(world):
 @then("le graphique Flow Distribution suit l'équipe choisie dans la cellule B2")
 def _distribution(world):
     wb, dash, as_of = world["wb"], world["wb"].Worksheets("Dashboard"), world["dataset"].as_of
-    expected = {(m.period, m.team): m for m in flow_metrics(world["items"], world["periods"], "A", as_of)}
+    expected = {(m.iteration, m.team): m for m in flow_metrics(world["items"], world["iterations"], "A", as_of)}
     by_team = {}
     for (_p, team), m in expected.items():
         by_team[team] = by_team.get(team, 0) + m.velocity
@@ -655,7 +655,7 @@ def _png(world):
 @then(parsers.parse('la table Metrics reproduit la référence Python en mode "{mode}"'))
 def _metrics(world, mode):
     as_of = world["dataset"].as_of
-    expected = {(m.period, m.team): m for m in flow_metrics(world["items"], world["periods"], mode, as_of)}
+    expected = {(m.iteration, m.team): m for m in flow_metrics(world["items"], world["iterations"], mode, as_of)}
     rows = table_dicts(world["wb"], "Metrics")
     seen, wrong = 0, []
     for row in rows:

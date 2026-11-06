@@ -50,7 +50,7 @@ def test_the_settings_of_a_run(tmp_path):
     c = settings.connection
     assert (c.base_url, c.email, c.token, c.proxy_server, c.windows_auth, c.timeout_s, c.max_retries) == (
         URL, MOCK_EMAIL, MOCK_TOKEN, "", True, 60, 4)
-    assert settings.as_of == AS_OF and settings.mode == "A" and settings.periods == M.iterations()
+    assert settings.as_of == AS_OF and settings.mode == "A" and settings.iterations == M.iterations()
     assert settings.fields["StoryPointsField"] == "customfield_10016" and settings.blocks_link_type == "Blocks"
     assert settings.rules.rule("Team", "En analyse").category == ACTIVE
     assert settings.checks.ready(next(c for c in CHECKS if c.id == "DC18"))
@@ -139,7 +139,7 @@ def test_a_missing_sheet_or_column_is_named(tmp_path):
     assert "Sheet Projects: no column Role in its first row" in str(error.value)
 
 
-def test_no_period_stops_the_run(tmp_path):
+def test_no_iteration_stops_the_run(tmp_path):
     def empty(sheets):
         replace(sheets, "Iterations", Sheet("Iterations", ("Iteration-label", "Start", "End"), []))
     with pytest.raises(ParamsError, match="Sheet Iterations has no iteration"):

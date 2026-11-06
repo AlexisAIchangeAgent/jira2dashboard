@@ -1,7 +1,7 @@
 """The result sheets of the Python path, computed by the flow reference, with the column names of the workbook's tables.
 
 ItemFlow (the columns the reference has, then a 1/0 column per data check), DailyLoad (every day x team of the
-periods, empty after the as-of date), Metrics (every period x team of the sheet Projects, as the workbook), FillRates
+iterations, empty after the as-of date), Metrics (every iteration x team of the sheet Projects, as the workbook), FillRates
 and DataChecks. Same names as formulas.TABLES, so whatever reads the workbook's tables (the Confluence page of the RTE)
 reads these too.
 """
@@ -13,7 +13,7 @@ from jira2dashboard.flow.blueprint import team_names
 from jira2dashboard.flow.checks import CHECKS, PER_ISSUE, FillRate, fill_rates, run_checks
 from jira2dashboard.flow.itemflow import ItemFlow, item_flow
 from jira2dashboard.flow.load import ONE_DAY, daily_load, snapshot_days
-from jira2dashboard.flow.metrics import BUCKETS, TeamPeriodMetrics, team_period_metrics
+from jira2dashboard.flow.metrics import BUCKETS, TeamIterationMetrics, team_iteration_metrics
 from jira2dashboard.flow.model import NOT_COMPUTABLE, UNMAPPED, WORK_TYPES, FlowIssue
 from jira2dashboard.standalone.params_book import RunSettings
 
@@ -34,7 +34,7 @@ class Results:
     items: list[ItemFlow]
     flags: dict[str, frozenset[str]]          # key -> ids of the checks it fails
     teams: list[str]                          # ART, then the teams of the Team projects (sheet Projects)
-    metrics: list[TeamPeriodMetrics]          # every period x team
+    metrics: list[TeamIterationMetrics]          # every iteration x team
     loads: dict[str, dict[dt.datetime, int]]  # team -> day -> items in process at the end of the day
     fill: list[FillRate]
 
@@ -42,11 +42,11 @@ class Results:
 def compute(issues: list[FlowIssue], s: RunSettings) -> Results:
     items = [item_flow(i, s.as_of, s.rules) for i in issues]
     teams = team_names(s.projects)
-    first, end = s.periods[0].start, s.periods[-1].end
+    first, end = s.iterations[0].start, s.iterations[-1].end
     flags = run_checks(issues, s.as_of, s.rules, s.moves, s.checks)
     fill = fill_rates(issues, s.checks, sorted({i.team for i in issues}), sorted({i.type for i in issues}))
     return Results(items, flags, teams,
-                   [team_period_metrics(items, team, period, s.mode, s.as_of) for period in s.periods for team in teams],
+                   [team_iteration_metrics(items, team, iteration, s.mode, s.as_of) for iteration in s.iterations for team in teams],
                    {team: daily_load(items, s.mode, team, first, end, s.as_of) for team in teams}, fill)
 
 
@@ -82,7 +82,7 @@ def days_of(first: dt.datetime, end: dt.datetime) -> list[dt.datetime]:
 
 
 def dailyload_rows(results: Results, first: dt.datetime, end: dt.datetime) -> list[tuple]:
-    """Date | Team | Load for every day of the periods and every team; Load empty when the day has no snapshot yet."""
+    """Date | Team | Load for every day of the iterations and every team; Load empty when the day has no snapshot yet."""
     return [(day, team, results.loads[team].get(day)) for day in days_of(first, end) for team in results.teams]
 
 
@@ -91,11 +91,11 @@ def _figure(value):
 
 
 def metrics_rows(results: Results, s: RunSettings) -> list[tuple]:
-    periods = {p.name: p for p in s.periods}
+    iterations = {p.name: p for p in s.iterations}
     out = []
     for m in results.metrics:
-        period = periods[m.period]
-        days = snapshot_days(period.start, period.end, s.as_of)
+        iteration = iterations[m.iteration]
+        days = snapshot_days(iteration.start, iteration.end, s.as_of)
         end_day = days[-1] if days else None
         done, wip = m.distribution_done, m.distribution_wip
         load_end = m.flow_load_end
@@ -105,7 +105,7 @@ def metrics_rows(results: Results, s: RunSettings) -> list[tuple]:
             wip_counts = (0,) * len(BUCKETS)
         else:
             wip_counts = tuple(round(wip[b] * load_end) for b in BUCKETS)
-        out.append((m.period, period.start, period.end, m.team, m.velocity, m.flow_time_count, m.flow_time_excluded,
+        out.append((m.iteration, iteration.start, iteration.end, m.team, m.velocity, m.flow_time_count, m.flow_time_excluded,
                     _figure(m.flow_time_median), _figure(m.flow_time_p85), _figure(m.flow_load_average), end_day,
                     _figure(load_end), _figure(m.flow_efficiency))
                    + tuple(NOT_COMPUTABLE if done == NOT_COMPUTABLE else done[b] for b in BUCKETS)

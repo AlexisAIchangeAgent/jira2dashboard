@@ -12,7 +12,7 @@ from pathlib import Path
 
 from jira2dashboard.cli.args import parser
 from jira2dashboard.excel import com
-from jira2dashboard.flow.model import Period
+from jira2dashboard.flow.model import Iteration
 from jira2dashboard.mockjira.anomalies import PI, PI_WINDOW
 from jira2dashboard.mockjira.dataset import FieldIds
 from jira2dashboard.mockjira.generator import AS_OF, SINCE
@@ -26,7 +26,7 @@ COPY = MANUAL_TEST_DIR / COPY_NAME
 FIELD_IDS = {"StoryPointsField": "story_points", "BusinessValueField": "business_value", "PIField": "pi",
              "TeamField": "team", "SprintField": "sprint", "TargetStartField": "target_start",
              "TargetEndField": "target_end"}          # Config parameter of a data check -> attribute of FieldIds
-PIS = [Period(PI, *PI_WINDOW)]
+PIS = [Iteration(PI, *PI_WINDOW)]
 ROWS = "A2:C200"                                      # the rows of Iterations and PIs that the copy rewrites
 
 
@@ -40,14 +40,14 @@ def config_values(url: str, fields: FieldIds = FieldIds(), as_of: dt.datetime = 
             "WorkTypeField": fields.work_type} | {name: getattr(fields, attr) for name, attr in FIELD_IDS.items()}
 
 
-def iterations(first: dt.datetime = SINCE, as_of: dt.datetime = AS_OF, days: int = 14) -> list[Period]:
+def iterations(first: dt.datetime = SINCE, as_of: dt.datetime = AS_OF, days: int = 14) -> list[Iteration]:
     """I1, I2... of `days` days from `first`, one after the other, the last one holding `as_of`."""
-    periods, start = [], first
+    iterations, start = [], first
     while start < as_of:
         end = start + dt.timedelta(days=days)
-        periods.append(Period(f"I{len(periods) + 1}", start, end))
+        iterations.append(Iteration(f"I{len(iterations) + 1}", start, end))
         start = end
-    return periods
+    return iterations
 
 
 def params_book(url: str, values: dict[str, str] | None = None) -> list[Sheet]:
@@ -73,13 +73,13 @@ def write_params_book(path: Path, url: str, values: dict[str, str] | None = None
     return write_xlsx(path, params_book(url, values))
 
 
-def write_periods(ws, periods: list[Period]) -> None:
+def write_iterations(ws, iterations: list[Iteration]) -> None:
     """Rows Name | Start | End of the sheet Iterations or PIs; the rows of an earlier run are cleared first."""
     ws.Range(ROWS).ClearContents()
-    for row, period in enumerate(periods, start=2):
-        ws.Cells(row, 1).Value = com.as_cell(period.name)
-        ws.Cells(row, 2).Value2 = com.to_excel_serial(period.start)
-        ws.Cells(row, 3).Value2 = com.to_excel_serial(period.end)
+    for row, iteration in enumerate(iterations, start=2):
+        ws.Cells(row, 1).Value = com.as_cell(iteration.name)
+        ws.Cells(row, 2).Value2 = com.to_excel_serial(iteration.start)
+        ws.Cells(row, 3).Value2 = com.to_excel_serial(iteration.end)
 
 
 def write_config(ws, values: dict[str, str]) -> None:
@@ -93,8 +93,8 @@ def fill_copy(path: Path, url: str) -> None:
     with com.excel_session() as app:
         wb = com.open_without_macros(app, path)
         write_config(wb.Worksheets("Config"), config_values(url))
-        write_periods(wb.Worksheets("Iterations"), iterations())
-        write_periods(wb.Worksheets("PIs"), PIS)
+        write_iterations(wb.Worksheets("Iterations"), iterations())
+        write_iterations(wb.Worksheets("PIs"), PIS)
         wb.Save()
         wb.Close(False)
         del wb, app                                                   # release every COM proxy before Excel quits

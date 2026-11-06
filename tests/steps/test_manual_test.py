@@ -40,10 +40,10 @@ def read(path):
     return result
 
 
-def same_rows(excel, periods) -> bool:
-    return len(excel) == len(periods) and all(
+def same_rows(excel, iterations) -> bool:
+    return len(excel) == len(iterations) and all(
         name == p.name and abs(start - com.to_excel_serial(p.start)) < TOLERANCE
-        and abs(end - com.to_excel_serial(p.end)) < TOLERANCE for (name, start, end), p in zip(excel, periods))
+        and abs(end - com.to_excel_serial(p.end)) < TOLERANCE for (name, start, end), p in zip(excel, iterations))
 
 
 @given("le classeur à livrer")
@@ -74,7 +74,7 @@ def _mandatory(world):
 
 
 @then("les feuilles Iterations et PIs de la copie ont les itérations et le PI du faux Jira")
-def _periods(world):
+def _iterations(world):
     assert same_rows(world["copy"]["Iterations"], M.iterations())
     assert same_rows(world["copy"]["PIs"], M.PIS)
 

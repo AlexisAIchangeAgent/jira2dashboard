@@ -270,7 +270,7 @@ per iteration and per team; Program features count under "ART".
 
 | Metric | In short |
 |---|---|
-| Velocity | Issues done in the period |
+| Velocity | Issues done in the iteration |
 | Flow Time | Median and P85 from start to done (no valid start or reopened: counted apart) |
 | Flow Load | Issues in process at the end of each UTC day, averaged (`FlowLoadMode` A or B) |
 | Flow Efficiency | Active / (active + wait) time |

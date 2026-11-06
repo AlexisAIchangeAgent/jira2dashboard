@@ -5,14 +5,14 @@ before a column was added still works (Config without Example or Mandatory, as t
 the form of params/*.md: text trimmed like a pasted value, dates as ISO text (a date typed in Excel is a serial
 number), the Workflows numbers as whole numbers. Then the rules shared with params/*.md are applied
 (params.model.shape_problems), and those of the VBA for Config: defaults for an empty value, the mandatory values
-(error 608 of the VBA), a readable AsOf (604), at least one period (703).
+(error 608 of the VBA), a readable AsOf (604), at least one iteration (703).
 """
 import datetime as dt
 from dataclasses import dataclass
 from pathlib import Path
 
 from jira2dashboard.flow.checks import FIELD_PARAMETERS, CheckSettings, Moves
-from jira2dashboard.flow.model import Period, Rules
+from jira2dashboard.flow.model import Iteration, Rules
 from jira2dashboard.params.model import (CONFIG_PARAMETERS, SPECS, ParamSheet, ParamsError, _parse_moment,
                                          shape_problems)
 from jira2dashboard.standalone.xlsx_read import read_sheets
@@ -170,7 +170,7 @@ class RunSettings:
     blocks_link_type: str
     as_of: dt.datetime
     mode: str                          # FlowLoadMode, A or B
-    periods: list[Period]
+    iterations: list[Iteration]
     projects: list[tuple[str, str, str]]   # Project | Role | Team
     rules: Rules
     moves: Moves
@@ -185,15 +185,15 @@ def _number(value: str, default: int, minimum: int) -> int:
 
 
 def run_settings(sheets: list[ParamSheet]) -> RunSettings:
-    """What a run needs. Raises ParamsError with the message of the VBA when a mandatory value or a period is missing."""
+    """What a run needs. Raises ParamsError with the message of the VBA when a mandatory value or an iteration is missing."""
     by_name = {s.name: s for s in sheets}
     config = by_name["Config"]
     missing = missing_mandatory(config)
     if missing:
         raise ParamsError(f"Fill these values of the Config sheet first (Mandatory = True): {', '.join(missing)}")
-    periods = [Period(name, dt.datetime.fromisoformat(start), dt.datetime.fromisoformat(end))
+    iterations = [Iteration(name, dt.datetime.fromisoformat(start), dt.datetime.fromisoformat(end))
                for name, start, end in by_name["Iterations"].rows]
-    if not periods:
+    if not iterations:
         raise ParamsError("Sheet Iterations has no iteration: type the iterations (Iteration-label | Start | End) to compute")
     values = config_values(config)
     as_of = _parse_moment(values["AsOf"])
@@ -208,6 +208,6 @@ def run_settings(sheets: list[ParamSheet]) -> RunSettings:
     return RunSettings(
         sheets=sheets, connection=connection, filter=values["Filter"], work_type_field=values["WorkTypeField"],
         fields={name: values[name] for name in FIELD_PARAMETERS}, blocks_link_type=values["BlocksLinkType"],
-        as_of=as_of, mode=values["FlowLoadMode"].strip().upper(), periods=periods,
+        as_of=as_of, mode=values["FlowLoadMode"].strip().upper(), iterations=iterations,
         projects=[tuple(row) for row in by_name["Projects"].rows],
         rules=Rules.from_params(sheets), moves=Moves.from_params(sheets), checks=CheckSettings.from_params(sheets))
