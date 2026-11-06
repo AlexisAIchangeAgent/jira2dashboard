@@ -97,7 +97,8 @@ def _sheet_matches_file(world, sheet, filename):
 
 def _run(world, macro, *args):
     wb = world["wb"]
-    return wb.Application.Run(f"'{wb.Name}'!modParams.{macro}", *args)
+    module = "modTests" if macro in ("CategoryOf", "IsAllowed") else "modParams"     # these two moved: no caller in the delivered workbook
+    return wb.Application.Run(f"'{wb.Name}'!{module}.{macro}", *args)
 
 
 @when(parsers.parse('le VBA donne la catégorie du statut "{status}" du workflow "{workflow}"'))

@@ -142,10 +142,12 @@ End Function
 Private Function CreateTable(ByVal ws As Object, ByVal name As String, ByVal cols As Collection, ByVal dataRows As Long) As Object
     ' Headers are written, then the table is made over header + data rows (at least one data row).
     Cov "FLB10"
-    Dim i As Long, last As Long
+    Dim i As Long, last As Long, headers() As Variant
+    ReDim headers(1 To 1, 1 To cols.Count)
     For i = 1 To cols.Count
-        ws.Cells(1, i).Value = cols(i)(0)
+        headers(1, i) = cols(i)(0)
     Next i
+    ws.Range(ws.Cells(1, 1), ws.Cells(1, cols.Count)).Value = headers          ' one write, not one call per cell
     last = dataRows
     If last < 1 Then last = 1
     Set CreateTable = ws.ListObjects.Add(XL_SRC_RANGE, ws.Range(ws.Cells(1, 1), ws.Cells(last + 1, cols.Count)), , XL_YES)
@@ -241,9 +243,9 @@ Public Sub BuildFlowSheetsIn(ByVal wb As Object)
     LogBegin "flow sheets and charts"
     calcMode = Application.Calculation
     screen = Application.ScreenUpdating
+    On Error GoTo Failed                                              ' from here Failed gives both back
     Application.ScreenUpdating = False
     Application.Calculation = XL_CALC_MANUAL
-    On Error GoTo Failed
     BuildAll wb, spec, teams, periods
     Application.Calculation = calcMode                   ' back to automatic: Excel calculates everything now
     If calcMode <> XL_CALC_AUTOMATIC Then Cov "FLB36": Application.CalculateFull      ' Excel left in manual mode by the user
@@ -473,7 +475,7 @@ Private Sub BuildChart(ByVal dash As Object, ByVal data As Object, ByVal row As 
     Cov "FLB24"
     Dim names() As String, count As Long, i As Long, j As Long, first As Long, last As Long, point As String
     Dim area As Object, shape As Object, ch As Object, s As Object, rng As Object
-    Dim rowsCount As Long, firstDay As Double, p As Variant, band() As String, isDay As Boolean
+    Dim rowsCount As Long, firstDay As Double, p As Variant, band() As String, isDay As Boolean, axis() As Variant
     If Len(CStr(row("SeriesNames"))) > 0 Then
         names = Split(CStr(row("SeriesNames")), ",")
     Else
@@ -485,6 +487,7 @@ Private Sub BuildChart(ByVal dash As Object, ByVal data As Object, ByVal row As 
     rowsCount = periods.Count
     If isDay Then rowsCount = DaysOf(periods)
     first = top + 2: last = first + rowsCount - 1
+    ReDim axis(1 To rowsCount, 1 To 1)
     data.Cells(top, 1).Value = CStr(row("Title"))
     data.Cells(top, 1).Font.Bold = True
     If isDay Then
@@ -495,14 +498,16 @@ Private Sub BuildChart(ByVal dash As Object, ByVal data As Object, ByVal row As 
             If Int(p(1)) < firstDay Then firstDay = Int(p(1))
         Next p
         For i = 1 To rowsCount
-            data.Cells(first + i - 1, 1).Value = firstDay + i - 1
+            axis(i, 1) = firstDay + i - 1
         Next i
+        data.Range(data.Cells(first, 1), data.Cells(last, 1)).Value = axis
         data.Range(data.Cells(first, 1), data.Cells(last, 1)).NumberFormat = "yyyy-mm-dd"
     Else
         data.Cells(top + 1, 1).Value = "Period"
         For i = 1 To rowsCount
-            data.Cells(first + i - 1, 1).Value = AsText(CStr(periods(i)(0)))
+            axis(i, 1) = AsText(CStr(periods(i)(0)))
         Next i
+        data.Range(data.Cells(first, 1), data.Cells(last, 1)).Value = axis
     End If
     For j = 1 To count
         data.Cells(top + 1, 1 + j).Value = AsText(names(j - 1))

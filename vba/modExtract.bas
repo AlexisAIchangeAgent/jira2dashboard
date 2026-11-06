@@ -5,6 +5,7 @@ Option Explicit
 ' The extraction is a job of small steps (one page of the search, one chunk of changelogs, then the build of the raw sheets):
 ' ExtractFlowDataTo runs them one after the other; the button of the Dashboard (modActions) runs one per Application.OnTime
 ' slice, so that the progress bar moves, Excel stays usable and the user can cancel between two steps.
+Private Const XL_CALC_MANUAL As Long = -4135                  ' xlCalculationManual
 Private mCfg As Object, mJql As String, mWorkType As String, mAsOf As Date, mClear As Boolean, mSettings As Object
 Private mWsProjects As Object, mWsWorkflows As Object, mWsIssues As Object, mWsIntervals As Object, mWsLinks As Object
 Private mIssues As Collection, mNames As Object, mToken As String, mPage As Long
@@ -266,7 +267,7 @@ Public Function ExtractJobStep() As Boolean
             mToken = JiraSearchPage(mCfg, mJql, mToken, mIssues, mNames, ExtractFields(mWorkType, mSettings), "", isLast)
             mPage = mPage + 1
             LogEnd "search page " & mPage & ": " & mIssues.Count & " issues"
-            If Not isLast And mPage >= 2000 Then Err.Raise vbObjectError + 601, "ExtractJobStep", "Jira search did not end after 2000 pages: narrow the extraction with the Filter of the Config sheet."
+            If Not isLast And mPage >= MAX_SEARCH_PAGES Then Err.Raise vbObjectError + 601, "ExtractJobStep", "Jira search did not end after " & MAX_SEARCH_PAGES & " pages: narrow the extraction with the Filter of the Config sheet."
             If isLast Then
                 Set mKeys = New Collection: Set mIdToKey = CreateObject("Scripting.Dictionary")
                 For Each issue In mIssues
@@ -326,9 +327,9 @@ Private Sub BuildRawSheets()
     Dim calcMode As Long, screen As Boolean, num As Long, desc As String
     calcMode = Application.Calculation
     screen = Application.ScreenUpdating
+    On Error GoTo Failed                                              ' from here Failed gives both back
     Application.ScreenUpdating = False
-    Application.Calculation = -4135                                  ' xlCalculationManual
-    On Error GoTo Failed
+    Application.Calculation = XL_CALC_MANUAL
     BuildRawSheetsCore
     Application.Calculation = calcMode
     Application.ScreenUpdating = screen

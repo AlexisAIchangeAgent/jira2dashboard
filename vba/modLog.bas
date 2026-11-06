@@ -102,7 +102,7 @@ Public Sub LogError(ByVal where As String, ByVal number As Long, ByVal descripti
     Cov "LOG07"
     Dim text As String
     text = where & " | " & ErrorCode(number) & " | "
-    If number = vbObjectError + 602 Or number = vbObjectError + 607 Then
+    If number = vbObjectError + 602 Or number = vbObjectError + 607 Or number = vbObjectError + 513 Then
         Cov "LOG08"
         text = text & "(description not logged: it quotes the answer of Jira)"
     Else

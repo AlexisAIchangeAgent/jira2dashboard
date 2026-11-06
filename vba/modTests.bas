@@ -486,6 +486,9 @@ Public Sub T_Log()
     LogError "Step", vbObjectError + 605, "Sheet Periods has no period"
     LogError "Step", 13, "Type mismatch"
     text = FileText(file)
+    LogError "Step", vbObjectError + 513, "Unexpected character ""x"" at position 3"
+    Check "log", "a JSON parse error keeps its number only (its text quotes the answer of Jira)", "513", True, _
+          InStr(FileText(file), "ERROR Step | vbObjectError+513 | (description not logged") > 0 And InStr(FileText(file), "Unexpected") = 0
     Check "log", "an error that quotes the answer of Jira keeps its number only", "602", True, _
           InStr(text, "ERROR Step | vbObjectError+602 | (description not logged") > 0 And InStr(text, "secret") = 0
     Check "log", "a project error reads vbObjectError+n, with its description", "605", True, _
@@ -787,6 +790,20 @@ Private Sub FlowPeriods(ByVal start1 As Variant, ByVal end1 As Variant, Optional
     If second Then ws.Range("A3").Value = "P2": ws.Range("B3").Value = "2026-10-15": ws.Range("C3").Value = "2026-10-29"
 End Sub
 
+Private Function AxisEnds(ByVal ch As Object, ByVal asNumber As Boolean) As String
+    ' "first|last" of the X axis of the first series (numbers: first day | days between first and last); "?" when unreadable.
+    Dim xv As Variant
+    On Error Resume Next
+    xv = ch.SeriesCollection(1).XValues
+    If asNumber Then
+        AxisEnds = CLng(CDbl(xv(LBound(xv)))) & "|" & (CLng(CDbl(xv(UBound(xv)))) - CLng(CDbl(xv(LBound(xv)))))
+    Else
+        AxisEnds = CStr(xv(LBound(xv))) & "|" & CStr(xv(UBound(xv)))
+    End If
+    If Err.Number <> 0 Then AxisEnds = "?"
+    Err.Clear
+End Function
+
 Private Function FlowBuildError() As Long
     On Error Resume Next
     BuildFlowSheetsIn ThisWorkbook
@@ -833,6 +850,9 @@ Public Sub T_FlowBuild()
     Check "flowbuild", "the Predictability chart has two more series: the 80-100 % band", "Predictability", teams + 2, dash.ChartObjects("flow_predictability").Chart.SeriesCollection.Count
     Check "flowbuild", "the daily Flow Load curve has one series per team and one point per day", "28 days", teams & "|" & 28, _
           dash.ChartObjects("flow_load_daily").Chart.SeriesCollection.Count & "|" & UBound(dash.ChartObjects("flow_load_daily").Chart.SeriesCollection(1).Values)
+    Check "flowbuild", "the period axis of a chart lists the periods in order", "P1, P2", "P1|P2", AxisEnds(dash.ChartObjects("velocity").Chart, False)
+    Check "flowbuild", "the day axis starts on the first day, one row per day", "2026-10-01, 28 days", "46296|27", _
+          AxisEnds(dash.ChartObjects("flow_load_daily").Chart, True)
     Check "flowbuild", "the formulas give the issue keys", "ItemFlow.Key", "TTT-1|AAA-1", _
           wb.Worksheets("ItemFlow").ListObjects("ItemFlow").ListColumns("Key").DataBodyRange.Cells(1, 1).Value & "|" & _
           wb.Worksheets("ItemFlow").ListObjects("ItemFlow").ListColumns("Key").DataBodyRange.Cells(2, 1).Value
@@ -1031,6 +1051,19 @@ Public Sub T_HttpNetworkAndCancel()
     Err.Clear
     On Error GoTo 0
     Check "jira", "a page token that comes back is refused", "t1 again", True, raised
+    ' Cancel pressed during the wait between two attempts: no request is sent after it
+    cfg("MaxRetries") = 2
+    FakeReset
+    FakeAdd "GET", "https://x/wait", 503, ""
+    FakeAdd "GET", "https://x/wait", 200, "{}"
+    gHttpCancelInWait = True
+    On Error Resume Next
+    Call HttpRequest(cfg, "GET", "https://x/wait")
+    raised = (Err.Number = vbObjectError + 610): Err.Clear
+    On Error GoTo 0
+    gHttpCancelInWait = False: gHttpCancel = False
+    Check "http", "Cancel during a retry wait stops with error 610", "503 then cancel", True, raised
+    Check "http", "Cancel during a retry wait sends no further request", "503 then cancel", 1, gHttpLog.Count
 End Sub
 
 Public Sub T_AbortExtraction()
@@ -1862,4 +1895,141 @@ Private Function SortedKeys(ByVal d As Object) As String
         items(j + 1) = t
     Next i
     SortedKeys = Join(items, ";")
+End Function
+
+' ---------- Moved from the delivered modules: no caller there, the tests below still use them ----------
+
+' (from modJira)
+Public Function JiraSearchAll(ByVal cfg As Object, ByVal jql As String, ByRef names As Object, _
+                              Optional ByVal maxPages As Long = MAX_SEARCH_PAGES, _
+                              Optional ByVal fields As String = "*all", Optional ByVal expand As String = "names") As Collection
+    ' Reads every page. names receives fieldId -> display name (from expand=names).
+    Cov "JIR06"
+    Dim issues As New Collection, token As String, page As Long, isLast As Boolean
+    If names Is Nothing Then Set names = CreateObject("Scripting.Dictionary")
+    Do
+        page = page + 1
+        token = JiraSearchPage(cfg, jql, token, issues, names, fields, expand, isLast)
+        Application.StatusBar = "Jira search: " & issues.Count & " issues read (page " & page & ")"
+        If isLast Then Exit Do
+        If page >= maxPages Then Cov "JIR07": Err.Raise vbObjectError + 601, "JiraSearchAll", "Jira search did not end after " & maxPages & " pages: narrow the extraction with the Filter of the Config sheet."
+    Loop
+    Application.StatusBar = False
+    Set JiraSearchAll = issues
+End Function
+
+' (from modJira)
+Public Function JiraChangelogsAll(ByVal cfg As Object, ByVal issueKeys As Collection, _
+                                  Optional ByVal chunkSize As Long = CHANGELOG_CHUNK) As Collection
+    ' One row per changed item: Array(issueId, changeId, created, authorName, authorId,
+    '                                 fieldId, field, fieldtype, from, fromString, to, toString)
+    Cov "JIR10"
+    Dim rows As New Collection, nextFirst As Long
+    nextFirst = 1
+    Do While nextFirst <= issueKeys.Count
+        nextFirst = JiraChangelogChunk(cfg, issueKeys, nextFirst, rows, chunkSize)
+        Application.StatusBar = "Jira changelogs: " & (nextFirst - 1) & " / " & issueKeys.Count & " issues"
+    Loop
+    Application.StatusBar = False
+    Set JiraChangelogsAll = rows
+End Function
+
+' (from modJira)
+Public Function IssueFieldIds(ByVal issues As Collection) As Collection
+    ' Union of field ids seen on the issues, in first-seen order.
+    Cov "JIR11"
+    Dim seen As Object, ids As New Collection, issue As Variant, k As Variant, flds As Variant
+    Set seen = CreateObject("Scripting.Dictionary")
+    For Each issue In issues
+        Set flds = JGet(issue, "fields")
+        If IsObject(flds) Then
+            For Each k In flds.Keys
+                If Not seen.Exists(k) Then seen.Add k, True: ids.Add k
+            Next k
+        End If
+    Next issue
+    Set IssueFieldIds = ids
+End Function
+
+' (from modJira)
+Public Function IssueRow(ByVal issue As Variant, ByVal fieldIds As Collection) As Variant
+    ' Array: key, id, then one cell value per field id.
+    Dim v() As Variant, i As Long
+    ReDim v(0 To fieldIds.Count + 1)
+    v(0) = JGet(issue, "key")
+    v(1) = JGet(issue, "id")
+    For i = 1 To fieldIds.Count
+        v(i + 1) = FieldToCell(JPath(issue, "fields." & fieldIds(i)))
+    Next i
+    IssueRow = v
+End Function
+
+' (from modJira)
+Public Function ExtractionJqlFromWorkbook() As String
+    ExtractionJqlFromWorkbook = ExtractionJql(ThisWorkbook.Worksheets("Projects"), ThisWorkbook.Worksheets("Config"))
+End Function
+
+' (from modParams)
+Public Function FlaggedStatus(ByVal wsWorkflows As Object, ByVal workflow As String, ByVal flagColumn As String) As String
+    ' First status of the workflow whose flag column (IsStart, IsEnd or IsFree) is 1. Empty text if none.
+    Cov "PRM04"
+    Dim row As Variant
+    For Each row In ReadTable(wsWorkflows)
+        If CStr(row("Workflow")) = workflow Then
+            If Val(CStr(row(flagColumn) & "")) = 1 Then Cov "PRM05": FlaggedStatus = CStr(row("Status")): Exit Function
+        End If
+    Next row
+End Function
+
+' (from modParams)
+Public Function TransitionAllowed(ByVal wsWorkflows As Object, ByVal wsTransitions As Object, ByVal workflow As String, _
+                                  ByVal fromStatus As String, ByVal toStatus As String) As Boolean
+    ' Allowed if a row From -> To exists, or if the target is a free status (IsFree = 1: reachable from any status).
+    Cov "PRM07"
+    Dim row As Variant
+    For Each row In ReadTable(wsTransitions)
+        If CStr(row("Workflow")) = workflow And CStr(row("From")) = fromStatus And CStr(row("To")) = toStatus Then
+            Cov "PRM08": TransitionAllowed = True: Exit Function
+        End If
+    Next row
+    If StatusHasFlag(wsWorkflows, workflow, toStatus, "IsFree") Then Cov "PRM09": TransitionAllowed = True
+End Function
+
+' (from modParams)
+Public Function LogicalNames(ByVal wsMapping As Object) As Object
+    ' extract column -> logical name (sheet FieldMapping). The macros use the logical name, never the extract column.
+    Cov "PRM10"
+    Dim out As Object, row As Variant
+    Set out = CreateObject("Scripting.Dictionary")
+    For Each row In ReadTable(wsMapping)
+        out(CStr(row("Extract"))) = CStr(row("Logical"))
+    Next row
+    Set LogicalNames = out
+End Function
+
+' (from modParams)
+Public Function TeamOfProject(ByVal wsProjects As Object, ByVal projectKey As String) As String
+    ' Team name of a project. Empty text for the Program and for an unknown project.
+    Cov "PRM20"
+    Dim row As Variant
+    For Each row In ReadTable(wsProjects)
+        If TrimWhite(CStr(row("Project"))) = projectKey Then TeamOfProject = TrimWhite(CStr(row("Team") & "")): Exit Function
+    Next row
+End Function
+
+' (from modParams)
+Public Function CategoryOf(ByVal workflow As String, ByVal status As String) As String
+    ' Category of a status in this workbook's Workflows sheet. A status that is not listed is "Unclassified".
+    Cov "PRM11"
+    Dim cats As Object
+    Set cats = StatusCategories(ThisWorkbook.Worksheets(SHEET_WORKFLOWS), workflow)
+    If cats.Exists(status) Then CategoryOf = cats(status) Else Cov "PRM12": CategoryOf = "Unclassified"
+End Function
+
+' (from modParams)
+Public Function IsAllowed(ByVal workflow As String, ByVal fromStatus As String, ByVal toStatus As String) As Boolean
+    ' Transition check on this workbook's sheets Workflows and Transitions.
+    Cov "PRM13"
+    IsAllowed = TransitionAllowed(ThisWorkbook.Worksheets(SHEET_WORKFLOWS), ThisWorkbook.Worksheets(SHEET_TRANSITIONS), _
+                                  workflow, fromStatus, toStatus)
 End Function

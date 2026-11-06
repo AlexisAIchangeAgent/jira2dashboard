@@ -207,20 +207,20 @@ MD5 of the current modules (LF line endings). Unchanged since the original hando
 | Module | MD5 |
 |---|---|
 | modCoverage.bas | 0b03cf2cb8d0660ed22beadabc9655a4 |
-| modLog.bas | 8bba9ce1bb95bb061acb5b911fcb5752 |
+| modLog.bas | 91e81a4a9581b0c076fb56d4a8bef466 |
 | modJson.bas | e051a7775e419b2b49d2de6014a8719e |
-| modText.bas | 2f23c0bc24c95cae731f331dbe42c047 |
-| modHttp.bas | 849a7542964572acbece130c0d9bf086 |
-| modProxy.bas | 51d8e4d0c539e31a8743efae69f92312 |
-| modJira.bas | 4b02725acdb95b74ea4fe35280d43739 |
+| modText.bas | 00a90c4bac9db13a20d95861ac40761a |
+| modHttp.bas | 9f2fa6563fb659fdeb3d2dd2f126701c |
+| modProxy.bas | 4b69d54dcc1cf903ba0a4d9384f19253 |
+| modJira.bas | fef4495e3078b97bcabc87f6e62ae4da |
 | modFlow.bas | 69f021411e3989de981f8bbde8ec5d73 |
-| modParams.bas | badd41f7e5211a7d250d8c17f954a9b6 |
-| modExtract.bas | f1bd9e7f524afa6915146f4b2b7e07dc |
+| modParams.bas | 983bbaf44422557d28b929158459c674 |
+| modExtract.bas | 2503c6ed41dd07047ed6d1536bfe10db |
 | modJiraConfig.bas | b4529efc36a4d0323c9508a1b7bccc56 |
-| modFlowBuild.bas | e4c87a002befe6e67eaaebf8f46fa29b |
-| modActions.bas | aa0531a2328657e7e45f3cae5ecfd104 |
+| modFlowBuild.bas | df20828246169b67a2c6eca2617646ad |
+| modActions.bas | 46f26dcc73afd928dcd990f93322a7d8 |
 | modBackground.bas | 1d098ce38925b8dc55bcf54404cf314f |
-| modTests.bas | da98f3e782b8d769272b3497bbd1838b |
+| modTests.bas | 6ccc0b531ccbe7409bcb45b88345ea93 |
 | modButtons.bas | 3bbe95b810cc0722eabed5c2bdbabbb2 |
 
 The Python files are no longer hashed (they were moved and edited; the code is covered by tests). If you

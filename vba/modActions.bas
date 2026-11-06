@@ -17,9 +17,10 @@ Private mBusy As Boolean
 Private mCancel As Boolean
 Private mExtracting As Boolean              ' True while Jira is read (extraction job or configuration): Cancel works
 Private mNextSlice As Date
+Private mNextProc As String                ' the string given to OnTime: Schedule:=False needs the same one
 
 Private Function SliceName() As String
-    SliceName = "'" & ThisWorkbook.Name & "'!ExtractSlice"       ' qualified: another open workbook must not answer the call
+    SliceName = "'" & Replace(ThisWorkbook.Name, "'", "''") & "'!ExtractSlice"     ' qualified: another open workbook must not answer the call
 End Function
 
 Public Sub ExtractAndCompute(Optional ByVal fromButton As Boolean = False)
@@ -53,6 +54,7 @@ Public Sub BtnExtractAndCompute()
     If mBusy Then Beep: Exit Sub
     On Error GoTo Failed
     mBusy = True: mCancel = False: mExtracting = True: gHttpCancel = False
+    Randomize                                                       ' the retry jitter must differ from one run to the next
     LogRunStart "button Extract from Jira and compute", LogLevelSetting()
     ShowProgress 0, "Starting..."
     ExtractFlowDataStart
@@ -89,6 +91,7 @@ Public Sub BtnReadJiraConfiguration()
     If mBusy Then Beep: Exit Sub
     On Error GoTo Failed
     mBusy = True: mCancel = False: mExtracting = True: gHttpCancel = False
+    Randomize                                                       ' the retry jitter must differ from one run to the next
     LogRunStart "button Read the Jira configuration", LogLevelSetting()
     ShowProgress 0, "Reading the Jira configuration..."
     RequireMandatory ThisWorkbook.Worksheets("Config"), "BaseUrl,Email,ApiToken"      ' only the connection is needed here
@@ -152,7 +155,7 @@ End Sub
 Public Sub AbortExtraction()
     ' Forgets a pending slice (used when the workbook is closed or a test ends): an OnTime left behind would reopen the file.
     On Error Resume Next
-    If mNextSlice <> 0 Then Application.OnTime mNextSlice, SliceName(), , False
+    If mNextSlice <> 0 Then Application.OnTime mNextSlice, mNextProc, , False
     Err.Clear
     On Error GoTo 0
     mNextSlice = 0
@@ -180,7 +183,8 @@ End Function
 
 Private Sub ScheduleSlice()
     mNextSlice = Now
-    Application.OnTime mNextSlice, SliceName()
+    mNextProc = SliceName()
+    Application.OnTime mNextSlice, mNextProc
 End Sub
 
 Private Sub EndRun(ByVal message As String, ByVal fraction As Double)

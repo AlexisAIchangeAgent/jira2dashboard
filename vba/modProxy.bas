@@ -61,7 +61,7 @@ Public Function WindowsProxySettings() As Object
     End If
 End Function
 
-Public Function ScriptProxy(ByVal url As String, ByVal autoDetect As Boolean, ByVal autoConfigUrl As String) As Object
+Private Function ScriptProxy(ByVal url As String, ByVal autoDetect As Boolean, ByVal autoConfigUrl As String) As Object
     ' The proxy that the automatic detection (WPAD) or the proxy script (PAC) gives for url, as WinHTTP finds it.
     ' Ok = False when no script was found or it could not run (Error = the Windows error number). Proxy = "" = direct.
     ' WINHTTP_AUTOPROXY_OPTIONS: dwFlags (0), dwAutoDetectFlags (4), lpszAutoConfigUrl (8), lpvReserved (8 + PTR_SIZE),

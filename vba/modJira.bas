@@ -4,6 +4,8 @@ Option Explicit
 Public Const JIRA_PAGE_SIZE As Long = 100
 Public Const CHANGELOG_CHUNK As Long = 1000          ' API limit: 1000 issues per bulkfetch call
 
+Public Const MAX_SEARCH_PAGES As Long = 2000                  ' a search that has not ended after this many pages is given up
+
 Public Function JiraConfig(ByVal baseUrl As String, ByVal email As String, ByVal apiToken As String, _
                            ByVal proxyServer As String, ByVal proxyBypass As String, _
                            ByVal proxyWindowsAuth As Boolean) As Object
@@ -116,10 +118,6 @@ Public Function ExtractionJql(ByVal wsProjects As Object, ByVal wsConfig As Obje
     ExtractionJql = ProjectsJql(ProjectKeys(wsProjects), ConfigValue(wsConfig, "Filter"))
 End Function
 
-Public Function ExtractionJqlFromWorkbook() As String
-    ExtractionJqlFromWorkbook = ExtractionJql(ThisWorkbook.Worksheets("Projects"), ThisWorkbook.Worksheets("Config"))
-End Function
-
 Public Function JiraSearchUrl(ByVal baseUrl As String, ByVal jql As String, ByVal nextPageToken As String, _
                               Optional ByVal maxResults As Long = JIRA_PAGE_SIZE, _
                               Optional ByVal fields As String = "*all", _
@@ -131,24 +129,6 @@ Public Function JiraSearchUrl(ByVal baseUrl As String, ByVal jql As String, ByVa
     If Len(expand) > 0 Then u = u & "&expand=" & UrlEncode(expand)
     If Len(nextPageToken) > 0 Then Cov "JIR05": u = u & "&nextPageToken=" & UrlEncode(nextPageToken)
     JiraSearchUrl = u
-End Function
-
-Public Function JiraSearchAll(ByVal cfg As Object, ByVal jql As String, ByRef names As Object, _
-                              Optional ByVal maxPages As Long = 2000, _
-                              Optional ByVal fields As String = "*all", Optional ByVal expand As String = "names") As Collection
-    ' Reads every page. names receives fieldId -> display name (from expand=names).
-    Cov "JIR06"
-    Dim issues As New Collection, token As String, page As Long, isLast As Boolean
-    If names Is Nothing Then Set names = CreateObject("Scripting.Dictionary")
-    Do
-        page = page + 1
-        token = JiraSearchPage(cfg, jql, token, issues, names, fields, expand, isLast)
-        Application.StatusBar = "Jira search: " & issues.Count & " issues read (page " & page & ")"
-        If isLast Then Exit Do
-        If page >= maxPages Then Cov "JIR07": Err.Raise vbObjectError + 601, "JiraSearchAll", "Jira search did not end after " & maxPages & " pages: narrow the extraction with the Filter of the Config sheet."
-    Loop
-    Application.StatusBar = False
-    Set JiraSearchAll = issues
 End Function
 
 Public Function JiraSearchPage(ByVal cfg As Object, ByVal jql As String, ByVal token As String, ByVal issues As Collection, _
@@ -206,7 +186,7 @@ Private Function StatusHint(ByVal status As Long) As String
     End Select
 End Function
 
-Public Function ChangelogBody(ByVal keys As Collection, ByVal nextPageToken As String) As String
+Private Function ChangelogBody(ByVal keys As Collection, ByVal nextPageToken As String) As String
     Cov "JIR09"
     Dim body As Object
     Set body = CreateObject("Scripting.Dictionary")
@@ -214,21 +194,6 @@ Public Function ChangelogBody(ByVal keys As Collection, ByVal nextPageToken As S
     body("maxResults") = 1000
     If Len(nextPageToken) > 0 Then body("nextPageToken") = nextPageToken
     ChangelogBody = JsonStringify(body)
-End Function
-
-Public Function JiraChangelogsAll(ByVal cfg As Object, ByVal issueKeys As Collection, _
-                                  Optional ByVal chunkSize As Long = CHANGELOG_CHUNK) As Collection
-    ' One row per changed item: Array(issueId, changeId, created, authorName, authorId,
-    '                                 fieldId, field, fieldtype, from, fromString, to, toString)
-    Cov "JIR10"
-    Dim rows As New Collection, nextFirst As Long
-    nextFirst = 1
-    Do While nextFirst <= issueKeys.Count
-        nextFirst = JiraChangelogChunk(cfg, issueKeys, nextFirst, rows, chunkSize)
-        Application.StatusBar = "Jira changelogs: " & (nextFirst - 1) & " / " & issueKeys.Count & " issues"
-    Loop
-    Application.StatusBar = False
-    Set JiraChangelogsAll = rows
 End Function
 
 Public Function JiraChangelogChunk(ByVal cfg As Object, ByVal issueKeys As Collection, ByVal first As Long, _
@@ -270,34 +235,6 @@ Private Sub FetchChangelogChunk(ByVal cfg As Object, ByVal chunk As Collection, 
 End Sub
 
 ' ---------- Tables ----------
-
-Public Function IssueFieldIds(ByVal issues As Collection) As Collection
-    ' Union of field ids seen on the issues, in first-seen order.
-    Cov "JIR11"
-    Dim seen As Object, ids As New Collection, issue As Variant, k As Variant, flds As Variant
-    Set seen = CreateObject("Scripting.Dictionary")
-    For Each issue In issues
-        Set flds = JGet(issue, "fields")
-        If IsObject(flds) Then
-            For Each k In flds.Keys
-                If Not seen.Exists(k) Then seen.Add k, True: ids.Add k
-            Next k
-        End If
-    Next issue
-    Set IssueFieldIds = ids
-End Function
-
-Public Function IssueRow(ByVal issue As Variant, ByVal fieldIds As Collection) As Variant
-    ' Array: key, id, then one cell value per field id.
-    Dim v() As Variant, i As Long
-    ReDim v(0 To fieldIds.Count + 1)
-    v(0) = JGet(issue, "key")
-    v(1) = JGet(issue, "id")
-    For i = 1 To fieldIds.Count
-        v(i + 1) = FieldToCell(JPath(issue, "fields." & fieldIds(i)))
-    Next i
-    IssueRow = v
-End Function
 
 Public Function SafeCell(ByVal value As Variant) As Variant
     ' Every non-empty text gets a leading apostrophe, so Excel keeps it as text (tested).

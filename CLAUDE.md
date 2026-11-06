@@ -170,6 +170,8 @@ then `mermaid.parse`), and check every `](#anchor)` link against the headings.
 - **pytest-bdd binding.** Steps are local to their module: a new `.feature` that reuses Excel steps is bound with a second
   `scenarios()` call in `tests/steps/test_flow_excel.py`. A `.feature` bound by no `scenarios()` call is not run (used for
   scenarios written ahead, e.g. `workflow_by_type.feature`).
+- **Test hooks in VBA:** a wait or a failure that tests cannot trigger gets a `Public` flag read behind a `Cov` marker
+  (`gHttpFake`, `gHttpCancelInWait` in `modHttp`). `modActions` has no markers: only `flow_excel.feature` covers it.
 - **`M_` tests** (VBA against the fake Jira) run only in the `@excel` scenario of `mock_jira.feature`, not in `vba-tests`
   (`T_` and `N_` only). `MockReset` clears the fake Jira's request log, which that scenario reads after the proxy tests:
   keep tests that reset before `M_ThroughProxy` in `RunMockTests`.
@@ -216,6 +218,21 @@ then `mermaid.parse`), and check every `](#anchor)` link against the headings.
   Pattern: `assert s.count(old) == 1` before each replace, write with `newline="\n"`, run with `.venv/Scripts/python.exe`.
 - `Windows fatal exception: code 0x800706be` (or `0x800706ba`) printed after Excel scenarios is teardown noise, also in
   green runs: only the test result counts.
+- **Hung test Excel (VBA error dialog):** run `vba-tests` with `timeout 420`. The Excel to kill is the one whose window
+  title is "Microsoft Visual Basic" and whose start time matches the run (`Get-Process EXCEL | Select Id, StartTime,
+  MainWindowTitle`), never an older one. Mutation proof of a VBA test: copy the module to `$TEMP`, mutate it with a Python
+  script (`assert count == 1`), run, restore with `cp` in the same command. A new check that reads Excel objects must not
+  raise (a raise opens that dialog): wrap it like `AxisEnds` in `modTests.bas`.
+- After moving code between `.bas` modules: `Private` names (Const, Function) used from the new module break the compile of
+  the test workbook only (`build` compiles the delivered modules, `vba-tests` adds `modTests`). `--bisect` loads the
+  modules in order, so a forward reference shows as a false failure at an early module: scan for `Private` names instead.
+  Python steps call `modX.Name` explicitly (`tests/steps/test_params.py`): update them.
+- The local `.claude` hook runs only after Edit/Write: a `.bas` changed through a Bash/Python script skips it. Run the 3
+  guard tests by hand and refresh the MD5 rows of the handoff with a loop over `vba/*.bas`.
+- **Checked facts (Microsoft Learn MCP, `mcp__claude_ai_Microsoft_Learn__*`):** entering a formula in manual calculation
+  calculates it, so `CalculateFull` after the switch back to automatic is needed only when Excel was manual;
+  `WinHttpSetTimeouts` does not bound proxy auto-detection (WPAD); `Application.StatusBar` reads `False` or the text
+  "FALSE" (compare with `UCase$(CStr(...))`).
 
 ## Roadmap not done yet (ask before starting)
 

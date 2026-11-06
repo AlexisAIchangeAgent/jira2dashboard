@@ -12,6 +12,7 @@ Option Explicit
 Public gHttpFake As Object      ' Dictionary: "METHOD url" -> Collection of Array(status, body, retryAfter)
 Public gHttpLog As Collection   ' one Array(method, url, body) per attempt (tests only: started by FakeReset or by a test)
 Public gHttpCancel As Boolean   ' set by the Cancel button: the waits end and HttpRequest raises 610
+Public gHttpCancelInWait As Boolean   ' tests only: simulates the Cancel button pressed during a wait between two attempts
 Private Const MAX_NET_RETRIES As Long = 2    ' a network error (status 0) is retried twice, then reported
 
 Private Const PROXY_SETTING_PROXY As Long = 2      ' HTTPREQUEST_PROXYSETTING_PROXY
@@ -50,6 +51,7 @@ Public Function HttpRequest(ByVal cfg As Object, ByVal method As String, ByVal u
         If attempt = cfg("MaxRetries") Then Cov "HTP03": Exit For
         Cov "HTP04"
         WaitMs RetryDelayMs(cfg, attempt, resp("RetryAfter"))
+        If gHttpCancel Then Cov "HTP11": Err.Raise vbObjectError + 610, "HttpRequest", "Cancelled by the user."     ' before the next attempt
     Next attempt
     Set HttpRequest = resp
 End Function
@@ -129,6 +131,7 @@ Public Sub WaitMs(ByVal ms As Double)
     ' Waits without freezing Excel. Timer wraps at midnight: handled.
     Dim t0 As Double, elapsed As Double
     t0 = Timer
+    If gHttpCancelInWait Then Cov "HTP10": gHttpCancel = True
     Do
         DoEvents
         Sleep 20

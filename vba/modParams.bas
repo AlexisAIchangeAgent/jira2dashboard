@@ -5,8 +5,8 @@ Option Explicit
 ' (testable on a scratch sheet). Every call re-reads the sheet: keep the result (for example the Dictionary of
 ' StatusCategories) when you need it in a loop.
 
-Private Const SHEET_WORKFLOWS As String = "Workflows"
-Private Const SHEET_TRANSITIONS As String = "Transitions"
+Public Const SHEET_WORKFLOWS As String = "Workflows"
+Public Const SHEET_TRANSITIONS As String = "Transitions"
 
 Public Function ReadTable(ByVal ws As Object) As Collection
     ' Row 1 holds the headers. Returns one Dictionary (header -> cell value) per row whose first cell is not empty.
@@ -39,17 +39,6 @@ Public Function StatusCategories(ByVal wsWorkflows As Object, ByVal workflow As 
     Set StatusCategories = out
 End Function
 
-Public Function FlaggedStatus(ByVal wsWorkflows As Object, ByVal workflow As String, ByVal flagColumn As String) As String
-    ' First status of the workflow whose flag column (IsStart, IsEnd or IsFree) is 1. Empty text if none.
-    Cov "PRM04"
-    Dim row As Variant
-    For Each row In ReadTable(wsWorkflows)
-        If CStr(row("Workflow")) = workflow Then
-            If Val(CStr(row(flagColumn) & "")) = 1 Then Cov "PRM05": FlaggedStatus = CStr(row("Status")): Exit Function
-        End If
-    Next row
-End Function
-
 Public Function StatusHasFlag(ByVal wsWorkflows As Object, ByVal workflow As String, ByVal status As String, _
                               ByVal flagColumn As String) As Boolean
     Cov "PRM06"
@@ -59,30 +48,6 @@ Public Function StatusHasFlag(ByVal wsWorkflows As Object, ByVal workflow As Str
             If CStr(row("Status")) = status Then StatusHasFlag = (Val(CStr(row(flagColumn) & "")) = 1): Exit Function
         End If
     Next row
-End Function
-
-Public Function TransitionAllowed(ByVal wsWorkflows As Object, ByVal wsTransitions As Object, ByVal workflow As String, _
-                                  ByVal fromStatus As String, ByVal toStatus As String) As Boolean
-    ' Allowed if a row From -> To exists, or if the target is a free status (IsFree = 1: reachable from any status).
-    Cov "PRM07"
-    Dim row As Variant
-    For Each row In ReadTable(wsTransitions)
-        If CStr(row("Workflow")) = workflow And CStr(row("From")) = fromStatus And CStr(row("To")) = toStatus Then
-            Cov "PRM08": TransitionAllowed = True: Exit Function
-        End If
-    Next row
-    If StatusHasFlag(wsWorkflows, workflow, toStatus, "IsFree") Then Cov "PRM09": TransitionAllowed = True
-End Function
-
-Public Function LogicalNames(ByVal wsMapping As Object) As Object
-    ' extract column -> logical name (sheet FieldMapping). The macros use the logical name, never the extract column.
-    Cov "PRM10"
-    Dim out As Object, row As Variant
-    Set out = CreateObject("Scripting.Dictionary")
-    For Each row In ReadTable(wsMapping)
-        out(CStr(row("Extract"))) = CStr(row("Logical"))
-    Next row
-    Set LogicalNames = out
 End Function
 
 Public Function ProjectKeys(ByVal wsProjects As Object) As Collection
@@ -107,15 +72,6 @@ Public Function ProgramProject(ByVal wsProjects As Object) As String
         If StrComp(TrimWhite(CStr(row("Role") & "")), "Program", vbTextCompare) = 0 Then
             ProgramProject = TrimWhite(CStr(row("Project"))): Exit Function
         End If
-    Next row
-End Function
-
-Public Function TeamOfProject(ByVal wsProjects As Object, ByVal projectKey As String) As String
-    ' Team name of a project. Empty text for the Program and for an unknown project.
-    Cov "PRM20"
-    Dim row As Variant
-    For Each row In ReadTable(wsProjects)
-        If TrimWhite(CStr(row("Project"))) = projectKey Then TeamOfProject = TrimWhite(CStr(row("Team") & "")): Exit Function
     Next row
 End Function
 
@@ -220,17 +176,3 @@ Public Function IsYes(ByVal text As String) As Boolean
     End Select
 End Function
 
-Public Function CategoryOf(ByVal workflow As String, ByVal status As String) As String
-    ' Category of a status in this workbook's Workflows sheet. A status that is not listed is "Unclassified".
-    Cov "PRM11"
-    Dim cats As Object
-    Set cats = StatusCategories(ThisWorkbook.Worksheets(SHEET_WORKFLOWS), workflow)
-    If cats.Exists(status) Then CategoryOf = cats(status) Else Cov "PRM12": CategoryOf = "Unclassified"
-End Function
-
-Public Function IsAllowed(ByVal workflow As String, ByVal fromStatus As String, ByVal toStatus As String) As Boolean
-    ' Transition check on this workbook's sheets Workflows and Transitions.
-    Cov "PRM13"
-    IsAllowed = TransitionAllowed(ThisWorkbook.Worksheets(SHEET_WORKFLOWS), ThisWorkbook.Worksheets(SHEET_TRANSITIONS), _
-                                  workflow, fromStatus, toStatus)
-End Function

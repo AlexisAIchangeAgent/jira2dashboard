@@ -154,7 +154,7 @@ Private Function ObjectToText(ByVal d As Object) As String
     ObjectToText = Left$(JsonStringify(d), 32767)
 End Function
 
-Public Function AdfToText(ByVal node As Variant) As String
+Private Function AdfToText(ByVal node As Variant) As String
     ' Atlassian Document Format (rich text, e.g. description) -> plain text.
     Dim out As String, child As Variant, nodeType As String
     If Not IsObject(node) Then Exit Function
