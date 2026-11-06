@@ -483,7 +483,7 @@ Public Sub T_Log()
     text = FileText(file)
     Check "log", "a long text is cut", "400 x", True, InStr(text, " TEST " & String$(300, "x") & "..." & vbCrLf) > 0
     LogError "Step", vbObjectError + 602, "HTTP 500 after 1 try: {secret answer}"
-    LogError "Step", vbObjectError + 605, "Sheet Periods has no period"
+    LogError "Step", vbObjectError + 605, "Sheet Iterations has no period"
     LogError "Step", 13, "Type mismatch"
     text = FileText(file)
     LogError "Step", vbObjectError + 513, "Unexpected character ""x"" at position 3"
@@ -492,7 +492,7 @@ Public Sub T_Log()
     Check "log", "an error that quotes the answer of Jira keeps its number only", "602", True, _
           InStr(text, "ERROR Step | vbObjectError+602 | (description not logged") > 0 And InStr(text, "secret") = 0
     Check "log", "a project error reads vbObjectError+n, with its description", "605", True, _
-          InStr(text, "ERROR Step | vbObjectError+605 | Sheet Periods has no period") > 0
+          InStr(text, "ERROR Step | vbObjectError+605 | Sheet Iterations has no period") > 0
     Check "log", "a VBA error keeps its number", "13", True, InStr(text, "ERROR Step | 13 | Type mismatch") > 0
     WriteFileText file, String$(1000001, "y")                       ' too big: the next run starts a new file
     LogRunStart "test"
@@ -784,7 +784,7 @@ End Sub
 
 Private Sub FlowPeriods(ByVal start1 As Variant, ByVal end1 As Variant, Optional ByVal second As Boolean = False)
     Dim ws As Object
-    Set ws = ThisWorkbook.Worksheets("Periods")
+    Set ws = ThisWorkbook.Worksheets("Iterations")
     ws.Range("A2:C10").ClearContents
     ws.Range("A2").Value = "P1": ws.Range("B2").Value = start1: ws.Range("C2").Value = end1
     If second Then ws.Range("A3").Value = "P2": ws.Range("B3").Value = "2026-10-15": ws.Range("C3").Value = "2026-10-29"
@@ -827,8 +827,8 @@ Public Sub T_FlowBuild()
     Check "flowbuild", "text that is not a date is refused", "Start x", 701, FlowBuildError()
     FlowPeriods DateSerial(2026, 10, 15), DateSerial(2026, 10, 1)
     Check "flowbuild", "a period that ends before it starts is refused", "15 Oct -> 1 Oct", 704, FlowBuildError()
-    wb.Worksheets("Periods").Range("A2:C10").ClearContents
-    Check "flowbuild", "no period is refused", "empty Periods", 703, FlowBuildError()
+    wb.Worksheets("Iterations").Range("A2:C10").ClearContents
+    Check "flowbuild", "no period is refused", "empty Iterations", 703, FlowBuildError()
     FlowPeriods DateSerial(2026, 10, 1), DateSerial(2026, 10, 15), True
     ClearFlowSheets wb
     Check "flowbuild", "no extracted data is refused", "empty Issues", 702, FlowBuildError()
@@ -885,7 +885,7 @@ Public Sub T_FlowBuild()
     Application.Calculation = -4105                               ' xlCalculationAutomatic
     ' leave the workbook as it was
     dash.Range("B2").Value = "All teams"
-    wb.Worksheets("Periods").Range("A2:C10").ClearContents
+    wb.Worksheets("Iterations").Range("A2:C10").ClearContents
     ClearFlowSheets wb
     Check "flowbuild", "cleared: the derived sheets are gone", "Metrics", False, SheetExists(wb, "Metrics")
     Check "flowbuild", "cleared: the data checks and fill rates are gone too", "DataChecks", "False|False", _

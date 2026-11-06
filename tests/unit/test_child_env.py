@@ -31,7 +31,7 @@ def test_repo_layout_constants_point_to_real_places():
     assert (paths.REPO_ROOT / "pyproject.toml").is_file()
     assert len(list(paths.VBA_DIR.glob("*.bas"))) == 16
     assert sorted(p.name for p in paths.PARAMS_DIR.glob("*.md")) == [
-        "config.md", "field_mapping.md", "periods.md", "pis.md", "projects.md", "transitions.md", "workflows.md"]
+        "config.md", "field_mapping.md", "iterations.md", "pis.md", "projects.md", "transitions.md", "workflows.md"]
     assert sorted(p.name for p in paths.CHILDREN_DIR.glob("*.py")) == [
         "_check_child.py", "_hang_child.py", "_run_tests_child.py"]
 

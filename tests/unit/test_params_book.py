@@ -38,7 +38,7 @@ def test_the_sheets_come_back_in_the_form_of_the_md_files(tmp_path):
     config = {row[0]: row[1] for row in named(sheets, "Config").rows}
     assert (config["BaseUrl"], config["Email"], config["ApiToken"], config["AsOf"]) == (
         URL, MOCK_EMAIL, MOCK_TOKEN, "2026-11-03 18:00")
-    assert named(sheets, "Periods").rows[0] == ("I1", "2026-06-01", "2026-06-15")       # dates typed in Excel: serials
+    assert named(sheets, "Iterations").rows[0] == ("I1", "2026-06-01", "2026-06-15")       # dates typed in Excel: serials
     assert named(sheets, "PIs").rows == (("PI#01-2026", "2026-06-01", "2026-12-31"),)
     md = {s.name: s for s in load_all()}
     for name in ("Projects", "Workflows", "Transitions"):
@@ -141,8 +141,8 @@ def test_a_missing_sheet_or_column_is_named(tmp_path):
 
 def test_no_period_stops_the_run(tmp_path):
     def empty(sheets):
-        replace(sheets, "Periods", Sheet("Periods", ("Period", "Start", "End"), []))
-    with pytest.raises(ParamsError, match="Sheet Periods has no period"):
+        replace(sheets, "Iterations", Sheet("Iterations", ("Period", "Start", "End"), []))
+    with pytest.raises(ParamsError, match="Sheet Iterations has no period"):
         P.run_settings(P.read_params(book(tmp_path, change=empty)))
 
 

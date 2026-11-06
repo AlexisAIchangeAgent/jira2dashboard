@@ -18,7 +18,7 @@ Commands:
   check-machine  22 checks of this machine: Excel, access to the VBA project, compile, macro of the workbook...
   diagnose       a report to paste into a ticket when the macros are blocked (hashes, origin, Office, security products)
   mock-jira      the fake Jira on http://127.0.0.1:8099 (--anomalies, --issues, --port...)
-  mock-workbook  a copy of a workbook with Config, Periods and PIs filled for the fake Jira
+  mock-workbook  a copy of a workbook with Config, Iterations and PIs filled for the fake Jira
   build          the workbook to deliver: out\release\jira2dashboard.xlsm (--out name.xlsm: in out\inter)
   clean          empty out\inter, except the test caches (build and vba-tests do it first)
   extract        without VBA: read Jira with Python, write data, results and charts to jira2dashboard.xlsx
@@ -48,7 +48,7 @@ $commands = [ordered]@{
     "check-machine" = "22 checks of this machine: Excel, access to the VBA project, compile, macro of the workbook..."
     "diagnose"      = "a report to paste into a ticket when the macros are blocked (hashes, origin, Office, security products)"
     "mock-jira"     = "the fake Jira on http://127.0.0.1:8099 (--anomalies, --issues, --port...)"
-    "mock-workbook" = "a copy of a workbook with Config, Periods and PIs filled for the fake Jira"
+    "mock-workbook" = "a copy of a workbook with Config, Iterations and PIs filled for the fake Jira"
     "build"         = "the workbook to deliver: out\release\jira2dashboard.xlsm (--out name.xlsm: in out\inter)"
     "clean"         = "empty out\inter, except the test caches (build and vba-tests do it first)"
     "extract"       = "without VBA: read Jira with Python, write data, results and charts to jira2dashboard.xlsx"

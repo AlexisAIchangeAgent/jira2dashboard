@@ -31,7 +31,7 @@ def sheet(sheets, name):
 
 def test_real_parameters_load_in_the_order_of_the_workbook_sheets():
     sheets = model.load_all()
-    assert [s.name for s in sheets] == ["Config", "Projects", "Periods", "PIs", "Workflows", "Transitions", "FieldMapping"]
+    assert [s.name for s in sheets] == ["Config", "Projects", "Iterations", "PIs", "Workflows", "Transitions", "FieldMapping"]
 
 
 def test_real_parameters_have_the_documented_sizes():
@@ -271,29 +271,29 @@ def test_as_of_accepts_a_date_or_a_date_and_time(params_copy, moment):
     assert config["AsOf"] == moment
 
 
-# --- Periods: the iterations, empty in the repo -----------------------------------------------------
+# --- Iterations: the iterations, empty in the repo -----------------------------------------------------
 
 def test_periods_are_empty_in_the_repo_because_the_calendar_is_the_clients():
-    periods = sheet(model.load_all(), "Periods")
+    periods = sheet(model.load_all(), "Iterations")
     assert periods.header == ("Period", "Start", "End") and periods.rows == ()
 
 
 def test_period_rows_are_checked(params_copy):
-    path = params_copy / "periods.md"
+    path = params_copy / "iterations.md"
     path.write_text(path.read_text(encoding="utf-8") + "| I1 | 2026-10-05 | 2026-10-19 |\n| I1 | 2026-10-19 | soon |\n"
                     "| I3 | 2026-11-02 | 2026-10-26 |\n|  | 2026-11-02 | 2026-11-16 |\n", encoding="utf-8")
     with pytest.raises(ParamsError) as err:
         model.load_all(params_copy)
     text = str(err.value)
-    assert "period 'I1' listed twice" in text and "Periods row 2: Start and End must be dates" in text
-    assert "Periods row 3: Start must be before End" in text and "Periods row 4: Period needs a name" in text
+    assert "period 'I1' listed twice" in text and "Iterations row 2: Start and End must be dates" in text
+    assert "Iterations row 3: Start must be before End" in text and "Iterations row 4: Period needs a name" in text
 
 
 def test_valid_period_rows_are_accepted(params_copy):
-    path = params_copy / "periods.md"
+    path = params_copy / "iterations.md"
     path.write_text(path.read_text(encoding="utf-8") + "| I1 | 2026-10-05 | 2026-10-19 |\n| I2 | 2026-10-19 | 2026-11-02 |\n",
                     encoding="utf-8")
-    assert len(sheet(model.load_all(params_copy), "Periods").rows) == 2
+    assert len(sheet(model.load_all(params_copy), "Iterations").rows) == 2
 
 
 def test_an_api_token_in_the_repo_is_refused(params_copy):

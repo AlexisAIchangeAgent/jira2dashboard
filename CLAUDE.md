@@ -130,7 +130,7 @@ VBA guard tests after each edit of `vba/*.bas` (`.claude/hooks/bas_guard.py`); s
   `anomalies.py` adds known data-quality cases; `config.py` answers the configuration calls from the parameters (round
   trip). The real Jira is never called. Manual try: `scripts\manual-test.ps1` = `start-mock.ps1` (mock with
   `--anomalies`, pid + start time in `%TEMP%\jira2dashboard`) + `mock_workbook.py` (the copy
-  `out\manual_test\jira2dashboard4manualtest.xlsm`, Config, Periods, PIs filled; the source stays empty) opened in
+  `out\manual_test\jira2dashboard4manualtest.xlsm`, Config, Iterations, PIs filled; the source stays empty) opened in
   its own Excel (`/x`); `-Python` runs `extract` on the copy instead.
   `stop-mock.ps1` kills only that pid with that start time (`taskkill /T`), never a port owner it did not start.
   Limit: with `proxy_challenge`, the fake proxy accepts the first NTLM leg, which WinHTTP sends with an empty body,

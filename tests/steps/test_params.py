@@ -93,7 +93,7 @@ def _sheet_matches_file(world, sheet, filename):
     values = world["wb"].Worksheets(sheet).UsedRange.Value
     width = len(expected.header)
     actual = [tuple(_normalize(v) for v in row[:width]) for row in values]
-    if sheet in EXAMPLES:      # Periods and PIs: the column Example sits next to the table, in rows the file leaves empty
+    if sheet in EXAMPLES:      # Iterations and PIs: the column Example sits next to the table, in rows the file leaves empty
         assert [_normalize(row[width]) for row in values] == ["Example", *EXAMPLES[sheet]]
         actual = [row for row in actual if any(v is not None for v in row)]
     assert actual[0] == expected.header

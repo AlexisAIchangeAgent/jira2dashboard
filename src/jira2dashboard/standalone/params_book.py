@@ -1,6 +1,6 @@
 """The parameters of a filled workbook, read as a file (no Excel): what the Python extraction needs.
 
-The sheets Config, Projects, Periods, PIs, Workflows and Transitions are read by header name, so a workbook built
+The sheets Config, Projects, Iterations, PIs, Workflows and Transitions are read by header name, so a workbook built
 before a column was added still works (Config without Example or Mandatory, as the VBA accepts). Cells are brought to
 the form of params/*.md: text trimmed like a pasted value, dates as ISO text (a date typed in Excel is a serial
 number), the Workflows numbers as whole numbers. Then the rules shared with params/*.md are applied
@@ -17,9 +17,9 @@ from jira2dashboard.params.model import (CONFIG_PARAMETERS, SPECS, ParamSheet, P
                                          shape_problems)
 from jira2dashboard.standalone.xlsx_read import read_sheets
 
-SHEETS = ("Config", "Projects", "Periods", "PIs", "Workflows", "Transitions")
+SHEETS = ("Config", "Projects", "Iterations", "PIs", "Workflows", "Transitions")
 OPTIONAL = {("Config", "Example"), ("Config", "Mandatory"), ("Config", "Description")}
-DATE_COLUMNS = {("Periods", "Start"), ("Periods", "End"), ("PIs", "Start"), ("PIs", "End")}
+DATE_COLUMNS = {("Iterations", "Start"), ("Iterations", "End"), ("PIs", "Start"), ("PIs", "End")}
 EPOCH = dt.datetime(1899, 12, 30)
 WHITE = " \t\r\n "                                # what the VBA TrimWhite removes around a pasted value
 YES = ("yes", "oui", "true", "vrai", "1")             # modParams.IsYes
@@ -192,9 +192,9 @@ def run_settings(sheets: list[ParamSheet]) -> RunSettings:
     if missing:
         raise ParamsError(f"Fill these values of the Config sheet first (Mandatory = True): {', '.join(missing)}")
     periods = [Period(name, dt.datetime.fromisoformat(start), dt.datetime.fromisoformat(end))
-               for name, start, end in by_name["Periods"].rows]
+               for name, start, end in by_name["Iterations"].rows]
     if not periods:
-        raise ParamsError("Sheet Periods has no period: type the iterations (Period | Start | End) to compute")
+        raise ParamsError("Sheet Iterations has no period: type the iterations (Period | Start | End) to compute")
     values = config_values(config)
     as_of = _parse_moment(values["AsOf"])
     if as_of is None:

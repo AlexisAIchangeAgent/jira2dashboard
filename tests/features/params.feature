@@ -76,7 +76,7 @@ Fonctionnalité: Paramètres écrits dans le classeur
       | feuille      | fichier          |
       | Config       | config.md        |
       | Projects     | projects.md      |
-      | Periods      | periods.md       |
+      | Iterations      | iterations.md       |
       | PIs          | pis.md           |
       | Workflows    | workflows.md     |
       | Transitions  | transitions.md   |

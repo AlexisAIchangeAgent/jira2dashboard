@@ -89,7 +89,7 @@ Fonctionnalité: Un type de ticket peut suivre son propre workflow dans un proje
       Soit un faux Jira avec 150 tickets générés dont les Bugs des projets d'équipe suivent le workflow "Bug"
       Et le classeur à livrer dont la feuille Config pointe sur ce faux Jira avec FlowLoadMode "A"
       Et le workflow "Bug", ses transitions et l'association du type "Bug" sont dans les feuilles de paramètres du classeur
-      Et les itérations de 14 jours depuis le "2026-08-17" jusqu'à la date de référence dans la feuille Periods
+      Et les itérations de 14 jours depuis le "2026-08-17" jusqu'à la date de référence dans la feuille Iterations
       Quand j'exécute la macro Extraire et calculer du classeur
       Alors aucune cellule des feuilles de flux ne montre une erreur Excel
       Et chaque Bug a le workflow "Bug" dans les feuilles StatusIntervals et ItemFlow

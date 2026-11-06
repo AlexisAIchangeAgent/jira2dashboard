@@ -5,7 +5,9 @@ a feature must fall inside the PI of the feature). **Empty in the repo**: the ca
 the workbook, with real dates.
 
 `PI` is the value of the PI field (`PI#XX-YYYY`). `Start` is included, `End` is excluded. Dates are UTC dates (midnight),
-for example 2026-10-05 and 2026-12-14.
+for example 2026-10-05 and 2027-02-08 (a PI of 18 weeks).
+
+A PI is the long cycle of the Program: it holds several iterations (sheet `Iterations`), for example 6 of 3 weeks.
 
 | PI | Start | End |
 |---|---|---|

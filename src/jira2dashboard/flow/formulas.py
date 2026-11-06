@@ -5,7 +5,7 @@ differential test compares, cell by cell, with the Python reference (itemflow.py
 
 Rules kept here:
 * no status name and no mapping in a formula: the status flags and categories are read from the sheet Workflows,
-  the teams and roles from Projects, the periods from Periods, the mode and the as-of date from Config;
+  the teams and roles from Projects, the periods from Iterations, the mode and the as-of date from Config;
 * every comparison with a date adds or removes half a second: dates are whole seconds, and Excel turns a bound
   into text with 15 digits, so a strict `>` on the exact serial could let an equal date through;
 * a blank result is the empty text "", which COUNTIFS / MINIFS / SUMIFS ignore in numeric criteria.

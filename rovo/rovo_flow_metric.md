@@ -47,7 +47,7 @@ break them), and a **flow time sample** for one type on request (flow time and e
 
 ## 2. Inputs (from the workbook parameters, never client secrets)
 
-- **Project** name or key, and **period**: start and end dates (an iteration or a PI of the `Periods` / `PIs` sheets).
+- **Project** name or key, and **period**: start and end dates (an iteration or a PI of the `Iterations` / `PIs` sheets).
   The workbook computes in UTC, Jira in the user's time zone: a few items can move across a period boundary.
 - **Filter** (optional): the `Filter` of the `Config` sheet, so the scope is the workbook's.
 - **Status classification**: the rows of the `Workflows` sheet (Workflow, Status, Category, IsStart, IsEnd). Either pasted

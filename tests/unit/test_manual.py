@@ -41,7 +41,7 @@ def test_the_manual_names_only_sheets_of_the_workbook():
     text = " ".join(line for _kind, line in manual.manual(MANDATORY)) + " ".join(manual.first_steps())
     sheets = {spec.name for spec in model.SPECS} | {blueprint.SHEET_FORMULAS, blueprint.SHEET_CHARTS,
                                                      blueprint.SHEET_CHECKS}
-    named = {"Config", "Projects", "Periods", "PIs", "Workflows", "Transitions", "FlowFormulas", "ChartSpec",
+    named = {"Config", "Projects", "Iterations", "PIs", "Workflows", "Transitions", "FlowFormulas", "ChartSpec",
              "ChecksSpec"}
     assert named <= sheets
     assert all(name in text for name in named)

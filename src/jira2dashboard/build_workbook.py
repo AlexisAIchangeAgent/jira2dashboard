@@ -1,7 +1,7 @@
 """Build the workbook to deliver: out\\release\\jira2dashboard.xlsm (needs Excel and access to the VBA project).
 
 It first empties out\\inter (scripts\\run.ps1 clean), then builds and compiles the workbook. The workbook holds the VBA that reads Jira and builds the flow sheets and the dashboard (no Python is needed to use
-it), the parameter sheets (Config, Projects, Periods, Workflows, Transitions, FieldMapping) and the plan of the flow
+it), the parameter sheets (Config, Projects, Iterations, Workflows, Transitions, FieldMapping) and the plan of the flow
 sheets (FlowFormulas, ChartSpec). The client values stay empty: they are typed in the sheet Config after delivery.
 Exit code 0 when the VBA compiles, 1 otherwise.
 """
@@ -47,7 +47,7 @@ def build_delivery(target: Path = TARGET) -> Path:
         dash = wb.Worksheets(1)
         dash.Name = "Dashboard"
         params = load_all()
-        write_params(wb, params)                                      # Config, Projects, Periods, Workflows, ...
+        write_params(wb, params)                                      # Config, Projects, Iterations, Workflows, ...
         write_blueprint(wb, dash, BUTTON_MACRO)
         config = next(sheet for sheet in params if sheet.name == "Config")
         write_manual(wb, dash, mandatory_parameters(config))          # first steps on the Dashboard, sheet Manual

@@ -1,6 +1,6 @@
 """Extract Jira and compute the flow metrics with Python only, without the VBA: writes jira2dashboard.xlsx.
 
-1. Reads the parameter sheets of the filled workbook (Config, Projects, Periods, PIs, Workflows, Transitions) as a
+1. Reads the parameter sheets of the filled workbook (Config, Projects, Iterations, PIs, Workflows, Transitions) as a
    file, without Excel: save the workbook in Excel first. The mandatory values of Config must be filled.
 2. Finds the proxy (ProxyServer, or the Windows settings when it is empty), then reads Jira with WinHTTP, as the VBA
    does: the search of the projects (and Filter), page after page, then the changelogs.
@@ -172,7 +172,7 @@ def run(args, formatter: Scrubbed, collected: Collected, sleep=time.sleep, detec
         ("Made by", "jira2dashboard, Python path without VBA (scripts\\run.ps1 extract): values, no formula"),
         ("Started (UTC)", started_at), ("Workbook read", str(workbook.resolve())), ("Jira", base), ("JQL", jql),
         ("Proxy", proxy.mode), ("AsOf (UTC)", settings.as_of), ("FlowLoadMode", settings.mode),
-        ("Periods", f"{len(settings.periods)}: {settings.periods[0].name} to {settings.periods[-1].name}"),
+        ("Iterations", f"{len(settings.periods)}: {settings.periods[0].name} to {settings.periods[-1].name}"),
         ("Issues", len(extract.rows)), ("Changelog items", extract.changelog_items),
         ("Status intervals", len(intervals)), ("Blocking links", len(extract.links)),
         ("Retries of a call to Jira", client.retries), ("Flow Distribution chart", args.team),

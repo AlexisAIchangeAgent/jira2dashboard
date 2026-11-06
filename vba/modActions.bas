@@ -25,7 +25,7 @@ End Function
 
 Public Sub ExtractAndCompute(Optional ByVal fromButton As Boolean = False)
     ' The optional argument keeps this Sub out of the Alt+F8 list: only the buttons (with their error handler) are for users.
-    ' Everything comes from the workbook: Config (connection, proxy, filter, as-of date), Projects, Periods, Workflows.
+    ' Everything comes from the workbook: Config (connection, proxy, filter, as-of date), Projects, Iterations, Workflows.
     Dim num As Long, desc As String
     If mBusy Then Err.Raise vbObjectError + 611, "ExtractAndCompute", "An extraction is already running: wait for it or cancel it."
     On Error GoTo Failed

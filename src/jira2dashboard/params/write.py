@@ -3,16 +3,16 @@ from jira2dashboard.excel import com as R
 from jira2dashboard.params.model import ParamSheet
 
 
-# Periods and PIs are typed at the client: an Example column (D, next to Period | Start | End) shows the form of each
+# Iterations and PIs are typed at the client: an Example column (D, next to Period | Start | End) shows the form of each
 # value. The readers (VBA ReadTable, standalone params_book) find columns by name and skip a row with no first cell,
 # so these notes are never read as data.
 EXAMPLES = {
-    "Periods": ("Period: Sprint 2026-10 (free text, the label of the charts)",
-                "Start: 2026-10-05 (a date, included)",
-                "End: 2026-10-19 (a date, excluded: an item done that day belongs to the next period)"),
+    "Iterations": ("Period: PI#01-2026 It1 (the name of one iteration, the label of the charts)",
+                   "Start: 2026-10-05 (a date, included)",
+                   "End: 2026-10-26 (a date, excluded: 3 weeks later, the day the next iteration starts)"),
     "PIs": ("PI: PI#01-2026 (the value of the PI field of Jira)",
             "Start: 2026-10-05 (a date, included)",
-            "End: 2026-12-14 (a date, excluded)"),
+            "End: 2027-02-08 (a date, excluded: a PI of 18 weeks holds 6 iterations of 3 weeks)"),
 }
 
 

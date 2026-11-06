@@ -1,7 +1,7 @@
 """Prepare a copy of a workbook to try it by hand against the fake Jira (scripts\\manual-test.ps1 runs it).
 
 The copy, out\\manual_test\\jira2dashboard4manualtest.xlsm, gets what a client would type: in Config the address,
-account, reference date and custom field ids of the fake Jira of `run.ps1 mock-jira`; 14-day iterations in Periods;
+account, reference date and custom field ids of the fake Jira of `run.ps1 mock-jira`; 14-day iterations in Iterations;
 the PI of the known anomalies in PIs. The workbook given is never changed: the one to deliver keeps its client values
 empty. out\\manual_test is never emptied by clean, build or vba-tests; the copy is rewritten at each run.
 """
@@ -27,7 +27,7 @@ FIELD_IDS = {"StoryPointsField": "story_points", "BusinessValueField": "business
              "TeamField": "team", "SprintField": "sprint", "TargetStartField": "target_start",
              "TargetEndField": "target_end"}          # Config parameter of a data check -> attribute of FieldIds
 PIS = [Period(PI, *PI_WINDOW)]
-ROWS = "A2:C200"                                      # the rows of Periods and PIs that the copy rewrites
+ROWS = "A2:C200"                                      # the rows of Iterations and PIs that the copy rewrites
 
 
 def base_url(port: int) -> str:
@@ -52,7 +52,7 @@ def iterations(first: dt.datetime = SINCE, as_of: dt.datetime = AS_OF, days: int
 
 def params_book(url: str, values: dict[str, str] | None = None) -> list[Sheet]:
     """The parameter sheets of params/*.md filled for the fake Jira at `url`, as sheets of an xlsx (no Excel): Config
-    with config_values (and `values` over them), the iterations in Periods and the PI of the anomalies in PIs, as
+    with config_values (and `values` over them), the iterations in Iterations and the PI of the anomalies in PIs, as
     dates. What the Python extraction reads from a filled workbook."""
     filled = config_values(url) | (values or {})
     out = []
@@ -63,8 +63,8 @@ def params_book(url: str, values: dict[str, str] | None = None) -> list[Sheet]:
         if sheet.name == "Config":
             value = sheet.header.index("Value")
             rows = [row[:value] + (filled.get(row[0], row[value]),) + row[value + 1:] for row in rows]
-        elif sheet.name in ("Periods", "PIs"):
-            rows = [(p.name, p.start, p.end) for p in (iterations() if sheet.name == "Periods" else PIS)]
+        elif sheet.name in ("Iterations", "PIs"):
+            rows = [(p.name, p.start, p.end) for p in (iterations() if sheet.name == "Iterations" else PIS)]
         out.append(Sheet(sheet.name, sheet.header, rows))
     return out
 
@@ -74,7 +74,7 @@ def write_params_book(path: Path, url: str, values: dict[str, str] | None = None
 
 
 def write_periods(ws, periods: list[Period]) -> None:
-    """Rows Name | Start | End of the sheet Periods or PIs; the rows of an earlier run are cleared first."""
+    """Rows Name | Start | End of the sheet Iterations or PIs; the rows of an earlier run are cleared first."""
     ws.Range(ROWS).ClearContents()
     for row, period in enumerate(periods, start=2):
         ws.Cells(row, 1).Value = com.as_cell(period.name)
@@ -93,7 +93,7 @@ def fill_copy(path: Path, url: str) -> None:
     with com.excel_session() as app:
         wb = com.open_without_macros(app, path)
         write_config(wb.Worksheets("Config"), config_values(url))
-        write_periods(wb.Worksheets("Periods"), iterations())
+        write_periods(wb.Worksheets("Iterations"), iterations())
         write_periods(wb.Worksheets("PIs"), PIS)
         wb.Save()
         wb.Close(False)

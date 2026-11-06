@@ -17,7 +17,7 @@ def first_steps() -> list[str]:
         f"First time: do these steps in this order (details: sheet {MANUAL_SHEET})",
         f"1. Sheet Config: fill every value whose Mandatory is True. {', '.join(TYPED_AT_CLIENT)} are empty in a new "
         "workbook.",
-        "2. Sheet Projects: the Jira projects, and which one is the Program. Sheet Periods: the iterations.",
+        "2. Sheet Projects: the Jira projects, and which one is the Program. Sheet Iterations: the iterations.",
         f'3. Click "{CONFIG_CAPTION}". Read the proposal sheets {PROPOSAL_SHEETS}.',
         "4. Copy what fits into the sheets Workflows and Transitions, and the field ids into the ...Field rows of Config.",
         f'5. Click "{EXTRACT_CAPTION}" and wait for the bar to reach the end. "{CANCEL_CAPTION}" stops it.',
@@ -47,9 +47,10 @@ def manual(mandatory: tuple[str, ...]) -> list[tuple[str, str]]:
             "detection, proxy script or fixed proxy). DIRECT = no proxy. Or type host:port.",
             "ApiToken stays in clear in this sheet: empty it before you send the workbook to anyone.",
         ]),
-        ("Sheets Projects, Periods and PIs", [
+        ("Sheets Projects, Iterations and PIs", [
             "Projects: Project, Role, Team. Exactly one project is the Program (the features); the others are Team.",
-            "Periods: Period, Start, End (the end is excluded). They are the periods of the charts. Column Example shows the form of each value.",
+            "Iterations: Period, Start, End (the end is excluded). They are the short cycles inside a PI, for example 6 of "
+            "3 weeks in a PI of 18 weeks, and the periods of the charts. Column Example shows the form of each value.",
             "PIs: PI, Start, End, with names such as PI#01-2026 (data check DC18).",
         ]),
         (f'Button "{CONFIG_CAPTION}"', [

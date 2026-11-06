@@ -100,7 +100,7 @@ answered.
 | Sheets | Content | Written by |
 |---|---|---|
 | `Dashboard`, `Manual` | Buttons, status `A3`, charts, team `B2`; user manual | build |
-| `Config`, `Projects`, `Periods`, `PIs`, `Workflows`, `Transitions`, `FieldMapping` | Parameters | build, then user |
+| `Config`, `Projects`, `Iterations`, `PIs`, `Workflows`, `Transitions`, `FieldMapping` | Parameters | build, then user |
 | `Issues`, `StatusIntervals`, `IssueLinks` | Raw data (values) | VBA |
 | `Controls`, `ItemFlow`, `DailyLoad`, `Metrics`, `FillRates`, `DataChecks`, `ChartData` | Results (formulas) | VBA |
 | `FlowFormulas`, `ChartSpec`, `ChecksSpec` | The plan. Do not edit. | build |
@@ -203,7 +203,7 @@ flowchart TD
     d{"What is delivered?"}
     d -->|"the .xlsm"| u1["Unblock the file, Enable Content"]
     d -->|"the code"| k1["setup.ps1"] --> k2["run.ps1 check-machine"] --> k3["run.ps1 build"] --> u1
-    u1 --> u2["Fill Config, Projects, Periods"]
+    u1 --> u2["Fill Config, Projects, Iterations"]
     u2 --> u3["Read the Jira configuration"]
     u3 --> u4["Extract from Jira and compute"]
     u4 -->|"done"| u5["Dashboard, Metrics, DataChecks"]
@@ -219,8 +219,8 @@ Parameters are workbook sheets. Their sources are the files of `params/`, which 
 |---|---|---|
 | `Config` | [`config.md`](params/config.md) | Connection, proxy, field ids, check settings, log level |
 | `Projects` | [`projects.md`](params/projects.md) | Projects to extract: one `Program`, the others `Team` |
-| `Periods` | [`periods.md`](params/periods.md) | Iterations `[Start, End[` (empty in the repo) |
-| `PIs` | [`pis.md`](params/pis.md) | PI dates (empty in the repo) |
+| `Iterations` | [`iterations.md`](params/iterations.md) | Short cycles inside a PI, `[Start, End[` (empty in the repo) |
+| `PIs` | [`pis.md`](params/pis.md) | Long cycles (PI), each holding several iterations (empty in the repo) |
 | `Workflows` | [`workflows.md`](params/workflows.md) | Category of each status: Active, Wait, Done, Removed, Backlog |
 | `Transitions` | [`transitions.md`](params/transitions.md) | Allowed moves |
 | `FieldMapping` | [`field_mapping.md`](params/field_mapping.md) | Columns of the ticket extract |
@@ -236,7 +236,7 @@ Parameters are workbook sheets. Their sources are the files of `params/`, which 
 The `Dashboard` (from cell `T1`) and the sheet `Manual` repeat these steps.
 
 1. **Unblock** a downloaded file (right-click > Properties > Unblock), open it, **Enable Content**.
-2. Fill `Config` (every Mandatory value), `Projects` and `Periods`.
+2. Fill `Config` (every Mandatory value), `Projects` and `Iterations`.
 3. **Read the Jira configuration**: writes the proposal sheets `Jira*`. Copy what fits into `Workflows`,
    `Transitions` and the `...Field` rows of `Config`.
 4. **Extract from Jira and compute**. **Cancel** keeps the previous results. Run it as often as needed.
@@ -317,7 +317,7 @@ messages: **reread a log before sharing it**.
 | 608 | Mandatory `Config` values empty |
 | 610, 611 | Cancelled; an extraction is already running |
 | 620, 621 | Read the Jira configuration: no project, or no end |
-| 701–709 | Building the result sheets: `Periods`, missing sheet or column, Excel too old |
+| 701–709 | Building the result sheets: `Iterations`, missing sheet or column, Excel too old |
 
 ### Symptoms
 

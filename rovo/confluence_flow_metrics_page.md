@@ -68,7 +68,7 @@ the RTE".
 1. Run **Extract from Jira and compute**. Wait for the status cell to say it is done, and note the as-of date.
    When the macros fail, `scripts\run.ps1 extract` writes `jira2dashboard.xlsx` with the same `Metrics` and
    `DataChecks` columns (values) and the charts as pictures: fill the page from it the same way.
-2. **Rows:** the sheet `Metrics` has one row per period of the `Periods` sheet and per team, for all PIs. Paste
+2. **Rows:** the sheet `Metrics` has one row per period of the `Iterations` sheet and per team, for all PIs. Paste
    only the rows of this PI's periods, plus the last period of the previous PI, so the first iteration has a
    trend. Filter the column Period first; Excel copies only the visible rows of a filtered table.
 3. **Table A:** in the sheet `Metrics`, select the columns of table A, holding Ctrl to add each one. Copy them and

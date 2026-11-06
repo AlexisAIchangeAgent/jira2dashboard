@@ -5,7 +5,7 @@ Try a workbook by hand against the fake Jira, without the automatic tests.
 .DESCRIPTION
 1. Stops a fake Jira that these scripts started earlier on that port.
 2. Builds out\release\jira2dashboard.xlsm if it is missing (when no -Workbook is given).
-3. Writes the copy out\manual_test\jira2dashboard4manualtest.xlsm, with Config, Periods and PIs filled for the fake
+3. Writes the copy out\manual_test\jira2dashboard4manualtest.xlsm, with Config, Iterations and PIs filled for the fake
    Jira (.\scripts\run.ps1 mock-workbook). The workbook given is not changed. out\manual_test is never cleaned.
 4. Starts the fake Jira, 1200 issues and the known anomalies, in a minimized window (start-mock.ps1).
 5. Opens the copy in a new Excel of its own, so that a crash cannot take other workbooks with it. Then click

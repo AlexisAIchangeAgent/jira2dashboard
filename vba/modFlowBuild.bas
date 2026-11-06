@@ -115,11 +115,11 @@ Private Function PeriodRows(ByVal wsPeriods As Object) As Collection
         s = SerialOf(row("Start")): e = SerialOf(row("End"))
         If IsEmpty(s) Or IsEmpty(e) Then
             Cov "FLB28"
-            Err.Raise vbObjectError + 701, "BuildFlowSheets", "Sheet Periods: Start and End of period " & row("Period") & " must be dates."
+            Err.Raise vbObjectError + 701, "BuildFlowSheets", "Sheet Iterations: Start and End of period " & row("Period") & " must be dates."
         End If
         If e <= s Then
             Cov "FLB27"
-            Err.Raise vbObjectError + 704, "BuildFlowSheets", "Sheet Periods: period " & row("Period") & " ends before it starts."
+            Err.Raise vbObjectError + 704, "BuildFlowSheets", "Sheet Iterations: period " & row("Period") & " ends before it starts."
         End If
         out.Add Array(CStr(row("Period")), s, e)
     Next row
@@ -213,7 +213,7 @@ Private Sub LoadPlan(ByVal wb As Object, ByRef spec As Object, ByRef teams As Co
     ' Everything the build needs from the sheets, checked: the errors come before anything is changed.
     Dim nm As Variant
     RequireDynamicArrays
-    For Each nm In Array("FlowFormulas", "ChartSpec", "ChecksSpec", "Config", "Periods", "PIs", "Projects", "Workflows", _
+    For Each nm In Array("FlowFormulas", "ChartSpec", "ChecksSpec", "Config", "Iterations", "PIs", "Projects", "Workflows", _
                          "Transitions", "Dashboard", "Issues", "StatusIntervals", "IssueLinks")
         If Not SheetExists(wb, CStr(nm)) Then
             Err.Raise vbObjectError + 705, "BuildFlowSheets", "Sheet " & nm & " is missing: rebuild the workbook with scripts\run.ps1 build."
@@ -221,15 +221,15 @@ Private Sub LoadPlan(ByVal wb As Object, ByRef spec As Object, ByRef teams As Co
     Next nm
     Set spec = ReadFormulas(wb)
     Set teams = TeamNames(wb.Worksheets("Projects"), SettingOf(spec, "Dashboard", "ProgramTeam"))
-    Set periods = PeriodRows(wb.Worksheets("Periods"))
+    Set periods = PeriodRows(wb.Worksheets("Iterations"))
     If periods.Count = 0 Then
         Cov "FLB15"
-        Err.Raise vbObjectError + 703, "BuildFlowSheets", "Sheet Periods has no period: fill Period, Start and End first."
+        Err.Raise vbObjectError + 703, "BuildFlowSheets", "Sheet Iterations has no period: fill Period, Start and End first."
     End If
 End Sub
 
 Public Sub ValidateBuildInputs(ByVal wb As Object)
-    ' Called before the extraction: a bad Periods sheet or an old Excel must not be found after ten minutes of reading Jira,
+    ' Called before the extraction: a bad Iterations sheet or an old Excel must not be found after ten minutes of reading Jira,
     ' with the earlier results already cleared.
     Dim spec As Object, teams As Collection, periods As Collection
     LoadPlan wb, spec, teams, periods

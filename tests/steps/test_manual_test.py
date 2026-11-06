@@ -28,13 +28,13 @@ def rows(ws):
 
 
 def read(path):
-    """{Parameter: (Value, Mandatory)} of Config, and the rows of Periods and PIs, of the workbook at `path`."""
+    """{Parameter: (Value, Mandatory)} of Config, and the rows of Iterations and PIs, of the workbook at `path`."""
     with com.excel_session() as app:
         wb = com.open_without_macros(app, path)
         header, *table = wb.Worksheets("Config").UsedRange.Value
         col = {name: n for n, name in enumerate(header)}
         config = {r[col["Parameter"]]: (r[col["Value"]], r[col["Mandatory"]]) for r in table if r[col["Parameter"]]}
-        result = {"config": config, "Periods": rows(wb.Worksheets("Periods")), "PIs": rows(wb.Worksheets("PIs"))}
+        result = {"config": config, "Iterations": rows(wb.Worksheets("Iterations")), "PIs": rows(wb.Worksheets("PIs"))}
         wb.Close(False)
         del wb, app
     return result
@@ -73,9 +73,9 @@ def _mandatory(world):
     assert [name for name in mandatory if config[name][0] in (None, "")] == []
 
 
-@then("les feuilles Periods et PIs de la copie ont les itérations et le PI du faux Jira")
+@then("les feuilles Iterations et PIs de la copie ont les itérations et le PI du faux Jira")
 def _periods(world):
-    assert same_rows(world["copy"]["Periods"], M.iterations())
+    assert same_rows(world["copy"]["Iterations"], M.iterations())
     assert same_rows(world["copy"]["PIs"], M.PIS)
 
 

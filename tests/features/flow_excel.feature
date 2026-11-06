@@ -9,7 +9,7 @@ Fonctionnalité: Le classeur livré extrait Jira et calcule les mêmes chiffres 
   Scénario: Mêmes résultats en mode A puis en mode B après changement du paramètre dans Config
     Soit un faux Jira avec 250 tickets générés avec les projets des paramètres
     Et le classeur à livrer dont la feuille Config pointe sur ce faux Jira avec FlowLoadMode "A"
-    Et les itérations de 14 jours depuis le "2026-06-01" jusqu'à la date de référence dans la feuille Periods
+    Et les itérations de 14 jours depuis le "2026-06-01" jusqu'à la date de référence dans la feuille Iterations
     Quand j'exécute la macro Extraire et calculer du classeur
     Alors aucune cellule des feuilles de flux ne montre une erreur Excel
     Et la feuille StatusIntervals reproduit les intervalles de la référence Python
@@ -30,7 +30,7 @@ Fonctionnalité: Le classeur livré extrait Jira et calcule les mêmes chiffres 
     Soit un faux Jira avec 150 tickets générés et les anomalies de données connues
     Et le classeur à livrer dont la feuille Config pointe sur ce faux Jira avec FlowLoadMode "A"
     Et les champs Jira des contrôles et la fenêtre du PI sont renseignés dans les feuilles Config et PIs
-    Et les itérations de 14 jours depuis le "2026-08-17" jusqu'à la date de référence dans la feuille Periods
+    Et les itérations de 14 jours depuis le "2026-08-17" jusqu'à la date de référence dans la feuille Iterations
     Quand j'exécute la macro Extraire et calculer du classeur
     Alors aucune cellule des feuilles de flux ne montre une erreur Excel
     Et la table ItemFlow reproduit les calculs de la référence Python
@@ -43,7 +43,7 @@ Fonctionnalité: Le classeur livré extrait Jira et calcule les mêmes chiffres 
     Soit un faux Jira avec 150 tickets générés et les anomalies de données connues
     Et le classeur à livrer dont la feuille Config pointe sur ce faux Jira avec FlowLoadMode "A"
     Et les champs Jira des contrôles et la feuille PIs sont vides
-    Et les itérations de 14 jours depuis le "2026-08-17" jusqu'à la date de référence dans la feuille Periods
+    Et les itérations de 14 jours depuis le "2026-08-17" jusqu'à la date de référence dans la feuille Iterations
     Quand j'exécute la macro Extraire et calculer du classeur
     Alors aucune cellule des feuilles de flux ne montre une erreur Excel
     Et la table FillRates reproduit les taux de remplissage de la référence Python
@@ -54,7 +54,7 @@ Fonctionnalité: Le classeur livré extrait Jira et calcule les mêmes chiffres 
   Scénario: Un second calcul avec moins de données remplace le premier sans rien laisser
     Soit un faux Jira avec 120 tickets générés avec les projets des paramètres
     Et le classeur à livrer dont la feuille Config pointe sur ce faux Jira avec FlowLoadMode "A"
-    Et les itérations de 14 jours depuis le "2026-08-17" jusqu'à la date de référence dans la feuille Periods
+    Et les itérations de 14 jours depuis le "2026-08-17" jusqu'à la date de référence dans la feuille Iterations
     Et un premier calcul sur un faux Jira de 250 tickets a déjà rempli le classeur
     Quand j'exécute la macro Extraire et calculer du classeur
     Alors aucune cellule des feuilles de flux ne montre une erreur Excel
@@ -71,7 +71,7 @@ Fonctionnalité: Le classeur livré extrait Jira et calcule les mêmes chiffres 
   Scénario: Le bouton extrait par tranches : la barre avance, Excel répond entre deux tranches, puis les résultats sont complets
     Soit un faux Jira lent avec 150 tickets générés avec les projets des paramètres
     Et le classeur à livrer dont la feuille Config pointe sur ce faux Jira avec FlowLoadMode "A"
-    Et les itérations de 14 jours depuis le "2026-08-17" jusqu'à la date de référence dans la feuille Periods
+    Et les itérations de 14 jours depuis le "2026-08-17" jusqu'à la date de référence dans la feuille Iterations
     Quand je clique sur le bouton Extraire et calculer sans attendre la fin
     Alors la barre de progression avance sans reculer, le classeur répond entre deux tranches et l'extraction se termine
     Et le journal local décrit l'exécution étape par étape, sans jeton, adresse ni réponse de Jira
@@ -83,7 +83,7 @@ Fonctionnalité: Le classeur livré extrait Jira et calcule les mêmes chiffres 
   Scénario: Annuler pendant l'extraction garde les résultats du calcul précédent
     Soit un faux Jira lent avec 150 tickets générés avec les projets des paramètres
     Et le classeur à livrer dont la feuille Config pointe sur ce faux Jira avec FlowLoadMode "A"
-    Et les itérations de 14 jours depuis le "2026-08-17" jusqu'à la date de référence dans la feuille Periods
+    Et les itérations de 14 jours depuis le "2026-08-17" jusqu'à la date de référence dans la feuille Iterations
     Quand j'exécute la macro Extraire et calculer du classeur
     Et je clique sur le bouton Extraire et calculer sans attendre la fin
     Et j'annule dès que la barre a avancé

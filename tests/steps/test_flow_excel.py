@@ -190,10 +190,10 @@ def _check_fields_empty(world):
     world["settings"] = dataclasses.replace(CheckSettings.from_params(), fields={n: "" for n in FIELD_IDS}, pis={})
 
 
-@given(parsers.parse('les itérations de 14 jours depuis le "{first}" jusqu\'à la date de référence dans la feuille Periods'))
+@given(parsers.parse('les itérations de 14 jours depuis le "{first}" jusqu\'à la date de référence dans la feuille Iterations'))
 def _periods(world, first):
     periods = mock_workbook.iterations(dt.datetime.fromisoformat(first), world["dataset"].as_of)
-    mock_workbook.write_periods(world["wb"].Worksheets("Periods"), periods)    # the periods of an earlier run go
+    mock_workbook.write_periods(world["wb"].Worksheets("Iterations"), periods)    # the periods of an earlier run go
     world["periods"] = periods
 
 
@@ -693,7 +693,7 @@ def _metrics(world, mode):
 
 # --- jira_config.feature: the button Read the Jira configuration ----------------------------------------------------
 
-PARAMETER_SHEETS = ("Config", "Projects", "Workflows", "Transitions", "FieldMapping", "Periods")
+PARAMETER_SHEETS = ("Config", "Projects", "Workflows", "Transitions", "FieldMapping", "Iterations")
 PREVIEW = "/rest/api/3/workflows/preview"
 MSO_FORM_CONTROL = 8                 # Shape.Type of a Form button
 

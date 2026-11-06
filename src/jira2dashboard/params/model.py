@@ -50,7 +50,7 @@ _PROJECT_KEY = re.compile(r"[A-Z][A-Z0-9_]+")
 SPECS = (
     SheetSpec("Config", "config.md", ("Parameter", "Value", "Example", "Mandatory", "Description")),
     SheetSpec("Projects", "projects.md", ("Project", "Role", "Team")),
-    SheetSpec("Periods", "periods.md", ("Period", "Start", "End")),
+    SheetSpec("Iterations", "iterations.md", ("Period", "Start", "End")),
     SheetSpec("PIs", "pis.md", ("PI", "Start", "End")),
     SheetSpec("Workflows", "workflows.md",
               ("Workflow", "Order", "Status", "Category", "IsStart", "IsEnd", "IsFree"),
@@ -232,7 +232,7 @@ def _parse_moment(text: str):
 
 
 def _check_periods(sheet: ParamSheet, problems: list[str], column: str = "Period") -> None:
-    """Periods (column Period) and PIs (column PI): a name, two dates, Start before End, no name twice."""
+    """Iterations (column Period) and PIs (column PI): a name, two dates, Start before End, no name twice."""
     seen: Counter = Counter()
     label = sheet.name
     noun = column.lower() if column == "PI" else "period"
@@ -301,14 +301,14 @@ def load_all(params_dir: Path = PARAMS_DIR) -> list[ParamSheet]:
 
 
 def shape_problems(sheets: dict[str, "ParamSheet | None"]) -> list[str]:
-    """The rules of Projects, Periods, PIs, Workflows and Transitions, the same for params/*.md and for the sheets of a
+    """The rules of Projects, Iterations, PIs, Workflows and Transitions, the same for params/*.md and for the sheets of a
     filled workbook (the Python extraction reads those). Config has its own rules on each side: the repo keeps the
     client values empty, the workbook holds them."""
     problems: list[str] = []
     if sheets.get("Projects"):
         _check_projects(sheets["Projects"], problems)
-    if sheets.get("Periods"):
-        _check_periods(sheets["Periods"], problems)
+    if sheets.get("Iterations"):
+        _check_periods(sheets["Iterations"], problems)
     if sheets.get("PIs"):
         _check_periods(sheets["PIs"], problems, "PI")
     if sheets.get("Workflows"):

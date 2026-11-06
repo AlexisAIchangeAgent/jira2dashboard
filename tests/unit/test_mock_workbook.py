@@ -1,4 +1,4 @@
-"""The copy of a workbook for a manual test against the fake Jira: what goes into Config, Periods and PIs."""
+"""The copy of a workbook for a manual test against the fake Jira: what goes into Config, Iterations and PIs."""
 import datetime as dt
 
 from jira2dashboard import clean
