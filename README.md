@@ -31,11 +31,13 @@ powershell -ExecutionPolicy Bypass -File scripts\setup.ps1 -Dev   # .venv with p
 .\scripts\run.ps1 test                                            # fast tests, under a minute
 .\scripts\run.ps1 build                                           # out\release\jira2dashboard.xlsm
 .\scripts\manual-test.ps1                                         # fake Jira + filled copy in a new Excel
+.\scripts\run.ps1 extract --workbook C:\Data\jira2dashboard.xlsm   # no VBA: Jira -> jira2dashboard.xlsx
 ```
 
 In the copy: **Enable Content**, **Read the Jira configuration**, then **Extract from Jira and compute**. Stop the
 fake Jira with `.\scripts\stop-mock.ps1`. Excel may crash after the last search page
 ([known defect](#symptoms)): save your other work first, or try `manual-test.ps1 -Python`.
+`run.ps1 extract` reads the parameter sheets of a saved workbook ([section 10](#10-python-extraction-without-vba)).
 
 ## 2. Overview
 
