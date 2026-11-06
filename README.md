@@ -2,9 +2,9 @@
 
 jira2dashboard computes the six SAFe flow metrics (Velocity, Flow Time, Flow Load, Flow Efficiency, Flow
 Distribution, Flow Predictability) and 29 data-quality checks from Jira Cloud, and shows them on a dashboard in an
-Excel workbook. It is built for the RTE of an Agile Release Train. The workbook runs on the client machine with Excel
-alone: VBA reads Jira and Excel formulas compute every figure. There is no server, Python is not needed to use it,
-and the data stays on the machine: the only network calls go to the client's Jira, through its proxy.
+Excel workbook. It is built for the RTE of an Agile Release Train. The workbook runs on the user's machine with
+Excel alone: VBA reads Jira and Excel formulas compute every figure. There is no server, Python is not needed to
+use it, and the data stays on the machine: the only network calls go to Jira, through the proxy.
 
 ## Contents
 
@@ -16,7 +16,7 @@ and the data stays on the machine: the only network calls go to the client's Jir
 6. [Scripts and commands](#6-scripts-and-commands)
 7. [Typical workflows](#7-typical-workflows)
 8. [Configuration](#8-configuration)
-9. [Using the workbook on the client machine](#9-using-the-workbook-on-the-client-machine)
+9. [Using the workbook](#9-using-the-workbook)
 10. [Python extraction without VBA](#10-python-extraction-without-vba)
 11. [Metrics and data checks](#11-metrics-and-data-checks)
 12. [Logs and debugging](#12-logs-and-debugging)
@@ -56,7 +56,7 @@ path that does not use VBA.
 
 - Windows 11 and Excel for Microsoft 365 (dynamic array formulas: Excel 365 or 2021).
 - Python is used to **build** and **test** the workbook. Its runtime needs pywin32 and the standard library only.
-- Nothing from the client may leave the client machine: no data, no script. Client values (URL, account, token,
+- The data read from Jira never leaves the machine where the workbook runs. Site values (URL, account, token,
   proxy, filter, field ids, as-of date, calendar) stay empty in this repository and are typed in the workbook.
 - Mappings (statuses, transitions, fields, Flow Load mode) are **parameters in the workbook**, never code.
 
@@ -79,28 +79,40 @@ path that does not use VBA.
 ### Architecture
 
 ```
-                 BUILD (developer machine)                             RUN (client machine)
+BUILD  developer machine, Python
 
- params/*.md --+
- vba/*.bas  ---+--> run.ps1 build --> jira2dashboard.xlsm --> Excel + VBA (no Python)
- flow/ plan ---+    build_workbook.py                          |
-                                                               | 1. read Jira (WinHTTP, proxy, Windows auth)
-       Jira Cloud REST API v3  <-------------------------------+    modHttp, modProxy, modJira
-                                                               |
-                                                               | 2. write the raw sheets (values)
-                                                               |    modExtract, modFlow:
-                                                               |    Issues, StatusIntervals, IssueLinks
-                                                               |
-                                                               | 3. rebuild from the plan (formulas)
-                                                               |    modFlowBuild: Controls, ItemFlow, DailyLoad,
-                                                               |    Metrics, FillRates, DataChecks, ChartData
-                                                               v
-                                                     Dashboard: 8 charts, status cell A3
+  params/*.md ---+
+  vba/*.bas  ----+---> run.ps1 build ---> jira2dashboard.xlsm
+  flow/ plan ----+     build_workbook.py
 
- FALLBACK, no VBA:  saved .xlsm --> run.ps1 extract --> standalone/ --> Jira --> flow/ --> jira2dashboard.xlsx
 
- TESTS:  mockjira/ (fake Jira on 127.0.0.1) answers the workbook and standalone/;
-         flow/ (Python reference) is compared with the Excel formulas, cell by cell.
+RUN  user machine, Excel + VBA, no Python
+
+  Jira Cloud REST API v3
+        |
+        |  1. read Jira       modHttp, modProxy, modJira (WinHTTP, proxy, Windows auth)
+        |  2. write raw data  modExtract, modFlow
+        v
+  Issues, StatusIntervals, IssueLinks                       raw sheets (values)
+        |
+        |  3. rebuild         modFlowBuild, from the plan sheets
+        v
+  Controls, ItemFlow, DailyLoad, Metrics,                   computed sheets (formulas)
+  FillRates, DataChecks, ChartData
+        |
+        v
+  Dashboard: 8 charts, status cell A3
+
+
+FALLBACK  Python, no VBA
+
+  saved .xlsm ---> run.ps1 extract ---> standalone/ ---> Jira ---> flow/ ---> jira2dashboard.xlsx
+
+
+TESTS
+
+  mockjira/  fake Jira on 127.0.0.1, answers the workbook and standalone/
+  flow/      Python reference, compared with the Excel formulas cell by cell
 ```
 
 ### One extraction, step by step
@@ -131,7 +143,7 @@ path that does not use VBA.
 
 | Decision | Reason |
 |---|---|
-| VBA does the runtime work | The client machine needs Excel only. |
+| VBA does the runtime work | The user's machine needs Excel only. |
 | Every figure is a visible formula | Each number can be audited; the Python reference proves the formulas. |
 | Formulas, charts and checks are data | One generic builder; a new metric or check needs no VBA change. |
 | HTTP through WinHTTP (COM) | It answers a proxy's Windows authentication with the user's session. |
@@ -175,7 +187,7 @@ path that does not use VBA.
   access to the VBA project object model** turned on (the build injects VBA). `check-machine` checks it.
 - Python 3.14, started with the `py` launcher.
 
-**Client machine**
+**User machine**
 
 - To use the workbook: Excel for Windows (365 or 2021) with macros allowed. No Python.
 - To build the workbook there, or to use the Python fallback: Python 3.14 and pywin32 (`setup.ps1`, without `-Dev`).
@@ -273,9 +285,9 @@ powershell -ExecutionPolicy Bypass -File scripts\setup.ps1 -Dev   # when PowerSh
 2. `release.ps1 -Version v1.0.0`: dry run, nothing leaves the machine. Check `out\release\v1.0.0`.
 3. `release.ps1 -Version v1.0.0 -Publish`: the GitHub release.
 
-**Client machine**
+**User machine**
 
-- The `.xlsm` is delivered alone: no script. Follow section [9](#9-using-the-workbook-on-the-client-machine).
+- The `.xlsm` is delivered alone: no script. Follow section [9](#9-using-the-workbook).
 - The code is delivered: `setup.ps1` (no `-Dev`; `-Proxy` if pip needs a proxy), `run.ps1 check-machine`, then
   `run.ps1 build`. Then fill the workbook and use its buttons.
 - The macros do not work: save the filled workbook, then `run.ps1 extract --workbook <workbook>`
@@ -322,11 +334,11 @@ in code. Each file of `params/` describes its columns and rules.
 `BaseUrl`, `Email`, `ApiToken`, `ProxyServer`, `ProxyBypass`, `Filter`, `WorkTypeField`, `AsOf`, the field ids and
 the calendars stay empty in the repository. A test refuses a token in `params/config.md`.
 
-## 9. Using the workbook on the client machine
+## 9. Using the workbook
 
 The workbook repeats these steps on the `Dashboard` from cell `T1`, and in full in the sheet `Manual`.
 
-**Delivery.** Either the file `jira2dashboard.xlsm` alone, or the code, built on the client machine with
+**Delivery.** Either the file `jira2dashboard.xlsm` alone, or the code, built on the user's machine with
 `setup.ps1` then `run.ps1 build`.
 
 1. **Unblock the file** if it came from a download or an e-mail (Mark of the Web makes Excel block the macros):
