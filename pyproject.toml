@@ -36,7 +36,7 @@ exclude_also = [
     '''def (start_excel|excel_pid|excel_session|_quit_quietly|_kill_if_still_excel|read_access_vbom|assert_vba_access)\b''',    '''def (new_workbook|add_sheet_after_last|block_range|write_block|put_en_us|components|get_component)\b''',
     '''def (set_module_code|add_or_replace_module|workbook_component|sheet_component|_find_document_by_tab_name)\b''',
     '''def (set_sheet_code_name|add_macro_button|open_without_macros|compile_vba_project|run_macro)\b''',
-    '''def (run_child|_kill_child_excel|write_params)\b''',
+    '''def (run_child|_kill_child_excel|write_params|try_workbook_macro)\b''',
     '''def (build|add_progress_bar|write_coverage_map|compile_ok|run_tests|bisect|main|build_delivery)\b''',
     '''def (write_periods|write_config|fill_copy)\b''',
 ]

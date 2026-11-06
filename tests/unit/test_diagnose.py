@@ -124,3 +124,41 @@ def test_the_python_log_is_never_read(tmp_path):
     (folder / "jira2dashboard.log").write_text("2026-11-06 10:00:00.000 RUN a line of the VBA log\n", encoding="ascii")
     text = D.report(None, readings(), home="", local_app_data=str(tmp_path), temp=str(tmp_path))
     assert "a line of the VBA log" in text and "SECRET-IN-PYTHON-LOG" not in text
+
+
+def stream_zone(path: Path, zone: int):
+    Path(f"{path}:Zone.Identifier").write_text(f"[ZoneTransfer]\r\nZoneId={zone}\r\n", encoding="ascii")
+
+
+def advice(tmp_path, ran, *, zone=None, **policies):
+    file = tmp_path / "jira2dashboard.xlsm"
+    file.write_bytes(b"x")
+    if zone is not None:
+        stream_zone(file, zone)
+    return " ".join(D.macro_advice(ran, file, readings(policies=policies)))
+
+
+def test_macros_that_do_not_run_even_with_office_relaxed_point_at_the_endpoint_protection(tmp_path):
+    text = advice(tmp_path, False)
+    assert "even with Office's security relaxed" in text and "endpoint protection" in text
+    assert "run.ps1 diagnose" in text and "Audit" in text
+
+
+def test_macros_that_run_with_the_mark_of_the_web_point_at_unblocking(tmp_path):
+    text = advice(tmp_path, True, zone=3)
+    assert "run when Office's security is relaxed" in text
+    assert "Mark of the Web" in text and "Unblock" in text and "Trusted Location" in text
+
+
+@pytest.mark.parametrize("policy, value, word", [("BlockContentExecutionFromInternet (policy)", "1", "policy blocks macros"),
+                                                 ("VBAWarnings (policy)", "4", "VBAWarnings=4"),
+                                                 ("VBAWarnings (user setting)", "3", "VBAWarnings=3")])
+def test_macros_that_run_with_a_restrictive_office_setting_name_it(tmp_path, policy, value, word):
+    assert word in advice(tmp_path, True, **{policy: value})
+
+
+def test_permissive_office_settings_are_not_blamed(tmp_path):
+    text = advice(tmp_path, True, **{"VBAWarnings (user setting)": "1", "VBAWarnings (policy)": "not set",
+                                      "BlockContentExecutionFromInternet (policy)": "not set"})
+    assert "Mark of the Web" not in text and "VBAWarnings=" not in text and "policy blocks" not in text
+    assert "Nothing in Office explains a block" in text and "endpoint protection" in text

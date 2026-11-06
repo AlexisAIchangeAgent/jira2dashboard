@@ -104,6 +104,37 @@ def name_line(name: str) -> str:
     return f"Name: {name} (not the stable name {DELIVERED_NAME}: an allow-list on the name or the path would miss it)"
 
 
+VBA_USER = "VBAWarnings (user setting)"
+VBA_POLICY = "VBAWarnings (policy)"
+BLOCK_INTERNET = "BlockContentExecutionFromInternet (policy)"
+RESTRICTIVE_VBA_WARNINGS = {"3", "4"}                  # 3: only macros signed by a trusted publisher, 4: none
+
+
+def macro_advice(ran: bool, workbook: Path | None, readings: Readings) -> list[str]:
+    """What the macro check of check-machine means. `ran`: a macro of the workbook ran with Office's own security relaxed
+    for the check (AutomationSecurity low). If it did not, Office is not the cause: something outside it stops the macros."""
+    if not ran:
+        return ["The macros did not run even with Office's security relaxed: something outside Office stops them, most "
+                "likely the endpoint protection.",
+                "Next: run scripts\\run.ps1 diagnose for the ticket, and ask the security team to put a test machine in Audit "
+                "mode to read the alert (class, process, rule)."]
+    reasons = []
+    zone = zone_id(workbook) if workbook is not None and workbook.is_file() else None
+    if zone is not None and zone >= 3:
+        reasons.append("the file has the Mark of the Web: right-click > Properties > Unblock, or put it in a Trusted Location.")
+    if readings.policies.get(BLOCK_INTERNET) == "1":
+        reasons.append("a policy blocks macros of files from the Internet: unblock the file or use a Trusted Location.")
+    for label in (VBA_POLICY, VBA_USER):
+        value = readings.policies.get(label)
+        if value in RESTRICTIVE_VBA_WARNINGS:
+            reasons.append(f"the macro setting of Office disables unsigned macros (VBAWarnings={value}): use a Trusted Location.")
+    if not reasons:
+        reasons.append("Nothing in Office explains a block: if the macros still do not run by hand, the endpoint protection is "
+                       "the likely cause (run.ps1 diagnose, ask the security team for its Audit mode).")
+    return ["The macros of this file run when Office's security is relaxed for this check. If they do not run by hand, "
+            "look at Office:", *[f"- {reason}" for reason in reasons]]
+
+
 def _file_section(workbook: Path | None) -> list[str]:
     if workbook is None or not workbook.is_file():
         return ["No workbook found. Build one (scripts\\run.ps1 build) or give one with --workbook FILE."]

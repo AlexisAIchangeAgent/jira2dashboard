@@ -52,9 +52,9 @@ def office() -> dict[str, str]:
 
 
 def policies() -> dict[str, str]:
-    where = {"VBAWarnings (user setting)": (EXCEL_SECURITY, "VBAWarnings"),
-             "VBAWarnings (policy)": (EXCEL_POLICY, "VBAWarnings"),
-             "BlockContentExecutionFromInternet (policy)": (EXCEL_POLICY, "BlockContentExecutionFromInternet")}
+    where = {D.VBA_USER: (EXCEL_SECURITY, "VBAWarnings"),
+             D.VBA_POLICY: (EXCEL_POLICY, "VBAWarnings"),
+             D.BLOCK_INTERNET: (EXCEL_POLICY, "BlockContentExecutionFromInternet")}
     values = {label: registry_value(winreg.HKEY_CURRENT_USER, key, name) for label, (key, name) in where.items()}
     return {label: "not set" if value is None else str(value) for label, value in values.items()}
 

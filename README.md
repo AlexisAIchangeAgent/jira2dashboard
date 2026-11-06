@@ -27,7 +27,7 @@ On a developer machine that meets the [requirements](#5-requirements), in PowerS
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File scripts\setup.ps1 -Dev   # .venv with pywin32 and the test tools
-.\scripts\run.ps1 check-machine                                   # 21 checks, all OK
+.\scripts\run.ps1 check-machine                                   # 22 checks, all OK
 .\scripts\run.ps1 test                                            # fast tests, under a minute
 .\scripts\run.ps1 build                                           # out\release\jira2dashboard.xlsm
 .\scripts\manual-test.ps1                                         # fake Jira + filled copy in a new Excel
@@ -158,7 +158,7 @@ publishes); `activate.cmd` opens a console with `.venv` activated. `_launch.cmd`
 | `test-excel` | Scenarios that drive Excel | pytest arguments |
 | `test-network` | Excel scenarios that also need the network | pytest arguments |
 | `vba-tests` | Builds, compiles and runs the VBA tests | `--offline`, `--bisect`, `--out` |
-| `check-machine` | 21 checks: Python, Excel, VBA project access, compile | none |
+| `check-machine` | 22 checks: Python, Excel, VBA project access, compile, macro of the built workbook | `--workbook` |
 | `diagnose` | Report to paste into a ticket when the macros are blocked | `--workbook` |
 | `mock-jira` | The fake Jira on `http://127.0.0.1:8099` | `--anomalies`, `--issues`, `--port` |
 | `mock-workbook` | Writes the manual-test copy | `--workbook`, `--port` |
@@ -332,7 +332,9 @@ messages: **reread a log before sharing it**.
   with every build (`release.ps1` writes it in `notes.md`). `start-mock.ps1` prints the `python.exe` to allow for the
   fake Jira. The delivered VBA
   creates only two COM objects, `WinHttp.WinHttpRequest.5.1` and `Scripting.Dictionary` (UTF-8 and Base64 are plain
-  VBA; a test guards it).
+  VBA; a test guards it). To tell Office from the endpoint protection, `run.ps1 check-machine` opens the built
+  workbook with Office's own macro security relaxed and runs a read-only macro: if it runs, look at Office (Mark of the
+  Web, Trusted Location, policies: the check says which); if it does not, something outside Office stops the macros.
 
 ## 13. Testing
 

@@ -26,7 +26,7 @@ powershell -ExecutionPolicy Bypass -File scripts\setup.ps1 -Dev   # create .venv
 .\scripts\run.ps1 test-excel      # scenarios that drive Excel (marker `excel`, no network)
 .\scripts\run.ps1 test-network    # Excel + network scenarios (marker `network`)
 .\scripts\run.ps1 vba-tests       # build + compile + run the VBA test suite; --offline, --bisect, --out name.xlsm
-.\scripts\run.ps1 check-machine   # 21 checks of the machine (Excel, VBA trust...)
+.\scripts\run.ps1 check-machine   # 22 checks of the machine (Excel, VBA trust, macro of the workbook)
 .\scripts\run.ps1 diagnose        # paste-ready report when the macros are blocked (hashes, Mark of the Web, Office, security products)
 .\scripts\run.ps1 mock-jira       # fake Jira on http://127.0.0.1:8099 (--anomalies: with the known data anomalies)
 .\scripts\run.ps1 build           # delivery workbook out\release\jira2dashboard.xlsm (--out name.xlsm: to out\inter)

@@ -1,6 +1,6 @@
 """Check this machine for jira2dashboard: run every function of excel/com.py against the real Excel.
 
-21 checks, each reported OK or KO with its reason: Python and pywin32, Excel starts and quits, a workbook is created,
+22 checks, each reported OK or KO with its reason: Python and pywin32, Excel starts and quits, a workbook is created,
 filled and saved as .xlsm, access to the VBA project (Trust Center), a module is added and compiled, a macro runs, a
 child process compiles and runs a workbook, the clean-up of a hung Excel. Its files go to out\\inter. Exit code 0 when
 every check passes, 1 otherwise. Run it first on a new machine.
@@ -12,6 +12,8 @@ import sys
 import traceback
 from pathlib import Path
 
+from jira2dashboard import diagnose as D
+from jira2dashboard.cli import diagnose as diag
 from jira2dashboard.cli.args import parser
 from jira2dashboard.excel import com as R
 from jira2dashboard.paths import CHILDREN_DIR, INTER_DIR
@@ -263,13 +265,35 @@ def reopen_checks(app, path: Path):
     s_reopen()
 
 
+MACRO_CHECK = "modActions.ProgressSnapshot"            # a read-only function of the delivered workbook
+
+
+def macro_check(app, workbook: Path | None):
+    """Does a macro of the delivered workbook run? Office's own security is relaxed for this check, so a failure comes from
+    outside Office (the endpoint protection) and a success leaves Office's settings as the suspects."""
+    if workbook is None:
+        skip("delivered workbook: its macro runs", "no workbook to try: build one (scripts\\run.ps1 build) or give --workbook FILE")
+        return
+
+    @step("delivered workbook: its macro runs (Office's security relaxed for this check)")
+    def s_macro():
+        ran, detail = R.try_workbook_macro(app, workbook, MACRO_CHECK)
+        readings = D.Readings(office={}, policies=diag.policies(), trusted_locations=diag.trusted_locations(),
+                              security_products=None, interpreters=[])
+        advice = " ".join(D.macro_advice(ran, workbook, readings))
+        assert ran, f"{detail} | {advice}"
+        return f"{detail!r} | {advice}"
+    s_macro()
+
+
 def parse(argv: list[str] | None = None):
-    return parser("scripts\\run.ps1 check-machine", __doc__,
-                  "example:\n  scripts\\run.ps1 check-machine").parse_args(argv)
+    p = parser("scripts\\run.ps1 check-machine", __doc__, "example:\n  scripts\\run.ps1 check-machine")
+    p.add_argument("--workbook", type=Path, help="the workbook whose macro is tried (default: the delivered workbook)")
+    return p.parse_args(argv)
 
 
 def main(argv: list[str] | None = None) -> int:
-    parse(argv)
+    args = parse(argv)
     OUT.mkdir(parents=True, exist_ok=True)
     base = excel_count()
     print(f"Python {sys.version.split()[0]}, Excel processes before: {base}")
@@ -284,6 +308,7 @@ def main(argv: list[str] | None = None) -> int:
             path = build_and_check(app, trusted)
             if path and trusted:
                 reopen_checks(app, path)
+            macro_check(app, args.workbook or diag.default_workbook())
     except Exception as err:  # noqa: BLE001
         RESULTS.append(("FAIL", "excel_session", describe(err)))
         traceback.print_exc()

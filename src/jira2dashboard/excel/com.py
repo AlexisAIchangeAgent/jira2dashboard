@@ -377,6 +377,23 @@ def open_without_macros(app, path: Path):
     return app.Workbooks.Open(str(path.resolve()))
 
 
+def try_workbook_macro(app, path: Path, macro: str) -> tuple[bool, str]:
+    """Open `path` read-only with macros enabled (AutomationSecurity low: Office's own settings do not count for this check)
+    and run `macro`, a read-only function of the workbook. (True, its result) when it ran, (False, why) when Excel refused to
+    open the file or to run the macro. The workbook is closed again. Excel itself dying is not caught here."""
+    app.AutomationSecurity = MSO_AUTOMATION_SECURITY_LOW
+    try:
+        wb = app.Workbooks.Open(str(path.resolve()), 0, True)          # UpdateLinks=0, ReadOnly=True (positional only)
+    except pywintypes.com_error as err:
+        return False, f"cannot open: hresult={err.hresult} scode={com_scode(err)}"
+    try:
+        return True, str(app.Run(f"'{wb.Name}'!{macro}"))
+    except pywintypes.com_error as err:
+        return False, f"cannot run {macro}: hresult={err.hresult} scode={com_scode(err)}"
+    finally:
+        wb.Close(False)
+
+
 COMPILE_CONTROL_ID = 578   # VBE "Compile VBAProject", same ID in every language
 
 def compile_vba_project(app, wb) -> bool:
