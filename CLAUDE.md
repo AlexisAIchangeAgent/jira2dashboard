@@ -45,6 +45,9 @@ one: copy `stop-mock.cmd` and change its `set` lines. `.cmd` files are ASCII wit
 
 The release zip leaves out the `export-ignore` paths of `.gitattributes` (CLAUDE.md, the handoff, `archive/`,
 `.claude/`, `.venv/`); `tests/unit/test_release_contents.py` pins the list. `-Publish` is outward-facing: ask AL first.
+Releases: the version is `vX.Y.Z` only (`v0.0.0-dryrun` is refused) and the number is AL's choice. The dry run
+(`release.ps1 -Version v0.0.0`) needs a clean tree, builds with Excel and leaves `out\release\<version>`: delete it afterwards.
+`-Publish` also needs HEAD == origin/main and `gh` logged in. `v0.1.0` is published (2026-11-06).
 `diagnose` never opens the workbook, never reads `python.log` (JQL, Jira's messages) nor the Windows event log, and masks the home
 folder: keep it that way when adding a section. Allow-lists of an endpoint protection ask for the MD5 (`notes.md` has it) or, lasting longer, the path and name:
 the workbook is always `jira2dashboard.xlsm` (`paths.DELIVERED_NAME`), never with the version in its name.
@@ -141,7 +144,8 @@ VBA guard tests after each edit of `vba/*.bas` (`.claude/hooks/bas_guard.py`); s
 Domain decisions and the metric definitions are in `docs/` (7 md files, **never edit them**: their MD5 is tracked in
 `claude-code-handoff.md`, which also holds the roadmap, review dispositions and the MD5 of every `.bas`). Update the MD5
 table in the handoff whenever a `.bas` changes. `README.md` (English) is the engineering guide: keep it concise,
-tables rather than code blocks for lists, never the word "client" (public repo), ASCII for the architecture,
+tables rather than code blocks for lists, never the word "client" nor the vendor or product name of the endpoint protection
+(public repo: say EPDR or "endpoint protection"), prose lines <= 120 characters, ASCII for the architecture,
 Mermaid for the workflows. Check a Mermaid edit with the real parser (`npm i mermaid jsdom` in the scratchpad,
 then `mermaid.parse`), and check every `](#anchor)` link against the headings.
 
@@ -236,6 +240,13 @@ then `mermaid.parse`), and check every `](#anchor)` link against the headings.
   MainWindowTitle`), never an older one. Mutation proof of a VBA test: copy the module to `$TEMP`, mutate it with a Python
   script (`assert count == 1`), run, restore with `cp` in the same command. A new check that reads Excel objects must not
   raise (a raise opens that dialog): wrap it like `AxisEnds` in `modTests.bas`.
+- **Excel hygiene (AL's rule):** after every Excel run, even a green one, `tasklist | grep -c EXCEL` must be back to what it was;
+  stop only the Excel your run started (start time; title "Microsoft Visual Basic" when hung), never an older one.
+- `com_error -2146959355` ("Echec de l'execution du serveur") at `DispatchEx` = Excel failed to start: transient, rerun.
+- **A few VBA tests only:** copy `modTests.bas`, cut `TestNames()` to the tests wanted, run `vba-tests --offline`, restore with `cp`
+  (about 1 minute instead of 5; never commit the cut list).
+- `_launch.cmd` traps: a `for` list drops `/?` (wildcard), so it is tested apart; a launcher starts the helper without `call`
+  (`call` swallows `/?`); from a test, `cmd /c` needs `.\name.cmd`.
 - After moving code between `.bas` modules: `Private` names (Const, Function) used from the new module break the compile of
   the test workbook only (`build` compiles the delivered modules, `vba-tests` adds `modTests`). `--bisect` loads the
   modules in order, so a forward reference shows as a false failure at an early module: scan for `Private` names instead.
