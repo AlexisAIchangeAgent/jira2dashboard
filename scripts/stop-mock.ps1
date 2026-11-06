@@ -31,6 +31,13 @@ param(
 if ($Help -or $Rest -contains "--help") { Get-Help $PSCommandPath -Detailed; exit 0 }
 if ($Rest.Count -gt 0) { Write-Host "stop-mock: unknown argument $($Rest -join ' '). See .\scripts\stop-mock.ps1 --help"; exit 2 }
 $ErrorActionPreference = "Stop"
+
+# Log of this run (last run only): %LOCALAPPDATA%\jira2dashboardogsstop-mock.log. A log failure never stops the script.
+try {
+    $logDir = Join-Path $env:LOCALAPPDATA "jira2dashboard\logs"
+    New-Item -ItemType Directory -Force $logDir | Out-Null
+    Start-Transcript -Path (Join-Path $logDir "stop-mock.log") -Force | Out-Null
+} catch { }
 $pidFile = Join-Path (Join-Path $env:TEMP "jira2dashboard") "mock-jira-$Port.pid"
 
 if (-not (Test-Path $pidFile)) {

@@ -53,6 +53,13 @@ $ErrorActionPreference = "Stop"
 $root = Split-Path -Parent $PSScriptRoot
 Set-Location $root
 
+# Log of this run (last run only): %LOCALAPPDATA%\jira2dashboardogsmanual-test.log. A log failure never stops the script.
+try {
+    $logDir = Join-Path $env:LOCALAPPDATA "jira2dashboard\logs"
+    New-Item -ItemType Directory -Force $logDir | Out-Null
+    Start-Transcript -Path (Join-Path $logDir "manual-test.log") -Force | Out-Null
+} catch { }
+
 function Fail([string]$message) {
     Write-Host "manual-test: $message"
     exit 1

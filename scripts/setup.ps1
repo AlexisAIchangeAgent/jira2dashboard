@@ -36,6 +36,13 @@ $ErrorActionPreference = "Stop"
 $root = Split-Path -Parent $PSScriptRoot
 Set-Location $root
 
+# Log of this run (last run only): %LOCALAPPDATA%\jira2dashboard\logs\setup.log. A log failure never stops the script.
+try {
+    $logDir = Join-Path $env:LOCALAPPDATA "jira2dashboard\logs"
+    New-Item -ItemType Directory -Force $logDir | Out-Null
+    Start-Transcript -Path (Join-Path $logDir "setup.log") -Force | Out-Null
+} catch { }
+
 if (-not (Test-Path ".venv\Scripts\python.exe")) {
     & py -3.14 -m venv .venv
     if ($LASTEXITCODE -ne 0) { throw "py -3.14 -m venv failed (is Python 3.14 installed?)" }

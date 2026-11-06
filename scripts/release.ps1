@@ -42,6 +42,13 @@ $ErrorActionPreference = "Stop"
 $root = Split-Path -Parent $PSScriptRoot
 Set-Location $root
 
+# Log of this run (last run only): %LOCALAPPDATA%\jira2dashboard\logselease.log. A log failure never stops the script.
+try {
+    $logDir = Join-Path $env:LOCALAPPDATA "jira2dashboard\logs"
+    New-Item -ItemType Directory -Force $logDir | Out-Null
+    Start-Transcript -Path (Join-Path $logDir "release.log") -Force | Out-Null
+} catch { }
+
 function Fail([string]$message) {
     Write-Host "release: $message"
     exit 1

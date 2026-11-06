@@ -73,6 +73,12 @@ $root = Split-Path -Parent $PSScriptRoot
 $python = Join-Path $root ".venv\Scripts\python.exe"
 if (-not (Test-Path $python)) { throw "No .venv: run scripts\setup.ps1 -Dev first." }
 Set-Location $root
+# Log of this run (last run only): %LOCALAPPDATA%\jira2dashboard\logs\run.log. A log failure never stops the script.
+try {
+    $logDir = Join-Path $env:LOCALAPPDATA "jira2dashboard\logs"
+    New-Item -ItemType Directory -Force $logDir | Out-Null
+    Start-Transcript -Path (Join-Path $logDir "run.log") -Force | Out-Null
+} catch { }
 $env:PYTHONIOENCODING = "utf-8"
 $env:PYTHONPATH = (Join-Path $root "src")
 
