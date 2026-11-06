@@ -28,18 +28,22 @@ Public Sub ExtractAndCompute(Optional ByVal fromButton As Boolean = False)
     Dim num As Long, desc As String
     If mBusy Then Err.Raise vbObjectError + 611, "ExtractAndCompute", "An extraction is already running: wait for it or cancel it."
     On Error GoTo Failed
+    mBusy = True                                   ' a click during a DoEvents must not start a second job
     LogRunStart "macro ExtractAndCompute", LogLevelSetting()
     Application.StatusBar = "Reading Jira..."
     ExtractFlowData                                ' empties the old results only once Jira has answered
     Application.StatusBar = "Building the flow sheets and the charts..."
     BuildFlowSheetsIn ThisWorkbook
     Application.StatusBar = False
+    mBusy = False
     LogRunEnd "ok"
     Exit Sub
 Failed:
     num = Err.Number: desc = Err.Description
     LogError "ExtractAndCompute", num, desc
     LogRunEnd "stopped"
+    ExtractJobAbort                                ' releases the connection (Authorization header) and the parsed pages
+    mBusy = False
     Application.StatusBar = False
     Err.Raise num, "ExtractAndCompute", desc
 End Sub
@@ -124,7 +128,7 @@ Public Sub ExtractSlice()
         Else
             ShowProgress ExtractJobFraction(), ExtractJobLabel()
         End If
-        ScheduleSlice
+        If mBusy Then ScheduleSlice                ' AbortExtraction may have run during the DoEvents above
     Else
         BuildFlowSheetsIn ThisWorkbook
         LogRunEnd "ok"
@@ -154,6 +158,7 @@ Public Sub AbortExtraction()
     mNextSlice = 0
     ExtractJobAbort
     mBusy = False: mCancel = False: mExtracting = False: gHttpCancel = False
+    Application.StatusBar = False
 End Sub
 
 Public Function ProgressSnapshot() As String

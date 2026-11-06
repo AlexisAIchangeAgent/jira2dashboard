@@ -54,7 +54,7 @@ Private Function TestNames() As Variant
         "T_StatusChanges", "T_RetryDelay", "T_SafeAccess", "T_FilesUtf8", "T_StringifyBadObject", _
         "T_TooManyPages", "T_BackgroundExport", "T_TextNotConverted", "T_ParamsTables", "T_ParamsOnWorkbook", _
         "T_TrimWhite", "T_ConfigSheet", "T_MandatoryConfig", "T_ProxyDetect", "T_ProxyScript", "T_ProjectsSheet", "T_ParseMoment", "T_ExtractFlowData", "T_ExtractJob", "T_ExtractCheckFields", "T_FlowBuild", "T_BaseUrlHttps", "T_Log", _
-        "T_JiraConfig")
+        "T_JiraConfig", "T_AbortExtraction")
 End Function
 
 Public Function RunAllTests() As String
@@ -1024,6 +1024,13 @@ Public Sub T_HttpNetworkAndCancel()
     Err.Clear
     On Error GoTo 0
     Check "jira", "a page token that comes back is refused", "t1 again", True, raised
+End Sub
+
+Public Sub T_AbortExtraction()
+    ' AbortExtraction (workbook closing, end of a test) forgets the run and leaves no text in the status bar of Excel.
+    Application.StatusBar = "Reading Jira..."
+    AbortExtraction
+    Check "actions", "the status bar text of an aborted run is cleared", "text set, then abort", True, (UCase$(CStr(Application.StatusBar)) = "FALSE")     ' Excel gives False or the text FALSE
 End Sub
 
 Public Sub T_RetryExhausted()
