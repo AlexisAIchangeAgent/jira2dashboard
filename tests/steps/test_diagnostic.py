@@ -21,8 +21,8 @@ def world(tmp_path):
     return {"home": home, "local": local, "workbook": None, "report": ""}
 
 
-def new_workbook(world, content=b"workbook bytes"):
-    path = world["home"] / "Downloads" / "jira2dashboard.xlsm"
+def new_workbook(world, content=b"workbook bytes", name="jira2dashboard.xlsm"):
+    path = world["home"] / "Downloads" / name
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_bytes(content)
     world["workbook"], world["content"] = path, content
@@ -46,6 +46,11 @@ def _logs(world, token):
 @given("un classeur dans le dossier de l'utilisateur")
 def _in_home(world):
     new_workbook(world)
+
+
+@given(parsers.parse('un classeur nommé "{name}"'))
+def _named(world, name):
+    new_workbook(world, name=name)
 
 
 @given("aucun classeur")
@@ -90,6 +95,11 @@ def _present(world, text):
 @then("le rapport ne contient pas le dossier de l'utilisateur")
 def _no_home(world):
     assert str(world["home"]).lower() not in world["report"].lower()
+
+
+@then(parsers.parse('le rapport signale que le nom n\'est pas le nom stable "{stable}"'))
+def _not_stable(world, stable):
+    assert f"(not the stable name {stable}" in world["report"] and "would miss it" in world["report"]
 
 
 @then("le rapport dit qu'il n'y a pas de classeur et comment en donner un")

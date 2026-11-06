@@ -8,7 +8,7 @@ import subprocess
 
 import pytest
 
-from jira2dashboard.paths import REPO_ROOT
+from jira2dashboard.paths import DELIVERED_NAME, REPO_ROOT
 
 LEFT_OUT = ("CLAUDE.md", "claude-code-handoff.md", "archive", "archive/old_probe.py", ".claude/settings.local.json",
             ".venv/Scripts/python.exe")
@@ -43,6 +43,15 @@ def test_the_release_script_hashes_both_files(algorithm):
     script = (REPO_ROOT / "scripts" / "release.ps1").read_text(encoding="utf-8")
     for file in ("$zip", "$xlsm"):
         assert f"Get-FileHash {file} -Algorithm {algorithm}" in script
+
+
+def test_every_release_ships_the_workbook_under_the_same_name_and_the_notes_say_why():
+    script = (REPO_ROOT / "scripts" / "release.ps1").read_text(encoding="utf-8")
+    assert f'Join-Path $dist "{DELIVERED_NAME}"' in script       # the name never carries the version
+    assert f"out\\release\\{DELIVERED_NAME}" in script
+    notes = release_notes_template()
+    assert f"keep the file name {DELIVERED_NAME}" in notes and "same folder on every machine" in notes
+    assert "replaces the file in place" in notes
 
 
 def test_the_release_notes_give_the_md5_and_the_size_for_allow_lists():

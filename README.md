@@ -233,6 +233,10 @@ The `Dashboard` (from cell `T1`) and the sheet `Manual` repeat these steps.
 4. **Extract from Jira and compute**. **Cancel** keeps the previous results. Run it as often as needed.
 5. Read the charts (`B2` picks the team of Flow Distribution), `Metrics` and `DataChecks`.
 
+**Same file, same place.** Keep the name `jira2dashboard.xlsm` (not `jira2dashboard (1).xlsm`) and one folder on every
+machine, and replace the file in place for a new version: an allow-list of the endpoint protection on that path or name
+then keeps working, a rule on the hash does not (it changes with every build). `run.ps1 diagnose` flags another name.
+
 **Empty `ApiToken` before sharing the workbook**: it is stored in clear text.
 
 ## 10. Python extraction without VBA
@@ -317,8 +321,9 @@ messages: **reread a log before sharing it**.
 - **Flaky Excel test:** `J2D_ONE_EXCEL=1` (one Excel per module); a fix needs 5 green runs in a row.
 - **Macros blocked by the endpoint protection:** `run.ps1 diagnose`, then attach the report to the ticket (hashes,
   Mark of the Web, Office macro policies, security products, VBA log tail; it never opens the workbook nor reads
-  `python.log`). Ask for an allow-list on the path or a signature: the MD5 changes with every build (`release.ps1`
-  writes it in `notes.md`). `start-mock.ps1` prints the `python.exe` to allow for the fake Jira. The delivered VBA
+  `python.log`). Ask for an allow-list on the file name and folder ([section 9](#9-using-the-workbook)): the MD5 changes
+  with every build (`release.ps1` writes it in `notes.md`). `start-mock.ps1` prints the `python.exe` to allow for the
+  fake Jira. The delivered VBA
   creates only two COM objects, `WinHttp.WinHttpRequest.5.1` and `Scripting.Dictionary` (UTF-8 and Base64 are plain
   VBA; a test guards it).
 

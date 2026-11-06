@@ -7,6 +7,7 @@ REPO_ROOT = SRC_DIR.parent
 VBA_DIR = REPO_ROOT / "vba"
 PARAMS_DIR = REPO_ROOT / "params"
 OUT_DIR = REPO_ROOT / "out"
+DELIVERED_NAME = "jira2dashboard.xlsm"   # the file name of every delivered workbook, whatever the version (A6: a stable name)
 RELEASE_DIR = OUT_DIR / "release"       # what is delivered: the workbook of `build`, the release packages
 INTER_DIR = OUT_DIR / "inter"           # everything else: test workbooks, copies, exports (emptied by clean)
 MANUAL_TEST_DIR = OUT_DIR / "manual_test"   # the copy filled for the fake Jira, to try by hand (never cleaned)

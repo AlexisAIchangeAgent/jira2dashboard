@@ -40,7 +40,8 @@ powershell -ExecutionPolicy Bypass -File scripts\setup.ps1 -Dev   # create .venv
 The release zip leaves out the `export-ignore` paths of `.gitattributes` (CLAUDE.md, the handoff, `archive/`,
 `.claude/`, `.venv/`); `tests/unit/test_release_contents.py` pins the list. `-Publish` is outward-facing: ask AL first.
 `diagnose` never opens the workbook, never reads `python.log` (JQL, Jira's messages) nor the Windows event log, and masks the home
-folder: keep it that way when adding a section. Allow-lists of an endpoint protection ask for the MD5 (`notes.md` has it).
+folder: keep it that way when adding a section. Allow-lists of an endpoint protection ask for the MD5 (`notes.md` has it) or, lasting longer, the path and name:
+the workbook is always `jira2dashboard.xlsm` (`paths.DELIVERED_NAME`), never with the version in its name.
 
 `test` and `coverage` skip the `excel` and `network` markers by default (`addopts` in `pyproject.toml`): use `test-excel` /
 `test-network` for those.

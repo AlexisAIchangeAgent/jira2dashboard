@@ -14,7 +14,7 @@ from pathlib import Path
 
 from jira2dashboard import diagnose as D
 from jira2dashboard.cli.args import parser
-from jira2dashboard.paths import MANUAL_TEST_DIR, RELEASE_DIR
+from jira2dashboard.paths import DELIVERED_NAME, MANUAL_TEST_DIR, RELEASE_DIR
 
 OFFICE_KEY = r"SOFTWARE\Microsoft\Office\ClickToRun\Configuration"
 EXCEL_SECURITY = r"Software\Microsoft\Office\16.0\Excel\Security"
@@ -30,7 +30,7 @@ def parse(argv: list[str] | None = None):
 
 
 def default_workbook() -> Path | None:
-    for path in (RELEASE_DIR / "jira2dashboard.xlsm", MANUAL_TEST_DIR / "jira2dashboard4manualtest.xlsm"):
+    for path in (RELEASE_DIR / DELIVERED_NAME, MANUAL_TEST_DIR / "jira2dashboard4manualtest.xlsm"):
         if path.is_file():
             return path
     return None

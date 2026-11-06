@@ -97,6 +97,9 @@ jira2dashboard $Version (commit $head)
 Files:
 - jira2dashboard.xlsm: the workbook, ready to use on Windows with Excel (no Python needed). After the download:
   right-click > Properties > Unblock (or Unblock-File .\jira2dashboard.xlsm), then open it and enable the content.
+  Please keep the file name jira2dashboard.xlsm and put it in the same folder on every machine (the one agreed with the
+  security team): a new version replaces the file in place, so an allow-list of the endpoint protection on that path or name
+  keeps working. A rule on the hash does not (it changes with every build).
 - $name.zip: the code, to build the workbook yourself (Windows, Excel, Python 3.14):
   scripts\setup.ps1, then scripts\run.ps1 build.
 
@@ -106,7 +109,7 @@ SHA256:
 - jira2dashboard.xlsm: $xlsmHash
 - $name.zip: $zipHash
 
-MD5 (for allow-lists that ask for it; it changes with every build, a path or a signature rule lasts longer):
+MD5 (for allow-lists that ask for it; it changes with every build, a rule on the file name and folder lasts longer):
 - jira2dashboard.xlsm: $xlsmMd5 ($xlsmSize bytes)
 - $name.zip: $zipMd5
 "@

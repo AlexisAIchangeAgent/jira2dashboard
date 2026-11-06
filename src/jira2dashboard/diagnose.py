@@ -15,6 +15,8 @@ import re
 from dataclasses import dataclass
 from pathlib import Path
 
+from jira2dashboard.paths import DELIVERED_NAME
+
 ZONES = {0: "local computer", 1: "intranet", 2: "trusted sites", 3: "Internet", 4: "restricted sites"}
 
 
@@ -95,11 +97,18 @@ def vba_log_path(local_app_data: str, temp: str) -> Path:
     return Path(local_app_data or temp) / "jira2dashboard" / "logs" / "jira2dashboard.log"
 
 
+def name_line(name: str) -> str:
+    """The file name against the stable one: an allow-list on the name or the path misses a renamed copy (a second download)."""
+    if name.lower() == DELIVERED_NAME:
+        return f"Name: {name} (the stable name)"
+    return f"Name: {name} (not the stable name {DELIVERED_NAME}: an allow-list on the name or the path would miss it)"
+
+
 def _file_section(workbook: Path | None) -> list[str]:
     if workbook is None or not workbook.is_file():
         return ["No workbook found. Build one (scripts\\run.ps1 build) or give one with --workbook FILE."]
     found = fingerprint(workbook)
-    return [f"Path: {workbook}", f"Size: {found.size} bytes", f"MD5: {found.md5}", f"SHA-256: {found.sha256}",
+    return [f"Path: {workbook}", name_line(workbook.name), f"Size: {found.size} bytes", f"MD5: {found.md5}", f"SHA-256: {found.sha256}",
             "The MD5 changes with every build: a rule on the path or on a signature lasts longer."]
 
 

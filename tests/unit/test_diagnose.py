@@ -81,6 +81,19 @@ def test_tail_of_an_empty_or_missing_file_is_empty(tmp_path):
     assert D.tail(empty, 5) == [] and D.tail(tmp_path / "missing", 5) == []
 
 
+def test_the_stable_name_is_the_delivered_workbook_name():
+    assert D.DELIVERED_NAME == "jira2dashboard.xlsm"
+
+
+@pytest.mark.parametrize("name, stable", [("jira2dashboard.xlsm", True), ("Jira2Dashboard.XLSM", True),
+                                          ("jira2dashboard (1).xlsm", False), ("copy of jira2dashboard.xlsm", False)])
+def test_name_line_says_whether_the_name_is_the_stable_one(name, stable):
+    line = D.name_line(name)
+    assert line.startswith(f"Name: {name} ")
+    assert ("(the stable name)" in line) is stable
+    assert ("not the stable name jira2dashboard.xlsm" in line and "would miss it" in line) is (not stable)
+
+
 def test_vba_log_path_follows_the_rule_of_modlog():
     assert D.vba_log_path("C:\\L", "C:\\T") == Path("C:\\L\\jira2dashboard\\logs\\jira2dashboard.log")
     assert D.vba_log_path("", "C:\\T") == Path("C:\\T\\jira2dashboard\\logs\\jira2dashboard.log")
