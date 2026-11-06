@@ -42,8 +42,8 @@ The release zip leaves out the `export-ignore` paths of `.gitattributes` (CLAUDE
 `test` and `coverage` skip the `excel` and `network` markers by default (`addopts` in `pyproject.toml`): use `test-excel` /
 `test-network` for those.
 
-Every script and command answers `--help` (`tests/unit/test_help.py` checks it). A new Python entry point parses
-its arguments first with `cli/args.parser` (the module docstring is the help), so `--help` runs nothing. A new
+Every script and command answers `--help` (and every `.ps1` also `-Help`; `tests/unit/test_help.py` checks each
+file of `scripts\`). A new Python entry point parses its arguments first with `cli/args.parser` (the module docstring is the help), so `--help` runs nothing. A new
 `.ps1` gets comment-based help (`.SYNOPSIS`...) and `[CmdletBinding(PositionalBinding = $false)]` with a `$Help`
 switch and a `ValueFromRemainingArguments` `$Rest` (so `--help` lands in `$Rest`, never in `-Port`); `-?` works in
 a PowerShell console, not through `powershell -File`.
@@ -128,8 +128,10 @@ Before finishing a change run the full pass: `coverage`, `vba-tests`, `test-exce
 
 Domain decisions and the metric definitions are in `docs/` (7 md files, **never edit them**: their MD5 is tracked in
 `claude-code-handoff.md`, which also holds the roadmap, review dispositions and the MD5 of every `.bas`). Update the MD5
-table in the handoff whenever a `.bas` changes. `README.md` (English) is the engineering guide: architecture,
-scripts, configuration, client use, logs and debugging.
+table in the handoff whenever a `.bas` changes. `README.md` (English) is the engineering guide: keep it concise,
+tables rather than code blocks for lists, never the word "client" (public repo), ASCII for the architecture,
+Mermaid for the workflows. Check a Mermaid edit with the real parser (`npm i mermaid jsdom` in the scratchpad,
+then `mermaid.parse`), and check every `](#anchor)` link against the headings.
 
 ## Adding a data check
 
@@ -185,6 +187,8 @@ scripts, configuration, client use, logs and debugging.
   conversion (`* -text`, `*.bas text eol=lf`) so the tracked MD5 hold; Excel binaries (`*.xlsm`, `out/`) are ignored.
   Commit messages end with the `Co-Authored-By` line of the model in use (e.g. `Claude Opus 5.5 <noreply@anthropic.com>`). If SSH push is refused, push over
   HTTPS with the `gh` token: `git -c credential.helper= -c "credential.helper=!gh auth git-credential" push https://github.com/AlexisAIchangeAgent/jira2dashboard.git main`.
+  A push refused with `fatal error in commit_refs_rules` is a GitHub-side glitch (the repo has no ruleset): retry
+  a few minutes later, do not chase it.
 
 ## Environment gotchas
 
