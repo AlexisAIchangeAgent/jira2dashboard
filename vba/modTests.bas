@@ -856,6 +856,13 @@ Public Sub T_FlowBuild()
     dash.Range("B2").Value = "AAA"
     BuildFlowSheetsIn wb
     Check "flowbuild", "a known team stays selected", "AAA", "AAA", dash.Range("B2").Value
+    ' Excel left in manual mode by the user: the build gives the mode back and still ends with every figure calculated
+    ' (guard only: removing CalculateFull for this case changed nothing observable, entering a formula calculates it)
+    Application.Calculation = -4135                               ' xlCalculationManual
+    BuildFlowSheetsIn wb
+    Check "flowbuild", "manual calculation: the mode is given back and nothing is left to calculate", "Excel in manual mode", "-4135|0|OK", _
+          Application.Calculation & "|" & Application.CalculationState & "|" & wb.Worksheets("DataChecks").Range("J2").Value   ' 0 = xlDone: nothing left to calculate
+    Application.Calculation = -4105                               ' xlCalculationAutomatic
     ' leave the workbook as it was
     dash.Range("B2").Value = "All teams"
     wb.Worksheets("Periods").Range("A2:C10").ClearContents

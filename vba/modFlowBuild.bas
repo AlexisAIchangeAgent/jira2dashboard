@@ -10,6 +10,7 @@ Option Explicit
 Private Const XL_SRC_RANGE As Long = 1
 Private Const XL_YES As Long = 1
 Private Const XL_CALC_MANUAL As Long = -4135
+Private Const XL_CALC_AUTOMATIC As Long = -4105
 
 Public Function SheetExists(ByVal wb As Object, ByVal name As String) As Boolean
     Cov "FLB01"
@@ -244,8 +245,8 @@ Public Sub BuildFlowSheetsIn(ByVal wb As Object)
     Application.Calculation = XL_CALC_MANUAL
     On Error GoTo Failed
     BuildAll wb, spec, teams, periods
-    Application.Calculation = calcMode
-    Application.CalculateFull
+    Application.Calculation = calcMode                   ' back to automatic: Excel calculates everything now
+    If calcMode <> XL_CALC_AUTOMATIC Then Cov "FLB36": Application.CalculateFull      ' Excel left in manual mode by the user
     Application.ScreenUpdating = screen
     LogEnd "flow sheets and charts"
     On Error Resume Next
