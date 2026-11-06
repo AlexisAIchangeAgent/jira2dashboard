@@ -92,9 +92,10 @@ def synopsis(path) -> str:
     return re.search(r"\.SYNOPSIS\n(.+)\n", text).group(1)
 
 
+@pytest.mark.parametrize("flag", ["--help", "-Help"])
 @pytest.mark.parametrize("script", sorted(p.name for p in SCRIPTS.glob("*.ps1")))
-def test_every_powershell_script_explains_itself(script):
-    done = powershell(script, "--help")
+def test_every_powershell_script_explains_itself(script, flag):
+    done = powershell(script, flag)
     assert done.returncode == 0, done.stdout + done.stderr
     if script == "run.ps1":
         assert "Usage: .\\scripts\\run.ps1 <command>" in done.stdout
