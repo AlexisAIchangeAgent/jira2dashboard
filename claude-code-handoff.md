@@ -374,7 +374,7 @@ What is known:
 - **Where (11 crash dumps, `%LOCALAPPDATA%\CrashDumps\EXCEL.EXE.*.dmp`, all identical):** a DEP fault on Excel's main
   thread. VBA's engine (`VBE7.DLL`, after `call rdx`, called through `oleaut32!DispCallFunc`) calls a small piece of
   valid x64 code that it generated at run time, in heap memory that is not executable at that moment. One VBA level on
-  the stack; no WinHTTP, ADODB, Scripting or nested `DoEvents` frame. Panda Security (WatchGuard) hook DLLs
+  the stack; no WinHTTP, ADODB, Scripting or nested `DoEvents` frame. EPDR hook DLLs
   (`psninjhook*`) are loaded in every dump.
 - **When:** with **a fresh Excel per scenario, 1 module run out of 10 failed** (the button scenario lost its Excel
   during the search; exit code 0, no event 1000 and no dump that time). With one Excel for the module: about 2 out of 5, mostly in the button scenarios (the 5th and 6th extractions of the
@@ -393,7 +393,7 @@ What is known:
   first statements after the last page), twice inside `ShowProgress` right after it. Excel dies 0.2 to 0.5 s after
   the last search page, at different ordinary VBA statements: a moment, not a statement of our code. This fits the
   dumps (VBA's engine runs code from memory that is not executable) and points to the state of the process memory:
-  the security software's anti-exploit (Panda hooks in every dump) or a VBA engine bug. No code change tried so far
+  the security software's anti-exploit (EPDR hooks in every dump) or a VBA engine bug. No code change tried so far
   removes it.
 - Same night, the run flag of `modLog` worked: after a crash of the button scenario, the next run wrote `RUN previous
   run did not end (started ...)`. Once, the Excel of `test-network` (the VBA suite with network) died too, with
@@ -404,7 +404,7 @@ What is known:
 - Office's crash recovery can end the process with code 0 and start a new `EXCEL.EXE` in the same millisecond.
 
 Causes (ranked, PROPOSALS): (1) the anti-exploit module of the security software removes the execute right from VBA's
-code memory (documented by other vendors for Excel macros, not for Panda); (2) a VBA engine bug when the process has
+code memory (documented by other vendors for Excel macros, not for EPDR); (2) a VBA engine bug when the process has
 grown; (3) COM calls of the test during `DoEvents` (unlikely: never on the crashing stack).
 
 What was done: the Excel scenarios now open a fresh Excel per scenario (`flow_workbook` fixture; `J2D_ONE_EXCEL=1`
@@ -416,7 +416,7 @@ Location is exempt): from a Trusted Location the changelog loop was as slow (837
 
 **Delivery risk:** a user who runs several extractions in the same Excel session may hit it; the client's security
 software may decide. Next steps (PROPOSALS, for AL): run the button several times in one Excel session at the client
-before delivery; ask IT for a Panda anti-exploit exclusion (or audit mode) for `EXCEL.EXE` on the dev PC and run the
+before delivery; ask IT for an EPDR anti-exploit exclusion (or audit mode) for `EXCEL.EXE` on the dev PC and run the
 old one-Excel module 5 times; with admin rights, full-memory crash dumps (`LocalDumps\EXCEL.EXE`, DumpType 2) to read
 the page protection; fewer late-bound calls in the changelog loop (8 to 13 s for about 1,000 rows); at the client,
 read the last BEGIN without END of the local log after a crash (study: `C:\dev\reports\Journalisation des erreurs
