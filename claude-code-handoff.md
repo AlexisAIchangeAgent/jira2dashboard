@@ -209,7 +209,7 @@ MD5 of the current modules (LF line endings). Unchanged since the original hando
 | modCoverage.bas | 0b03cf2cb8d0660ed22beadabc9655a4 |
 | modLog.bas | 91e81a4a9581b0c076fb56d4a8bef466 |
 | modJson.bas | e051a7775e419b2b49d2de6014a8719e |
-| modText.bas | 00a90c4bac9db13a20d95861ac40761a |
+| modText.bas | db1ac9700a84fa580a16cc39ca65c110 |
 | modHttp.bas | 9f2fa6563fb659fdeb3d2dd2f126701c |
 | modProxy.bas | 4b69d54dcc1cf903ba0a4d9384f19253 |
 | modJira.bas | fef4495e3078b97bcabc87f6e62ae4da |
@@ -220,7 +220,7 @@ MD5 of the current modules (LF line endings). Unchanged since the original hando
 | modFlowBuild.bas | df20828246169b67a2c6eca2617646ad |
 | modActions.bas | 46f26dcc73afd928dcd990f93322a7d8 |
 | modBackground.bas | 1d098ce38925b8dc55bcf54404cf314f |
-| modTests.bas | 6ccc0b531ccbe7409bcb45b88345ea93 |
+| modTests.bas | 86e4416c28792f9518d72719c307eba1 |
 | modButtons.bas | 3bbe95b810cc0722eabed5c2bdbabbb2 |
 
 The Python files are no longer hashed (they were moved and edited; the code is covered by tests). If you

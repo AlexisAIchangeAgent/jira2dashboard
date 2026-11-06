@@ -187,6 +187,9 @@ then `mermaid.parse`), and check every `](#anchor)` link against the headings.
 - **Never kill an `EXCEL.EXE` the scripts did not start** (the user may have their own), except one hung for long on a
   VBA error dialog (AL allows it). A modal VB dialog (an untrapped VBA error) is the usual cause of a hung Excel run.
 - **Do not call a real Jira.** Use the fake Jira.
+- **The delivered VBA creates only `WinHttp.WinHttpRequest.5.1` and `Scripting.Dictionary`** (`tests/unit/test_delivered_vba_com_objects.py`): an endpoint
+  protection reads `ADODB.Stream` (next to an HTTP client) and `MSXML2` (as a Base64 codec) as a downloader. UTF-8 and Base64 are plain VBA
+  in `modText`; `modTests` keeps ADODB and MSXML only as the oracle of `T_Utf8Oracle` and `T_Base64Oracle`.
 - Excel formula traps: a formula typed in one cell of a table column fills the whole column (write key columns as values
   before creating the table); a structured reference to a column whose name contains `_` is refused; compare dates with a
   half-second margin; a blank result is `""`, never `0`.

@@ -318,7 +318,9 @@ messages: **reread a log before sharing it**.
 - **Macros blocked by the endpoint protection:** `run.ps1 diagnose`, then attach the report to the ticket (hashes,
   Mark of the Web, Office macro policies, security products, VBA log tail; it never opens the workbook nor reads
   `python.log`). Ask for an allow-list on the path or a signature: the MD5 changes with every build (`release.ps1`
-  writes it in `notes.md`). `start-mock.ps1` prints the `python.exe` to allow for the fake Jira.
+  writes it in `notes.md`). `start-mock.ps1` prints the `python.exe` to allow for the fake Jira. The delivered VBA
+  creates only two COM objects, `WinHttp.WinHttpRequest.5.1` and `Scripting.Dictionary` (UTF-8 and Base64 are plain
+  VBA; a test guards it).
 
 ## 13. Testing
 

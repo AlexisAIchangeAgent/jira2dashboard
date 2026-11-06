@@ -54,7 +54,7 @@ Private Function TestNames() As Variant
         "T_StatusChanges", "T_RetryDelay", "T_SafeAccess", "T_FilesUtf8", "T_StringifyBadObject", _
         "T_TooManyPages", "T_BackgroundExport", "T_TextNotConverted", "T_ParamsTables", "T_ParamsOnWorkbook", _
         "T_TrimWhite", "T_ConfigSheet", "T_MandatoryConfig", "T_ProxyDetect", "T_ProxyScript", "T_ProjectsSheet", "T_ParseMoment", "T_ExtractFlowData", "T_ExtractJob", "T_ExtractCheckFields", "T_FlowBuild", "T_BaseUrlHttps", "T_Log", _
-        "T_JiraConfig", "T_AbortExtraction")
+        "T_JiraConfig", "T_AbortExtraction", "T_Utf8Oracle", "T_Utf8Invalid", "T_Base64Oracle")
 End Function
 
 Public Function RunAllTests() As String
@@ -890,6 +890,194 @@ Public Sub T_FlowBuild()
     Check "flowbuild", "cleared: the derived sheets are gone", "Metrics", False, SheetExists(wb, "Metrics")
     Check "flowbuild", "cleared: the data checks and fill rates are gone too", "DataChecks", "False|False", _
           IIf(SheetExists(wb, "DataChecks"), "True", "False") & "|" & IIf(SheetExists(wb, "FillRates"), "True", "False")
+End Sub
+
+' ---------- Text helpers: plain VBA, proved against the old ADODB / MSXML code kept here only as the oracle ----------
+' Every call that can raise goes through a function that reports "error n" as text: a test must never stop on a dialog.
+
+Private Function RefEncode(ByVal s As String) As Byte()
+    Dim st As Object, empty_() As Byte
+    If Len(s) = 0 Then RefEncode = empty_: Exit Function
+    Set st = CreateObject("ADODB.Stream")
+    st.Type = 2: st.Charset = "utf-8": st.Open
+    st.WriteText s
+    st.Position = 0: st.Type = 1: st.Position = 3          ' skip the UTF-8 BOM
+    RefEncode = st.Read
+    st.Close
+End Function
+
+Private Function RefDecode(ByRef bytes() As Byte) As String
+    Dim st As Object
+    Set st = CreateObject("ADODB.Stream")
+    st.Type = 1: st.Open
+    st.Write bytes
+    st.Position = 0: st.Type = 2: st.Charset = "utf-8"
+    RefDecode = st.ReadText
+    st.Close
+End Function
+
+Private Function RefBase64(ByRef bytes() As Byte) As String
+    Dim node As Object
+    Set node = CreateObject("MSXML2.DOMDocument.6.0").createElement("b64")
+    node.DataType = "bin.base64"
+    node.nodeTypedValue = bytes
+    RefBase64 = Replace(Replace(node.Text, vbLf, ""), vbCr, "")
+End Function
+
+Private Function HexOf(ByRef bytes() As Byte) As String
+    Dim i As Long, out As String
+    On Error Resume Next
+    For i = LBound(bytes) To UBound(bytes)
+        If Err.Number <> 0 Then Err.Clear: Exit For
+        out = out & Right$("0" & Hex$(bytes(i)), 2) & " "
+    Next i
+    Err.Clear
+    HexOf = Trim$(out)
+End Function
+
+Private Function CodesOf(ByVal s As String) As String
+    ' "41 FFFD 42": the UTF-16 code units of a text, readable in the results sheet whatever the characters are.
+    Dim i As Long, out As String
+    For i = 1 To Len(s)
+        out = out & Hex$(AscW(Mid$(s, i, 1)) And &HFFFF&) & " "
+    Next i
+    CodesOf = Trim$(out)
+End Function
+
+Private Function BytesOf(ParamArray v() As Variant) As Byte()
+    Dim b() As Byte, i As Long
+    ReDim b(0 To UBound(v))
+    For i = 0 To UBound(v)
+        b(i) = CByte(v(i))
+    Next i
+    BytesOf = b
+End Function
+
+Private Function AsciiBytes(ByVal s As String) As Byte()
+    AsciiBytes = StrConv(s, vbFromUnicode)
+End Function
+
+Private Function RefHex(ByVal s As String) As String
+    ' The bytes ADODB gives for a text, as hex.
+    On Error Resume Next
+    RefHex = HexOf(RefEncode(s))
+    If Err.Number <> 0 Then RefHex = "ADODB error " & Err.Number: Err.Clear
+End Function
+
+Private Function MineHex(ByVal s As String) As String
+    ' The bytes Utf8Encode gives for a text, as hex.
+    On Error Resume Next
+    MineHex = HexOf(Utf8Encode(s))
+    If Err.Number <> 0 Then MineHex = "Utf8Encode error " & Err.Number: Err.Clear
+End Function
+
+Private Function DecodedRef(ByVal s As String) As String
+    ' Utf8Decode of the bytes ADODB gives for a text.
+    On Error Resume Next
+    DecodedRef = Utf8Decode(RefEncode(s))
+    If Err.Number <> 0 Then DecodedRef = "Utf8Decode error " & Err.Number: Err.Clear
+End Function
+
+Private Function RefDecodedMine(ByVal s As String) As String
+    ' ADODB reads the bytes Utf8Encode gives for a text.
+    On Error Resume Next
+    RefDecodedMine = RefDecode(Utf8Encode(s))
+    If Err.Number <> 0 Then RefDecodedMine = "ADODB error " & Err.Number: Err.Clear
+End Function
+
+Private Function DecodedCodes(ByRef bytes() As Byte) As String
+    ' The code units Utf8Decode gives for some bytes.
+    On Error Resume Next
+    DecodedCodes = CodesOf(Utf8Decode(bytes))
+    If Err.Number <> 0 Then DecodedCodes = "Utf8Decode error " & Err.Number: Err.Clear
+End Function
+
+Private Function Base64Safe(ByRef bytes() As Byte) As String
+    On Error Resume Next
+    Base64Safe = Base64Encode(bytes)
+    If Err.Number <> 0 Then Base64Safe = "Base64Encode error " & Err.Number: Err.Clear
+End Function
+
+Private Function RefBase64Safe(ByRef bytes() As Byte) As String
+    On Error Resume Next
+    RefBase64Safe = RefBase64(bytes)
+    If Err.Number <> 0 Then RefBase64Safe = "MSXML error " & Err.Number: Err.Clear
+End Function
+
+Private Function SampleTexts() As Variant
+    Dim long_ As String, i As Long
+    For i = 1 To 3500
+        long_ = long_ & "{""summary"":""R" & ChrW(233) & "union d'" & ChrW(233) & "quipe n" & ChrW(176) & i & " " & ChrW(8364) & " " & _
+                ChrW(&HD83D) & ChrW(&HDE00) & """},"
+    Next i
+    SampleTexts = Array("Hello, world 0123", _
+        "Caf" & ChrW(233) & " d" & ChrW(233) & "j" & ChrW(224) & " vu " & ChrW(339), _
+        "20 " & ChrW(8364), ChrW(945) & ChrW(946) & ChrW(947), ChrW(&H4E2D) & ChrW(&H6587), _
+        ChrW(&HD83D) & ChrW(&HDE00), ChrW(&HD83C) & ChrW(&HDF55) & "x", _
+        ChrW(&H7F) & ChrW(&H80) & ChrW(&H7FF) & ChrW(&H800) & ChrW(&HD7FF) & ChrW(&HE000) & ChrW(&HFFFD), _
+        "{""summary"":""R" & ChrW(233) & "sum" & ChrW(233) & " " & ChrW(8364) & " " & ChrW(&HD83D) & ChrW(&HDE00) & """}", _
+        long_)
+End Function
+
+Public Sub T_Utf8Oracle()
+    ' Utf8Encode and Utf8Decode give the very bytes and text of ADODB.Stream, on every kind of character.
+    Dim samples As Variant, i As Long, s As String
+    samples = SampleTexts()
+    For i = LBound(samples) To UBound(samples)
+        s = CStr(samples(i))
+        Check "text", "UTF-8 bytes of text " & i & " are the ones of ADODB", "len " & Len(s), True, (MineHex(s) = RefHex(s))
+        Check "text", "decoding the bytes of ADODB gives the text " & i, "len " & Len(s), True, (DecodedRef(s) = s)
+        Check "text", "ADODB decodes our bytes the same way " & i, "len " & Len(s), True, (RefDecodedMine(s) = s)
+    Next i
+    Check "text", "decoding an uninitialised array gives an empty text", "no bytes", "", Utf8Decode(Empty)
+End Sub
+
+Public Sub T_Utf8Invalid()
+    ' Bad UTF-8 never raises: each bad byte becomes U+FFFD and the text around it is kept. A leading BOM is dropped.
+    Dim bad As String
+    bad = "FFFD"
+    Check "text", "a stray continuation byte", "41 80 42", "41 " & bad & " 42", DecodedCodes(BytesOf(&H41, &H80, &H42))
+    Check "text", "a truncated sequence", "41 E2 82", "41 " & bad & " " & bad, DecodedCodes(BytesOf(&H41, &HE2, &H82))
+    Check "text", "a truncated sequence before text", "E2 82 42", bad & " " & bad & " 42", DecodedCodes(BytesOf(&HE2, &H82, &H42))
+    Check "text", "an overlong form of a character (C0 80)", "41 C0 80 42", "41 " & bad & " " & bad & " 42", _
+          DecodedCodes(BytesOf(&H41, &HC0, &H80, &H42))
+    Check "text", "an overlong 3-byte form (E0 80 80)", "E0 80 80", bad & " " & bad & " " & bad, DecodedCodes(BytesOf(&HE0, &H80, &H80))
+    Check "text", "an encoded surrogate (ED A0 80)", "ED A0 80", bad & " " & bad & " " & bad, DecodedCodes(BytesOf(&HED, &HA0, &H80))
+    Check "text", "a byte that starts no sequence (F8)", "F8", bad, DecodedCodes(BytesOf(&HF8))
+    Check "text", "a value above U+10FFFF (F4 90 80 80)", "F4 90 80 80", bad & " " & bad & " " & bad & " " & bad, _
+          DecodedCodes(BytesOf(&HF4, &H90, &H80, &H80))
+    Check "text", "a truncated 4-byte sequence (F0 9F 98)", "F0 9F 98", bad & " " & bad & " " & bad, DecodedCodes(BytesOf(&HF0, &H9F, &H98))
+    Check "text", "a leading BOM is dropped", "EF BB BF 41", "41", DecodedCodes(BytesOf(&HEF, &HBB, &HBF, &H41))
+    Check "text", "a BOM alone gives an empty text", "EF BB BF", "", DecodedCodes(BytesOf(&HEF, &HBB, &HBF))
+    Check "text", "a valid 4-byte sequence (F0 9F 98 80) is a surrogate pair", "F0 9F 98 80", "D83D DE00", _
+          DecodedCodes(BytesOf(&HF0, &H9F, &H98, &H80))
+    Check "text", "a lone high surrogate is encoded as U+FFFD", "D83D", "EF BF BD", MineHex(ChrW(&HD83D))
+    Check "text", "a lone low surrogate is encoded as U+FFFD", "DE00 x", "EF BF BD 78", MineHex(ChrW(&HDE00) & "x")
+    Check "text", "a high surrogate not followed by a low one", "D83D x", "EF BF BD 78", MineHex(ChrW(&HD83D) & "x")
+End Sub
+
+Public Sub T_Base64Oracle()
+    ' The seven vectors of RFC 4648, then 200 byte arrays of 0 to 60 bytes against MSXML.
+    Dim words As Variant, expected As Variant, i As Long, n As Long, x As Long, b() As Byte, k As Long, same As Boolean
+    words = Array("", "f", "fo", "foo", "foob", "fooba", "foobar")
+    expected = Array("", "Zg==", "Zm8=", "Zm9v", "Zm9vYg==", "Zm9vYmE=", "Zm9vYmFy")
+    Check "text", "RFC 4648: empty input", "(nothing)", "", Base64Safe(Utf8Encode(""))
+    For i = 1 To 6
+        Check "text", "RFC 4648: " & words(i), CStr(words(i)), CStr(expected(i)), Base64Safe(AsciiBytes(CStr(words(i))))
+    Next i
+    x = 7
+    same = True
+    For i = 1 To 200
+        n = i Mod 61
+        If n = 0 Then n = 1
+        ReDim b(0 To n - 1)
+        For k = 0 To n - 1
+            x = (x * 75 + 74) Mod 65537
+            b(k) = x Mod 256
+        Next k
+        If Base64Safe(b) <> RefBase64Safe(b) Then same = False: Exit For
+    Next i
+    Check "text", "200 byte arrays give the Base64 of MSXML", "lengths 1 to 60", True, same
 End Sub
 
 Public Sub T_UrlEncode()
