@@ -41,7 +41,7 @@ if ($Help -or $Rest -contains "--help") { Get-Help $PSCommandPath -Detailed; exi
 if ($Rest.Count -gt 0) { Write-Host "start-mock: unknown argument $($Rest -join ' '). See .\scripts\start-mock.ps1 --help"; exit 2 }
 $ErrorActionPreference = "Stop"
 
-# Log of this run (last run only): %LOCALAPPDATA%\jira2dashboardogsstart-mock.log. A log failure never stops the script.
+# Log of this run (last run only): %LOCALAPPDATA%\jira2dashboard\logs\start-mock.log. A log failure never stops the script.
 try {
     $logDir = Join-Path $env:LOCALAPPDATA "jira2dashboard\logs"
     New-Item -ItemType Directory -Force $logDir | Out-Null
