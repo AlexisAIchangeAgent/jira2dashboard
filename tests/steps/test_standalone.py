@@ -202,7 +202,7 @@ def _issues(world):
 def _results(world):
     ref, got = reference(world), sheets(world)
     as_of, items, wrong = ref["as_of"], ref["items"], []
-    metrics = {(r["Period"], r["Team"]): r for r in got["Metrics"]}
+    metrics = {(r["Iteration-label"], r["Team"]): r for r in got["Metrics"]}
     assert set(metrics) == {(p.name, t) for p in ref["periods"] for t in ref["teams"]}
     for period in ref["periods"]:
         for team in ref["teams"]:

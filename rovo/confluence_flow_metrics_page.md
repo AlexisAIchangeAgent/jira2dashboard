@@ -30,14 +30,14 @@ Then for each PI, create a child page titled `Flow metrics <PI>`, with these sec
 | Workbook | the file name and the date of the extraction |
 | Published by | <RTE>, <date> |
 
-**Table A - Flow metrics** (one row per period and team, from the sheet `Metrics`):
+**Table A - Flow metrics** (one row per iteration and team, from the sheet `Metrics`):
 
-| Period | Team | Velocity | FlowTimeMedian | FlowTimeP85 | FlowTimeExcluded | FlowLoadAverage | FlowLoadEnd | FlowEfficiency | FlowPredictability |
+| Iteration-label | Team | Velocity | FlowTimeMedian | FlowTimeP85 | FlowTimeExcluded | FlowLoadAverage | FlowLoadEnd | FlowEfficiency | FlowPredictability |
 |---|---|---|---|---|---|---|---|---|---|
 
-**Table B - Distribution of done items** (one row per period and team, from the sheet `Metrics`):
+**Table B - Distribution of done items** (one row per iteration and team, from the sheet `Metrics`):
 
-| Period | Team | DistDoneFeature | DistDoneEnabler | DistDoneDefect | DistDoneAutre | DistDoneUnmapped |
+| Iteration-label | Team | DistDoneFeature | DistDoneEnabler | DistDoneDefect | DistDoneAutre | DistDoneUnmapped |
 |---|---|---|---|---|---|---|
 
 **Table C - Data checks** (one row per check, from the sheet `DataChecks`):
@@ -47,7 +47,7 @@ Then for each PI, create a child page titled `Flow metrics <PI>`, with these sec
 
 **Charts:** the 8 charts of the `Dashboard` sheet as images. Set the team picker to "All teams" first. Put each chart
 under its title, as in the workbook:
-1. Velocity - items done per period
+1. Velocity - items done per iteration
 2. Flow Time - median, in days
 3. Flow Time - 85th percentile, in days
 4. Flow Load - average items in process
@@ -68,13 +68,13 @@ the RTE".
 1. Run **Extract from Jira and compute**. Wait for the status cell to say it is done, and note the as-of date.
    When the macros fail, `scripts\run.ps1 extract` writes `jira2dashboard.xlsx` with the same `Metrics` and
    `DataChecks` columns (values) and the charts as pictures: fill the page from it the same way.
-2. **Rows:** the sheet `Metrics` has one row per period of the `Iterations` sheet and per team, for all PIs. Paste
-   only the rows of this PI's periods, plus the last period of the previous PI, so the first iteration has a
-   trend. Filter the column Period first; Excel copies only the visible rows of a filtered table.
+2. **Rows:** the sheet `Metrics` has one row per iteration of the `Iterations` sheet and per team, for all PIs. Paste
+   only the rows of this PI's iterations, plus the last iteration of the previous PI, so the first iteration has a
+   trend. Filter the column Iteration-label first; Excel copies only the visible rows of a filtered table.
 3. **Table A:** in the sheet `Metrics`, select the columns of table A, holding Ctrl to add each one. Copy them and
    paste into the page. Excel copies several columns when they cover the same rows. The pasted table keeps the
    values as Excel shows them (Verify in UI).
-4. **Table B:** do the same with Period, Team and the five `DistDone` columns.
+4. **Table B:** do the same with Iteration-label, Team and the five `DistDone` columns.
 5. **Table C:** in the sheet `DataChecks`, copy the columns Id, Title, Severity, Items and Result.
 6. **Charts:** for each chart of the `Dashboard` sheet, use Home > Copy > Copy as Picture, then paste it into the
    page. In a French Excel the menu is Accueil > Copier > Copier comme image.
@@ -86,7 +86,7 @@ the RTE".
 - **Paste values,** never formulas or links to the workbook.
 - **Keep "not computable" as text.** Never replace it with 0 or leave the cell blank. A blank in the workbook (a
   day after the as-of date) stays blank.
-- **Keep tables short.** Only this PI's periods, plus one before (step 2). If table A grows past about 60 rows, split it
+- **Keep tables short.** Only this PI's iterations, plus one before (step 2). If table A grows past about 60 rows, split it
   into one table per team. Long tables can be cut in Rovo answers (ROVO-523, Community), and knowledge may read only
   parts of them.
 - **Never paste these sheets:**

@@ -1,4 +1,4 @@
-"""The Example column written next to Period | Start | End (sheets Iterations and PIs): pure checks, no Excel."""
+"""The Example column written next to Iteration-label | Start | End (sheets Iterations and PIs): pure checks, no Excel."""
 import datetime as dt
 import re
 
@@ -8,7 +8,7 @@ from jira2dashboard.params.write import EXAMPLES
 def test_periods_and_pis_have_one_example_per_column():
     assert set(EXAMPLES) == {"Iterations", "PIs"}
     assert all(len(lines) == 3 for lines in EXAMPLES.values())
-    for lines, labels in ((EXAMPLES["Iterations"], ("Period:", "Start:", "End:")), (EXAMPLES["PIs"], ("PI:", "Start:", "End:"))):
+    for lines, labels in ((EXAMPLES["Iterations"], ("Iteration-label:", "Start:", "End:")), (EXAMPLES["PIs"], ("PI:", "Start:", "End:"))):
         assert all(line.startswith(label) for line, label in zip(lines, labels))
 
 

@@ -194,7 +194,7 @@ def run_settings(sheets: list[ParamSheet]) -> RunSettings:
     periods = [Period(name, dt.datetime.fromisoformat(start), dt.datetime.fromisoformat(end))
                for name, start, end in by_name["Iterations"].rows]
     if not periods:
-        raise ParamsError("Sheet Iterations has no period: type the iterations (Period | Start | End) to compute")
+        raise ParamsError("Sheet Iterations has no iteration: type the iterations (Iteration-label | Start | End) to compute")
     values = config_values(config)
     as_of = _parse_moment(values["AsOf"])
     if as_of is None:

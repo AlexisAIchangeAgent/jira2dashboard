@@ -483,7 +483,7 @@ Public Sub T_Log()
     text = FileText(file)
     Check "log", "a long text is cut", "400 x", True, InStr(text, " TEST " & String$(300, "x") & "..." & vbCrLf) > 0
     LogError "Step", vbObjectError + 602, "HTTP 500 after 1 try: {secret answer}"
-    LogError "Step", vbObjectError + 605, "Sheet Iterations has no period"
+    LogError "Step", vbObjectError + 605, "Sheet Iterations has no iteration"
     LogError "Step", 13, "Type mismatch"
     text = FileText(file)
     LogError "Step", vbObjectError + 513, "Unexpected character ""x"" at position 3"
@@ -492,7 +492,7 @@ Public Sub T_Log()
     Check "log", "an error that quotes the answer of Jira keeps its number only", "602", True, _
           InStr(text, "ERROR Step | vbObjectError+602 | (description not logged") > 0 And InStr(text, "secret") = 0
     Check "log", "a project error reads vbObjectError+n, with its description", "605", True, _
-          InStr(text, "ERROR Step | vbObjectError+605 | Sheet Iterations has no period") > 0
+          InStr(text, "ERROR Step | vbObjectError+605 | Sheet Iterations has no iteration") > 0
     Check "log", "a VBA error keeps its number", "13", True, InStr(text, "ERROR Step | 13 | Type mismatch") > 0
     WriteFileText file, String$(1000001, "y")                       ' too big: the next run starts a new file
     LogRunStart "test"
@@ -817,7 +817,7 @@ End Function
 
 Public Sub T_FlowBuild()
     ' The flow sheets and the dashboard are built from the plan sheets (FlowFormulas, ChartSpec), and rebuilt to the size
-    ' of newer data: nothing of a bigger earlier run stays. Period dates come as a date, as text or as a number.
+    ' of newer data: nothing of a bigger earlier run stays. Iteration dates come as a date, as text or as a number.
     Dim wb As Object, dash As Object, sheetCount As Long, teams As Long
     Set wb = ThisWorkbook
     Set dash = wb.Worksheets("Dashboard")
@@ -838,7 +838,7 @@ Public Sub T_FlowBuild()
     Check "flowbuild", "ItemFlow: one row per issue", "2 issues", 2, TableRows("ItemFlow")
     Check "flowbuild", "Issues and StatusIntervals become tables", "2 + 3 rows", "2|3", TableRows("Issues") & "|" & TableRows("StatusIntervals")
     Check "flowbuild", "DailyLoad: one row per day and team", "28 days x 9", 28 * teams, TableRows("DailyLoad")
-    Check "flowbuild", "Metrics: one row per period and team", "2 periods x 9", 2 * teams, TableRows("Metrics")
+    Check "flowbuild", "Metrics: one row per iteration and team", "2 periods x 9", 2 * teams, TableRows("Metrics")
     Check "flowbuild", "eight charts", "Dashboard", 8, dash.ChartObjects.Count
     Check "flowbuild", "DataChecks: one row per check of ChecksSpec", "29 checks", 29, TableRows("DataChecks")
     Check "flowbuild", "DataChecks: the first check, and the check that needs a field is not computable", "DC01 / DC11", "DC01|OK|not computable", _

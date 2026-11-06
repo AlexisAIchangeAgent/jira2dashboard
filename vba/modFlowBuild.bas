@@ -5,7 +5,7 @@ Option Explicit
 ' this code: they are rows of the sheets FlowFormulas (Table | Column | Formula) and ChartSpec, written by the Python
 ' generator from the tested formula text. An empty Formula marks a column of values (raw data or keys written here).
 ' The sizes follow the data: Issues, StatusIntervals, ItemFlow = one row per extracted row, DailyLoad = one row per day
-' and team, Metrics = one row per period and team. Every call rebuilds everything, so no row of an older run stays.
+' and team, Metrics = one row per iteration and team. Every call rebuilds everything, so no row of an older run stays.
 
 Private Const XL_SRC_RANGE As Long = 1
 Private Const XL_YES As Long = 1
@@ -108,20 +108,20 @@ Private Function TeamNames(ByVal wsProjects As Object, ByVal programTeam As Stri
 End Function
 
 Private Function PeriodRows(ByVal wsPeriods As Object) As Collection
-    ' Period | Start | End -> Collection of Array(name, start serial, end serial)
+    ' Iteration-label | Start | End -> Collection of Array(name, start serial, end serial)
     Cov "FLB09"
     Dim out As New Collection, row As Variant, s As Variant, e As Variant
     For Each row In ReadTable(wsPeriods)
         s = SerialOf(row("Start")): e = SerialOf(row("End"))
         If IsEmpty(s) Or IsEmpty(e) Then
             Cov "FLB28"
-            Err.Raise vbObjectError + 701, "BuildFlowSheets", "Sheet Iterations: Start and End of period " & row("Period") & " must be dates."
+            Err.Raise vbObjectError + 701, "BuildFlowSheets", "Sheet Iterations: Start and End of iteration " & row("Iteration-label") & " must be dates."
         End If
         If e <= s Then
             Cov "FLB27"
-            Err.Raise vbObjectError + 704, "BuildFlowSheets", "Sheet Iterations: period " & row("Period") & " ends before it starts."
+            Err.Raise vbObjectError + 704, "BuildFlowSheets", "Sheet Iterations: iteration " & row("Iteration-label") & " ends before it starts."
         End If
-        out.Add Array(CStr(row("Period")), s, e)
+        out.Add Array(CStr(row("Iteration-label")), s, e)
     Next row
     Set PeriodRows = out
 End Function
@@ -224,7 +224,7 @@ Private Sub LoadPlan(ByVal wb As Object, ByRef spec As Object, ByRef teams As Co
     Set periods = PeriodRows(wb.Worksheets("Iterations"))
     If periods.Count = 0 Then
         Cov "FLB15"
-        Err.Raise vbObjectError + 703, "BuildFlowSheets", "Sheet Iterations has no period: fill Period, Start and End first."
+        Err.Raise vbObjectError + 703, "BuildFlowSheets", "Sheet Iterations has no iteration: fill Iteration-label, Start and End first."
     End If
 End Sub
 
@@ -316,7 +316,7 @@ Private Sub BuildControls(ByVal wb As Object, ByVal spec As Object)
 End Sub
 
 Private Function DaysOf(ByVal periods As Collection) As Long
-    ' Whole days from the first period start to the last period end (end excluded).
+    ' Whole days from the first period start to the last iteration end (end excluded).
     Cov "FLB18"
     Dim p As Variant, first As Double, last As Double
     first = Int(periods(1)(1)): last = Int(periods(1)(2))
@@ -349,7 +349,7 @@ Private Sub WriteDailyKeys(ByVal ws As Object, ByVal periods As Collection, ByVa
 End Sub
 
 Private Sub WriteMetricKeys(ByVal ws As Object, ByVal periods As Collection, ByVal teams As Collection)
-    ' Period | PeriodStart | PeriodEnd | Team, one row per period and team.
+    ' Iteration-label | IterationStart | IterationEnd | Team, one row per iteration and team.
     Cov "FLB20"
     Dim p As Variant, t As Long, r As Long, data() As Variant
     ReDim data(1 To periods.Count * teams.Count, 1 To 4)
@@ -483,7 +483,7 @@ Private Sub BuildChart(ByVal dash As Object, ByVal data As Object, ByVal row As 
         For i = 1 To teams.Count: names(i - 1) = teams(i): Next i
     End If
     count = UBound(names) + 1
-    isDay = (CStr(row("Axis")) = "day")                      ' one row per day (daily curve) or per period
+    isDay = (CStr(row("Axis")) = "day")                      ' one row per day (daily curve) or per iteration
     rowsCount = periods.Count
     If isDay Then rowsCount = DaysOf(periods)
     first = top + 2: last = first + rowsCount - 1
@@ -503,7 +503,7 @@ Private Sub BuildChart(ByVal dash As Object, ByVal data As Object, ByVal row As 
         data.Range(data.Cells(first, 1), data.Cells(last, 1)).Value = axis
         data.Range(data.Cells(first, 1), data.Cells(last, 1)).NumberFormat = "yyyy-mm-dd"
     Else
-        data.Cells(top + 1, 1).Value = "Period"
+        data.Cells(top + 1, 1).Value = "Iteration-label"
         For i = 1 To rowsCount
             axis(i, 1) = AsText(CStr(periods(i)(0)))
         Next i

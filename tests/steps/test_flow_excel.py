@@ -570,7 +570,7 @@ def daily_curve_differences(world, mode, block):
 def _chart_data(world, mode):
     wb, as_of = world["wb"], world["dataset"].as_of
     expected = {(m.period, m.team): m for m in flow_metrics(world["items"], world["periods"], mode, as_of)}
-    metrics_rows = {(r["Period"], r["Team"]): r for r in table_dicts(wb, "Metrics")}
+    metrics_rows = {(r["Iteration-label"], r["Team"]): r for r in table_dicts(wb, "Metrics")}
     blocks, wrong, gaps = chart_blocks(wb, world), [], 0
     for spec in D.CHARTS:
         names, labels, rows = blocks[spec.name]
@@ -659,7 +659,7 @@ def _metrics(world, mode):
     rows = table_dicts(world["wb"], "Metrics")
     seen, wrong = 0, []
     for row in rows:
-        want = expected.get((row["Period"], row["Team"]))
+        want = expected.get((row["Iteration-label"], row["Team"]))
         if want is None:
             assert row["Velocity"] == 0, row                         # a team without any issue
             continue
@@ -684,7 +684,7 @@ def _metrics(world, mode):
             else:
                 ok = same_figure(got, wanted)
             if not ok:
-                wrong.append((row["Period"], row["Team"], column, got, wanted))
+                wrong.append((row["Iteration-label"], row["Team"], column, got, wanted))
     assert wrong == [], wrong[:8]
     assert seen == len(expected) > 20
     figures = [r["FlowTimeMedian"] for r in rows if r["FlowTimeMedian"] != NOT_COMPUTABLE]

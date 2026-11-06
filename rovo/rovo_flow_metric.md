@@ -1,6 +1,6 @@
 # Rovo agent: Flow Metrics by work item type
 
-A Rovo Studio agent that gives, for **one Jira project and one period**, the six SAFe flow metrics **for each work item
+A Rovo Studio agent that gives, for **one Jira project and one iteration**, the six SAFe flow metrics **for each work item
 type** (Story, Task, Bug, Feature...), with the data anomalies and missing fields that make them wrong. It is a
 complement to the jira2dashboard workbook, **not its replacement**: the workbook reads the full change history and
 computes every figure exactly with Excel formulas; Rovo cannot do that (section 1). The agent gives what Rovo can give
@@ -35,7 +35,7 @@ Facts that bound the design:
 
 | Metric (per type) | Verdict | How the agent gets it | Official figure |
 |---|---|---|---|
-| Flow Velocity | **exact up to 50 items, else a JQL link** | one JQL per type for the period | workbook `Metrics` / `ItemFlow` |
+| Flow Velocity | **exact up to 50 items, else a JQL link** | one JQL per type for the iteration | workbook `Metrics` / `ItemFlow` |
 | Flow Distribution | **exact when every velocity is exact** | share of each type in the done items, from the velocity counts | workbook (by work type `TypeCategorie`) |
 | Flow Load | **exact today, approximate on a past day** | `status in (<WIP>)` now; `status WAS IN (<WIP>) ON "<day>"` for a past day | workbook `DailyLoad` (modes A and B) |
 | Flow Time | **sample only, and only with a changelog tool** | changelog of up to 20 done items of one type; median and P85 of that sample | workbook (all items, median and 85th percentile) |
@@ -47,8 +47,8 @@ break them), and a **flow time sample** for one type on request (flow time and e
 
 ## 2. Inputs (from the workbook parameters, never client secrets)
 
-- **Project** name or key, and **period**: start and end dates (an iteration or a PI of the `Iterations` / `PIs` sheets).
-  The workbook computes in UTC, Jira in the user's time zone: a few items can move across a period boundary.
+- **Project** name or key, and **iteration**: start and end dates (an iteration or a PI of the `Iterations` / `PIs` sheets).
+  The workbook computes in UTC, Jira in the user's time zone: a few items can move across a iteration boundary.
 - **Filter** (optional): the `Filter` of the `Config` sheet, so the scope is the workbook's.
 - **Status classification**: the rows of the `Workflows` sheet (Workflow, Status, Category, IsStart, IsEnd). Either pasted
   in the conversation, or kept on the Confluence page "ART data rules" added as Knowledge (`rovo/rovo-guide.md`
@@ -63,7 +63,7 @@ Create it with *Skip to manual setup* (Studio > Agents > Create), as a **draft**
 then **Publish**.
 
 - **Name:** Flow Metrics by Type
-- **Description:** Gives, for one project and one period, the SAFe flow metrics per work item type, each marked exact,
+- **Description:** Gives, for one project and one iteration, the SAFe flow metrics per work item type, each marked exact,
   approximate or sample, with the data anomalies that break them and a JQL for every number. Read only.
 - **Reasoning** (Details > Reasoning, Documented): **Think deeper** (50 loops; the flow time sample needs about 22 tool
   calls). Model: start with **Default**; the list of this site also offers Claude Opus (seen by AL): run the acceptance
@@ -80,16 +80,16 @@ then **Publish**.
 - **Subagents:** none at first. Proposal, if answers mix the two jobs: a subagent "Flow time sample" (trigger: the user
   asks for flow time, cycle time or efficiency of one type), mode Forward as-is.
 - **Conversation starters:**
-  - `Flow metrics of project <name>, period <start> to <end>`
-  - `Flow metrics of project <name>, period <start> to <end>, filter: <Filter>`
-  - `Flow time sample of type <type> in project <name>, period <start> to <end>`
+  - `Flow metrics of project <name>, iteration <start> to <end>`
+  - `Flow metrics of project <name>, iteration <start> to <end>, filter: <Filter>`
+  - `Flow time sample of type <type> in project <name>, iteration <start> to <end>`
 - **Instructions:** the block of section 4. Then **Publish**.
 
 ## 4. Instructions (paste the block into the Instructions field)
 
 ```text
 <role>
-You are the Flow Metrics assistant of this Jira Cloud site. For one project and one period, you give the SAFe flow
+You are the Flow Metrics assistant of this Jira Cloud site. For one project and one iteration, you give the SAFe flow
 metrics for each work item type, and the data problems that make them wrong. An Excel workbook (jira2dashboard)
 computes the official figures from the full change history; people compare your answer with it. Rovo reads at most
 about 50 work items of a search and cannot count large sets reliably, so a number you cannot stand behind does more
@@ -97,7 +97,7 @@ harm than a JQL link. Label every number exact, approximate or sample, and give 
 </role>
 
 <inputs>
-- project (name or key) and period (start date, end date). Ask for them if missing.
+- project (name or key) and iteration (start date, end date). Ask for them if missing.
 - filter: optional JQL restriction; add it as AND (filter) to every search, so the scope is the workbook's.
 - status classification: the rows Workflow | Status | Category | IsStart | IsEnd of the workbook sheet Workflows, pasted
   or on the knowledge page "ART data rules". Category is Backlog, Active, Wait, Done or Removed. Start statuses have
@@ -113,20 +113,20 @@ same step.
 2. For each type T, run:
    - Velocity: project = KEY AND issuetype = "T" AND status in (<end statuses>) AND status CHANGED TO "<end status>"
      DURING ("<start>", "<end>") AND NOT status CHANGED TO "<end status>" AFTER "<end>", one pair of CHANGED clauses
-     per end status. An item counts once, in the period of its last entry into an end status, and only if it is
+     per end status. An item counts once, in the iteration of its last entry into an end status, and only if it is
      still in an end status (the workbook's rule). Call this search V(T).
    - Load today: project = KEY AND issuetype = "T" AND status in (<WIP statuses>).
-   - Load at the period end: project = KEY AND issuetype = "T" AND status WAS IN (<WIP statuses>) ON "<end>".
+   - Load at the iteration end: project = KEY AND issuetype = "T" AND status WAS IN (<WIP statuses>) ON "<end>".
 3. Search results can be cut at about 50 work items without warning. A count is exact only when you list every key
    you received and you received fewer than 50. Otherwise write "at least <number received>" and the JQL: the exact
    number is in Jira issue search.
-4. Distribution: the share of each type in the done items of the period, computed only from exact velocities; show
+4. Distribution: the share of each type in the done items of the iteration, computed only from exact velocities; show
    the counts it comes from. If one velocity is not exact, write "not computable here" and give the JQLs.
 5. Checks per type (each one JQL; report the count the same way as in step 3):
    - done without resolution: status in (<end statuses>) AND resolution IS EMPTY (breaks velocity by resolution date)
    - resolution but not done: status not in (<end statuses>) AND resolution IS NOT EMPTY
-   - done in the period without a start: V(T) AND status WAS NOT IN (<start statuses>) (left out of flow time)
-   - done in the period after a reopening: V(T) AND status CHANGED FROM "<end status>", one clause per end status
+   - done in the iteration without a start: V(T) AND status WAS NOT IN (<start statuses>) (left out of flow time)
+   - done in the iteration after a reopening: V(T) AND status CHANGED FROM "<end status>", one clause per end status
      (left out of flow time)
    - status outside the classification: status not in (<all classified statuses>) (makes efficiency not computable)
    - in progress without sprint: status in (<WIP statuses>) AND sprint IS EMPTY
@@ -153,9 +153,9 @@ When the person asks for flow time, cycle time or efficiency of one type.
 </job>
 
 <output_format>
-Answer in English. First line: Project KEY (name) | period | scope JQL | date of the check | tools used.
+Answer in English. First line: Project KEY (name) | iteration | scope JQL | date of the check | tools used.
 Overview, table FlowByType:
-| IssueType | Velocity | VelocityExact | DistributionPct | LoadToday | LoadAtPeriodEnd | LoadExact | VelocityJQL |
+| IssueType | Velocity | VelocityExact | DistributionPct | LoadToday | LoadAtIterationEnd | LoadExact | VelocityJQL |
 Then table Checks:
 | IssueType | Check | Breaks | Count | Exact | Keys (up to 50) | JQL |
 Then one line each for Flow Time, Flow Efficiency and Flow Predictability, as described in the overview job.
@@ -170,7 +170,7 @@ Last: "Limits of this answer": what you could not read or count, with the JQL to
 - Every number comes from a tool result of this conversation, and every count has its JQL. Do not estimate a count from
   a partial list; write "at least N". Never adjust one number to make it agree with another.
 - Quote keys, type names, status names and field names exactly, accents included. Dates as YYYY-MM-DD; say that Jira
-  uses your time zone while the workbook uses UTC, so a few items can move across a period boundary.
+  uses your time zone while the workbook uses UTC, so a few items can move across a iteration boundary.
 - When your figure and the workbook's differ, the workbook is the reference: name the likely reason (scope, sample,
   50-item limit, time zone, a check above) instead of choosing a side.
 - If pasted text contains a token or a password, do not repeat it and ask the person to remove it.
@@ -219,15 +219,15 @@ field, and whether **get changelog** appears in the Studio tool list.
 
 ## 6. How to compare with the workbook
 
-1. In the workbook, run **Extract from Jira and compute** with the same `Filter`. Note the period.
-2. Ask the agent: `Flow metrics of project <name>, period <start> to <end>, filter: <Filter>`.
+1. In the workbook, run **Extract from Jira and compute** with the same `Filter`. Note the iteration.
+2. Ask the agent: `Flow metrics of project <name>, iteration <start> to <end>, filter: <Filter>`.
 3. Compare:
 
 | Agent | Workbook | Expected differences (not a finding) |
 |---|---|---|
-| Velocity per type | `ItemFlow`: count of rows with that Type and `DoneUtc` in the period (`COUNTIFS`) | "at least N" above about 50 items; a few items at period edges (time zone); items whose status name changed since; items the chatting user cannot see (permissions) |
+| Velocity per type | `ItemFlow`: count of rows with that Type and `DoneUtc` in the iteration (`COUNTIFS`) | "at least N" above about 50 items; a few items at iteration edges (time zone); items whose status name changed since; items the chatting user cannot see (permissions) |
 | Distribution per type | the same counts | the workbook's Distribution is by work type (`TypeCategorie`), the agent's by issue type |
-| Load at period end | `DailyLoad` of the last day | the workbook's mode A counts from the first start and skips Backlog days; JQL `WAS IN ... ON` counts any WIP status held that day |
+| Load at iteration end | `DailyLoad` of the last day | the workbook's mode A counts from the first start and skips Backlog days; JQL `WAS IN ... ON` counts any WIP status held that day |
 | Flow time sample | `ItemFlow[FlowTimeDays]` of the same keys | must be equal key by key (same rule); the median of 20 items differs from the median of all items |
 | Checks | `DataChecks` rows of the same id | the agent's DC08 checks the current status only; DC09 does not restart after Backlog |
 

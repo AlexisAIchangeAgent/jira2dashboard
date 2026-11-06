@@ -49,7 +49,7 @@ def manual(mandatory: tuple[str, ...]) -> list[tuple[str, str]]:
         ]),
         ("Sheets Projects, Iterations and PIs", [
             "Projects: Project, Role, Team. Exactly one project is the Program (the features); the others are Team.",
-            "Iterations: Period, Start, End (the end is excluded). They are the short cycles inside a PI, for example 6 of "
+            "Iterations: Iteration-label, Start, End (the end is excluded). They are the short cycles inside a PI, for example 6 of "
             "3 weeks in a PI of 18 weeks, and the periods of the charts. Column Example shows the form of each value.",
             "PIs: PI, Start, End, with names such as PI#01-2026 (data check DC18).",
         ]),
@@ -68,7 +68,7 @@ def manual(mandatory: tuple[str, ...]) -> list[tuple[str, str]]:
             'A status that starts with "Stopped" gives the error. The local log tells more (below).',
         ]),
         ("Results", [
-            'Metrics: one row per period and team. A figure that cannot be computed reads "not computable", never 0.',
+            'Metrics: one row per iteration and team. A figure that cannot be computed reads "not computable", never 0.',
             "DataChecks: the 29 data checks DC01-DC29, with Items and OK, KO or not computable. To see the work items, "
             "filter the table ItemFlow on its column DCxx = 1.",
             "Do not edit the sheets FlowFormulas, ChartSpec and ChecksSpec: they describe the formulas, the charts and "

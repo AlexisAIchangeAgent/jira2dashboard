@@ -8,5 +8,5 @@ real dates.
 An iteration is half-open: `Start` is included, `End` is excluded (an item done on `End` belongs to the next
 iteration). Dates are UTC; `Start` and `End` are dates (midnight), for example 2026-10-05 and 2026-10-26.
 
-| Period | Start | End |
+| Iteration-label | Start | End |
 |---|---|---|

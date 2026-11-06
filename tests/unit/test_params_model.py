@@ -275,7 +275,7 @@ def test_as_of_accepts_a_date_or_a_date_and_time(params_copy, moment):
 
 def test_periods_are_empty_in_the_repo_because_the_calendar_is_the_clients():
     periods = sheet(model.load_all(), "Iterations")
-    assert periods.header == ("Period", "Start", "End") and periods.rows == ()
+    assert periods.header == ("Iteration-label", "Start", "End") and periods.rows == ()
 
 
 def test_period_rows_are_checked(params_copy):
@@ -285,8 +285,8 @@ def test_period_rows_are_checked(params_copy):
     with pytest.raises(ParamsError) as err:
         model.load_all(params_copy)
     text = str(err.value)
-    assert "period 'I1' listed twice" in text and "Iterations row 2: Start and End must be dates" in text
-    assert "Iterations row 3: Start must be before End" in text and "Iterations row 4: Period needs a name" in text
+    assert "iteration 'I1' listed twice" in text and "Iterations row 2: Start and End must be dates" in text
+    assert "Iterations row 3: Start must be before End" in text and "Iterations row 4: Iteration-label needs a name" in text
 
 
 def test_valid_period_rows_are_accepted(params_copy):

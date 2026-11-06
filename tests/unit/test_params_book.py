@@ -141,8 +141,8 @@ def test_a_missing_sheet_or_column_is_named(tmp_path):
 
 def test_no_period_stops_the_run(tmp_path):
     def empty(sheets):
-        replace(sheets, "Iterations", Sheet("Iterations", ("Period", "Start", "End"), []))
-    with pytest.raises(ParamsError, match="Sheet Iterations has no period"):
+        replace(sheets, "Iterations", Sheet("Iterations", ("Iteration-label", "Start", "End"), []))
+    with pytest.raises(ParamsError, match="Sheet Iterations has no iteration"):
         P.run_settings(P.read_params(book(tmp_path, change=empty)))
 
 

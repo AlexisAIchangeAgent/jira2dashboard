@@ -118,14 +118,14 @@ def load_count(day: str, team: str, bucket: str | None = None) -> str:
 DAILYLOAD_LOAD = f'=IF(ROUND(([@Date]+1-AsOfUtc)*86400,0)>0,"",{load_count("[@Date]", "[@Team]")})'
 
 
-# --- Metrics: one row per period and team (docs 2.2) -------------------------------------------------------
+# --- Metrics: one row per iteration and team (docs 2.2) -------------------------------------------------------
 
-DONE_IN = (f'{IF_}[DoneUtc],">="&([@PeriodStart]-{HALF}),{IF_}[DoneUtc],"<"&([@PeriodEnd]-{HALF}),'
+DONE_IN = (f'{IF_}[DoneUtc],">="&([@IterationStart]-{HALF}),{IF_}[DoneUtc],"<"&([@IterationEnd]-{HALF}),'
            f"{IF_}[Team],[@Team]")
-_DONE_ARRAY = (f"({IF_}[DoneUtc]>=[@PeriodStart]-{HALF})*({IF_}[DoneUtc]<[@PeriodEnd]-{HALF})*"
+_DONE_ARRAY = (f"({IF_}[DoneUtc]>=[@IterationStart]-{HALF})*({IF_}[DoneUtc]<[@IterationEnd]-{HALF})*"
                f"({IF_}[Team]=[@Team])*({IF_}[Excluded]=0)")
-_LOAD_WINDOW = (f'DailyLoad[Team],[@Team],DailyLoad[Date],">="&([@PeriodStart]-{HALF}),'
-                f'DailyLoad[Date],"<"&([@PeriodEnd]-{HALF})')
+_LOAD_WINDOW = (f'DailyLoad[Team],[@Team],DailyLoad[Date],">="&([@IterationStart]-{HALF}),'
+                f'DailyLoad[Date],"<"&([@IterationEnd]-{HALF})')
 _NC = f'"{NOT_COMPUTABLE}"'
 
 
@@ -133,7 +133,7 @@ def _sum(column: str) -> str:
     return f"SUMIFS({IF_}[{column}],{DONE_IN},{IF_}[Excluded],0)"
 
 
-METRICS_KEYS = ("Period", "PeriodStart", "PeriodEnd", "Team")
+METRICS_KEYS = ("Iteration-label", "IterationStart", "IterationEnd", "Team")
 
 METRICS_COLUMNS = (
     ("Velocity", f"=COUNTIFS({DONE_IN})"),

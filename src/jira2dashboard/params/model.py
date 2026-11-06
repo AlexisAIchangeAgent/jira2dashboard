@@ -50,7 +50,7 @@ _PROJECT_KEY = re.compile(r"[A-Z][A-Z0-9_]+")
 SPECS = (
     SheetSpec("Config", "config.md", ("Parameter", "Value", "Example", "Mandatory", "Description")),
     SheetSpec("Projects", "projects.md", ("Project", "Role", "Team")),
-    SheetSpec("Iterations", "iterations.md", ("Period", "Start", "End")),
+    SheetSpec("Iterations", "iterations.md", ("Iteration-label", "Start", "End")),
     SheetSpec("PIs", "pis.md", ("PI", "Start", "End")),
     SheetSpec("Workflows", "workflows.md",
               ("Workflow", "Order", "Status", "Category", "IsStart", "IsEnd", "IsFree"),
@@ -231,11 +231,11 @@ def _parse_moment(text: str):
         return None
 
 
-def _check_periods(sheet: ParamSheet, problems: list[str], column: str = "Period") -> None:
-    """Iterations (column Period) and PIs (column PI): a name, two dates, Start before End, no name twice."""
+def _check_periods(sheet: ParamSheet, problems: list[str], column: str = "Iteration-label") -> None:
+    """Iterations (column Iteration-label) and PIs (column PI): a name, two dates, Start before End, no name twice."""
     seen: Counter = Counter()
     label = sheet.name
-    noun = column.lower() if column == "PI" else "period"
+    noun = column.lower() if column == "PI" else "iteration"
     for number, rec in _records(sheet):
         where = f"{label} row {number}"
         start, end = _parse_moment(rec["Start"] or ""), _parse_moment(rec["End"] or "")

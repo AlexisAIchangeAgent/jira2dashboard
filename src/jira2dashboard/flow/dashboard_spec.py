@@ -1,6 +1,6 @@
 """The dashboard: which charts, and the formulas of the data behind them (pure, nothing here touches Excel).
 
-The sheet ChartData holds one block per chart: a row of series names, one row per period, one formula per point.
+The sheet ChartData holds one block per chart: a row of series names, one row per iteration, one formula per point.
 A point that is "not computable" is the Excel error #N/A, so the chart leaves a gap there and never shows a 0.
 blueprint.py writes this description into the sheet ChartSpec; modFlowBuild.bas builds ChartData and the charts from it.
 """
@@ -19,7 +19,7 @@ CONFIG_CELL = "O1"                            # the button that reads the Jira c
 XL_COLUMN_CLUSTERED, XL_LINE_MARKERS, XL_COLUMN_STACKED_100, XL_LINE = 51, 65, 53, 4
 
 TEAMS, BUCKET_SERIES = "team", "bucket"
-PERIOD_AXIS, DAY_AXIS = "period", "day"          # one point per period (table Metrics) or per day (table DailyLoad)
+PERIOD_AXIS, DAY_AXIS = "period", "day"          # one point per iteration (table Metrics) or per day (table DailyLoad)
 BAND_NAMES = ("Target band low", "Target band high")
 
 
@@ -42,7 +42,7 @@ CONFIG_CAPTION = "Read the Jira configuration"
 STEPS_CELL = "T1"           # the first steps (manual.first_steps): beside the charts; a rebuild clears only A4:R400
 
 CHARTS = (
-    ChartSpec("velocity", "Velocity - items done per period", "Velocity", XL_COLUMN_CLUSTERED),
+    ChartSpec("velocity", "Velocity - items done per iteration", "Velocity", XL_COLUMN_CLUSTERED),
     ChartSpec("flow_time", "Flow Time - median, in days", "FlowTimeMedian", XL_LINE_MARKERS),
     ChartSpec("flow_time_p85", "Flow Time - 85th percentile, in days", "FlowTimeP85", XL_LINE_MARKERS),
     ChartSpec("flow_load", "Flow Load - average items in process", "FlowLoadAverage", XL_LINE_MARKERS),
@@ -53,7 +53,7 @@ CHARTS = (
     ChartSpec("flow_predictability", "Flow Predictability", "FlowPredictability", XL_LINE_MARKERS, "0%",
               reason="it needs the PI objectives, which are not in Jira", band=(0.8, 1.0)),
     ChartSpec("flow_load_daily", "Flow Load - items in process at the end of each day", None, XL_LINE, axis=DAY_AXIS,
-              reason="the day is after the as-of date"),          # last: its block has one row per day, not per period
+              reason="the day is after the as-of date"),          # last: its block has one row per day, not per iteration
 )
 
 COLUMNS_PER_CHART, ROWS_PER_CHART = 8, 18       # size of the area of a chart on the Dashboard sheet
@@ -62,7 +62,7 @@ CHARTS_PER_ROW = 2
 
 
 def block_top(index: int, periods: int) -> int:
-    """First row of the block of chart `index` in ChartData: title, series names, then one row per period."""
+    """First row of the block of chart `index` in ChartData: title, series names, then one row per iteration."""
     return 1 + index * (periods + 4)
 
 
@@ -73,7 +73,7 @@ def chart_anchor(index: int) -> tuple[int, int]:
 
 def team_point(column: str, period_cell: str, team_cell: str) -> str:
     """One point of a team series: the figure of Metrics for this period and team, or #N/A."""
-    return (f'=LET(v,XLOOKUP(1,(Metrics[Period]={period_cell})*(Metrics[Team]={team_cell}),Metrics[{column}],""),'
+    return (f'=LET(v,XLOOKUP(1,(Metrics[[Iteration-label]]={period_cell})*(Metrics[Team]={team_cell}),Metrics[{column}],""),'
             "IF(ISNUMBER(v),v,NA()))")
 
 
@@ -93,9 +93,9 @@ def bucket_point(bucket: str, period_cell: str) -> str:
     """One point of the Distribution chart: the share of one work type among the items done in the period, for the
     team picked in the selector, or for all teams together (each team's share weighted by its velocity)."""
     column = f"Metrics[DistDone{bucket}]"
-    one_team = f'XLOOKUP(1,(Metrics[Period]={period_cell})*(Metrics[Team]={SELECTOR}),{column},"")'
-    all_teams = (f"SUMPRODUCT((Metrics[Period]={period_cell})*Metrics[Velocity]*IFERROR(1*{column},0))"
-                 f"/SUMIFS(Metrics[Velocity],Metrics[Period],{period_cell})")
+    one_team = f'XLOOKUP(1,(Metrics[[Iteration-label]]={period_cell})*(Metrics[Team]={SELECTOR}),{column},"")'
+    all_teams = (f"SUMPRODUCT((Metrics[[Iteration-label]]={period_cell})*Metrics[Velocity]*IFERROR(1*{column},0))"
+                 f"/SUMIFS(Metrics[Velocity],Metrics[[Iteration-label]],{period_cell})")
     return f'=IFERROR(IF({SELECTOR}="{ALL_TEAMS}",{all_teams},1*{one_team}),NA())'
 
 

@@ -73,7 +73,7 @@ def itemflow_rows(results: Results, rows: list[tuple], issues: list[FlowIssue],
 
 
 def days_of(first: dt.datetime, end: dt.datetime) -> list[dt.datetime]:
-    """Every day from the first period start to the last period end (excluded)."""
+    """Every day from the first iteration start to the last iteration end (excluded)."""
     days, day = [], dt.datetime(first.year, first.month, first.day)
     while day < end:
         days.append(day)

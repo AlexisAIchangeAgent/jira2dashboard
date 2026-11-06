@@ -266,7 +266,7 @@ When the macros cannot run, Python does their work:
 ## 11. Metrics and data checks
 
 Definitions: [`docs/safe-flow-metrics-and-data-checks.md`](docs/safe-flow-metrics-and-data-checks.md). Metrics are
-per period and per team; Program features count under "ART".
+per iteration and per team; Program features count under "ART".
 
 | Metric | In short |
 |---|---|

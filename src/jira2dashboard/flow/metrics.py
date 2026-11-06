@@ -1,4 +1,4 @@
-"""The six flow metrics per period and team (docs/safe-flow-metrics-and-data-checks.md section 2.2)."""
+"""The six flow metrics per iteration and team (docs/safe-flow-metrics-and-data-checks.md section 2.2)."""
 import datetime as dt
 from dataclasses import dataclass
 

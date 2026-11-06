@@ -163,7 +163,7 @@ Run it first on the 20-item sandbox (`rovo/rovo-guide.md` section 7), then on a 
 
 | # | Prompt | Expected |
 |---|---|---|
-| 1 | page read: `Quote <metric> of team <T> for period <P> from the page Flow metrics <PI>`, for 10 cells taken from tables A, B and C | each value equals the cell of the page and of the workbook. Rovo knowledge may read only parts of a long table: if one cell is wrong, split the tables (one per team) and run the test again |
+| 1 | page read: `Quote <metric> of team <T> for iteration <P> from the page Flow metrics <PI>`, for 10 cells taken from tables A, B and C | each value equals the cell of the page and of the workbook. Rovo knowledge may read only parts of a long table: if one cell is wrong, split the tables (one per team) and run the test again |
 | 2 | `Is the data ready? Run the exact checks` on the sandbox | for each exact check, the keys of section 7 of the guide; "complete"; no total of its own |
 | 3 | `Run check DC27` | "workbook only", no JQL, no number |
 | 4 | calibration: a check whose filter matches 25 to 45 known items | the list is complete; if it is cut, the size it was cut at is the threshold T: write it on "ART data rules" |

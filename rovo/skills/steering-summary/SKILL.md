@@ -6,16 +6,16 @@ description: Write a short steering note for the RTE from the Confluence page "F
 # Steering note for the RTE
 
 1. Read the page "Flow metrics <PI>": the header and tables A, B and C. Quote every value and trend the way the
-   explain method does: exactly as written, with its period and team.
+   explain method does: exactly as written, with its iteration and team.
 2. Pick 3 to 5 signals, the most important first, only from the page:
-   - Flow Time P85 is higher than in the previous period;
-   - Flow Load at the period end is above the team's Flow Load average for the period;
+   - Flow Time P85 is higher than in the previous iteration;
+   - Flow Load at the iteration end is above the team's Flow Load average for the iteration;
    - Flow Efficiency is down, or not computable;
    - in the distribution, the Defect share is up, or Unmapped is above 0 (the work type is missing);
    - a check of table C is KO with a Blocker severity.
 3. For each signal, give:
    - the team;
-   - the two values quoted with their periods;
+   - the two values quoted with their iterations;
    - one likely cause, written as a question;
    - one suggested action.
 4. Then a section "Data to fix first": the KO checks that make a figure not computable or leave items out, with their
