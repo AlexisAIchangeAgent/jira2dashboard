@@ -49,7 +49,7 @@ def manual(mandatory: tuple[str, ...]) -> list[tuple[str, str]]:
         ]),
         ("Sheets Projects, Periods and PIs", [
             "Projects: Project, Role, Team. Exactly one project is the Program (the features); the others are Team.",
-            "Periods: Period, Start, End (the end is excluded). They are the periods of the charts.",
+            "Periods: Period, Start, End (the end is excluded). They are the periods of the charts. Column Example shows the form of each value.",
             "PIs: PI, Start, End, with names such as PI#01-2026 (data check DC18).",
         ]),
         (f'Button "{CONFIG_CAPTION}"', [
