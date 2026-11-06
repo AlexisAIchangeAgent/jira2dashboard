@@ -37,6 +37,12 @@ powershell -ExecutionPolicy Bypass -File scripts\setup.ps1 -Dev   # create .venv
 .\scripts\release.ps1 -Version v1.0.0 [-Publish]   # zip of HEAD + built workbook in out\release; -Publish = GitHub release
 ```
 
+Every `scripts\*.ps1` has a double-click launcher `scripts\<name>.cmd` (shared helper `_launch.cmd`: `-ExecutionPolicy Bypass`
+for that run only, waits for a key only on a double-click or with `J2D_PAUSE=1`, `--help`, exit code kept). A new `.ps1` needs
+one: copy `stop-mock.cmd` and change its `set` lines. `.cmd` files are ASCII with CRLF and their description line has no
+`<>|&^%!` (cmd would take them for operators); `tests/unit/test_cmd_launchers.py` pins all this. From Git Bash call them with
+`MSYS_NO_PATHCONV=1 cmd.exe /c .\scripts\x.cmd`: otherwise `/c` becomes a path and an interactive cmd opens.
+
 The release zip leaves out the `export-ignore` paths of `.gitattributes` (CLAUDE.md, the handoff, `archive/`,
 `.claude/`, `.venv/`); `tests/unit/test_release_contents.py` pins the list. `-Publish` is outward-facing: ask AL first.
 `diagnose` never opens the workbook, never reads `python.log` (JQL, Jira's messages) nor the Windows event log, and masks the home

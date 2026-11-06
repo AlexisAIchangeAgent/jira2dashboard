@@ -144,6 +144,13 @@ directly, without `cmd /c` or `2>&1`.
 | `manual-test.ps1` | Writes `out\manual_test\jira2dashboard4manualtest.xlsm`, starts the fake Jira, opens the copy | `-Workbook`, `-Port`, `-Python` |
 | `release.ps1` | Builds a release in `out\release\<version>`; `notes.md` has the SHA-256 and MD5 of both files | `-Version`, `-Publish` |
 
+**Double-click launchers.** Every `scripts\*.ps1` has a `.cmd` of the same name (`setup.cmd`, `run.cmd`,
+`start-mock.cmd`...): double-click it, or run it from a console. It runs the script with `-ExecutionPolicy Bypass` for
+that run only (nothing is changed on the machine, no administrator rights), waits for a key at the end of a
+double-click so that the output can be read (`J2D_PAUSE=1` forces the wait from a console), passes its arguments on and
+answers `--help`. `release.cmd` only explains itself when it has no arguments (a double-click never builds or
+publishes); `activate.cmd` opens a console with `.venv` activated. `_launch.cmd` is the shared helper.
+
 | Command | What it does | Main options |
 |---|---|---|
 | `test` | Fast unit and Gherkin tests, no Excel | pytest arguments |
