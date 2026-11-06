@@ -109,7 +109,7 @@ def _file_section(workbook: Path | None) -> list[str]:
         return ["No workbook found. Build one (scripts\\run.ps1 build) or give one with --workbook FILE."]
     found = fingerprint(workbook)
     return [f"Path: {workbook}", name_line(workbook.name), f"Size: {found.size} bytes", f"MD5: {found.md5}", f"SHA-256: {found.sha256}",
-            "The MD5 changes with every build: a rule on the path or on a signature lasts longer."]
+            "The MD5 changes with every build: a rule on the file name and folder lasts longer."]
 
 
 def _origin_section(workbook: Path | None, readings: Readings) -> list[str]:
