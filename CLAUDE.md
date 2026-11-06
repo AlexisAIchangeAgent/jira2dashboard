@@ -58,7 +58,9 @@ cleaned; `out\manual_test` holds the manual-test copy `jira2dashboard4manualtest
 never cleaned either; `out\inter` holds the rest (test workbooks, exports, `.coverage`, `.pytest_cache`),
 emptied by `build` / `vba-tests` except the caches (`src/jira2dashboard/clean.py`). Tests write to `INTER_DIR`.
 
-Before finishing a change run the full pass: `coverage`, `vba-tests`, `test-excel`, `test-network`, `build`.
+Before finishing a change run the full pass: `coverage`, `vba-tests`, `test-excel`, `test-network`, `build`
+(local skill `/full-pass`). Local Claude config, not versioned (`.claude/` is gitignored): a PostToolUse hook runs the
+VBA guard tests after each edit of `vba/*.bas` (`.claude/hooks/bas_guard.py`); skills `full-pass`, `add-data-check`.
 
 ## Architecture (big picture)
 
@@ -135,8 +137,10 @@ then `mermaid.parse`), and check every `](#anchor)` link against the headings.
 
 ## Adding a data check
 
-1. `flow/checks.py`: a `Check` row and the rule in `issue_checks` (Python reference).
-2. `flow/formulas.py`: a `DCnn` column in `ITEMFLOW_COLUMNS` (helper columns in `INTERVAL_HELPERS` if needed).
+1. `flow/checks.py`: a `Check` row in `CHECKS` and the rule in `run_checks` (`_status_history`, `_field_checks`,
+   `_link_flags` or `fill_rates`): the Python reference.
+2. `flow/check_formulas.py`: the `DCnn` entry of `FLAGS`, which `ITEMFLOW_COLUMNS` turns into an `ItemFlow` column
+   (helper columns in `HELPERS`, or `INTERVAL_HELPERS` of `flow/formulas.py`). Skill: `/add-data-check`.
 3. If it needs a new Jira field: a raw column in `ISSUES`, `ExtractFields` and the row in `modExtract.bas`, the fixtures in
    `modTests.bas`, and the field in `mockjira/` (`FlowIssue` and `flow_adapter.py`).
 4. `mockjira/anomalies.py`: a known case with the ids it must trigger; the data-check scenario of `flow_excel.feature`
