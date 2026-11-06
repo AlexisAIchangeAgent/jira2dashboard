@@ -10,7 +10,7 @@ import pytest
 
 from jira2dashboard.paths import DELIVERED_NAME, REPO_ROOT
 
-LEFT_OUT = ("CLAUDE.md", "claude-code-handoff.md", "archive", "archive/old_probe.py", ".claude/settings.local.json",
+LEFT_OUT = ("CLAUDE.md", "archive", "archive/old_probe.py", ".claude/settings.local.json",
             ".venv/Scripts/python.exe")
 KEPT = ("README.md", "pyproject.toml", "requirements.txt", "scripts/run.ps1", "scripts/run.cmd", "scripts/_launch.cmd", "scripts/setup.ps1", "scripts/release.ps1",
         "src/jira2dashboard/build_workbook.py", "vba/modActions.bas", "params/config.md", "docs/rovo-guide.md",

@@ -6,7 +6,7 @@ Option Explicit
 '   JiraTransitions one row per allowed move, same first columns as the sheet Transitions;
 '   JiraFields      the field ids, for the Config sheet.
 ' The parameter sheets are never written: the user reviews the proposals, decides what stays human (Order, IsStart, IsEnd,
-' Active or Wait, the Type of a move) and copies them. Calls (claude-code-handoff.md section 8c): GET project/search,
+' Active or Wait, the Type of a move) and copies them. Calls: GET project/search,
 ' GET project/{key}/statuses, POST workflows/preview, GET field. A 401, 403 or 404 on the preview means the account may
 ' not read the workflows: the other sheets are still written. The answers stay in this workbook; the log gets counts only.
 

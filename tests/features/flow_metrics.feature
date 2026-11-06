@@ -24,38 +24,38 @@ Fonctionnalité: Les six métriques de flux sont exactes
     Et son Flow Time vaut 12 jours
 
   Plan du scénario: Flow Velocity, Flow Time, Flow Efficiency et Flow Load en mode A
-    Quand je calcule les métriques de l'équipe "<équipe>" pour la période "<période>" en mode "A"
+    Quand je calcule les métriques de l'équipe "<équipe>" pour l'itération "<itération>" en mode "A"
     Alors la métrique "<métrique>" vaut "<valeur>"
 
     Exemples:
-      | équipe | période | métrique                  | valeur         |
-      | Alpha  | P1      | Flow Velocity             | 4              |
-      | Alpha  | P1      | Flow Time médiane         | 10             |
-      | Alpha  | P1      | Flow Time P85             | 10.7           |
-      | Alpha  | P1      | Flow Time exclus          | 2              |
-      | Alpha  | P1      | Flow Efficiency           | 0.75           |
-      | Alpha  | P1      | Flow Load moyenne         | 2.2857142857   |
-      | Alpha  | P1      | Flow Load fin de période  | 1              |
-      | Alpha  | P2      | Flow Velocity             | 0              |
-      | Alpha  | P2      | Flow Time médiane         | not computable |
-      | Alpha  | P2      | Flow Efficiency           | not computable |
-      | Alpha  | P2      | Flow Load moyenne         | 1              |
-      | Beta   | P2      | Flow Velocity             | 2              |
-      | Beta   | P2      | Flow Time médiane         | 13             |
-      | Beta   | P2      | Flow Time P85             | 15.8           |
-      | Beta   | P2      | Flow Efficiency           | not computable |
-      | Beta   | P2      | Flow Load fin de période  | 0              |
-      | ART    | P2      | Flow Velocity             | 1              |
-      | ART    | P2      | Flow Efficiency           | 0.8421052632   |
-      | ART    | P1      | Flow Predictability       | not computable |
+      | équipe | itération | métrique                  | valeur         |
+      | Alpha  | P1        | Flow Velocity             | 4              |
+      | Alpha  | P1        | Flow Time médiane         | 10             |
+      | Alpha  | P1        | Flow Time P85             | 10.7           |
+      | Alpha  | P1        | Flow Time exclus          | 2              |
+      | Alpha  | P1        | Flow Efficiency           | 0.75           |
+      | Alpha  | P1        | Flow Load moyenne         | 2.2857142857   |
+      | Alpha  | P1        | Flow Load fin d'itération | 1              |
+      | Alpha  | P2        | Flow Velocity             | 0              |
+      | Alpha  | P2        | Flow Time médiane         | not computable |
+      | Alpha  | P2        | Flow Efficiency           | not computable |
+      | Alpha  | P2        | Flow Load moyenne         | 1              |
+      | Beta   | P2        | Flow Velocity             | 2              |
+      | Beta   | P2        | Flow Time médiane         | 13             |
+      | Beta   | P2        | Flow Time P85             | 15.8           |
+      | Beta   | P2        | Flow Efficiency           | not computable |
+      | Beta   | P2        | Flow Load fin d'itération | 0              |
+      | ART    | P2        | Flow Velocity             | 1              |
+      | ART    | P2        | Flow Efficiency           | 0.8421052632   |
+      | ART    | P1        | Flow Predictability       | not computable |
 
   Scénario: Le Flow Efficiency n'est pas calculable tant qu'un statut est non classé
-    Quand je calcule les métriques de l'équipe "Beta" pour la période "P2" en mode "A"
+    Quand je calcule les métriques de l'équipe "Beta" pour l'itération "P2" en mode "A"
     Alors la métrique "Flow Efficiency" vaut "not computable"
     Et la métrique "Flow Velocity" vaut "2"
 
   Plan du scénario: Le Flow Load jour par jour diffère entre le mode A et le mode B
-    Quand je calcule le Flow Load de l'équipe "Alpha" en mode "<mode>" pour la période "P1"
+    Quand je calcule le Flow Load de l'équipe "Alpha" en mode "<mode>" pour l'itération "P1"
     Alors la charge du "<jour>" vaut <charge>
 
     Exemples:
@@ -69,21 +69,21 @@ Fonctionnalité: Les six métriques de flux sont exactes
       | A    | 10-18 | 1      |
 
   Scénario: La répartition des tickets terminés par type de travail
-    Quand je calcule les métriques de l'équipe "Alpha" pour la période "P1" en mode "A"
+    Quand je calcule les métriques de l'équipe "Alpha" pour l'itération "P1" en mode "A"
     Alors la part "Feature" des tickets terminés vaut 25 %
     Et la part "Defect" des tickets terminés vaut 25 %
     Et la somme des parts des tickets terminés vaut 100 %
 
   Scénario: Un ticket sans type de travail est compté comme non mappé
-    Quand je calcule les métriques de l'équipe "Beta" pour la période "P2" en mode "A"
+    Quand je calcule les métriques de l'équipe "Beta" pour l'itération "P2" en mode "A"
     Alors la part "Unmapped" des tickets terminés vaut 50 %
     Et la part "Feature" des tickets terminés vaut 50 %
 
   Scénario: Les Features du Program sont rapportées sous l'équipe ART
-    Quand je calcule les métriques de l'équipe "ART" pour la période "P2" en mode "A"
+    Quand je calcule les métriques de l'équipe "ART" pour l'itération "P2" en mode "A"
     Alors la métrique "Flow Time médiane" vaut "19"
     Et la part "Feature" des tickets terminés vaut 100 %
 
   Scénario: Inclus plus exclus égale terminés
-    Quand je calcule les métriques de l'équipe "Alpha" pour la période "P1" en mode "A"
+    Quand je calcule les métriques de l'équipe "Alpha" pour l'itération "P1" en mode "A"
     Alors les tickets retenus plus les tickets exclus font la vitesse de flux

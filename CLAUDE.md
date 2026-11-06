@@ -43,7 +43,7 @@ one: copy `stop-mock.cmd` and change its `set` lines. `.cmd` files are ASCII wit
 `<>|&^%!` (cmd would take them for operators); `tests/unit/test_cmd_launchers.py` pins all this. From Git Bash call them with
 `MSYS_NO_PATHCONV=1 cmd.exe /c .\scripts\x.cmd`: otherwise `/c` becomes a path and an interactive cmd opens.
 
-The release zip leaves out the `export-ignore` paths of `.gitattributes` (CLAUDE.md, the handoff, `archive/`,
+The release zip leaves out the `export-ignore` paths of `.gitattributes` (CLAUDE.md, `archive/`,
 `.claude/`, `.venv/`); `tests/unit/test_release_contents.py` pins the list. `-Publish` is outward-facing: ask AL first.
 Releases: the version is `vX.Y.Z` only (`v0.0.0-dryrun` is refused) and the number is AL's choice. The dry run
 (`release.ps1 -Version v0.0.0`) needs a clean tree, builds with Excel and leaves `out\release\<version>`: delete it afterwards.
@@ -115,7 +115,7 @@ VBA guard tests after each edit of `vba/*.bas` (`.claude/hooks/bas_guard.py`); s
   (`Scrubbed` formatter; `test_extract_main` checks).
 - **Jira configuration (VBA).** `modJiraConfig` (button Read the Jira configuration, `BtnReadJiraConfiguration`) reads
   projects, issue types, statuses, workflows (`workflows/preview`) and fields into proposal sheets `Jira*`; it never writes
-  the parameter sheets (calls and mapping: handoff section 8c). Its Rovo counterpart, to compare Jira with the workbook:
+  the parameter sheets (calls and mapping: the header of `modJiraConfig.bas`). Its Rovo counterpart, to compare Jira with the workbook:
   `rovo/rovo_settings_analyser.md` (agent config, not code).
 - **Rovo side (md only, no code).** `rovo/` holds the master copies of the Rovo Studio agents. `rovo/rovo-guide.md` is
   the current guide; `docs/rovo-guide.md` is frozen. Steering is hybrid: the workbook computes, and the RTE publishes
@@ -141,9 +141,9 @@ VBA guard tests after each edit of `vba/*.bas` (`.claude/hooks/bas_guard.py`); s
   COM: `flow/sheets.py`, `cli/check_machine.py`, `mockjira/__main__.py`, and the `build*`/`main` functions (see
   `pyproject.toml`).
 
-Domain decisions and the metric definitions are in `docs/` (7 md files, **never edit them**: their MD5 is tracked in
-`claude-code-handoff.md`, which also holds the roadmap, review dispositions and the MD5 of every `.bas`). Update the MD5
-table in the handoff whenever a `.bas` changes. `README.md` (English) is the engineering guide: keep it concise,
+Domain decisions and the metric definitions are in `docs/` (7 md files, **never edit them**). The handoff file `claude-code-handoff.md` was deleted
+on 2026-11-06; its last version is `git show 6a93cdd:claude-code-handoff.md` (section 7: COM traps, 8b: open defect, 8c: Jira calls, and the roadmap).
+`README.md` (English) is the engineering guide: keep it concise,
 tables rather than code blocks for lists, never the word "client" nor the vendor or product name of the endpoint protection
 (public repo: say EPDR or "endpoint protection"), prose lines <= 120 characters, ASCII for the architecture,
 Mermaid for the workflows. Check a Mermaid edit with the real parser (`npm i mermaid jsdom` in the scratchpad,
@@ -159,8 +159,7 @@ then `mermaid.parse`), and check every `](#anchor)` link against the headings.
    `modTests.bas`, and the field in `mockjira/` (`FlowIssue` and `flow_adapter.py`).
 4. `mockjira/anomalies.py`: a known case with the ids it must trigger; the data-check scenario of `flow_excel.feature`
    compares it with the workbook.
-5. Update the counts (marker test, the Config row count in `params.feature` if a parameter is added), the MD5 table and
-   the handoff.
+5. Update the counts (marker test, the Config row count in `params.feature` if a parameter is added).
 
 ## Development practices
 
@@ -204,7 +203,7 @@ then `mermaid.parse`), and check every `](#anchor)` link against the headings.
 - Excel formula traps: a formula typed in one cell of a table column fills the whole column (write key columns as values
   before creating the table); a structured reference to a column whose name contains `_` is refused; compare dates with a
   half-second margin; a blank result is `""`, never `0`.
-- Mind the COM traps listed in `claude-code-handoff.md` section 7: positional arguments only, `put_en_us` for number formats,
+- Mind the COM traps (section 7 of the deleted handoff, see above): positional arguments only, `put_en_us` for number formats,
   leading apostrophe on text written to cells (`as_cell` / `SafeCell`), read `.Value2`, activate a chart's sheet before export.
 - **Git.** Repo `AlexisAIchangeAgent/jira2dashboard` (public), branch `main`. `.gitattributes` disables line-ending
   conversion (`* -text`, `*.bas text eol=lf`) so the tracked MD5 hold; Excel binaries (`*.xlsm`, `out/`) are ignored.
@@ -225,13 +224,13 @@ then `mermaid.parse`), and check every `](#anchor)` link against the headings.
 - **Open defect:** Excel crashes (`0xC0000005`, a DEP fault inside VBA's engine, module "unknown") during the
   extraction, always right after the last search page (`END search page 30: 150 issues` in the local log). The button
   scenario alone crashed 7 times out of 10 on 2026-11-05 (`test-excel tests/steps/test_flow_excel.py -k bouton`): that is
-  the quickest repro. It predates the 2026-11-04 review. Read handoff section 8b before chasing it.
+  the quickest repro. It predates the 2026-11-04 review. Read section 8b of the deleted handoff (see above) before chasing it.
 - **Git Bash rewrites `/switch` arguments** of Windows programs into paths (`/update` -> `C:/.../Git/update`, also
   `wevtutil /q:`): prefix the command with `MSYS_NO_PATHCONV=1`.
 - The PowerShell tool is slow here (CIM / event-log queries time out): use Bash `tasklist` for processes.
 - Reading PowerShell output from Python (`Get-Help`, the scripts): `encoding="oem", errors="replace"`, not UTF-8.
 - Edit scripts with quotes, `\r\n` or backslashes (Windows paths in Markdown): write a `.py` file with the Write tool and
-  run it, not a Bash heredoc (a heredoc turned `tests\\features` into a form feed in the handoff).
+  run it, not a Bash heredoc (a heredoc turned `tests\\features` into a form feed in a Markdown file).
   Pattern: `assert s.count(old) == 1` before each replace, write with `newline="\n"`, run with `.venv/Scripts/python.exe`.
 - `Windows fatal exception: code 0x800706be` (or `0x800706ba`) printed after Excel scenarios is teardown noise, also in
   green runs: only the test result counts.
@@ -252,7 +251,7 @@ then `mermaid.parse`), and check every `](#anchor)` link against the headings.
   modules in order, so a forward reference shows as a false failure at an early module: scan for `Private` names instead.
   Python steps call `modX.Name` explicitly (`tests/steps/test_params.py`): update them.
 - The local `.claude` hook runs only after Edit/Write: a `.bas` changed through a Bash/Python script skips it. Run the 3
-  guard tests by hand and refresh the MD5 rows of the handoff with a loop over `vba/*.bas`.
+  guard tests by hand.
 - **Checked facts (Microsoft Learn MCP, `mcp__claude_ai_Microsoft_Learn__*`):** entering a formula in manual calculation
   calculates it, so `CalculateFull` after the switch back to automatic is needed only when Excel was manual;
   `WinHttpSetTimeouts` does not bound proxy auto-detection (WPAD); `Application.StatusBar` reads `False` or the text

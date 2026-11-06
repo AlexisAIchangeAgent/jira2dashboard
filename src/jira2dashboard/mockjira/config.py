@@ -2,8 +2,7 @@
 
 Pure: no HTTP here (see server.py). Built from the dataset (which project holds which issue types, which workflow each
 type follows) and from the parameter sheets Workflows and Transitions (statuses, categories, moves), so that what the
-workbook proposes from these answers can be compared with the parameters. Shapes: claude-code-handoff.md section 8c
-(Jira Cloud platform REST API v3, from the OpenAPI spec: documented, to verify at the client).
+workbook proposes from these answers can be compared with the parameters. Shapes (Jira Cloud platform REST API v3, from the OpenAPI spec: documented, to verify at the client).
 """
 from jira2dashboard.mockjira.dataset import Dataset
 from jira2dashboard.mockjira.errors import ApiError

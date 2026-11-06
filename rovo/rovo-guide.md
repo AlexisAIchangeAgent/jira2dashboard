@@ -1,7 +1,6 @@
 # Rovo guide: prompts, agents, skills and automations for Jira data quality
 
-> **Updated copy, 2026-11-05.** The original is `docs/rovo-guide.md` (frozen: its MD5 is tracked in
-> `claude-code-handoff.md`); use this copy. Sections 1, 3 (coverage), 4, 5, 6 and 7 were revised with the research
+> **Updated copy, 2026-11-05.** The original is `docs/rovo-guide.md` (frozen); use this copy. Sections 1, 3 (coverage), 4, 5, 6 and 7 were revised with the research
 > report `C:\dev\reports\Agents Rovo Studio et métriques.md` (outside the repo). The agents of this folder:
 > - `rovo_settings_analyser.md`: the Jira configuration compared with the workbook.
 > - `rovo_flow_metric.md`: flow metrics per work item type, each one labelled.

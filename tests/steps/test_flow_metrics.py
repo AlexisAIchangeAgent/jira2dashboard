@@ -14,7 +14,7 @@ ITERATIONS = {"P1": Iteration("P1", at("10-05"), at("10-19")), "P2": Iteration("
 METRICS = {
     "Flow Velocity": "velocity", "Flow Time médiane": "flow_time_median", "Flow Time P85": "flow_time_p85",
     "Flow Time exclus": "flow_time_excluded", "Flow Efficiency": "flow_efficiency",
-    "Flow Load moyenne": "flow_load_average", "Flow Load fin de période": "flow_load_end",
+    "Flow Load moyenne": "flow_load_average", "Flow Load fin d'itération": "flow_load_end",
     "Flow Predictability": "flow_predictability",
 }
 
@@ -35,12 +35,12 @@ def _row(world, key):
     world["row"] = next(i for i in world["items"] if i.key == key)
 
 
-@when(parsers.parse('je calcule les métriques de l\'équipe "{team}" pour la période "{iteration}" en mode "{mode}"'))
+@when(parsers.parse('je calcule les métriques de l\'équipe "{team}" pour l\'itération "{iteration}" en mode "{mode}"'))
 def _metrics(world, team, iteration, mode):
     world["metrics"] = team_iteration_metrics(world["items"], team, ITERATIONS[iteration], mode, FLOW_AS_OF)
 
 
-@when(parsers.parse('je calcule le Flow Load de l\'équipe "{team}" en mode "{mode}" pour la période "{iteration}"'))
+@when(parsers.parse('je calcule le Flow Load de l\'équipe "{team}" en mode "{mode}" pour l\'itération "{iteration}"'))
 def _load(world, team, mode, iteration):
     p = ITERATIONS[iteration]
     world["load"] = daily_load(world["items"], mode, team, p.start, p.end, FLOW_AS_OF)

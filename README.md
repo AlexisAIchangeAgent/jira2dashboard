@@ -362,5 +362,5 @@ configuration calls, faults and a proxy; `--anomalies` adds the cases the data c
 ```
 
 Needs a clean tree (and a pushed commit for `-Publish`). The package holds the code zip, the workbook and
-`notes.md` with SHA256. The zip leaves out the `export-ignore` paths (`CLAUDE.md`, the handoff, `archive/`,
+`notes.md` with SHA256. The zip leaves out the `export-ignore` paths (`CLAUDE.md`, `archive/`,
 `.claude/`, `.venv/`), pinned by `tests/unit/test_release_contents.py`.

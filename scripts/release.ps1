@@ -5,7 +5,7 @@ Builds the files of a release in out\release\<version>; with -Publish, creates t
 .DESCRIPTION
 Needs a clean working tree (everything committed). Builds in out\release\<version>:
   jira2dashboard-<version>.zip  the code of HEAD (git archive; .gitattributes leaves out CLAUDE.md,
-                                claude-code-handoff.md, archive\, .claude\ and .venv\)
+                                archive\, .claude\ and .venv\)
   jira2dashboard.xlsm           the workbook to deliver (.\scripts\run.ps1 build; needs Excel)
   notes.md                      the release notes, with the SHA256 of both files
 Without -Publish it stops there: a dry run, nothing leaves the machine. With -Publish it creates the GitHub release
@@ -85,7 +85,7 @@ if ($LASTEXITCODE -ne 0) { Fail "git archive failed." }
 Add-Type -AssemblyName System.IO.Compression.FileSystem
 $archive = [System.IO.Compression.ZipFile]::OpenRead($zip)
 try { $entries = @($archive.Entries | ForEach-Object { $_.FullName }) } finally { $archive.Dispose() }
-$leftOut = @($entries | Where-Object { $_ -match '^[^/]+/(CLAUDE\.md|claude-code-handoff\.md|archive/|\.claude/|\.venv/)' })
+$leftOut = @($entries | Where-Object { $_ -match '^[^/]+/(CLAUDE\.md|archive/|\.claude/|\.venv/)' })
 if ($leftOut.Count -gt 0) { Fail ("the zip holds files it must leave out: " + ($leftOut -join ", ")) }
 foreach ($must in "README.md", "scripts/run.ps1", "scripts/setup.ps1", "src/jira2dashboard/build_workbook.py") {
     if ($entries -notcontains "$name/$must") { Fail "the zip misses $must." }

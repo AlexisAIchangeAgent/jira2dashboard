@@ -47,14 +47,14 @@ def built_workbook():
 
 
 def excel_scope(fixture_name, config):
-    """A fresh Excel per scenario; J2D_ONE_EXCEL=1 shares one Excel across the module (the stress setup of handoff 8b)."""
+    """A fresh Excel per scenario; J2D_ONE_EXCEL=1 shares one Excel across the module (the stress setup of the open defect, CLAUDE.md)."""
     return "module" if os.environ.get("J2D_ONE_EXCEL") == "1" else "function"
 
 
 @pytest.fixture(scope=excel_scope)
 def flow_workbook(built_workbook):
     """A fresh Excel per scenario, on the workbook as built: each scenario stands alone. One Excel for the whole module
-    (several extractions and builds in one process) crashed in about 2 runs out of 5 (open defect, handoff section 8b)."""
+    (several extractions and builds in one process) crashed in about 2 runs out of 5 (open defect, CLAUDE.md)."""
     holder = {}
     with com.excel_session() as app:
         app.AutomationSecurity = com.MSO_AUTOMATION_SECURITY_LOW
@@ -264,7 +264,7 @@ def wait_for(world, done, seconds=180):
             samples.append(status_and_bar(world))
         except Exception as err:                              # noqa: BLE001 - say where the run was when Excel went away
             raise RuntimeError(f"{err!r}; the last samples: {samples[-4:]} (Excel gone? check the EXCEL.EXE exit code: "
-                               "claude-code-handoff.md section 8b)") from err
+                               "CLAUDE.md, open defect)") from err
         if done(samples[-1][0]):
             return samples
         time.sleep(POLL_S)
