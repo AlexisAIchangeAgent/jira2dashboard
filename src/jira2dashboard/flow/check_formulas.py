@@ -6,7 +6,7 @@ Jira field is 0 for everybody while the id of that field is empty in Config (`_r
 "not computable". Lists of types and field ids are read from Config, never written here.
 """
 from jira2dashboard.flow.checks import FILL_FIELDS, PER_ISSUE
-from jira2dashboard.flow.refs import HALF, IF_, IS, SI, row_index
+from jira2dashboard.flow.refs import HALF, IF_, IS, PIS_LAST, SI, bounded, row_index
 
 # the raw fields of Issues copied into ItemFlow (an empty cell stays "")
 RAW_FIELDS = ("Parent", "StatusCategory", "ResolvedUtc", "FixVersions", "StoryPoints", "PI", "BV", "TeamValue",
@@ -102,7 +102,7 @@ FLAGS = {
     "DC15": _flag('AND([@Workflow]="Team",[@StatusCategory]="indeterminate",[@SprintCount]=0)', "SprintField"),
     "DC16": _flag("[@SprintCount]>=3", "SprintField"),
     "DC17": _flag(f"AND([@IsFeature]=1,NOT({valid_pi('[@PI]')}))", "PIField"),
-    "DC18": _flag(f"AND([@IsFeature]=1,{valid_pi('[@PI]')},COUNTIFS(PIs!$A:$A,[@PI])>0,IFERROR({_PI_WINDOW},0)>0)",
+    "DC18": _flag(f"AND([@IsFeature]=1,{valid_pi('[@PI]')},COUNTIFS({bounded("PIs", "A", PIS_LAST)},[@PI])>0,IFERROR({_PI_WINDOW},0)>0)",
                   "PIField", "SprintField", "PIs"),
     "DC19": _flag('AND([@IsFeature]=1,[@CurrentCategory]<>"Backlog",[@CurrentCategory]<>"Removed",'
                   'OR([@TargetStart]="",[@TargetEnd]=""))', "TargetStartField", "TargetEndField"),

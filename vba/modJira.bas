@@ -2,7 +2,7 @@ Option Explicit
 ' Jira Cloud REST API v3: search all issues with all fields, bulk changelogs, write tables.
 
 Public Const JIRA_PAGE_SIZE As Long = 100
-Public Const CHANGELOG_CHUNK As Long = 1000          ' API limit: 1000 issues per bulkfetch call
+Public Const CHANGELOG_CHUNK As Long = 50             ' issues per bulkfetch call and per step (the API accepts 1000): a step must stay short
 
 Public Const MAX_SEARCH_PAGES As Long = 2000                  ' a search that has not ended after this many pages is given up
 

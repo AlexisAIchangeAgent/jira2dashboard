@@ -178,6 +178,16 @@ then `mermaid.parse`), and check every `](#anchor)` link against the headings.
 - **VBA traps.** A one-cell `Range.Value` is not an array; assigning an object to a Variant needs `Set` (error 450);
   `Application.OnTime` has a 1 s granularity; a COM call to an Excel that runs a macro is rejected (see `retry()` in
   `tests/steps/test_flow_excel.py`).
+- **VBA speed traps** (measured on the dev machine, 2026-11-07: the full extraction of the fake Jira, 1 244 issues, went from
+  245 s to 24 s). `TypeName(object)` costs about 0.3 ms: use `TypeOf x Is Collection` or an `On Error` probe, never in a loop
+  (`JGet` was 300 us, now 2 us). The first call on a fresh `Scripting.Dictionary` costs about 0.65 ms, even `Exists`
+  (a `Collection` costs nothing), and `d.CompareMode = 0` on a new one about 0.3 ms: the default is already 0. Each JSON
+  object is a Dictionary, so `JsonParse` still takes about 15 s of the 24 (a lighter JSON object is the next lever). `COUNTIFS`
+  on a whole column (`Sheet!$A:$A`) scans its 1 048 576 rows (10 s for 7 284 cells; `SUMIFS`/`MATCH` stop at the used
+  range, `COUNTIFS` does not): cut it at the last row with `refs.bounded` and a control cell (`test_no_countifs_reads_a_whole_column`).
+  A step of the extraction job must stay short (about 1 s): `CHANGELOG_CHUNK` (50 issues) and `ROW_BATCH` (100 issues; a test
+  sets `gRowBatch`). Profile with the log (`BEGIN`/`END` of each sub-step) and a scratch copy of the workbook that gets a
+  temporary benchmark module through `VBProject.VBComponents.Add` (never commit it).
 - **Test markers.** `excel` and `network` tests are excluded from the default run; Excel scenarios build the delivered
   workbook once per module and open it in a fresh Excel per scenario.
 - **pytest-bdd binding.** Steps are local to their module: a new `.feature` that reuses Excel steps is bound with a second

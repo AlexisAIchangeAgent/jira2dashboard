@@ -20,7 +20,7 @@ CHECKS_HEADER = C.DATACHECKS_KEYS
 CHARTS_HEADER = ("Name", "Title", "ChartType", "AxisFormat", "SeriesNames", "PointFormula", "NoteFormula",
                  "AnchorRow", "AnchorColumn", "Rows", "Columns", "Axis", "Band")
 
-CONTROL_NAMES = ("AsOfUtc", "cfg_FlowLoadMode")        # the names of the control cells (sheet Controls, column B)
+CONTROL_NAMES = ("AsOfUtc", "cfg_FlowLoadMode", "cfg_TransitionsLast", "cfg_PIsLast")   # the control cells (sheet Controls, column B)
 
 
 def formula_rows() -> list[tuple[str, str, str]]:
@@ -39,7 +39,8 @@ def formula_rows() -> list[tuple[str, str, str]]:
     rows += [("DataChecks", name, text) for name, text in C.DATACHECKS_COLUMNS]
     rows += [("Metrics", key, "") for key in F.METRICS_KEYS]
     rows += [("Metrics", name, text) for name, text in F.METRICS_COLUMNS]
-    rows += [("Controls", CONTROL_NAMES[0], F.AS_OF_CELL), ("Controls", CONTROL_NAMES[1], F.MODE_CELL)]
+    rows += [("Controls", CONTROL_NAMES[0], F.AS_OF_CELL), ("Controls", CONTROL_NAMES[1], F.MODE_CELL),
+             ("Controls", CONTROL_NAMES[2], F.TRANSITIONS_LAST_CELL), ("Controls", CONTROL_NAMES[3], F.PIS_LAST_CELL)]
     rows += [("Dashboard", "ProgramTeam", ART), ("Dashboard", "AllTeams", D.ALL_TEAMS),
              ("Dashboard", "SelectorCell", D.SELECTOR_CELL)]
     return rows

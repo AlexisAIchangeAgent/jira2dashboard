@@ -330,7 +330,7 @@ def _log(world):
     steps = kinds[1:-1]
     assert steps == ["BEGIN", "END"] * (len(steps) // 2), kinds                          # each step ends before the next
     begun = [rest[0] for kind, *rest in lines if kind == "BEGIN"]
-    for name in ("search page 1", "changelogs from issue 1 of 150", "raw sheets", "flow sheets and charts"):
+    for name in ("search page 1", "changelogs from issue 1 of 150", "raw sheets: write", "flow sheets: charts"):
         assert name in begun, (name, begun[:5])
     for secret in ("tok-123", "me@example.com", "127.0.0.1", "http", "{"):
         assert secret not in text, secret

@@ -11,7 +11,8 @@ Rules kept here:
 * a blank result is the empty text "", which COUNTIFS / MINIFS / SUMIFS ignore in numeric criteria.
 """
 from jira2dashboard.flow import check_formulas as C
-from jira2dashboard.flow.refs import HALF, IF_, IS, SI, row_index
+from jira2dashboard.flow.refs import (HALF, IF_, IS, PIS_LAST, SI, TRANSITIONS_LAST, bounded, last_row_cell,
+                                      row_index)
 
 FAR = "2958465"                      # 9999-12-31: "no end"
 NOT_COMPUTABLE = "not computable"
@@ -41,8 +42,9 @@ INTERVAL_HELPERS = (
     ("Counted", "=IF(OR(" + ",".join(f'[@Category]="{c}"' for c in CATEGORIES_IN_PROCESS) + "),1,0)"),
     ("PrevStatus", f'=IF([@Seq]=1,"",INDEX({SI}[Status],{_row_index(SI)}-1))'),
     # DC28: the move from the previous status is not in Transitions (same workflow) and the status is not free (IsFree)
-    ("BadMove", '=IF([@Seq]=1,0,IF(OR(COUNTIFS(Transitions!$A:$A,[@Workflow],Transitions!$B:$B,[@PrevStatus],'
-                'Transitions!$C:$C,[@Status])>0,SUMIFS(Workflows!$G:$G,Workflows!$A:$A,[@Workflow],'
+    ("BadMove", f'=IF([@Seq]=1,0,IF(OR(COUNTIFS({bounded("Transitions", "A", TRANSITIONS_LAST)},[@Workflow],'
+                f'{bounded("Transitions", "B", TRANSITIONS_LAST)},[@PrevStatus],'
+                f'{bounded("Transitions", "C", TRANSITIONS_LAST)},[@Status])>0,SUMIFS(Workflows!$G:$G,Workflows!$A:$A,[@Workflow],'
                 'Workflows!$C:$C,[@Status])>0),0,1))'),
 )
 
@@ -167,6 +169,7 @@ AS_OF_CELL = ('=LET(v,' + CONFIG_VALUE.format(name="AsOf") + ',IF(ISNUMBER(v),v,
               'LET(t,SUBSTITUTE(TRIM(v),"T"," "),'
               'IF(t="",NA(),DATEVALUE(LEFT(t,10))+IF(LEN(t)>10,TIMEVALUE(MID(t,12,8)),0)))))')
 MODE_CELL = "=UPPER(TRIM(" + CONFIG_VALUE.format(name="FlowLoadMode") + "))"
+TRANSITIONS_LAST_CELL, PIS_LAST_CELL = last_row_cell("Transitions"), last_row_cell("PIs")
 
 TABLES = {
     "Issues": ISSUES,

@@ -655,26 +655,25 @@ Private Function LastRow(ByVal ws As Object) As Long
 End Function
 
 Public Sub T_ExtractJob()
-    ' The extraction as a job: one step per page of the search, one per chunk of changelogs, one for the raw sheets. The bar
-    ' of the Dashboard moves with the fraction, and a job that is dropped before its last step writes nothing.
+    ' The extraction as a job: one step per page of the search, per chunk of changelogs, per batch of issue rows, per workflow
+    ' of intervals, and one that writes. The bar of the Dashboard moves with the fraction, and a job that is dropped before
+    ' its last step writes nothing.
     Dim cfg As Object, wsI As Object, wsV As Object, jql As String, ts As String, fields As String
-    Dim steps As Long, last As Double, increasing As Boolean, f As Double, first As String
+    Dim steps As Long, last As Double, increasing As Boolean, f As Double, first As String, page1 As String, page2 As String
     Set cfg = TestConfig()
     Set wsI = ThisWorkbook.Worksheets("TestScratch")
     Set wsV = ThisWorkbook.Worksheets("TestScratch2")
     ts = "T00:00:00.000+0000"
     jql = "project in (TTT,AAA)"
     fields = ExtractFields("")
+    page1 = "{'issues':[{'id':'10','key':'TTT-1','fields':{'project':{'key':'TTT'},'issuetype':{'name':'Feature'},'created':'2026-10-01" & ts & "'," & _
+            "'status':{'name':'Nouveau','statusCategory':{'key':'new'}}}}],'isLast':false,'nextPageToken':'p2'}"
+    page2 = "{'issues':[{'id':'11','key':'AAA-1','fields':{'project':{'key':'AAA'},'issuetype':{'name':'Story'},'created':'2026-10-01" & ts & "'," & _
+            "'status':{'name':'Nouveau','statusCategory':{'key':'new'}}}}],'isLast':true}"
     FakeReset
-    FakeAdd "GET", JiraSearchUrl(cfg("BaseUrl"), jql, "", 100, fields, ""), 200, J( _
-        "{'issues':[{'id':'10','key':'TTT-1','fields':{'project':{'key':'TTT'},'issuetype':{'name':'Feature'},'created':'2026-10-01" & ts & "'," & _
-        "'status':{'name':'Nouveau','statusCategory':{'key':'new'}}}}],'isLast':false,'nextPageToken':'p2'}")
-    FakeAdd "GET", JiraSearchUrl(cfg("BaseUrl"), jql, "", 100, fields, ""), 200, J( _
-        "{'issues':[{'id':'10','key':'TTT-1','fields':{'project':{'key':'TTT'},'issuetype':{'name':'Feature'},'created':'2026-10-01" & ts & "'," & _
-        "'status':{'name':'Nouveau','statusCategory':{'key':'new'}}}}],'isLast':false,'nextPageToken':'p2'}")       ' for the second job
-    FakeAdd "GET", JiraSearchUrl(cfg("BaseUrl"), jql, "p2", 100, fields, ""), 200, J( _
-        "{'issues':[{'id':'11','key':'AAA-1','fields':{'project':{'key':'AAA'},'issuetype':{'name':'Story'},'created':'2026-10-01" & ts & "'," & _
-        "'status':{'name':'Nouveau','statusCategory':{'key':'new'}}}}],'isLast':true}")
+    FakeAdd "GET", JiraSearchUrl(cfg("BaseUrl"), jql, "", 100, fields, ""), 200, J(page1)
+    FakeAdd "GET", JiraSearchUrl(cfg("BaseUrl"), jql, "", 100, fields, ""), 200, J(page1)       ' for the second job
+    FakeAdd "GET", JiraSearchUrl(cfg("BaseUrl"), jql, "p2", 100, fields, ""), 200, J(page2)
     FakeAdd "POST", cfg("BaseUrl") & "/rest/api/3/changelog/bulkfetch", 200, J("{'issueChangeLogs':[]}")
     wsI.Cells.ClearContents
     wsI.Range("A2").Value = "KEEP"
@@ -696,11 +695,28 @@ Public Sub T_ExtractJob()
         If steps = 3 Then first = ExtractJobLabel()
         If steps > 20 Then Exit Do
     Loop
-    Check "extractjob", "two pages, one chunk of changelogs and the build make four steps", "steps", 4, steps
+    Check "extractjob", "two pages, a chunk, a batch of rows, two workflows and the write make seven steps", "steps", 7, steps
     Check "extractjob", "the fraction never goes back", "fractions", True, increasing
-    Check "extractjob", "before the build the label says what comes", "label", "Computing the intervals and writing the raw sheets...", first
+    Check "extractjob", "before the rows the label says what comes", "label", "Preparing the issues: 0 / 2", first
     Check "extractjob", "the raw sheets hold both pages", "TTT-1, AAA-1", "TTT-1|AAA-1", wsI.Range("A2").Value & "|" & wsI.Range("A3").Value
     Check "extractjob", "a finished job reads 100 %", "fraction", 1, ExtractJobFraction()
+    ' A batch of one issue: one more step, the same sheets.
+    FakeAdd "GET", JiraSearchUrl(cfg("BaseUrl"), jql, "", 100, fields, ""), 200, J(page1)
+    FakeAdd "GET", JiraSearchUrl(cfg("BaseUrl"), jql, "p2", 100, fields, ""), 200, J(page2)
+    FakeAdd "POST", cfg("BaseUrl") & "/rest/api/3/changelog/bulkfetch", 200, J("{'issueChangeLogs':[]}")
+    wsI.Cells.ClearContents
+    gRowBatch = 1
+    ExtractJobStart cfg, jql, "", DateSerial(2026, 10, 5), ThisWorkbook.Worksheets("Projects"), ThisWorkbook.Worksheets("Workflows"), wsI, wsV
+    steps = 0
+    Do
+        steps = steps + 1
+        If ExtractJobStep() Then Exit Do
+        If steps > 20 Then Exit Do
+    Loop
+    gRowBatch = 0
+    Check "extractjob", "a batch of one issue adds one step", "steps", 8, steps
+    Check "extractjob", "the batches give the same rows", "TTT-1, AAA-1", "TTT-1|AAA-1", wsI.Range("A2").Value & "|" & wsI.Range("A3").Value
+    Check "extractjob", "the intervals are written once per issue", "2 rows", 3, wsV.Cells(wsV.Rows.Count, 1).End(-4162).Row
 End Sub
 
 Public Sub T_ExtractCheckFields()
@@ -1295,7 +1311,7 @@ End Sub
 Public Sub T_ChangelogChunks()
     Dim cfg As Object, keys As New Collection, i As Long, rows As Collection, url As String
     Set cfg = TestConfig()
-    For i = 1 To 1200
+    For i = 1 To CHANGELOG_CHUNK + 20
         keys.Add "K-" & i
     Next i
     url = cfg("BaseUrl") & "/rest/api/3/changelog/bulkfetch"
@@ -1307,11 +1323,11 @@ Public Sub T_ChangelogChunks()
     FakeAdd "POST", url, 200, J("{'issueChangeLogs':[{'issueId':'11200','changeHistories':[{'id':'3','created':'2026-10-06T10:00:00.000+0200','items':[{'fieldId':'status','fromString':'Nouveau','toString':'Annule'}]}]}]}")
     Set rows = JiraChangelogsAll(cfg, keys)
     Check "jira", "changelog rows", "3 responses", 4, rows.Count
-    Check "jira", "POST calls (2 chunks, 1 extra page)", "1200 keys", 3, gHttpLog.Count
-    Check "jira", "first chunk size", "call 1", 1000, CountOf(gHttpLog(1)(2), """K-")
+    Check "jira", "POST calls (2 chunks, 1 extra page)", "chunk + 20 keys", 3, gHttpLog.Count
+    Check "jira", "first chunk size", "call 1", CHANGELOG_CHUNK, CountOf(gHttpLog(1)(2), """K-")
     Check "jira", "first call has no token", "call 1", 0, CountOf(gHttpLog(1)(2), "nextPageToken")
     Check "jira", "second call sends token", "call 2", True, (InStr(gHttpLog(2)(2), """nextPageToken"":""p2""") > 0)
-    Check "jira", "second chunk size", "call 3", 200, CountOf(gHttpLog(3)(2), """K-")
+    Check "jira", "second chunk size", "call 3", 20, CountOf(gHttpLog(3)(2), """K-")
     Check "jira", "row fields", "row 1", "10001|1|status|Nouveau|En analyse|Ann", _
           rows(1)(0) & "|" & rows(1)(1) & "|" & rows(1)(5) & "|" & rows(1)(9) & "|" & rows(1)(11) & "|" & rows(1)(3)
     Check "jira", "missing author is empty", "row 3", Empty, rows(3)(3)
@@ -1408,6 +1424,24 @@ Public Sub T_SafeAccess()
     Check "json", "AsList on non-array", "Empty", 0, AsList(Empty).Count
     Check "json", "IsTrue(Null)", "Null", False, IsTrue(Null)
     Check "json", "JGet on scalar", "5", True, IsEmpty(JGet(5, "a"))
+    Set d = JsonParse(J("{'a':[1,2],'b':{'c':'x','d':{'e':7}},'f':false}"))
+    Check "json", "JGet on an array is Empty (no Exists on a Collection)", "a", True, IsEmpty(JGet(d("a"), "c"))
+    Check "json", "JGet on Nothing is Empty", "Nothing", True, IsEmpty(JGet(Nothing, "c"))
+    Check "json", "JPath through an array is Empty", "a.c", True, IsEmpty(JPath(d, "a.c"))
+    Check "json", "JPath reads a value after two objects", "b.d.e", 7, JPath(d, "b.d.e")
+    Check "json", "JPath returns an object as an object", "b.d", "Dictionary", TypeName(JPath(d, "b.d"))
+    Check "json", "JPath keeps False", "f", False, JPath(d, "f")
+    Dim missing As Variant
+    missing = JGet(d, "zz")
+    Check "json", "a missing key is not added by JGet", "zz", 3, d.Count
+    Check "json", "JPath of a scalar start", "x", True, IsEmpty(JPath(5, "a.b"))
+    Check "json", "AsList returns an array as it is", "a", 2, AsList(d("a")).Count
+    Check "json", "AsList of an object is an empty list", "b", 0, AsList(d("b")).Count
+    Set d = JsonParse(J("{'a':1,'A':2,'b':{'x':3}}"))
+    Check "json", "keys are case-sensitive (Dictionary compare mode 0)", "a, A", "1|2", d("a") & "|" & d("A")
+    Check "json", "an object holds three keys", "count", 3, d.Count
+    Check "json", "the compare mode is binary", "CompareMode", 0, d.CompareMode
+    Check "json", "a nested object is binary too", "b", 0, d("b").CompareMode
 End Sub
 
 Public Sub T_FilesUtf8()

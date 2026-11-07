@@ -240,17 +240,17 @@ Public Sub BuildFlowSheetsIn(ByVal wb As Object)
     Dim spec As Object, teams As Collection, iterations As Collection, calcMode As Long, screen As Boolean
     Dim num As Long, desc As String
     LoadPlan wb, spec, teams, iterations
-    LogBegin "flow sheets and charts"
     calcMode = Application.Calculation
     screen = Application.ScreenUpdating
     On Error GoTo Failed                                              ' from here Failed gives both back
     Application.ScreenUpdating = False
     Application.Calculation = XL_CALC_MANUAL
     BuildAll wb, spec, teams, iterations
+    LogBegin "flow sheets: calculation"
     Application.Calculation = calcMode                   ' back to automatic: Excel calculates everything now
     If calcMode <> XL_CALC_AUTOMATIC Then Cov "FLB36": Application.CalculateFull      ' Excel left in manual mode by the user
     Application.ScreenUpdating = screen
-    LogEnd "flow sheets and charts"
+    LogEnd "flow sheets: calculation"
     On Error Resume Next
     wb.Worksheets("Dashboard").Activate                  ' the sheets added by the build must not leave another one in front
     Exit Sub
@@ -265,6 +265,7 @@ Private Sub BuildAll(ByVal wb As Object, ByVal spec As Object, ByVal teams As Co
     Cov "FLB16"
     Dim wsI As Object, wsS As Object, wsF As Object, wsD As Object, wsM As Object, wsC As Object, wsL As Object, wsR As Object
     Dim loI As Object, loS As Object, loF As Object, loD As Object, loM As Object, loC As Object, loL As Object, loR As Object
+    LogBegin "flow sheets: prepare"
     DeleteDerived wb
     Set wsI = wb.Worksheets("Issues"): Set wsS = wb.Worksheets("StatusIntervals")
     PrepareRaw wsI, spec("Issues")
@@ -274,13 +275,17 @@ Private Sub BuildAll(ByVal wb As Object, ByVal spec As Object, ByVal teams As Co
     Dim issues As Long, checks As Long, fills As Long
     issues = UsedRows(wsI)
     BuildControls wb, spec
+    LogEnd "flow sheets: prepare"
+    LogBegin "flow sheets: keys"
     Set wsF = AddSheet(wb, "ItemFlow"): Set wsD = AddSheet(wb, "DailyLoad"): Set wsM = AddSheet(wb, "Metrics")
     Set wsC = AddSheet(wb, "DataChecks"): Set wsR = AddSheet(wb, "FillRates")
     WriteDailyKeys wsD, iterations, teams
     WriteMetricKeys wsM, iterations, teams
     checks = WriteCheckKeys(wsC, wb.Worksheets("ChecksSpec"))
     fills = WriteFillKeys(wsR, spec("FillFields"), wb, teams)
+    LogEnd "flow sheets: keys"
     ' every table exists before any formula is written: the formulas refer to each other's columns
+    LogBegin "flow sheets: tables"
     Set loI = CreateTable(wsI, "Issues", spec("Issues"), issues)
     Set loS = CreateTable(wsS, "StatusIntervals", spec("StatusIntervals"), UsedRows(wsS))
     Set loF = CreateTable(wsF, "ItemFlow", spec("ItemFlow"), issues)
@@ -289,16 +294,33 @@ Private Sub BuildAll(ByVal wb As Object, ByVal spec As Object, ByVal teams As Co
     Set loC = CreateTable(wsC, "DataChecks", spec("DataChecks"), checks)
     Set loL = CreateTable(wsL, "IssueLinks", spec("IssueLinks"), UsedRows(wsL))
     Set loR = CreateTable(wsR, "FillRates", spec("FillRates"), fills)
+    LogEnd "flow sheets: tables"
+    LogBegin "flow sheets: formulas StatusIntervals"
     FillFormulas loS, spec("StatusIntervals")
+    LogEnd "flow sheets: formulas StatusIntervals"
+    LogBegin "flow sheets: formulas ItemFlow"
     FillFormulas loF, spec("ItemFlow")
+    LogEnd "flow sheets: formulas ItemFlow"
+    LogBegin "flow sheets: formulas IssueLinks"
     FillFormulas loL, spec("IssueLinks")
+    LogEnd "flow sheets: formulas IssueLinks"
+    LogBegin "flow sheets: formulas FillRates"
     FillFormulas loR, spec("FillRates")
+    LogEnd "flow sheets: formulas FillRates"
+    LogBegin "flow sheets: formulas DataChecks"
     FillFormulas loC, spec("DataChecks")
+    LogEnd "flow sheets: formulas DataChecks"
+    LogBegin "flow sheets: formulas DailyLoad"
     FillFormulas loD, spec("DailyLoad")
+    LogEnd "flow sheets: formulas DailyLoad"
+    LogBegin "flow sheets: formulas Metrics"
     FillFormulas loM, spec("Metrics")
+    LogEnd "flow sheets: formulas Metrics"
     wsD.Columns(1).NumberFormat = "yyyy-mm-dd"
     wsM.Range(wsM.Columns(2), wsM.Columns(3)).NumberFormat = "yyyy-mm-dd"
+    LogBegin "flow sheets: charts"
     BuildCharts wb, spec, teams, iterations
+    LogEnd "flow sheets: charts"
 End Sub
 
 Private Sub BuildControls(ByVal wb As Object, ByVal spec As Object)

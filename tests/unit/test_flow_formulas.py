@@ -69,8 +69,8 @@ def test_no_status_name_and_no_mapping_is_written_in_a_formula():
             assert f'"{team}"' not in formula, f"{team} in {table}.{column}"
 
 
-def test_the_only_names_used_are_the_two_control_cells():
-    names = {"AsOfUtc", "cfg_FlowLoadMode"}
+def test_the_only_names_used_are_the_control_cells():
+    names = {"AsOfUtc", "cfg_FlowLoadMode", "cfg_TransitionsLast", "cfg_PIsLast"}
     pattern = re.compile(r"\b(AsOfUtc|cfg_\w+)\b")
     used = {m for _k, formula in ALL for m in pattern.findall(formula)}
     assert used == names
@@ -107,3 +107,35 @@ def test_dates_are_compared_with_a_half_second_margin():
 
 def test_flow_predictability_is_always_not_computable():
     assert dict(f.METRICS_COLUMNS)["FlowPredictability"] == '="not computable"'
+
+
+CUT_COLUMN = re.compile(r"INDEX\(\w+!\$[A-Z]+:\$[A-Z]+")        # INDEX(Sheet!$A:$A, n) is how a range is cut at its last row
+WHOLE_COLUMN = re.compile(r"\w+!\$[A-Z]+:\$[A-Z]+")
+
+
+def whole_columns(call: str) -> list[str]:
+    return WHOLE_COLUMN.findall(CUT_COLUMN.sub("", call))
+
+
+def _countifs_calls(formula: str):
+    for call in re.finditer(r"COUNTIFS?\(", formula):
+        depth, i = 1, call.end()
+        while depth:
+            depth += {"(": 1, ")": -1}.get(formula[i], 0)
+            i += 1
+        yield formula[call.end():i]
+
+
+def test_no_countifs_reads_a_whole_column():
+    # COUNTIFS scans the 1 048 576 rows of a whole column: 11 s for the 7 284 rows of StatusIntervals.BadMove against a
+    # sheet of 27 rows. Cut the range at the last row (refs.bounded); SUMIFS and MATCH stop at the used range, COUNTIFS does not.
+    calls = [(key, call) for key, formula in ALL for call in _countifs_calls(formula)]
+    assert calls                                                     # the scan finds the calls it forbids on whole columns
+    assert [key for key, call in calls if whole_columns(call)] == []
+
+
+def test_the_scan_sees_a_whole_column_inside_countifs():
+    old = "=IF(COUNTIFS(Transitions!$A:$A,[@Workflow])>0,0,1)"
+    assert [c for c in _countifs_calls(old) if whole_columns(c)]
+    cut = "=IF(COUNTIFS(Transitions!$A$2:INDEX(Transitions!$A:$A,cfg_TransitionsLast),[@Workflow])>0,0,1)"
+    assert not [c for c in _countifs_calls(cut) if whole_columns(c)]
