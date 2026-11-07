@@ -47,7 +47,7 @@ The release zip leaves out the `export-ignore` paths of `.gitattributes` (CLAUDE
 `.claude/`, `.venv/`); `tests/unit/test_release_contents.py` pins the list. `-Publish` is outward-facing: ask AL first.
 Releases: the version is `vX.Y.Z` only (`v0.0.0-dryrun` is refused) and the number is AL's choice. The dry run
 (`release.ps1 -Version v0.0.0`) needs a clean tree, builds with Excel and leaves `out\release\<version>`: delete it afterwards.
-`-Publish` also needs HEAD == origin/main and `gh` logged in. `v0.1.0` is published (2026-11-06).
+`-Publish` also needs HEAD == origin/main and `gh` logged in. `v0.1.0` (2026-11-06) and `v0.2.0` (2026-11-07, commit 878807e) are published.
 `diagnose` never opens the workbook, never reads `python.log` (JQL, Jira's messages) nor the Windows event log, and masks the home
 folder: keep it that way when adding a section. Allow-lists of an endpoint protection ask for the MD5 (`notes.md` has it) or, lasting longer, the path and name:
 the workbook is always `jira2dashboard.xlsm` (`paths.DELIVERED_NAME`), never with the version in its name.
