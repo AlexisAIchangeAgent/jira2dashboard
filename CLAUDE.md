@@ -72,7 +72,8 @@ never cleaned either; `out\inter` holds the rest (test workbooks, exports, `.cov
 emptied by `build` / `vba-tests` except the caches (`src/jira2dashboard/clean.py`). Tests write to `INTER_DIR`.
 
 Before finishing a change run the full pass: `coverage`, `vba-tests`, `test-excel`, `test-network`, `build`
-(local skill `/full-pass`). Local Claude config, not versioned (`.claude/` is gitignored): a PostToolUse hook runs the
+(skill `/full-pass`). The Claude config is versioned in `.claude/` (like this file) but left out of the release
+(`export-ignore`); only `.claude/settings.local.json`, the personal settings, is gitignored. A PostToolUse hook runs the
 VBA guard tests after each edit of `vba/*.bas` (`.claude/hooks/bas_guard.py`); skills `full-pass`, `add-data-check`.
 
 ## Architecture (big picture)

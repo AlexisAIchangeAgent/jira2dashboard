@@ -17,8 +17,8 @@ out/
 *.xls
 ~$*
 
-# Local tools and editors
-.claude/
+# Local tools and editors (.claude/ is versioned, except the personal settings)
+.claude/settings.local.json
 .vscode/
 .idea/
 Thumbs.db

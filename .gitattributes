@@ -6,5 +6,6 @@
 CLAUDE.md export-ignore
 /archive export-ignore
 archive/** export-ignore
+/.claude export-ignore
 .claude/** export-ignore
 .venv/** export-ignore
