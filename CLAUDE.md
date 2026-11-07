@@ -273,3 +273,12 @@ Real test at the client machine is still to be done by AL.
 Pending: a workflow per issue type (scenarios written, not bound; bind them once the client confirms the need); the Rovo
 agents to try at the client: Settings Analyser (its section 5) and ART Flow Steering (its section 6). For the second,
 also check whether a custom skill can be attached to a Studio agent.
+Pending, asked of AL (2026-11-07), not started: a lighter JSON object. The extraction of the fake Jira (1 244 issues) takes
+24 s, of which the parse of the JSON is about 15 s (5 s for the search, 10 s for the changelogs): each JSON object is a
+`Scripting.Dictionary`, and the first call on a fresh one costs about 0.65 ms on the dev machine (a `Collection` costs
+nothing). Replacing it by a `Collection` with keys would save about 10 to 12 s, but it touches every reader of a parsed
+object (`.Exists`, `.Keys`, `Item`: `modJson`, `modJira`, `modJiraConfig`, `modExtract`, `modText`, the `T_` tests), so
+ask AL before starting. Measure first with the log and a scratch benchmark module (see the VBA speed traps).
+Also pending, offered to AL: when the macro loses its state (Esc then End during a long step), the Dashboard stays on its
+last status and Cancel does nothing; `AbortExtraction` and a slice that finds `mBusy` False could write a log line and
+"Stopped" in `A3`.
