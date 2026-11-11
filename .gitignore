@@ -10,6 +10,10 @@ htmlcov/
 # Generated workbooks and test output (rebuilt by scripts\run.ps1)
 out/
 
+# The logs of the scripts (one file per script, last run only, and excel-tests\): the folder is kept, not its content
+scripts/logs/*
+!scripts/logs/.gitkeep
+
 # Excel binaries, wherever they are (the VBA and the Python that build them are the source)
 *.xlsm
 *.xlsx

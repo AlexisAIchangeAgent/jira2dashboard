@@ -12,7 +12,7 @@ USE CASES
   Behind a proxy                     .\scripts\setup.ps1 -Proxy http://proxy.company.com:8080
   After a change of requirements     run it again: an existing .venv is kept, pip only installs what changed
   "py -3.14 failed"                  install Python 3.14 from python.org, then run it again
-  Where is the log                   %LOCALAPPDATA%\jira2dashboard\logs\setup.log (last run only)
+  Where is the log                   scripts\logs\setup.log (last run only)
 
 
 .PARAMETER Dev
@@ -44,12 +44,12 @@ $ErrorActionPreference = "Stop"
 $root = Split-Path -Parent $PSScriptRoot
 Set-Location $root
 
-# Log of this run (last run only): %LOCALAPPDATA%\jira2dashboard\logs\setup.log. A log failure never stops the script.
+# Log of this run (last run only): scripts\logs\setup.log. A log failure never stops the script.
 # Called by another script of this folder that already writes a log ($J2D_LogOwner, seen through the calling scope):
 # no second transcript, the lines of this script go to the log of the caller.
 if (-not (Get-Variable J2D_LogOwner -ErrorAction SilentlyContinue)) {
     try {
-        $logDir = Join-Path $env:LOCALAPPDATA "jira2dashboard\logs"
+        $logDir = Join-Path $PSScriptRoot "logs"
         New-Item -ItemType Directory -Force $logDir | Out-Null
         Start-Transcript -Path (Join-Path $logDir "setup.log") -Force | Out-Null
         $J2D_LogOwner = "setup"

@@ -2,20 +2,22 @@
 
 The workbook of the Excel scenarios writes `logs\\jira2dashboard.log` next to itself, in `out\\inter`, which `build` and `vba-tests`
 empty, and one log serves every scenario of a module. `mark` notes where the log ends before a scenario, `keep` copies what the
-scenario added to `%LOCALAPPDATA%\\jira2dashboard\\logs\\excel-tests\\<scenario>.log` (the log of the VBA holds no token, URL or
+scenario added to `scripts\\logs\\excel-tests\\<scenario>.log` (the log of the VBA holds no token, URL or
 answer of Jira by design). Never raises: a log that cannot be kept must not fail a test.
 """
 from __future__ import annotations
 
-import os
 import re
 from pathlib import Path
+
+from jira2dashboard.paths import REPO_ROOT
 
 LOG_NAME = "jira2dashboard.log"
 
 
-def kept_folder(local_app_data: str | None = None) -> Path:
-    return Path(local_app_data or os.environ.get("LOCALAPPDATA") or os.environ.get("TEMP", ".")) / "jira2dashboard" / "logs" / "excel-tests"
+def kept_folder(logs_folder: str | Path | None = None) -> Path:
+    """`scripts\\logs\\excel-tests`, the folder of the logs of the scripts (a test points `logs_folder` elsewhere)."""
+    return Path(logs_folder or REPO_ROOT / "scripts" / "logs") / "excel-tests"
 
 
 def file_name(scenario: str) -> str:
@@ -31,7 +33,7 @@ def mark(workbook_folder: str | Path) -> int:
         return 0
 
 
-def keep(workbook_folder: str | Path, started_at: int, scenario: str, local_app_data: str | None = None) -> Path | None:
+def keep(workbook_folder: str | Path, started_at: int, scenario: str, logs_folder: str | Path | None = None) -> Path | None:
     """Copies the lines written since `started_at`; the path of the copy, None when there is nothing to keep."""
     try:
         source = Path(workbook_folder) / "logs" / LOG_NAME
@@ -42,7 +44,7 @@ def keep(workbook_folder: str | Path, started_at: int, scenario: str, local_app_
             data = handle.read()
         if not data.strip():
             return None
-        target = kept_folder(local_app_data) / file_name(scenario)
+        target = kept_folder(logs_folder) / file_name(scenario)
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_bytes(data)
         return target

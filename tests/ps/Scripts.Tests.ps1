@@ -45,6 +45,7 @@ function Set-Fake([string]$key, [scriptblock]$behavior = $null, [string]$name = 
 function Calls { @($global:FakeCalls) }
 
 function Reset-Sandbox {
+    Remove-Item (Join-Path $global:Scripts "logs") -Recurse -Force -ErrorAction SilentlyContinue      # the logs of the scripts of the sandbox
     Get-ChildItem Function: | Where-Object { $_.Name -like ($global:Scripts + "*") } | ForEach-Object { Remove-Item "Function:\$($_.Name)" -ErrorAction SilentlyContinue }
     Get-ChildItem $global:Base -Force | Where-Object { $_.Name -ne "scripts" } | Remove-Item -Recurse -Force
     New-Item -ItemType Directory -Force (Join-Path $global:Base "local"), (Join-Path $global:Base "temp") | Out-Null
@@ -99,7 +100,12 @@ function Write-PidFile([int]$port, [long]$start) {
 
 function Own-Start { (Get-Process -Id $PID).StartTime.ToFileTimeUtc() }
 function Pid-File([int]$port) { Join-Path (Join-Path $env:TEMP "jira2dashboard") "mock-jira-$port.pid" }
-function Log-File([string]$name) { Join-Path $env:LOCALAPPDATA "jira2dashboard\logs\$name.log" }
+function Log-File([string]$name) { Join-Path $global:Scripts "logs\$name.log" }
+function Block-Logs {
+    # a file where the folder scripts\logs should be: the script must go on without a log
+    Remove-Item (Join-Path $global:Scripts "logs") -Recurse -Force -ErrorAction SilentlyContinue
+    Set-Content (Join-Path $global:Scripts "logs") "a file where the log folder should be"
+}
 
 # --- the scripts ask for help the same way ---------------------------------------------------------------------------------
 
@@ -208,9 +214,7 @@ Describe "run.ps1" {
     }
     It "goes on when the log cannot be written" {
         New-Venv
-        $blocker = Join-Path $global:Base "blocker"
-        Set-Content $blocker "a file where the log folder should be"
-        $env:LOCALAPPDATA = $blocker
+        Block-Logs
         $r = Invoke-Script "run.ps1" -Positional @("test")
         $r.Code | Should Be 0
         (Calls).Count | Should Be 1
@@ -278,9 +282,7 @@ Describe "setup.ps1" {
         Invoke-Script "setup.ps1" | Out-Null
         Stop-Transcript | Out-Null
         Test-Path (Log-File "setup") | Should Be $true
-        $blocker = Join-Path $global:Base "blocker"
-        Set-Content $blocker "file"
-        $env:LOCALAPPDATA = $blocker
+        Block-Logs
         (Invoke-Script "setup.ps1").Out | Should Match "Setup OK"
     }
 }
@@ -320,9 +322,7 @@ Describe "stop-mock.ps1" {
         Invoke-Script "stop-mock.ps1" | Out-Null
         Stop-Transcript | Out-Null
         Test-Path (Log-File "stop-mock") | Should Be $true
-        $blocker = Join-Path $global:Base "blocker"
-        Set-Content $blocker "file"
-        $env:LOCALAPPDATA = $blocker
+        Block-Logs
         (Invoke-Script "stop-mock.ps1").Code | Should Be 0
     }
 }
@@ -408,9 +408,7 @@ Describe "start-mock.ps1" {
         Invoke-Script "start-mock.ps1" -Named @{ Port = $global:Port } | Out-Null
         Stop-Transcript | Out-Null
         Test-Path (Log-File "start-mock") | Should Be $true
-        $blocker = Join-Path $global:Base "blocker"
-        Set-Content $blocker "file"
-        $env:LOCALAPPDATA = $blocker
+        Block-Logs
         (Invoke-Script "start-mock.ps1" -Named @{ Port = $global:Port }).Code | Should Be 0
     }
 }
@@ -538,9 +536,7 @@ Describe "release.ps1" {
         Invoke-Script "release.ps1" -Named @{ Version = "v1.0.0" } | Out-Null
         Stop-Transcript | Out-Null
         Test-Path (Log-File "release") | Should Be $true
-        $blocker = Join-Path $global:Base "blocker"
-        Set-Content $blocker "file"
-        $env:LOCALAPPDATA = $blocker
+        Block-Logs
         (Invoke-Script "release.ps1" -Named @{ Version = "v1.0.1" }).Code | Should Be 0
     }
 }
@@ -619,9 +615,7 @@ Describe "manual-test.ps1" {
         Invoke-Script "manual-test.ps1" -Named @{ Workbook = "x.xlsm" } | Out-Null
         Stop-Transcript | Out-Null
         Test-Path (Log-File "manual-test") | Should Be $true
-        $blocker = Join-Path $global:Base "blocker"
-        Set-Content $blocker "file"
-        $env:LOCALAPPDATA = $blocker
+        Block-Logs
         (Invoke-Script "manual-test.ps1" -Named @{ Workbook = "x.xlsm" }).Code | Should Be 0
     }
 }
@@ -758,9 +752,7 @@ Describe "scenario.ps1" {
         Invoke-Script "scenario.ps1" | Out-Null
         Stop-Transcript | Out-Null
         Test-Path (Log-File "scenario") | Should Be $true
-        $blocker = Join-Path $global:Base "blocker"
-        Set-Content $blocker "file"
-        $env:LOCALAPPDATA = $blocker
+        Block-Logs
         (Invoke-Script "scenario.ps1").Code | Should Be 0
     }
 }

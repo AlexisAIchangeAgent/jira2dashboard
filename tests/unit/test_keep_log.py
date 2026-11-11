@@ -14,7 +14,7 @@ def test_the_lines_of_the_scenario_are_kept_and_the_ones_before_are_not(tmp_path
     start = K.mark(book)
     write_log(book, "RUN earlier scenario\nRUN this scenario\nERROR J2D-CFG-002 | x\n")
     kept = K.keep(book, start, "test_a[one]", str(local))
-    assert kept == local / "jira2dashboard" / "logs" / "excel-tests" / "test_a_one.log"
+    assert kept == local / "excel-tests" / "test_a_one.log"
     assert kept.read_text(encoding="ascii") == "RUN this scenario\nERROR J2D-CFG-002 | x\n"
 
 
@@ -29,6 +29,11 @@ def test_nothing_is_kept_when_there_is_no_log_or_no_new_line(tmp_path):
     assert K.keep(tmp_path, 0, "t", str(tmp_path / "local")) is None
     write_log(tmp_path, "RUN a\n")
     assert K.keep(tmp_path, K.mark(tmp_path), "t", str(tmp_path / "local")) is None
+
+
+def test_the_default_folder_is_scripts_logs_of_the_repo():
+    from jira2dashboard.paths import REPO_ROOT
+    assert K.kept_folder() == REPO_ROOT / "scripts" / "logs" / "excel-tests"
 
 
 def test_a_folder_that_cannot_be_written_is_not_an_error(tmp_path):

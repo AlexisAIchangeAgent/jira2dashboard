@@ -15,7 +15,7 @@ USE CASES
   From a test or a script            .\scripts\start-mock.ps1 -Hidden               (no window; stop it with stop-mock.ps1)
   Port already held                  it says so and starts nothing: choose another -Port
   It stopped at once                 run .\scripts\run.ps1 mock-jira --port <port> to see the error
-  Where is the log                   %LOCALAPPDATA%\jira2dashboard\logs\start-mock.log (last run only)
+  Where is the log                   scripts\logs\start-mock.log (last run only)
 
 
 .PARAMETER Port
@@ -49,12 +49,12 @@ if ($Help -or $Rest -contains "--help") { Get-Help $PSCommandPath -Detailed; exi
 if ($Rest.Count -gt 0) { Write-Host "start-mock: J2D-SCR-001 - unknown argument $($Rest -join ' '). See .\scripts\start-mock.ps1 --help"; exit 2 }
 $ErrorActionPreference = "Stop"
 
-# Log of this run (last run only): %LOCALAPPDATA%\jira2dashboard\logs\start-mock.log. A log failure never stops the script.
+# Log of this run (last run only): scripts\logs\start-mock.log. A log failure never stops the script.
 # Called by another script of this folder that already writes a log ($J2D_LogOwner, seen through the calling scope):
 # no second transcript, the lines of this script go to the log of the caller.
 if (-not (Get-Variable J2D_LogOwner -ErrorAction SilentlyContinue)) {
     try {
-        $logDir = Join-Path $env:LOCALAPPDATA "jira2dashboard\logs"
+        $logDir = Join-Path $PSScriptRoot "logs"
         New-Item -ItemType Directory -Force $logDir | Out-Null
         Start-Transcript -Path (Join-Path $logDir "start-mock.log") -Force | Out-Null
         $J2D_LogOwner = "start-mock"

@@ -11,7 +11,7 @@ USE CASES
   After a manual try                 .\scripts\stop-mock.ps1
   A fake Jira on another port        .\scripts\stop-mock.ps1 -Port 8100
   Nothing to stop                    it says so and does nothing: a fake Jira that these scripts did not start is never touched
-  Where is the log                   %LOCALAPPDATA%\jira2dashboard\logs\stop-mock.log (last run only)
+  Where is the log                   scripts\logs\stop-mock.log (last run only)
 
 
 .PARAMETER Port
@@ -38,12 +38,12 @@ if ($Help -or $Rest -contains "--help") { Get-Help $PSCommandPath -Detailed; exi
 if ($Rest.Count -gt 0) { Write-Host "stop-mock: J2D-SCR-001 - unknown argument $($Rest -join ' '). See .\scripts\stop-mock.ps1 --help"; exit 2 }
 $ErrorActionPreference = "Stop"
 
-# Log of this run (last run only): %LOCALAPPDATA%\jira2dashboard\logs\stop-mock.log. A log failure never stops the script.
+# Log of this run (last run only): scripts\logs\stop-mock.log. A log failure never stops the script.
 # Called by another script of this folder that already writes a log ($J2D_LogOwner, seen through the calling scope):
 # no second transcript, the lines of this script go to the log of the caller.
 if (-not (Get-Variable J2D_LogOwner -ErrorAction SilentlyContinue)) {
     try {
-        $logDir = Join-Path $env:LOCALAPPDATA "jira2dashboard\logs"
+        $logDir = Join-Path $PSScriptRoot "logs"
         New-Item -ItemType Directory -Force $logDir | Out-Null
         Start-Transcript -Path (Join-Path $logDir "stop-mock.log") -Force | Out-Null
         $J2D_LogOwner = "stop-mock"

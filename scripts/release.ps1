@@ -17,7 +17,7 @@ USE CASES
   "the working tree has changes"     commit or stash, then run again
   "HEAD is not origin/main"          push first
   The run stopped half way           fix the cause and run it again: out\release\<version> is rebuilt, nothing is published before the end
-  Where is the log                   %LOCALAPPDATA%\jira2dashboard\logs\release.log (last run only)
+  Where is the log                   scripts\logs\release.log (last run only)
 
 
 .PARAMETER Version
@@ -50,12 +50,12 @@ $ErrorActionPreference = "Stop"
 $root = Split-Path -Parent $PSScriptRoot
 Set-Location $root
 
-# Log of this run (last run only): %LOCALAPPDATA%\jira2dashboard\logs\release.log. A log failure never stops the script.
+# Log of this run (last run only): scripts\logs\release.log. A log failure never stops the script.
 # Called by another script of this folder that already writes a log ($J2D_LogOwner, seen through the calling scope):
 # no second transcript, the lines of this script go to the log of the caller.
 if (-not (Get-Variable J2D_LogOwner -ErrorAction SilentlyContinue)) {
     try {
-        $logDir = Join-Path $env:LOCALAPPDATA "jira2dashboard\logs"
+        $logDir = Join-Path $PSScriptRoot "logs"
         New-Item -ItemType Directory -Force $logDir | Out-Null
         Start-Transcript -Path (Join-Path $logDir "release.log") -Force | Out-Null
         $J2D_LogOwner = "release"

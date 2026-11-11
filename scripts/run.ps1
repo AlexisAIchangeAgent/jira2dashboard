@@ -33,7 +33,7 @@ USE CASES
   Try the macros against a fake Jira .\scripts\manual-test.ps1  (by hand)   or   .\scripts\scenario.ps1  (unattended)
   Extract without Excel macros       .\scripts\run.ps1 extract --workbook C:\Data\jira2dashboard.xlsm
   The macros are blocked at a client .\scripts\run.ps1 check-machine ; .\scripts\run.ps1 diagnose   (a report to paste into the ticket)
-  Where are the logs                 %LOCALAPPDATA%\jira2dashboard\logs\<script>.log (last run only); the workbook logs in its own logs folder
+  Where are the logs                 scripts\logs\<script>.log (last run only); the workbook logs in its own logs folder
 
 .PARAMETER Help
 Show this help. --help, -h and -? do the same.
@@ -92,12 +92,12 @@ $root = Split-Path -Parent $PSScriptRoot
 $python = Join-Path $root ".venv\Scripts\python.exe"
 if (-not (Test-Path $python)) { throw "J2D-SCR-003 - No .venv: run scripts\setup.ps1 -Dev first." }
 Set-Location $root
-# Log of this run (last run only): %LOCALAPPDATA%\jira2dashboard\logs\run.log. A log failure never stops the script.
+# Log of this run (last run only): scripts\logs\run.log. A log failure never stops the script.
 # Called by another script of this folder that already writes a log ($J2D_LogOwner, seen through the calling scope):
 # no second transcript, the lines of this script go to the log of the caller.
 if (-not (Get-Variable J2D_LogOwner -ErrorAction SilentlyContinue)) {
     try {
-        $logDir = Join-Path $env:LOCALAPPDATA "jira2dashboard\logs"
+        $logDir = Join-Path $PSScriptRoot "logs"
         New-Item -ItemType Directory -Force $logDir | Out-Null
         Start-Transcript -Path (Join-Path $logDir "run.log") -Force | Out-Null
         $J2D_LogOwner = "run"

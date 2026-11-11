@@ -14,7 +14,7 @@ Runs, in this order, the scripts of this folder (the output of each one is in th
   7. run.ps1 test-excel      only with -Excel: the scenarios that run the workbook macros against the fake Jira
   8. stop-mock.ps1           always at the end, also when a step failed (unless -KeepMock)
 A step that fails stops the scenario: the next steps are skipped (the clean-up still runs). At the end a table lists each
-step with its status and its time. The log of the run (last run only) is %LOCALAPPDATA%\jira2dashboard\logs\scenario.log: its
+step with its status and its time. The log of the run (last run only) is scripts\logs\scenario.log: its
 lines "step N: name" and "scenario: ..." tell which step failed. The scripts it plays write into that same log (one transcript,
 not one per script): run.log, start-mock.log... keep the log of their last run on their own.
 Exit status: 0 when every step passed, 1 when a step failed, 2 for a wrong argument.
@@ -26,7 +26,7 @@ USE CASES
   Look at the result in Excel        .\scripts\scenario.ps1 -KeepMock           (the fake Jira stays up; stop it with stop-mock.ps1)
   Try a downloaded workbook          .\scripts\scenario.ps1 -Workbook C:\Downloads\jira2dashboard.xlsm
   Port 8099 is already in use        .\scripts\scenario.ps1 -Port 8100
-  A step failed                      read %LOCALAPPDATA%\jira2dashboard\logs\scenario.log (the output of every step is in it)
+  A step failed                      read scripts\logs\scenario.log (the output of every step is in it)
   Click through the macros yourself  .\scripts\manual-test.ps1                  (interactive: opens the copy in Excel)
 
 .PARAMETER Workbook
@@ -67,12 +67,12 @@ $ErrorActionPreference = "Stop"
 $root = Split-Path -Parent $PSScriptRoot
 Set-Location $root
 
-# Log of this run (last run only): %LOCALAPPDATA%\jira2dashboard\logs\scenario.log. A log failure never stops the script.
+# Log of this run (last run only): scripts\logs\scenario.log. A log failure never stops the script.
 # Called by another script of this folder that already writes a log ($J2D_LogOwner, seen through the calling scope):
 # no second transcript, the lines of this script go to the log of the caller.
 if (-not (Get-Variable J2D_LogOwner -ErrorAction SilentlyContinue)) {
     try {
-        $logDir = Join-Path $env:LOCALAPPDATA "jira2dashboard\logs"
+        $logDir = Join-Path $PSScriptRoot "logs"
         New-Item -ItemType Directory -Force $logDir | Out-Null
         Start-Transcript -Path (Join-Path $logDir "scenario.log") -Force | Out-Null
         $J2D_LogOwner = "scenario"
@@ -142,7 +142,7 @@ Write-Host ""
 Write-Host "scenario: summary"
 foreach ($r in $results) { Write-Host ("  {0,2}  {1,-46} {2,-34} {3,7:N1} s" -f $r.Number, $r.Name, $r.Status, $r.Seconds) }
 if ($failed) {
-    Write-Host "scenario: J2D-SCR-040 - FAILED. Log: $(Join-Path $env:LOCALAPPDATA 'jira2dashboard\logs\scenario.log')"
+    Write-Host "scenario: J2D-SCR-040 - FAILED. Log: $(Join-Path $PSScriptRoot 'logs\scenario.log')"
     exit 1
 }
 if ($KeepMock) { Write-Host "scenario: the fake Jira still runs on port ${Port}: stop it with .\scripts\stop-mock.ps1 -Port $Port" }

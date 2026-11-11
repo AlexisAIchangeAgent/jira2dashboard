@@ -21,7 +21,7 @@ USE CASES
   Two fake Jiras at once             .\scripts\manual-test.ps1 -Port 8100
   The whole chain without clicking   .\scripts\scenario.ps1                          (unattended: Python extraction, checks, clean-up)
   Excel crashed on the last page     a known defect: save your other work first, run it again
-  Where is the log                   %LOCALAPPDATA%\jira2dashboard\logs\manual-test.log (last run only)
+  Where is the log                   scripts\logs\manual-test.log (last run only)
 
 
 .PARAMETER Workbook
@@ -62,12 +62,12 @@ $ErrorActionPreference = "Stop"
 $root = Split-Path -Parent $PSScriptRoot
 Set-Location $root
 
-# Log of this run (last run only): %LOCALAPPDATA%\jira2dashboard\logs\manual-test.log. A log failure never stops the script.
+# Log of this run (last run only): scripts\logs\manual-test.log. A log failure never stops the script.
 # Called by another script of this folder that already writes a log ($J2D_LogOwner, seen through the calling scope):
 # no second transcript, the lines of this script go to the log of the caller.
 if (-not (Get-Variable J2D_LogOwner -ErrorAction SilentlyContinue)) {
     try {
-        $logDir = Join-Path $env:LOCALAPPDATA "jira2dashboard\logs"
+        $logDir = Join-Path $PSScriptRoot "logs"
         New-Item -ItemType Directory -Force $logDir | Out-Null
         Start-Transcript -Path (Join-Path $logDir "manual-test.log") -Force | Out-Null
         $J2D_LogOwner = "manual-test"
