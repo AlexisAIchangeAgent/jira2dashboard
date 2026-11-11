@@ -84,3 +84,13 @@ def test_the_predictability_band_is_a_proposal_text_the_vba_can_read():
     spec = next(c for c in d.CHARTS if c.name == "flow_predictability")
     assert spec.band == (0.8, 1.0) and d.band_text(spec) == "0.8;1.0"
     assert all(d.band_text(c) == "" for c in d.CHARTS if c is not spec)
+
+
+def test_the_vba_names_the_same_sheet_of_charts_and_the_same_status_rows():
+    """modFlowBuild draws the charts, modActions names them in the status Done and writes the status rows: their constants
+    are those of dashboard_spec (the build makes the sheet Charts and formats the rows)."""
+    from jira2dashboard.testbench import run_vba_tests as rvt
+    sources = rvt.module_sources(rvt.ORDER)
+    for module in ("modFlowBuild", "modActions"):
+        assert f'Private Const CHARTS_SHEET As String = "{d.CHARTS_SHEET}"' in sources[module], module
+    assert f"Private Const STATUS_ROWS As Long = {d.STATUS_ROWS}" in sources["modActions"]

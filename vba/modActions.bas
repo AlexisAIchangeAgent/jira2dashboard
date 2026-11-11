@@ -17,6 +17,8 @@ Private mBusy As Boolean
 Private mCancel As Boolean
 Private mExtracting As Boolean              ' True while Jira is read (extraction job or configuration): Cancel works
 Private mNextSlice As Date
+Private Const STATUS_ROWS As Long = 20            ' rows of fields under the status cell A3 (A4:B23 of the Dashboard)
+Private Const CHARTS_SHEET As String = "Charts"    ' the sheet of the charts (flow/dashboard_spec.CHARTS_SHEET)
 Private mNextProc As String                ' the string given to OnTime: Schedule:=False needs the same one
 
 Private Function SliceName() As String
@@ -108,7 +110,7 @@ Failed:
     mExtracting = False
     If num = vbObjectError + 610 Then                                ' the Cancel button, pressed during a wait for Jira
         LogRunEnd "cancelled during a wait for Jira"
-        EndRun "Cancelled: the proposal sheets are kept as they were.", 0
+        EndRun "Cancelled | Proposal sheets: kept as they were", 0
         Exit Sub
     End If
     LogError "BtnReadJiraConfiguration", num, desc
@@ -130,8 +132,8 @@ Public Sub BtnRovoPrompt()
     Set ws = ThisWorkbook.Worksheets(SHEET_ROVO)
     ws.Activate
     ws.Range(ws.Cells(1, 1), ws.Cells(n, 1)).Select
-    ShowProgress -1, "Rovo prompt: " & n & " lines in the sheet " & SHEET_ROVO & ", selected: Ctrl+C, then paste into Rovo. " & _
-                     "Save its CSV answer, then click Load Rovo CSV and choose the file."
+    ShowProgress -1, "Rovo prompt | Lines: " & n & ", selected in the sheet " & SHEET_ROVO & _
+                     " | Next: Ctrl+C, paste into Rovo, save its CSV answer, then click Load Rovo CSV and choose the file"
     LogRunEnd "ok"
     Exit Sub
 Failed:
@@ -158,7 +160,7 @@ Public Sub BtnLoadRovoCsv()
     End If
     file = Application.GetOpenFilename("CSV files (*.csv),*.csv", , "The CSV answered by Rovo")
     If VarType(file) = vbBoolean Then
-        ShowProgress -1, "Rovo CSV: no file chosen, nothing loaded."
+        ShowProgress -1, "Rovo CSV | Result: no file chosen, nothing loaded"
         LogRunEnd "cancelled: no file chosen"
         Exit Sub
     End If
@@ -167,7 +169,7 @@ Public Sub BtnLoadRovoCsv()
               "in the file (Projects, Iterations, PIs, Workflows, Transitions) all the current rows are replaced by its rows. " & _
               "Save a copy of the workbook first if you want to keep the current values.", vbOKCancel + vbQuestion, _
               "Load the CSV of Rovo") <> vbOK Then
-        ShowProgress -1, "Rovo CSV: cancelled, nothing loaded."
+        ShowProgress -1, "Rovo CSV | Result: cancelled, nothing loaded"
         LogRunEnd "cancelled: not confirmed"
         Exit Sub
     End If
@@ -209,7 +211,7 @@ Public Sub ExtractSlice()
         If mCancel Then
             LogRunEnd "cancelled"
             ExtractJobAbort
-            EndRun "Cancelled: the results of the previous run are kept.", 0
+            EndRun "Cancelled | Results: the results of the previous run are kept", 0
             Exit Sub
         End If
         If ExtractJobStep() Then
@@ -222,7 +224,8 @@ Public Sub ExtractSlice()
     Else
         BuildFlowSheetsIn ThisWorkbook
         LogRunEnd "ok"
-        EndRun "Done. The Dashboard shows the six flow metrics.", 1
+        EndRun "Done | Charts: the six flow metrics in the sheet " & CHARTS_SHEET & " | Figures: the sheet Metrics" & _
+               " | Data checks: the sheet DataChecks", 1
     End If
     Exit Sub
 Failed:
@@ -230,7 +233,7 @@ Failed:
     If num = vbObjectError + 610 Then                                ' the Cancel button, pressed during a wait for Jira
         LogRunEnd "cancelled during a wait for Jira"
         ExtractJobAbort
-        EndRun "Cancelled: the results of the previous run are kept.", 0
+        EndRun "Cancelled | Results: the results of the previous run are kept", 0
         Exit Sub
     End If
     LogError "ExtractSlice", num, desc
@@ -252,12 +255,19 @@ Public Sub AbortExtraction()
 End Sub
 
 Public Function ProgressSnapshot() As String
-    ' "fraction|status text" as the Dashboard shows them (one call for the tests that watch the bar from outside).
-    Dim shapes As Object
+    ' "fraction|status text" as the Dashboard shows them (one call for the tests that watch the bar from outside): the text is
+    ' read back from the cells, the headline (A3) then each row under it as " | Name: value".
+    Dim shapes As Object, cell As Object, text As String, i As Long, name As String, value As String
     On Error Resume Next
     Set shapes = ThisWorkbook.Worksheets("Dashboard").Shapes
-    ProgressSnapshot = Trim$(Str$(shapes("pbFill").Width / shapes("pbBack").Width)) & "|" & _
-                       CStr(ThisWorkbook.Names("dashStatus").RefersToRange.Value)
+    Set cell = ThisWorkbook.Names("dashStatus").RefersToRange
+    text = CStr(cell.Value)
+    For i = 1 To STATUS_ROWS
+        name = CStr(cell.Offset(i, 0).Value): value = CStr(cell.Offset(i, 1).Value)
+        If Len(name) = 0 And Len(value) = 0 Then Exit For
+        text = text & " | " & IIf(Len(name) > 0, name & ": ", "") & value
+    Next i
+    ProgressSnapshot = Trim$(Str$(shapes("pbFill").Width / shapes("pbBack").Width)) & "|" & text
 End Function
 
 Private Function LogLevelSetting() As String
@@ -289,18 +299,33 @@ Private Sub EndRun(ByVal message As String, ByVal fraction As Double)
 End Sub
 
 Private Sub EndRunStopped(ByVal num As Long, ByVal desc As String)
-    ' An error ends the run: the status says what and where the log is, and the log opens in Notepad (modLog.LogOpen).
-    EndRun "Stopped " & ErrorCode(num, desc) & " - " & desc & LogHint(), 0
+    ' An error ends the run: the status gives the support code, the message and where the log is (one row each), and the log
+    ' opens in Notepad (modLog.LogOpen).
+    EndRun "Stopped | Code: " & ErrorCode(num, desc) & " | Message: " & desc & LogHint(), 0
     LogOpen OpenLogSetting()
 End Sub
 
 Private Sub ShowProgress(ByVal fraction As Double, ByVal text As String)
-    ' The bar (rectangles pbBack and pbFill) and the status cell (name dashStatus) of the Dashboard; a fraction < 0 keeps the bar.
-    Dim shapes As Object
+    ' The bar (rectangles pbBack and pbFill) and the status of the Dashboard; a fraction < 0 keeps the bar. A text
+    ' "Title | Name: value | ..." (modText.StatusParts) shows its title in the status cell (name dashStatus) and one row per
+    ' field under it, the name in column A and the value in column B; the rows of the previous status are cleared first.
+    Dim shapes As Object, cell As Object, parts As Collection, i As Long
     On Error Resume Next
     Set shapes = ThisWorkbook.Worksheets("Dashboard").Shapes
     If fraction >= 0 Then shapes("pbFill").Width = shapes("pbBack").Width * fraction + 0.1
-    ThisWorkbook.Names("dashStatus").RefersToRange.Value = "'" & text
+    Set cell = ThisWorkbook.Names("dashStatus").RefersToRange
+    Set parts = StatusParts(text)
+    cell.Value = SafeCell(CStr(parts(1)(1)))
+    ' The rows are touched only when there are fields to write or rows to clear: during a run each slice writes A3 only
+    ' (more writes per slice made the known crash of the extraction come back, 1 run in 3).
+    If parts.Count > 1 Or Len(CStr(cell.Offset(1, 0).Value)) > 0 Or Len(CStr(cell.Offset(1, 1).Value)) > 0 Then
+        cell.Offset(1, 0).Resize(STATUS_ROWS, 2).ClearContents
+    End If
+    For i = 2 To parts.Count
+        If i - 1 > STATUS_ROWS Then Exit For
+        cell.Offset(i - 1, 0).Value = SafeCell(CStr(parts(i)(0)))
+        cell.Offset(i - 1, 1).Value = SafeCell(CStr(parts(i)(1)))
+    Next i
     Application.StatusBar = text
     If fraction >= 1 Or Not mBusy Then Application.StatusBar = False
     DoEvents

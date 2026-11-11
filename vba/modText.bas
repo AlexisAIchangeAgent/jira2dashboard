@@ -268,3 +268,24 @@ Private Function AdfToText(ByVal node As Variant) As String
     End If
     AdfToText = out
 End Function
+
+Public Function StatusParts(ByVal text As String) As Collection
+    ' "Title | Name: value | Name: value" -> Array("", "Title"), Array("Name", "value"), ...: the status of the Dashboard as
+    ' its headline (cell A3) and one row per field under it. A field is cut at its first ": " (a value may hold more); a part
+    ' without ": " is a row with no name. A text without " | " is the headline alone (the progress of a run).
+    Dim out As New Collection, parts() As String, i As Long, p As Long
+    Cov "TXT29"
+    Set StatusParts = out
+    If Len(text) = 0 Then out.Add Array("", ""): Exit Function
+    parts = Split(text, " | ")
+    out.Add Array("", parts(0))
+    For i = 1 To UBound(parts)
+        p = InStr(parts(i), ": ")
+        If p > 0 Then
+            out.Add Array(Left$(parts(i), p - 1), Mid$(parts(i), p + 2))
+        Else
+            Cov "TXT30"
+            out.Add Array("", parts(i))
+        End If
+    Next i
+End Function

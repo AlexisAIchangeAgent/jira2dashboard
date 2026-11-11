@@ -67,19 +67,31 @@ def write_blueprint(wb, dash=None, button_macro: str | None = None) -> None:
 
 
 def write_dashboard_frame(wb, dash, button_macro: str | None = None) -> None:
-    """Title, the team selector (B2, name dashTeam), the as-of date, the status cell (name dashStatus) and, with the button, the
-    buttons Extract, Cancel and Read the Jira configuration and the progress bar. The charts come after each extraction."""
+    """Title, the as-of date, the status cell (name dashStatus, its fields in the rows under it) and, with the button, the
+    buttons Extract, Cancel, Read the Jira configuration and Rovo and the progress bar. Right after the Dashboard, the sheet
+    Charts: its title and the team selector (B2, name dashTeam); the charts come after each extraction, on that sheet, so
+    that they hide nothing of the Dashboard."""
     dash.Range("A1").Value = "Flow metrics"
     dash.Range("A1").Font.Bold = True
-    dash.Range("A2").Value = "Team of the Distribution chart"
-    dash.Range(D.SELECTOR_CELL).Value = D.ALL_TEAMS
-    wb.Names.Add(D.SELECTOR, "=Dashboard!" + dash.Range(D.SELECTOR_CELL).Address)
     dash.Range("E1").Value = "As of (UTC)"
     dash.Range("F1").Formula2 = "=IFERROR(AsOfUtc,\"\")"
     R.put_en_us(dash.Range("F1"), "NumberFormat", "yyyy-mm-dd hh:mm")
     dash.Range("A:R").ColumnWidth = 11
+    dash.Range("A:A").ColumnWidth = 22                  # the names of the status rows
     dash.Range(D.STATUS_CELL).Value = "Ready"
+    dash.Range(D.STATUS_CELL).Font.Bold = True
     wb.Names.Add(D.STATUS, "=Dashboard!" + dash.Range(D.STATUS_CELL).Address)
+    status = dash.Range(D.STATUS_CELL)
+    dash.Range(dash.Cells(status.Row + 1, status.Column), dash.Cells(status.Row + D.STATUS_ROWS, status.Column)).Font.Bold = True
+    charts = wb.Worksheets.Add(None, dash)              # positional: (Before, After)
+    charts.Name = D.CHARTS_SHEET
+    charts.Range("A1").Value = "Flow metrics - charts"
+    charts.Range("A1").Font.Bold = True
+    charts.Range("A2").Value = "Team of the Distribution chart"
+    charts.Range("A:R").ColumnWidth = 11
+    charts.Range(D.SELECTOR_CELL).Value = D.ALL_TEAMS
+    wb.Names.Add(D.SELECTOR, f"={D.CHARTS_SHEET}!" + charts.Range(D.SELECTOR_CELL).Address)
+    dash.Activate()
     if button_macro:
         R.add_macro_button(dash, "J1", D.EXTRACT_CAPTION, button_macro, 190, 26)
         R.add_macro_button(dash, D.CANCEL_CELL, D.CANCEL_CAPTION, CANCEL_MACRO, 80, 26)
@@ -106,9 +118,9 @@ def write_manual(wb, dash, mandatory: tuple[str, ...]) -> None:
 
 
 def export_charts(wb, folder) -> dict[str, str]:
-    """Save every chart of the Dashboard as <name>.png in `folder`; returns {chart name: file}."""
+    """Save every chart of the sheet Charts as <name>.png in `folder`; returns {chart name: file}."""
     folder.mkdir(parents=True, exist_ok=True)
-    dash, files = wb.Worksheets("Dashboard"), {}
+    dash, files = wb.Worksheets(D.CHARTS_SHEET), {}
     dash.Activate()
     for spec in D.CHARTS:
         target = folder / f"{spec.name}.png"

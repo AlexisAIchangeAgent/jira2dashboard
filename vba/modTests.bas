@@ -53,7 +53,7 @@ Private Function TestNames() As Variant
         "T_HttpNetworkAndCancel", "T_RetryExhausted", "T_ChangelogChunks", "T_IssueRows", "T_WriteTable", "T_StatusIntervals", _
         "T_StatusChanges", "T_RetryDelay", "T_SafeAccess", "T_FilesUtf8", "T_StringifyBadObject", _
         "T_TooManyPages", "T_BackgroundExport", "T_TextNotConverted", "T_ParamsTables", "T_ParamsOnWorkbook", _
-        "T_TrimWhite", "T_ConfigSheet", "T_MandatoryConfig", "T_ProxyDetect", "T_ProxyScript", "T_ProjectsSheet", "T_ParseMoment", "T_ExtractFlowData", "T_ExtractJob", "T_ExtractCheckFields", "T_FlowBuild", "T_BaseUrlHttps", "T_Log", "T_LogInputsAndTimes", "T_ErrorCodes", "T_LogHintAndOpen", "T_StepsSheet", "T_RovoPrompt", "T_RovoCsv", _
+        "T_TrimWhite", "T_ConfigSheet", "T_MandatoryConfig", "T_ProxyDetect", "T_ProxyScript", "T_ProjectsSheet", "T_ParseMoment", "T_ExtractFlowData", "T_ExtractJob", "T_ExtractCheckFields", "T_FlowBuild", "T_BaseUrlHttps", "T_Log", "T_LogInputsAndTimes", "T_StatusParts", "T_ErrorCodes", "T_LogHintAndOpen", "T_StepsSheet", "T_RovoPrompt", "T_RovoCsv", _
         "T_JiraConfig", "T_AbortExtraction", "T_Utf8Oracle", "T_Utf8Invalid", "T_Base64Oracle")
 End Function
 
@@ -484,7 +484,7 @@ Public Sub T_LogHintAndOpen()
     saved = gLogPath
     gLogPath = "C:/x y/run.log"
     gLogOpenFake = True: gLogOpenCommand = ""
-    Check "log", "the hint names the log file", "path", " See the log: C:/x y/run.log", LogHint()
+    Check "log", "the hint names the log file, as a field of the status", "path", " | Log: C:/x y/run.log", LogHint()
     LogOpen
     Check "log", "the log opens in Notepad, the path quoted", "command", "notepad.exe ""C:/x y/run.log""", gLogOpenCommand
     gLogOpenCommand = "": LogOpen False
@@ -522,7 +522,7 @@ Public Sub T_RovoCsv()
            "Elsewhere,1,Name,x," & vbLf & "Projects,two,Project,x," & vbLf & "Config,,BaseUrl,https://evil.example,injected" & vbLf & "Projects,3,Nonsense,x,"
     Set res = RovoCsvRead(ThisWorkbook, text)
     Check "csv", "Config: only a real value is an item (UNKNOWN and the token are not)", "items", 11, res("items").Count
-    Check "csv", "UNKNOWN, an empty value and the token are counted", "unknown", 3, res("unknown")
+    Check "csv", "UNKNOWN and the token are counted apart from the empty values", "unknown|empty", "2|1", res("unknown") & "|" & res("empty")
     Check "csv", "a sheet that the import does not fill is a problem", "Elsewhere", True, InStr(res("problems")(2), "'Elsewhere' is not one that this import fills") > 0
     Check "csv", "a Row that is not a number is a problem", "two", True, InStr(res("problems")(3), "Row must be a number for the sheet Projects") > 0
     Check "csv", "a connection parameter is a problem, not an item", "BaseUrl", True, InStr(res("problems")(4), "BaseUrl says where the credentials go") > 0
@@ -558,15 +558,15 @@ Public Sub T_RovoCsv()
     summary = ImportRovoCsv(ThisWorkbook, file)
     Check "csv", "Config: the Value of the parameter is written", "FillRateThreshold", "85", CStr(wsC.Cells(rowProxy, 2).Value)
     Check "csv", "a connection parameter is never loaded", "BaseUrl", True, InStr(CStr(wsC.Cells(FindRowOf(wsC, "BaseUrl"), 2).Value & ""), "evil") = 0
-    Check "csv", "and is told as a problem", "BaseUrl", True, InStr(summary, "problem(s)") > 0
+    Check "csv", "and is told as a problem", "BaseUrl", True, InStr(summary, " | Problems: ") > 0
     Check "csv", "Config: the other parameters are left as they were", "ApiToken", True, Len(CStr(wsC.Cells(FindRowOf(wsC, "ApiToken"), 2).Value & "")) = 0
     Check "csv", "a table sheet: the rows are the rows of the CSV", "Projects", "ZZA|Program|Train Z|ZZB|Team||", _
           wsP.Range("A2").Value & "|" & wsP.Range("B2").Value & "|" & wsP.Range("C2").Value & "|" & wsP.Range("A3").Value & "|" & wsP.Range("B3").Value & "|" & wsP.Range("C3").Value & "|" & wsP.Range("A4").Value
     Check "csv", "the old rows are gone", "row 4", True, IsEmpty(wsP.Range("A4").Value)
     Check "csv", "an ISO date stays text (the readers of the sheet parse it)", "Start", "2026-10-05", CStr(ThisWorkbook.Worksheets("Iterations").Range("B2").Value)
     Check "csv", "the summary says what was loaded", "summary", True, _
-          InStr(summary, "Rovo CSV loaded: Config 1 value(s): FillRateThreshold; Projects 2 row(s); Iterations 1 row(s). 3 value(s) UNKNOWN") = 1
-    Check "csv", "and the first problem", "problems", True, InStr(summary, "problem(s), first: Line ") > 0
+          InStr(summary, "Rovo CSV loaded | Config: 1 value(s): FillRateThreshold | Projects: 2 row(s) | Iterations: 1 row(s) | Empty values: 1 (not loaded) | UNKNOWN values: 2 (not loaded)") = 1
+    Check "csv", "and the first problem", "problems", True, InStr(summary, " | Problems: ") > 0 And InStr(summary, ", first: Line ") > 0
     For i = 1 To 3
         With ThisWorkbook.Worksheets(names(i - 1))
             .UsedRange.ClearContents
@@ -662,6 +662,21 @@ Public Sub T_StepsSheet()
     Err.Clear
     On Error GoTo 0
     gLogPath = saved
+End Sub
+
+Public Sub T_StatusParts()
+    ' The status of the Dashboard: "Title | Name: value | ..." gives the headline (A3) and one row per field under it.
+    Dim parts As Collection
+    Set parts = StatusParts("Stopped | Code: J2D-CFG-002 | Message: Fill these values: FeatureTypes | Log: C:\x\run.log")
+    Check "status", "the title, then one row per field", "count", 4, parts.Count
+    Check "status", "the title has no name", "title", "|Stopped", parts(1)(0) & "|" & parts(1)(1)
+    Check "status", "a field is cut at its first colon", "Message", "Message|Fill these values: FeatureTypes", parts(3)(0) & "|" & parts(3)(1)
+    Check "status", "a path keeps its colon", "Log", "Log|C:\x\run.log", parts(4)(0) & "|" & parts(4)(1)
+    Set parts = StatusParts("Reading Jira: page 3")
+    Check "status", "the progress of a run is the headline alone", "progress", "1|Reading Jira: page 3", parts.Count & "|" & parts(1)(1)
+    Set parts = StatusParts("Done | the six flow metrics")
+    Check "status", "a part without a name is a row with no name", "no name", "|the six flow metrics", parts(2)(0) & "|" & parts(2)(1)
+    Check "status", "an empty status", "empty", "1|", StatusParts("").Count & "|" & StatusParts("")(1)(1)
 End Sub
 
 Public Sub T_ErrorCodes()
@@ -1132,7 +1147,7 @@ Public Sub T_FlowBuild()
     ' of newer data: nothing of a bigger earlier run stays. Iteration dates come as a date, as text or as a number.
     Dim wb As Object, dash As Object, sheetCount As Long, teams As Long
     Set wb = ThisWorkbook
-    Set dash = wb.Worksheets("Dashboard")
+    Set dash = wb.Worksheets("Charts")                               ' the charts and the team selector (B2)
     ClearFlowSheets wb
     FlowIterations "x", "y"
     FlowRaw True
@@ -1151,7 +1166,8 @@ Public Sub T_FlowBuild()
     Check "flowbuild", "Issues and StatusIntervals become tables", "2 + 3 rows", "2|3", TableRows("Issues") & "|" & TableRows("StatusIntervals")
     Check "flowbuild", "DailyLoad: one row per day and team", "28 days x 9", 28 * teams, TableRows("DailyLoad")
     Check "flowbuild", "Metrics: one row per iteration and team", "2 iterations x 9", 2 * teams, TableRows("Metrics")
-    Check "flowbuild", "eight charts", "Dashboard", 8, dash.ChartObjects.Count
+    Check "flowbuild", "eight charts, on the sheet Charts", "Charts", 8, dash.ChartObjects.Count
+    Check "flowbuild", "and none on the Dashboard", "Dashboard", 0, wb.Worksheets("Dashboard").ChartObjects.Count
     Check "flowbuild", "DataChecks: one row per check of ChecksSpec", "29 checks", 29, TableRows("DataChecks")
     Check "flowbuild", "DataChecks: the first check, and the check that needs a field is not computable", "DC01 / DC11", "DC01|OK|not computable", _
           wb.Worksheets("DataChecks").Range("A2").Value & "|" & wb.Worksheets("DataChecks").Range("J2").Value & "|" & wb.Worksheets("DataChecks").Range("J12").Value
@@ -1176,14 +1192,14 @@ Public Sub T_FlowBuild()
     ' a second, smaller run: no row, no sheet and no chart of the first one stays
     FlowRaw False
     FlowIterations 46296, 46310                                      ' 2026-10-01 .. 2026-10-15 as plain numbers
-    wb.Worksheets("Dashboard").Range("B2").Value = "Nowhere"
+    dash.Range("B2").Value = "Nowhere"
     BuildFlowSheetsIn wb
     Check "flowbuild", "smaller data: ItemFlow shrinks", "1 issue", 1, TableRows("ItemFlow")
     Check "flowbuild", "smaller data: DailyLoad and Metrics shrink", "14 days, 1 iteration", (14 * teams) & "|" & teams, TableRows("DailyLoad") & "|" & TableRows("Metrics")
     Check "flowbuild", "smaller data: StatusIntervals", "1 interval", 1, TableRows("StatusIntervals")
     Check "flowbuild", "smaller data: FillRates follows the issue types", "3 x 9 x 1", 27, TableRows("FillRates")
     Check "flowbuild", "the sheets are the same", "count", sheetCount, wb.Worksheets.Count
-    Check "flowbuild", "still eight charts", "Dashboard", 8, dash.ChartObjects.Count
+    Check "flowbuild", "still eight charts", "Charts", 8, dash.ChartObjects.Count
     Check "flowbuild", "an unknown team in the selector goes back to All teams", "Nowhere", "All teams", dash.Range("B2").Value
     dash.Range("B2").Value = "AAA"
     BuildFlowSheetsIn wb
@@ -2029,16 +2045,16 @@ Public Sub T_JiraConfig()
     Check "jiraconfig", "create screen answered with results", "TA Sub-task", "TA|Sub-task|parent|Parent|Yes|issuelink", RowText(wsP, 5, 6)
     Check "jiraconfig", "no right on the create screen: no row, and the status says so", "TB", 5, LastRow(wsP)
     Check "jiraconfig", "the status tells the create screen could not be read", "403 on TB", True, _
-          InStr(summary, "create screen could not be read for 1 project(s)") > 0
+          InStr(summary, " | Create screen not read: 1 project(s), ") > 0
     Check "jiraconfig", "fields filled: counted in the issues read", "summary", "PRG|summary|Summary|1|2", RowText(wsG, 2, 5)
     Check "jiraconfig", "fields filled: an empty list is not filled", "labels", "PRG|labels|Labels|1|2", RowText(wsG, 3, 5)
     Check "jiraconfig", "fields filled: null is not filled; a field without a name", "duedate", "PRG|duedate||0|2", RowText(wsG, 4, 5)
     Check "jiraconfig", "fields filled: an object is filled, null is not", "assignee", "PRG|assignee||1|2", RowText(wsG, 5, 5)
     Check "jiraconfig", "fields filled: 4 fields for each of 3 projects", "rows", 13, LastRow(wsG)
     Check "jiraconfig", "summary counts", "3 of 4 keys, 2 workflows, 2 fields", True, _
-          InStr(summary, "Jira configuration read: 3 project(s), 2 workflow(s), 2 field(s).") = 1
-    Check "jiraconfig", "a key that Jira does not know is told", "XX", True, InStr(summary, "1 project key(s) of the Projects sheet not found") > 0
-    Check "jiraconfig", "a project whose workflows cannot be read is told", "401 on TB", True, InStr(summary, "could not be read for 1 project(s)") > 0
+          InStr(summary, "Jira configuration read | Projects: 3 | Workflows: 2 | Fields: 2 | ") = 1
+    Check "jiraconfig", "a key that Jira does not know is told", "XX", True, InStr(summary, " | Not found in Jira: 1 project key(s) of the sheet Projects") > 0
+    Check "jiraconfig", "a project whose workflows cannot be read is told", "401 on TB", True, InStr(summary, " | Workflows not read: 1 project(s), ") > 0
     Check "jiraconfig", "issue type of the first page", "PRG", "PRG|Feature|WF-A|No|1|classic", RowText(wsT, 2, 6)
     Check "jiraconfig", "one project, two workflows: the story", "TA Story", "TA|Story|WF-A|No|0|next-gen", RowText(wsT, 3, 6)
     Check "jiraconfig", "one project, two workflows: the sub-task", "TA Sub-task", "TA|Sub-task|WF-B|Yes|-1|next-gen", RowText(wsT, 4, 6)
@@ -2410,7 +2426,7 @@ Public Sub M_JiraConfig()
     MockReset cfg
     summary = ReadJiraConfiguration(cfg, MockProjects(), ThisWorkbook)
     Check "mock", "the configuration is read", "summary", True, _
-          InStr(summary, "Jira configuration read: " & MockProjects().Count & " project(s), 2 workflow(s),") = 1
+          InStr(summary, "Jira configuration read | Projects: " & MockProjects().Count & " | Workflows: 2 | ") = 1
     Set want = CreateObject("Scripting.Dictionary"): Set got = CreateObject("Scripting.Dictionary")
     For Each row In ReadTable(ThisWorkbook.Worksheets("Workflows"))
         want(row("Workflow") & "|" & row("Status") & "|" & row("IsFree")) = True
@@ -2436,7 +2452,7 @@ Public Sub M_JiraConfig()
     MockFault cfg, "/rest/api/3/workflows/preview", 401, 100, "POST"
     summary = ReadJiraConfiguration(cfg, MockProjects(), ThisWorkbook)
     Check "mock", "without the right to read workflows the run says so", "401 on the preview", True, _
-          InStr(summary, "could not be read for " & MockProjects().Count & " project(s)") > 0
+          InStr(summary, " | Workflows not read: " & MockProjects().Count & " project(s), ") > 0
     Check "mock", "and writes no workflow", "JiraWorkflows", 1, LastRow(ThisWorkbook.Worksheets("JiraWorkflows"))
     Check "mock", "but the statuses of each issue type", "JiraStatuses", True, LastRow(ThisWorkbook.Worksheets("JiraStatuses")) > 1
     MockReset cfg

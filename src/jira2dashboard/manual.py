@@ -25,7 +25,7 @@ def first_steps() -> list[str]:
         f'3. Click "{CONFIG_CAPTION}". Read the proposal sheets {PROPOSAL_SHEETS}.',
         "4. Copy what fits into the sheets Workflows and Transitions, and the field ids into the ...Field rows of Config.",
         f'5. Click "{EXTRACT_CAPTION}" and wait for the bar to reach the end. "{CANCEL_CAPTION}" stops it.',
-        "6. Read the charts here, the figures in the sheet Metrics and the data checks in the sheet DataChecks.",
+        "6. Read the charts in the sheet Charts, the figures in the sheet Metrics and the data checks in the sheet DataChecks.",
         "Before you send this workbook to anyone: empty ApiToken in the sheet Config.",
     ]
 
@@ -83,11 +83,12 @@ def manual(mandatory: tuple[str, ...]) -> list[tuple[str, str]]:
             "of the workbook first if you want to keep the current values.",
         ]),
         (f'Button "{EXTRACT_CAPTION}"', [
-            "It reads Jira in small slices: the bar moves, cell A3 says what happens, and Excel stays usable.",
+            "It reads Jira in small slices: the bar moves, cell A3 says what happens, and Excel stays usable. At the end, "
+            "A3 gives the result and the rows under it its details, one per line (name in column A, value in column B).",
             f'"{CANCEL_CAPTION}" stops it before the raw sheets are written: the previous results stay.',
             "At the end the sheets ItemFlow, DailyLoad, Metrics, ChartData and the charts are rebuilt to the size of "
             "the new data. Run it as often as needed.",
-            "Cell B2 of the Dashboard: the team of the Flow Distribution chart.",
+            "The charts are in the sheet Charts, right of the Dashboard. Its cell B2: the team of the Flow Distribution chart.",
             'A status that starts with "Stopped" gives the error, with its code (J2D-...): read it to the support. The sheet ErrorCodes '
             'says what each code means and what to check. The local log tells more (below).',
         ]),

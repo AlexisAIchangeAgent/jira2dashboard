@@ -317,6 +317,19 @@ def _progress(world):
     assert retry(lambda: wb.Worksheets("ItemFlow").ListObjects("ItemFlow").ListRows.Count) == len(world["items"])
 
 
+def status_rows(world) -> list[tuple[str, str]]:
+    """The rows under the status cell of the Dashboard: (name in column A, value in column B), up to the first empty row."""
+    dash = world["wb"].Worksheets("Dashboard")
+    first = dash.Range(D.STATUS_CELL)
+    rows = []
+    for offset in range(1, D.STATUS_ROWS + 1):
+        name, value = dash.Cells(first.Row + offset, 1).Value, dash.Cells(first.Row + offset, 2).Value
+        if name is None and value is None:
+            break
+        rows.append(("" if name is None else str(name), "" if value is None else str(value)))
+    return rows
+
+
 def log_file(world) -> Path:
     """modLog.LogFile: the folder logs next to the workbook."""
     return Path(world["wb"].Path) / "logs" / "jira2dashboard.log"
@@ -555,7 +568,8 @@ def _sizes(world):
     assert size["StatusIntervals"] == sum(len(item.intervals) for item in world["items"])
     assert size["DailyLoad"] == (iterations[-1].end - iterations[0].start).days * len(teams)
     assert size["Metrics"] == len(iterations) * len(teams)
-    assert wb.Worksheets("Dashboard").ChartObjects().Count == len(D.CHARTS) == 8
+    assert wb.Worksheets(D.CHARTS_SHEET).ChartObjects().Count == len(D.CHARTS) == 8
+    assert wb.Worksheets("Dashboard").ChartObjects().Count == 0                  # nothing hides the Dashboard
     names = [sheet.Name for sheet in wb.Worksheets]
     assert len(names) == len(set(names)), names
 
@@ -631,7 +645,7 @@ def _chart_data(world, mode):
 
 @then("chaque graphique a une série par équipe ou par type de travail avec les valeurs de ChartData")
 def _series(world):
-    wb, dash = world["wb"], world["wb"].Worksheets("Dashboard")
+    wb, dash = world["wb"], world["wb"].Worksheets(D.CHARTS_SHEET)
     blocks = chart_blocks(wb, world)
     assert {co.Name for co in dash.ChartObjects()} == {s.name for s in D.CHARTS}
     for spec in D.CHARTS:
@@ -655,7 +669,7 @@ def _series(world):
 
 @then("le graphique Flow Distribution suit l'équipe choisie dans la cellule B2")
 def _distribution(world):
-    wb, dash, as_of = world["wb"], world["wb"].Worksheets("Dashboard"), world["dataset"].as_of
+    wb, dash, as_of = world["wb"], world["wb"].Worksheets(D.CHARTS_SHEET), world["dataset"].as_of
     expected = {(m.iteration, m.team): m for m in flow_metrics(world["items"], world["iterations"], "A", as_of)}
     by_team = {}
     for (_p, team), m in expected.items():
@@ -771,13 +785,14 @@ def _read_configuration(world):
 
 @then("l'état du tableau de bord dit que la configuration est lue")
 def _configuration_read(world):
-    assert world["status"].startswith(f"Jira configuration read: {len(project_keys())} project(s), 2 workflow(s), "), world["status"]
-    assert "could not be read" not in world["status"] and "not found" not in world["status"], world["status"]
+    assert world["status"].startswith(f"Jira configuration read | Projects: {len(project_keys())} | Workflows: 2 | "), world["status"]
+    assert "not read" not in world["status"] and "Not found" not in world["status"], world["status"]
+    assert status_rows(world)[:2] == [("Projects", str(len(project_keys()))), ("Workflows", "2")]   # one row per field
 
 
 @then("l'état du tableau de bord dit que les workflows n'ont pas pu être lus")
 def _workflows_not_read(world):
-    assert f"The workflows could not be read for {len(project_keys())} project(s)" in world["status"], world["status"]
+    assert f" | Workflows not read: {len(project_keys())} project(s), " in world["status"], world["status"]
 
 
 @then("la feuille JiraIssueTypes donne le workflow de chaque type de ticket de chaque projet de la feuille Projects")
@@ -957,7 +972,7 @@ def _rovo_no_value(world):
 
 @then("l'état du tableau de bord dit combien de lignes sont sélectionnées pour Rovo")
 def _rovo_status(world):
-    assert world["status"].startswith(f"Rovo prompt: {len(rovo_lines(world))} lines in the sheet RovoPrompt"), world["status"]
+    assert world["status"].startswith(f"Rovo prompt | Lines: {len(rovo_lines(world))}, selected in the sheet RovoPrompt"), world["status"]
 
 
 # --- rovo_prompt.feature: the button Load Rovo CSV -------------------------------------------------------------------------
@@ -1076,8 +1091,9 @@ def _rovo_others_kept(world):
 
 @then("l'état du tableau de bord résume ce qui est chargé et les valeurs inconnues")
 def _rovo_summary(world):
-    assert world["summary"].startswith("Rovo CSV loaded: Config 1 value(s): FillRateThreshold; Projects 2 row(s); Iterations 1 row(s). 3 value(s) UNKNOWN"), world["summary"]
-    assert "2 problem(s), first: Line 3: BaseUrl says where the credentials go" in world["summary"], world["summary"]
+    assert world["summary"].startswith("Rovo CSV loaded | Config: 1 value(s): FillRateThreshold | Projects: 2 row(s) | "
+                                       "Iterations: 1 row(s) | Empty values: 1 (not loaded) | UNKNOWN values: 2 (not loaded)"), world["summary"]
+    assert " | Problems: 2, first: Line 3: BaseUrl says where the credentials go" in world["summary"], world["summary"]
 
 
 # --- first use: the first steps, the sheet Manual and the column Mandatory of Config (first_use.feature) --------------
@@ -1141,9 +1157,12 @@ def _click_extract(world, request):
 
 @then(parsers.parse("l'état du tableau de bord nomme les paramètres obligatoires vides \"{names}\""))
 def _mandatory_named(world, names):
-    assert world["status"].startswith("Stopped J2D-CFG-002 - "), world["status"]
-    assert f"(Mandatory = True): {names} See the log: " in world["status"], world["status"]      # the log path ends it
+    assert world["status"].startswith("Stopped | Code: J2D-CFG-002 | Message: "), world["status"]
+    assert f"(Mandatory = True): {names} | Log: " in world["status"], world["status"]          # the log path ends it
     assert world["status"].endswith(str(log_file(world))), world["status"]                   # next to the workbook
+    rows = status_rows(world)                                                                 # A3 the title, one row per field
+    assert world["wb"].Worksheets("Dashboard").Range(D.STATUS_CELL).Value == "Stopped", rows
+    assert [name for name, _value in rows] == ["Code", "Message", "Log"] and rows[0][1] == "J2D-CFG-002", rows
     errors = [line for line in log_file(world).read_text(encoding="ascii").splitlines() if " ERROR " in line]
     assert errors and " ERROR J2D-CFG-002 | Btn" in errors[-1] and " | vbObjectError+608 | " in errors[-1], errors   # the code the client reads out
     run = log_file(world).read_text(encoding="ascii").splitlines()

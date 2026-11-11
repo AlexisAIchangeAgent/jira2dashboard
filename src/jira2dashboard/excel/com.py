@@ -1,4 +1,5 @@
 """Code assembled verbatim from pywin32-excel-vba-reference.md (python blocks)."""
+import math
 import win32api, win32con
 import pythoncom                      # COM init, constants for threads
 import pywintypes                     # pywintypes.com_error
@@ -335,9 +336,11 @@ End Function
 
 def add_macro_button(ws, cell_address: str, caption: str, macro: str,
                      width: float = 120, height: float = 28):
-    """Add a Form button at a cell that runs macro (e.g. 'modMain.Run')."""
+    """Add a Form button at a cell that runs macro (e.g. 'modMain.Run'). Excel rounds the position of a form control down
+    to a whole point: a cell that starts at 956.5 pt (a column of 124.5 pt on its left) would put the button in the cell
+    before. Rounding up keeps it in its cell, whatever the widths of the columns."""
     cell = ws.Range(cell_address)
-    shape = ws.Shapes.AddFormControl(XL_BUTTON_CONTROL, cell.Left, cell.Top, width, height)
+    shape = ws.Shapes.AddFormControl(XL_BUTTON_CONTROL, math.ceil(cell.Left), math.ceil(cell.Top), width, height)
     shape.OnAction = macro
     shape.TextFrame.Characters().Text = caption   # Tested
     return shape

@@ -59,23 +59,25 @@ Public Function ReadJiraConfiguration(ByVal cfg As Object, ByVal keys As Collect
                    fieldRows, sumRows, metaRows, usageRows
     LogEnd "proposal sheets"
     Application.StatusBar = False
-    summary = "Jira configuration read: " & projects.Count & " project(s), " & seen.Count & " workflow(s), " & _
-              fieldRows.Count & " field(s). Review the sheets JiraIssueTypes, JiraStatuses, JiraWorkflows, " & _
-              "JiraTransitions and JiraFields, then copy what fits into the parameter sheets. " & _
-              "JiraProjectWorkflows, JiraProjectFields and JiraFieldUsage show the workflows and the fields of each project."
+    ' "Title | Name: value | ...": the Dashboard shows the title in A3 and one row per field under it.
+    summary = "Jira configuration read | Projects: " & projects.Count & " | Workflows: " & seen.Count & _
+              " | Fields: " & fieldRows.Count & _
+              " | Review: the sheets JiraIssueTypes, JiraStatuses, JiraWorkflows, JiraTransitions and JiraFields, then copy " & _
+              "what fits into the parameter sheets" & _
+              " | Per project: the sheets JiraProjectWorkflows, JiraProjectFields and JiraFieldUsage"
     If projects.Count < keys.Count Then
         Cov "JCF03"
-        summary = summary & " " & (keys.Count - projects.Count) & " project key(s) of the Projects sheet not found in Jira."
+        summary = summary & " | Not found in Jira: " & (keys.Count - projects.Count) & " project key(s) of the sheet Projects"
     End If
     If denied > 0 Then
         Cov "JCF04"
-        summary = summary & " The workflows could not be read for " & denied & " project(s): ask for the project " & _
-                  "permission View (read-only) workflow. JiraStatuses still shows the statuses of each issue type."
+        summary = summary & " | Workflows not read: " & denied & " project(s), ask for the project permission View " & _
+                  "(read-only) workflow; JiraStatuses still shows the statuses of each issue type"
     End If
     If noMeta > 0 Then
         Cov "JCF34"
-        summary = summary & " The fields of the create screen could not be read for " & noMeta & " project(s): ask for the " & _
-                  "project permission Create issues. JiraFieldUsage still shows the fields of the issues."
+        summary = summary & " | Create screen not read: " & noMeta & " project(s), ask for the project permission " & _
+                  "Create issues; JiraFieldUsage still shows the fields of the issues"
     End If
     ReadJiraConfiguration = summary
 End Function

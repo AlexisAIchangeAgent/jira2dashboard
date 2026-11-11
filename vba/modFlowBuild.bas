@@ -11,6 +11,7 @@ Private Const XL_SRC_RANGE As Long = 1
 Private Const XL_YES As Long = 1
 Private Const XL_CALC_MANUAL As Long = -4135
 Private Const XL_CALC_AUTOMATIC As Long = -4105
+Private Const CHARTS_SHEET As String = "Charts"      ' the sheet of the charts, made at build (flow/dashboard_spec.CHARTS_SHEET)
 
 Public Function SheetExists(ByVal wb As Object, ByVal name As String) As Boolean
     Cov "FLB01"
@@ -53,12 +54,12 @@ End Sub
 Private Sub DeleteDerived(ByVal wb As Object)
     Cov "FLB04"
     Dim nm As Variant, i As Long, alerts As Boolean
-    If SheetExists(wb, "Dashboard") Then
-        For i = wb.Worksheets("Dashboard").ChartObjects.Count To 1 Step -1
-            wb.Worksheets("Dashboard").ChartObjects(i).Delete
+    If SheetExists(wb, CHARTS_SHEET) Then                 ' the charts and the notes under them; the sheet and its selector stay
+        For i = wb.Worksheets(CHARTS_SHEET).ChartObjects.Count To 1 Step -1
+            wb.Worksheets(CHARTS_SHEET).ChartObjects(i).Delete
         Next i
+        wb.Worksheets(CHARTS_SHEET).Range("A4:R400").ClearContents
     End If
-    If SheetExists(wb, "Dashboard") Then wb.Worksheets("Dashboard").Range("A4:R400").ClearContents      ' the notes under the charts
     alerts = Application.DisplayAlerts
     Application.DisplayAlerts = False
     On Error GoTo Restore
@@ -214,7 +215,7 @@ Private Sub LoadPlan(ByVal wb As Object, ByRef spec As Object, ByRef teams As Co
     Dim nm As Variant
     RequireDynamicArrays
     For Each nm In Array("FlowFormulas", "ChartSpec", "ChecksSpec", "Config", "Iterations", "PIs", "Projects", "Workflows", _
-                         "Transitions", "Dashboard", "Issues", "StatusIntervals", "IssueLinks")
+                         "Transitions", "Dashboard", CHARTS_SHEET, "Issues", "StatusIntervals", "IssueLinks")
         If Not SheetExists(wb, CStr(nm)) Then
             Err.Raise vbObjectError + 705, "BuildFlowSheets", "Sheet " & nm & " is missing: rebuild the workbook with scripts\run.ps1 build."
         End If
@@ -462,7 +463,7 @@ End Function
 Private Sub BuildCharts(ByVal wb As Object, ByVal spec As Object, ByVal teams As Collection, ByVal iterations As Collection)
     Cov "FLB21"
     Dim data As Object, dash As Object, row As Variant, index As Long
-    Set dash = wb.Worksheets("Dashboard")
+    Set dash = wb.Worksheets(CHARTS_SHEET)               ' a sheet of their own: on the Dashboard they hid its cells
     Set data = AddSheet(wb, "ChartData")
     WriteSelectorList wb, dash, data, spec, teams
     For Each row In ReadTable(wb.Worksheets("ChartSpec"))

@@ -9,10 +9,12 @@ from dataclasses import dataclass
 from jira2dashboard.flow.formulas import BUCKETS
 
 ALL_TEAMS = "All teams"
+CHARTS_SHEET = "Charts"                       # the sheet of the charts and of the team selector, right of the Dashboard
 SELECTOR = "dashTeam"                         # name of the cell that picks the team of the Distribution chart
-SELECTOR_CELL = "B2"
-STATUS = "dashStatus"                          # name of the cell where the extraction tells what it does
+SELECTOR_CELL = "B2"                          # on the sheet Charts
+STATUS = "dashStatus"                          # name of the cell where the extraction tells what it does (its headline)
 STATUS_CELL = "A3"
+STATUS_ROWS = 20                              # rows of fields under it (A4:B23): name in A, value in B (modActions.ShowProgress)
 BAR_CELL, CANCEL_CELL = "J3", "M1"            # the progress bar (rectangles pbBack, pbFill) and the button Cancel
 CONFIG_CELL = "O1"                            # the button that reads the Jira configuration into proposal sheets
 ROVO_CELL = "R1"                              # the button that writes the prompt for Rovo
@@ -43,7 +45,7 @@ CANCEL_CAPTION = "Cancel"
 CONFIG_CAPTION = "Read the Jira configuration"
 ROVO_CAPTION = "Prompt for Rovo"
 ROVO_LOAD_CAPTION = "Load Rovo CSV"
-STEPS_CELL = "T1"           # the first steps (manual.first_steps): beside the charts; a rebuild clears only A4:R400
+STEPS_CELL = "T1"           # the first steps (manual.first_steps), right of the status rows
 
 CHARTS = (
     ChartSpec("velocity", "Velocity - items done per iteration", "Velocity", XL_COLUMN_CLUSTERED),
@@ -60,7 +62,7 @@ CHARTS = (
               reason="the day is after the as-of date"),          # last: its block has one row per day, not per iteration
 )
 
-COLUMNS_PER_CHART, ROWS_PER_CHART = 8, 18       # size of the area of a chart on the Dashboard sheet
+COLUMNS_PER_CHART, ROWS_PER_CHART = 8, 18       # size of the area of a chart on the sheet Charts
 CHART_SPACING = 20                              # rows between two charts (chart, then its note)
 CHARTS_PER_ROW = 2
 
@@ -71,7 +73,7 @@ def block_top(index: int, iterations: int) -> int:
 
 
 def chart_anchor(index: int) -> tuple[int, int]:
-    """(row, column) of the top-left cell of chart `index` on the Dashboard sheet."""
+    """(row, column) of the top-left cell of chart `index` on the sheet Charts (rows 1-2: its title and the selector)."""
     return 4 + (index // CHARTS_PER_ROW) * CHART_SPACING, 1 + (index % CHARTS_PER_ROW) * (COLUMNS_PER_CHART + 1)
 
 

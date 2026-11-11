@@ -87,7 +87,7 @@ RUN  user machine, Excel + VBA
   FillRates, DataChecks, ChartData
         |
         v
-  Dashboard: 8 charts, status cell A3
+  Dashboard: status cell A3 and its rows; Charts: 8 charts
 
 
 FALLBACK  Python, no VBA
@@ -101,7 +101,7 @@ answered.
 
 | Sheets | Content | Written by |
 |---|---|---|
-| `Dashboard`, `Manual` | Buttons, status `A3`, charts, team `B2`; user manual | build |
+| `Dashboard`, `Manual`, `Charts` | Buttons, status `A3` and one row per field under it; user manual; the 8 charts and their team `B2` | build |
 | `Config`, `Projects`, `Iterations`, `PIs`, `Workflows`, `Transitions`, `FieldMapping` | Parameters | build, then user |
 | `Issues`, `StatusIntervals`, `IssueLinks` | Raw data (values) | VBA |
 | `Controls`, `ItemFlow`, `DailyLoad`, `Metrics`, `FillRates`, `DataChecks`, `ChartData` | Results (formulas) | VBA |
@@ -302,7 +302,7 @@ A figure that cannot be computed shows "not computable", never 0. Each data chec
 | Python log | `logs\python.log` next to the workbook | `RUN` (with the version of the workbook read), `PARAM` (every Config value, never the token), steps with their time, failed Jira calls, tracebacks |
 | Workbook version | Hidden name `J2D_Version` of the workbook (`src/jira2dashboard/version.py`) | `v1.0.0 commit 1a2b3c4, built 2026-11-11 19:40` (`release.ps1` gives the version; `build` alone writes the commit and the date) |
 | Script logs | `scripts\logs\<script>.log`; `scripts\logs\run_<command>.log` for `run.ps1` (last run of each) | Transcript of the script, with the output of Python (pytest results, tracebacks) |
-| Status cell | `Dashboard!A3` | Current step, or `Stopped J2D-<AREA>-<NNN> - message` |
+| Status cell | `Dashboard!A3`, its fields in `A4:B23` | Current step; at the end the result (`Done`, `Stopped`...) and one row per field (`Code`, `Message`, `Log`...) |
 | Support code | `J2D-<AREA>-<NNN>`: first word of every `ERROR` line (VBA and Python logs), column `Error code` of the sheet `Steps`, status of the Dashboard | What the client reads to the support; `src/jira2dashboard/error_codes.py` (and the sheet `ErrorCodes`) gives cause, check, what to ask. Never renumbered; `python -m jira2dashboard.error_codes` prints the table |
 | Unfinished run | `HKCU\Software\VB and VBA Program Settings\jira2dashboard` | Next run logs "previous run did not end" |
 | VBA test log | `logs\vba-tests.log` next to the test workbook (`out\inter\logs`) | VBA tests only: `TEST <name>` before each test, `TEST <name> done \| <time>` after (after a crash, the last `TEST` line names the test) |

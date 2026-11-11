@@ -17,7 +17,7 @@ A code reads `J2D-<AREA>-<NNN>`. It is never reused and never renumbered: a code
 
 The VBA side is `modLog.ErrorCode`; `tests/unit/test_error_codes.py` compares it with this table. The sheet `ErrorCodes` of the
 delivered workbook shows the same table (written at build by `flow/sheets.py`), the VBA log and the sheet `Steps` carry the code,
-and so do `logs\\python.log` and the status of the Dashboard ("Stopped J2D-CFG-002 - ...").
+and so do `logs\\python.log` and the status of the Dashboard (`Stopped`, then the row `Code: J2D-CFG-002`).
 """
 from __future__ import annotations
 

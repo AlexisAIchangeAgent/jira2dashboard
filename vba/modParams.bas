@@ -310,15 +310,15 @@ Private Function CsvDelimiter(ByVal text As String) As String
 End Function
 
 Public Function RovoCsvRead(ByVal wb As Object, ByVal text As String) As Object
-    ' The CSV as a Dictionary: items = Collection of Array(sheet, row, column, value), unknown = how many values Rovo could not
-    ' give (UNKNOWN, empty, or the token that the user types), problems = Collection of texts. Only the sheets of the prompt are
+    ' The CSV as a Dictionary: items = Collection of Array(sheet, row, column, value), empty = how many values are empty,
+    ' unknown = how many values Rovo could not give (UNKNOWN, or the token that the user types), problems = Collection of texts. Only the sheets of the prompt are
     ' accepted (Config and the sheets of RovoPromptSpec); anything else is a problem, never written.
     Cov "PRM40"
     Dim res As Object, items As New Collection, problems As New Collection, recs As Collection, rec As Variant
     Dim cSheet As Long, cRow As Long, cCol As Long, cVal As Long, allowed As Object, line As Long, sh As String, r As Long
     Dim v As String, col As String, spec As Variant, protected As Object
     Set res = CreateObject("Scripting.Dictionary")
-    Set res("items") = items: Set res("problems") = problems: res("unknown") = 0
+    Set res("items") = items: Set res("problems") = problems: res("unknown") = 0: res("empty") = 0
     Set recs = ParseCsv(text)
     If recs.Count = 0 Then Cov "PRM41": problems.Add "The file has no line.": Set RovoCsvRead = res: Exit Function
     cSheet = CsvColumn(recs(1), "Sheet"): cRow = CsvColumn(recs(1), "Row"): cCol = CsvColumn(recs(1), "Column"): cVal = CsvColumn(recs(1), "Value")
@@ -368,8 +368,11 @@ Private Sub ImportItem(ByVal items As Collection, ByVal problems As Collection, 
             Exit Sub
         End If
     End If
-    noValue = (Len(v) = 0 Or StrComp(v, "UNKNOWN", vbTextCompare) = 0 Or StrComp(Left$(v, 12), "TO BE TYPED ", vbTextCompare) = 0)
-    If noValue Then Cov "PRM44": res("unknown") = res("unknown") + 1: v = ""
+    If Len(v) = 0 Then
+        Cov "PRM44": res("empty") = res("empty") + 1: noValue = True       ' an empty cell, as asked when there is no value
+    ElseIf StrComp(v, "UNKNOWN", vbTextCompare) = 0 Or StrComp(Left$(v, 12), "TO BE TYPED ", vbTextCompare) = 0 Then
+        Cov "PRM53": res("unknown") = res("unknown") + 1: noValue = True: v = ""
+    End If
     If isConfig Then
         If Not noValue Then items.Add Array("Config", 0, col, v)
         Exit Sub
@@ -455,18 +458,19 @@ Public Function RovoCsvApply(ByVal wb As Object, ByVal res As Object) As String
         End If
     Next item
     For Each k In cleared.Keys
-        names = names & IIf(Len(names) > 0, "; ", "") & k & " " & cleared(k) & " row(s)"
+        names = names & " | " & k & ": " & cleared(k) & " row(s)"
     Next k
-    summary = "Rovo CSV loaded: "
-    If counts.Exists("Config") Then summary = summary & "Config " & counts("Config") & " value(s): " & loaded & IIf(counts("Config") > 8, ", ...", "")
-    If Len(names) > 0 Then summary = summary & IIf(counts.Exists("Config"), "; ", "") & names
-    If counts.Count = 0 And Len(names) = 0 Then summary = summary & "nothing to load"
-    summary = summary & ". " & res("unknown") & " value(s) UNKNOWN (left empty or unchanged)."
+    ' "Title | Name: value | ...": the Dashboard shows the title in A3 and one row per field under it.
+    summary = "Rovo CSV loaded"
+    If counts.Exists("Config") Then summary = summary & " | Config: " & counts("Config") & " value(s): " & loaded & IIf(counts("Config") > 8, ", ...", "")
+    summary = summary & names
+    If counts.Count = 0 And Len(names) = 0 Then summary = summary & " | Result: nothing to load"
+    summary = summary & " | Empty values: " & res("empty") & " (not loaded)" & " | UNKNOWN values: " & res("unknown") & " (not loaded)"
     nProblems = problems.Count
     If nProblems > 0 Then
         Cov "PRM48"
         first = CStr(problems(1))
-        summary = summary & " " & nProblems & " problem(s), first: " & first
+        summary = summary & " | Problems: " & nProblems & ", first: " & first
     End If
     RovoCsvApply = summary
 End Function

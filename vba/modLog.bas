@@ -353,9 +353,9 @@ Public Sub LogError(ByVal where As String, ByVal number As Long, ByVal descripti
 End Sub
 
 Public Function LogHint() As String
-    ' The sentence added to the status of a stopped run: where the log is.
+    ' The field added to the status of a stopped run: where the log is (a row "Log" under the status of the Dashboard).
     Cov "LOG14"
-    LogHint = " See the log: " & LogFile()
+    LogHint = " | Log: " & LogFile()
 End Function
 
 Public Sub LogOpen(Optional ByVal enabled As Boolean = True)

@@ -103,6 +103,10 @@ python.log). `tests/unit/test_claude_hooks.py` and `test_claude_skills.py` test 
   (`modParams`). Status names, team names and extract columns must not appear as literals in VBA (a guard test enforces it).
   `Config` columns: Parameter | Value | Example | Mandatory | Description (formulas read A and B; the rest by header). An empty Mandatory=True value
   stops the buttons before any call to Jira (`modParams.RequireMandatory`, error 608).
+- **Dashboard and Charts.** A final status is `Title | Name: value | ...`: `A3` (name `dashStatus`) shows the title and
+  `A4:B23` one row per field (`modText.StatusParts`, `modActions.ShowProgress`; `ProgressSnapshot` rebuilds the line from the
+  cells for the tests). The 8 charts, their notes and the team selector `B2` (name `dashTeam`) are on the sheet `Charts`, made
+  at build after the Dashboard (`CHARTS_SHEET` of `modFlowBuild`/`modActions` = `dashboard_spec.CHARTS_SHEET`, a test pins it).
 - **User manual.** `src/jira2dashboard/manual.py` (pure text) is written by `flow/sheets.write_manual` at the delivery
   build: the first steps on the Dashboard from T1, and the sheet `Manual`. Update it when a button, sheet or step changes.
 - **Extraction (VBA).** `modHttp` (WinHTTP, proxy with Windows auth, retries; `modProxy` finds the proxy of the Windows
@@ -223,7 +227,8 @@ then `mermaid.parse`), and check every `](#anchor)` link against the headings.
   on a whole column (`Sheet!$A:$A`) scans its 1 048 576 rows (10 s for 7 284 cells; `SUMIFS`/`MATCH` stop at the used
   range, `COUNTIFS` does not): cut it at the last row with `refs.bounded` and a control cell (`test_no_countifs_reads_a_whole_column`).
   A step of the extraction job must stay short (about 1 s): `CHANGELOG_CHUNK` (50 issues) and `ROW_BATCH` (100 issues; a test
-  sets `gRowBatch`). Profile with the log (`BEGIN`/`END` of each sub-step) and a scratch copy of the workbook that gets a
+  sets `gRowBatch`). A slice writes as few cells as it can: clearing the 40 status cells at each slice brought the crash of
+  the open defect back (3 runs in 5 on 2026-11-11), so `ShowProgress` touches the status rows only at the end of a run. Profile with the log (`BEGIN`/`END` of each sub-step) and a scratch copy of the workbook that gets a
   temporary benchmark module through `VBProject.VBComponents.Add` (never commit it).
 - **Test markers.** `excel` and `network` tests are excluded from the default run; Excel scenarios build the delivered
   workbook once per module and open it in a fresh Excel per scenario. Each leaves `out\inter\logs\excel-test_<test>.log`.
@@ -296,6 +301,10 @@ then `mermaid.parse`), and check every `](#anchor)` link against the headings.
   stop only the Excel your run started (start time; title "Microsoft Visual Basic" when hung), never an older one.
 - The Excel that `manual-test.ps1` opens is AL's: leave it open; when AL says done, check `tasklist`, then `stop-mock.ps1 -Port 8099`.
 - `com_error -2146959355` ("Echec de l'execution du serveur") at `DispatchEx` = Excel failed to start: transient, rerun.
+- Excel rounds the position of a form control down to a whole point: a column of 124.5 pt put every button one cell to the
+  left (`TopLeftCell` N1 for O1). `com.add_macro_button` rounds up.
+- After an Excel crash in a test, Office starts a new `EXCEL.EXE` (title "Excel" or "... - Récupération") at the same second:
+  it belongs to the run; stop it by its PID once its start time is checked.
 - **A few VBA tests only:** copy `modTests.bas`, cut `TestNames()` to the tests wanted, run `vba-tests --offline`, restore with `cp`
   (about 1 minute instead of 5; never commit the cut list).
 - `_launch.cmd` traps: a `for` list drops `/?` (wildcard), so it is tested apart; a launcher starts the helper without `call`
