@@ -1,6 +1,8 @@
 Option Explicit
-' Local log of the runs, to debug them later: one line per run, per step and per error, in
-' %LOCALAPPDATA%\jira2dashboard\logs\jira2dashboard.log (%TEMP% when LOCALAPPDATA is not set). Nothing leaves the computer.
+' Local log of the runs, to debug them later: one line per run, per step and per error, in the folder logs next to the
+' workbook (<folder of the .xlsm>\logs\jira2dashboard.log: the workbook runs from a folder not known in advance). When the
+' workbook has no folder (never saved, or opened from a web address) or the folder cannot be written, the log goes to
+' %LOCALAPPDATA%\jira2dashboard\logs (%TEMP% when LOCALAPPDATA is not set). Nothing leaves the computer.
 ' Each line is opened, written and closed at once: a closed line is in the hands of Windows and survives a crash of
 ' Excel. After a crash (no VBA error is raised then), the last BEGIN without its END names the step that was running.
 ' The log never holds the API token, an e-mail address, a URL or an answer of Jira: callers pass step names and numbers,
@@ -15,17 +17,27 @@ Private Const LOG_MAX_BYTES As Long = 1000000      ' above this size a run start
 Private Const LOG_MAX_TEXT As Long = 300           ' longer texts are cut
 Public gLogOpenFake As Boolean                      ' tests: LogOpen records its command in gLogOpenCommand and starts nothing
 Public gLogOpenCommand As String
+Public gLogFallbackFile As String                 ' tests: the file used when gLogPath cannot be written
+Private mFallback As Boolean                       ' True once the folder next to the workbook could not be written (until the next run)
 Private mErrorsOnly As Boolean                     ' True while a run asked the level Errors
 
-Public Function LogFolderFrom(ByVal localAppData As String, ByVal temp As String) As String
+Public Function LogFolderFrom(ByVal workbookPath As String, ByVal localAppData As String, ByVal temp As String) As String
+    ' logs next to the workbook; the folder of the user when the workbook has no folder of its own.
     Cov "LOG01"
+    If Len(workbookPath) > 0 And LCase$(Left$(workbookPath, 4)) <> "http" Then Cov "LOG19": LogFolderFrom = workbookPath & "\logs": Exit Function
     If Len(localAppData) = 0 Then Cov "LOG02": localAppData = temp
     LogFolderFrom = localAppData & "\jira2dashboard\logs"
 End Function
 
 Public Function LogFile() As String
+    If mFallback Then LogFile = FallbackFile(): Exit Function
     If Len(gLogPath) > 0 Then LogFile = gLogPath: Exit Function
-    LogFile = LogFolderFrom(Environ$("LOCALAPPDATA"), Environ$("TEMP")) & "\jira2dashboard.log"
+    LogFile = LogFolderFrom(ThisWorkbook.Path, Environ$("LOCALAPPDATA"), Environ$("TEMP")) & "\jira2dashboard.log"
+End Function
+
+Private Function FallbackFile() As String
+    If Len(gLogFallbackFile) > 0 Then FallbackFile = gLogFallbackFile: Exit Function
+    FallbackFile = LogFolderFrom("", Environ$("LOCALAPPDATA"), Environ$("TEMP")) & "\jira2dashboard.log"
 End Function
 
 Public Sub LogLine(ByVal kind As String, ByVal text As String)
@@ -49,6 +61,11 @@ Public Sub LogLine(ByVal kind As String, ByVal text As String)
     Next attempt
     Cov "LOG05"
     Err.Clear
+    If Not mFallback And (Len(gLogPath) = 0 Or Len(gLogFallbackFile) > 0) Then
+        Cov "LOG20"                                          ' the folder next to the workbook is read-only: the folder of the user
+        mFallback = True
+        LogLine kind, text
+    End If
 End Sub
 
 Public Sub LogBegin(ByVal stepName As String)
@@ -72,6 +89,7 @@ Public Sub LogRunStart(ByVal how As String, Optional ByVal level As String = "St
     #Else
         bits = "32-bit"
     #End If
+    mFallback = False                                  ' try the folder next to the workbook again
     RotateLog
     mErrorsOnly = (StrComp(level, "Errors", vbTextCompare) = 0)
     LogLine "RUN", how & " | Excel " & Application.Version & " build " & Application.Build & " " & bits & " | " & ThisWorkbook.Name

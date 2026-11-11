@@ -294,8 +294,8 @@ A figure that cannot be computed shows "not computable", never 0. Each data chec
 
 | Name | Path | Purpose |
 |---|---|---|
-| VBA log | `%LOCALAPPDATA%\jira2dashboard\logs\jira2dashboard.log` | `RUN`, `BEGIN`/`END` per step, `ERROR` |
-| Python log | `%LOCALAPPDATA%\jira2dashboard\logs\python.log` | Steps, failed Jira calls, tracebacks |
+| VBA log | `logs\jira2dashboard.log` next to the workbook (`%LOCALAPPDATA%\jira2dashboard\logs` if that folder cannot be written) | `RUN`, `BEGIN`/`END` per step, `ERROR` |
+| Python log | `logs\python.log` next to the workbook | Steps, failed Jira calls, tracebacks |
 | Status cell | `Dashboard!A3` | Current step, or the error message |
 | Unfinished run | `HKCU\Software\VB and VBA Program Settings\jira2dashboard` | Next run logs "previous run did not end" |
 | VBA test log | `%TEMP%\jira2dashboard_vba_tests.log` | VBA tests only |

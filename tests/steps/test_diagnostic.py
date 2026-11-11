@@ -37,10 +37,11 @@ def _downloaded(world):
 
 @given(parsers.parse('un journal VBA et un python.log qui contient le jeton "{token}"'))
 def _logs(world, token):
-    folder = world["local"] / "jira2dashboard" / "logs"
+    path = new_workbook(world)
+    folder = path.parent / "logs"                                   # the folder logs next to the workbook
+    folder.mkdir()
     (folder / "jira2dashboard.log").write_text("\n".join(LOG_LINES) + "\n", encoding="ascii")
     (folder / "python.log").write_text(f"2026-11-06 10:00:02 Authorization: Basic {token}\n", encoding="ascii")
-    new_workbook(world)
 
 
 @given("un classeur dans le dossier de l'utilisateur")

@@ -101,7 +101,7 @@ VBA guard tests after each edit of `vba/*.bas` (`.claude/hooks/bas_guard.py`); s
   settings when `ProxyServer` is empty: WPAD, PAC or fixed, via WinHTTP API calls on byte buffers, not VBA Types, which
   crashed 64-bit Excel) -> `modJira` (search, bulk changelog) ->
   `modExtract` -> `modFlow` (status intervals) ; `modActions` is the dashboard button (`ExtractAndCompute`). The previous
-  results are cleared only after Jira has answered. `modLog` writes the local log (`%LOCALAPPDATA%\jira2dashboard\logs`):
+  results are cleared only after Jira has answered. `modLog` writes the local log in the folder `logs` next to the workbook (it runs from a folder not known in advance; `%LOCALAPPDATA%\jira2dashboard\logs` is the fallback):
   RUN, BEGIN/END per step, ERROR; never pass it a token, URL, JQL or Jira answer (`test_vba_log_guard.py` checks).
 - **Python path without VBA (`standalone/`, `run.ps1 extract`).** A second consumer of the flow reference: it reads
   the parameter sheets of the filled workbook as a zip (`xlsx_read`, by header name, shape rules shared with
@@ -111,7 +111,7 @@ VBA guard tests after each edit of `vba/*.bas` (`.claude/hooks/bas_guard.py`); s
   `modExtract`/`modFlow` (`mapping`, oracle: `test_mapping` against `flow_adapter`), computes with `flow/`
   (`results`, same column names as `formulas.TABLES`), draws the 8 charts as SVG (`charts_svg`) and writes values +
   pictures with zipfile (`xlsx_write`: SVG with a blank PNG fallback, Excel 365 shows msoGraphic). Keep it in step
-  with the VBA when an extraction rule changes. Its log (`python.log`, same folder as the VBA log) is complete on
+  with the VBA when an extraction rule changes. Its log (`logs\python.log` next to the workbook, as the VBA log) is complete on
   purpose (AL's choice): status, call, Jira's message, tracebacks; never the token nor the Authorization header
   (`Scrubbed` formatter; `test_extract_main` checks).
 - **Jira configuration (VBA).** `modJiraConfig` (button Read the Jira configuration, `BtnReadJiraConfiguration`) reads

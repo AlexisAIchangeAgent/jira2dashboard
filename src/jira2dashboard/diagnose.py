@@ -92,8 +92,11 @@ def tail(path: Path, count: int) -> list[str]:
     return lines[-count:] if count > 0 else []
 
 
-def vba_log_path(local_app_data: str, temp: str) -> Path:
-    """Where modLog writes: %LOCALAPPDATA%\\jira2dashboard\\logs, or the TEMP folder when LOCALAPPDATA is empty."""
+def vba_log_path(workbook: Path | None, local_app_data: str, temp: str) -> Path:
+    """Where modLog writes: logs\\ next to the workbook; without a workbook, %LOCALAPPDATA%\\jira2dashboard\\logs (the
+    fallback of modLog), or the TEMP folder when LOCALAPPDATA is empty."""
+    if workbook is not None:
+        return workbook.parent / "logs" / "jira2dashboard.log"
     return Path(local_app_data or temp) / "jira2dashboard" / "logs" / "jira2dashboard.log"
 
 
@@ -166,8 +169,8 @@ def _interpreters_section(interpreters: list[Path]) -> list[str]:
     return lines or ["not listed."]
 
 
-def _log_section(local_app_data: str, temp: str, count: int) -> tuple[str, list[str]]:
-    path = vba_log_path(local_app_data, temp)
+def _log_section(workbook: Path | None, local_app_data: str, temp: str, count: int) -> tuple[str, list[str]]:
+    path = vba_log_path(workbook, local_app_data, temp)
     title = f"VBA log: last {count} lines of {path}"
     if not path.is_file():
         return title, ["no log file: no macro has run on this machine, or it is blocked before it starts."]
@@ -177,7 +180,7 @@ def _log_section(local_app_data: str, temp: str, count: int) -> tuple[str, list[
 def report(workbook: Path | None, readings: Readings, *, home: str, local_app_data: str, temp: str,
            log_lines: int = 10) -> str:
     """The text to paste into the ticket. Only the VBA log is quoted (it holds no token, URL or Jira answer by design)."""
-    log_title, log = _log_section(local_app_data, temp, log_lines)
+    log_title, log = _log_section(workbook, local_app_data, temp, log_lines)
     office = [f"{name}: {value}" for name, value in {**readings.office, **readings.policies}.items()] or ["not read."]
     sections = [("File", _file_section(workbook)), ("Origin", _origin_section(workbook, readings)), ("Office", office),
                 ("Security products", _security_section(readings.security_products)),

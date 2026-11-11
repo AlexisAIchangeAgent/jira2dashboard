@@ -533,8 +533,22 @@ Public Sub T_Log()
     Check "log", "the next run says the previous one did not end", "no end", True, _
           InStr(text, "RUN after a crash |") > 0 And InStr(text, "RUN previous run did not end (started ") > 0
     LogRunEnd "ok"
-    Check "log", "the folder under LOCALAPPDATA", "C:\L", "C:\L\jira2dashboard\logs", LogFolderFrom("C:\L", "C:\T")
-    Check "log", "TEMP when LOCALAPPDATA is not set", "empty", "C:\T\jira2dashboard\logs", LogFolderFrom("", "C:\T")
+    Check "log", "the folder logs next to the workbook", "C:\D", "C:\D\logs", LogFolderFrom("C:\D", "C:\L", "C:\T")
+    Check "log", "a workbook with no folder: under LOCALAPPDATA", "empty", "C:\L\jira2dashboard\logs", LogFolderFrom("", "C:\L", "C:\T")
+    Check "log", "a workbook opened from a web address: under LOCALAPPDATA", "https", "C:\L\jira2dashboard\logs", _
+          LogFolderFrom("https://site/doc", "C:\L", "C:\T")
+    Check "log", "TEMP when LOCALAPPDATA is not set", "empty", "C:\T\jira2dashboard\logs", LogFolderFrom("", "", "C:\T")
+    gLogFallbackFile = folder & "\sub\fallback.log"                 ' a file that cannot be written: the line goes to the fallback
+    gLogPath = folder & "\bad<name>|.log"
+    LogLine "TEST", "to the fallback"
+    Check "log", "a folder that cannot be written: the line goes to the fallback file", "fallback", True, _
+          InStr(FileText(gLogFallbackFile), "TEST to the fallback") > 0
+    Check "log", "and the log file is now the fallback", "LogFile", gLogFallbackFile, LogFile()
+    gLogFallbackFile = ""
+    gLogPath = file
+    LogRunStart "fallback over"                                       ' a new run tries the folder again
+    Check "log", "a new run goes back to the usual file", "LogFile", file, LogFile()
+    LogRunEnd "ok"
     gLogPath = folder & "\bad<name>|.log"                            ' a name Windows refuses
     On Error Resume Next
     LogLine "TEST", "dropped"

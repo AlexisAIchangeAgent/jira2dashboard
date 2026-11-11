@@ -29,7 +29,7 @@ with its log in `$TEMP` (never in `out/`). Do not stop at the first red step: ru
 
 1. List the failures: `grep -E "^(FAILED|ERROR)" <log>`. `Windows fatal exception: code 0x800706be/0x800706ba` is
    teardown noise, not a failure.
-2. Read the end of the VBA log: `tail -5 "$LOCALAPPDATA/jira2dashboard/logs/jira2dashboard.log"`. If the last line is
+2. Read the end of the VBA log: `tail -5 out/inter/logs/jira2dashboard.log   # the folder logs next to the workbook under test`. If the last line is
    `END search page N: ...` (or the next run says `previous run did not end`), it is the **known open defect** (Excel
    crash after the last search page, handoff section 8b), not the change.
 3. Rerun only the failing scenario once (`run.ps1 test-excel <file> -k "<name>" -q`).

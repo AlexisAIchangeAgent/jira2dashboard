@@ -76,7 +76,7 @@ def manual(mandatory: tuple[str, ...]) -> list[tuple[str, str]]:
             "the checks.",
         ]),
         ("Local log", [
-            r"%LOCALAPPDATA%\jira2dashboard\logs\jira2dashboard.log: one line per step. It holds no token, e-mail, "
+            r"logs\jira2dashboard.log, in the folder of the workbook: one line per step. It holds no token, e-mail, "
             "address or Jira answer. LogLevel in Config: Steps (each step) or Errors. After an error the Dashboard names the log file and "
             "Notepad opens it, unless OpenLogOnError is No.",
         ]),

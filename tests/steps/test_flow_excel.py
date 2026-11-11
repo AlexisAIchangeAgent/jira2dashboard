@@ -275,7 +275,7 @@ def wait_for(world, done, seconds=180):
 def _click(world, request):
     request.addfinalizer(lambda: macro(world, "AbortExtraction"))        # no slice must outlive the scenario
     world["before"] = {name: len(table_dicts(world["wb"], name)) for name in ("Issues", "ItemFlow")}         if "items" in world else None
-    world["log_from"] = LOG_FILE.stat().st_size if LOG_FILE.exists() else 0
+    world["log_from"] = log_file(world).stat().st_size if log_file(world).exists() else 0
     macro(world, "BtnExtractAndCompute")
     reference(world)
 
@@ -314,12 +314,14 @@ def _progress(world):
     assert retry(lambda: wb.Worksheets("ItemFlow").ListObjects("ItemFlow").ListRows.Count) == len(world["items"])
 
 
-LOG_FILE = Path(os.environ["LOCALAPPDATA"]) / "jira2dashboard" / "logs" / "jira2dashboard.log"      # modLog.LogFile
+def log_file(world) -> Path:
+    """modLog.LogFile: the folder logs next to the workbook."""
+    return Path(world["wb"].Path) / "logs" / "jira2dashboard.log"
 
 
 @then("le journal local décrit l'exécution étape par étape, sans jeton, adresse ni réponse de Jira")
 def _log(world):
-    raw = LOG_FILE.read_bytes()
+    raw = log_file(world).read_bytes()
     start = world["log_from"] if len(raw) >= world["log_from"] else 0                 # a new file when the log was big
     text = raw[start:].decode("ascii")                                                  # plain ASCII, or this fails
     lines = [line.split(" ", 3)[2:] for line in text.splitlines()                      # date time KIND text
@@ -722,7 +724,7 @@ def _preview_refused(world, status):
 def _read_configuration(world):
     wb = world["wb"]
     world["params_before"] = {name: wb.Worksheets(name).UsedRange.Value for name in PARAMETER_SHEETS}
-    world["log_from"] = LOG_FILE.stat().st_size if LOG_FILE.exists() else 0
+    world["log_from"] = log_file(world).stat().st_size if log_file(world).exists() else 0
     buttons = {shape.TextFrame.Characters().Text: (shape.OnAction, shape.TopLeftCell.Address)
                for shape in wb.Worksheets("Dashboard").Shapes if shape.Type == MSO_FORM_CONTROL}
     on_action, cell = buttons["Read the Jira configuration"]                  # the button the user clicks is there
@@ -852,7 +854,7 @@ def _no_workflow(world):
 
 @then("le journal local décrit la lecture de la configuration, sans jeton, adresse ni réponse de Jira")
 def _configuration_log(world):
-    raw = LOG_FILE.read_bytes()
+    raw = log_file(world).read_bytes()
     start = world["log_from"] if len(raw) >= world["log_from"] else 0
     text = raw[start:].decode("ascii")
     lines = [line.split(" ", 3)[2:] for line in text.splitlines() if " RUN previous run did not end " not in line]
@@ -931,6 +933,7 @@ def _click_extract(world, request):
 def _mandatory_named(world, names):
     assert world["status"].startswith("Stopped: "), world["status"]
     assert f"(Mandatory = True): {names} See the log: " in world["status"], world["status"]      # the log path ends it
+    assert world["status"].endswith(str(log_file(world))), world["status"]                   # next to the workbook
 
 
 @then("le faux Jira n'a reçu aucune requête")

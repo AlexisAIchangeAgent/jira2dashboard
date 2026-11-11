@@ -11,15 +11,13 @@
 Nothing is written when Jira fails or a parameter is missing: the previous file stays as it was.
 
 Log: every step, every failed call to Jira with its status, attempt and what Jira said, every error with its Python
-traceback, in %LOCALAPPDATA%\\jira2dashboard\\logs\\python.log (never the API token nor the Authorization header).
+traceback, in the folder logs next to the workbook (logs\\python.log, never the API token nor the Authorization header).
 Exit code 0 when the file is written, 1 otherwise.
 """
 import datetime as dt
 import logging
 import logging.handlers
-import os
 import sys
-import tempfile
 import time
 import zipfile
 from pathlib import Path
@@ -40,7 +38,12 @@ from jira2dashboard.standalone.proxy import choose_proxy, detect_proxy
 from jira2dashboard.standalone.xlsx_read import NotAWorkbook
 from jira2dashboard.standalone.xlsx_write import Sheet, XlsxLocked, write_xlsx
 
-LOG_FILE = Path(os.environ.get("LOCALAPPDATA") or tempfile.gettempdir()) / "jira2dashboard" / "logs" / "python.log"
+LOG_NAME = "python.log"
+
+
+def default_log(workbook: str) -> Path:
+    """The folder logs next to the workbook (it runs from a folder not known in advance), as the VBA log."""
+    return Path(workbook).resolve().parent / "logs" / LOG_NAME
 OUT_NAME = "jira2dashboard.xlsx"
 MASK = "********"
 log = logging.getLogger("jira2dashboard.extract")
@@ -59,9 +62,11 @@ def parse(argv: list[str] | None = None):
     p.add_argument("--out", default="", help=f"the file to write (default: {OUT_NAME} next to the workbook)")
     p.add_argument("--team", default=D.ALL_TEAMS,
                    help=f"the team of the Flow Distribution chart (default {D.ALL_TEAMS!r}, as the Dashboard)")
-    p.add_argument("--log", default=str(LOG_FILE), help=f"the log file (default {LOG_FILE})")
+    p.add_argument("--log", default="", help=f"the log file (default: logs\\{LOG_NAME} next to the workbook)")
     p.add_argument("--verbose", action="store_true", help="also log each call to Jira that worked")
-    return p.parse_args(argv)
+    args = p.parse_args(argv)
+    args.log = args.log or str(default_log(args.workbook))
+    return args
 
 
 class Scrubbed(logging.Formatter):

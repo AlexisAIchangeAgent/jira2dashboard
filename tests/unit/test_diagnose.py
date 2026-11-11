@@ -95,8 +95,9 @@ def test_name_line_says_whether_the_name_is_the_stable_one(name, stable):
 
 
 def test_vba_log_path_follows_the_rule_of_modlog():
-    assert D.vba_log_path("C:\\L", "C:\\T") == Path("C:\\L\\jira2dashboard\\logs\\jira2dashboard.log")
-    assert D.vba_log_path("", "C:\\T") == Path("C:\\T\\jira2dashboard\\logs\\jira2dashboard.log")
+    assert D.vba_log_path(Path("C:\\D\\a.xlsm"), "C:\\L", "C:\\T") == Path("C:\\D\\logs\\jira2dashboard.log")
+    assert D.vba_log_path(None, "C:\\L", "C:\\T") == Path("C:\\L\\jira2dashboard\\logs\\jira2dashboard.log")
+    assert D.vba_log_path(None, "", "C:\\T") == Path("C:\\T\\jira2dashboard\\logs\\jira2dashboard.log")
 
 
 def readings(**changes):
@@ -118,11 +119,12 @@ def test_every_section_is_there_even_when_nothing_was_read(tmp_path):
 
 
 def test_the_python_log_is_never_read(tmp_path):
-    folder = tmp_path / "jira2dashboard" / "logs"
+    workbook = tmp_path / "jira2dashboard.xlsm"
+    folder = tmp_path / "logs"
     folder.mkdir(parents=True)
     (folder / "python.log").write_text("SECRET-IN-PYTHON-LOG\n", encoding="ascii")
     (folder / "jira2dashboard.log").write_text("2026-11-06 10:00:00.000 RUN a line of the VBA log\n", encoding="ascii")
-    text = D.report(None, readings(), home="", local_app_data=str(tmp_path), temp=str(tmp_path))
+    text = D.report(workbook, readings(), home="", local_app_data=str(tmp_path), temp=str(tmp_path))
     assert "a line of the VBA log" in text and "SECRET-IN-PYTHON-LOG" not in text
 
 

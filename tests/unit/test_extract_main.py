@@ -89,3 +89,9 @@ def test_the_default_output_is_next_to_the_workbook(tmp_path, jira):
     log = tmp_path / "python.log"
     assert X.main(["--workbook", str(workbook), "--log", str(log)], sleep=lambda s: None, detect=direct) == 0
     assert (tmp_path / X.OUT_NAME).exists()
+
+
+def test_the_default_log_is_the_folder_logs_next_to_the_workbook(tmp_path, jira):
+    workbook = params(tmp_path, jira.base_url)
+    assert X.main(["--workbook", str(workbook)], sleep=lambda s: None, detect=direct) == 0
+    assert "RUN" in (tmp_path / "logs" / "python.log").read_text(encoding="utf-8")
