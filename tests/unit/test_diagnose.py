@@ -76,6 +76,15 @@ def test_tail_gives_the_last_lines(tmp_path):
     assert D.tail(file, 50)[0] == "line 1"
 
 
+def test_tail_leaves_out_the_inputs_of_a_run_so_its_run_line_stays(tmp_path):
+    file = tmp_path / "jira2dashboard.log"
+    params = "".join(f"2026-11-11 19:27:09.078 PARAM P{n} = (set)\n" for n in range(35))
+    file.write_text("2026-11-11 19:27:09.062 RUN button Extract from Jira and compute | Excel 16.0\n" + params +
+                    "2026-11-11 19:27:09.117 ERROR J2D-CFG-002 | Btn | vbObjectError+608 | x\n"
+                    "2026-11-11 19:27:09.125 RUN end stopped J2D-CFG-002 | 0.133 s\n", encoding="ascii")
+    assert [line.split(" ", 3)[2] for line in D.tail(file, 10)] == ["RUN", "ERROR", "RUN"]
+
+
 def test_tail_of_an_empty_or_missing_file_is_empty(tmp_path):
     empty = tmp_path / "empty"
     empty.write_text("", encoding="ascii")

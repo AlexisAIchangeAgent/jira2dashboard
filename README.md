@@ -310,8 +310,10 @@ A figure that cannot be computed shows "not computable", never 0. Each data chec
 | Test outputs | `out\inter\` | Test workbooks, chart PNGs, `.coverage` |
 | Event log | Event Viewer > Application, event 1000 | Faulting module of an Excel crash |
 
-Both logs rotate at 1 MB and stay local. They never hold the token; the Python log holds the JQL and Jira's
-messages: **reread a log before sharing it**.
+Both logs rotate at 1 MB and stay local. They never hold the token; the Python log holds the JQL, Jira's messages
+and every other Config value in clear (`PARAM` lines: e-mail, address of Jira, proxy): **reread a log before sharing
+it**. The VBA log shows only the settings of the tool in clear. `diagnose` quotes the end of the VBA log without its
+`PARAM` lines.
 
 | Error | Cause |
 |---|---|

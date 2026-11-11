@@ -85,10 +85,13 @@ def mask_home(text: str, home: str) -> str:
 
 
 def tail(path: Path, count: int) -> list[str]:
+    """The last `count` lines of the log, its PARAM lines left out: about 35 at the start of each run (the inputs, masked),
+    they would push the line RUN, which names the button, out of a short tail."""
     try:
         lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
     except OSError:
         return []
+    lines = [line for line in lines if line.split(" ", 3)[2:3] != ["PARAM"]]
     return lines[-count:] if count > 0 else []
 
 
