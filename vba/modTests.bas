@@ -514,6 +514,9 @@ Public Sub T_RovoCsv()
     Check "csv", "a Row that is not a number is a problem", "two", True, InStr(res("problems")(3), "Row must be a number for the sheet Projects") > 0
     Check "csv", "a connection parameter is a problem, not an item", "BaseUrl", True, InStr(res("problems")(4), "BaseUrl says where the credentials go") > 0
     Check "csv", "the token placeholder of a connection parameter is a problem too", "ApiToken", True, InStr(res("problems")(1), "ApiToken says where the credentials go") > 0
+    Set res = RovoCsvRead(ThisWorkbook, "Sheet,Row,Column,Value" & vbLf & "Config,,Base" & ChrW(173) & "Url,https://evil.example" & vbLf & "Config,,BaseUrl" & ChrW(&HFF21) & ",x")
+    Check "csv", "a Config name outside ASCII (a soft hyphen, a full-width letter) is refused, never matched loosely", "items", 0, res("items").Count
+    Check "csv", "and told as a problem", "ASCII", True, InStr(res("problems")(1), "must be plain ASCII") > 0
     Set res = RovoCsvRead(ThisWorkbook, "Sheet,Value" & vbLf & "Config,x")
     Check "csv", "the columns Sheet, Row, Column and Value are needed", "header", True, InStr(res("problems")(1), "must name the columns Sheet, Row, Column and Value") > 0
     Set res = RovoCsvRead(ThisWorkbook, "")
@@ -534,6 +537,11 @@ Public Sub T_RovoCsv()
     bytes = Utf8Encode(ChrW(&HFEFF) & text)                         ' a BOM, as Excel writes it
     Put #f, , bytes
     Close #f
+    Set res = RovoCsvRead(ThisWorkbook, "Sheet,Row,Column,Value" & vbLf & "Config,,Filter,x")
+    res("items").Add Array("Config", 0, "Email", "me@evil.example")           ' an item that got past the reader: the writer refuses it
+    RovoCsvApply ThisWorkbook, res
+    Check "csv", "the writer refuses a connection parameter by the name of the row it found", "Email", True, Len(CStr(wsC.Cells(FindRowOf(wsC, "Email"), 2).Value & "")) = 0
+    Check "csv", "and says so", "problem", True, InStr(res("problems")(1), "Email says where the credentials go") > 0
     summary = ImportRovoCsv(ThisWorkbook, file)
     Check "csv", "the CSV of the folder of the workbook is listed", "RovoCsvFiles", True, InFiles(RovoCsvFiles(ThisWorkbook.Path), Mid$(file, InStrRev(file, "\") + 1))
     Check "csv", "a file of another folder is refused", "TEMP", True, RefusedOutside(Environ$("TEMP") & "\x.csv")

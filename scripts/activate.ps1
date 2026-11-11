@@ -7,6 +7,11 @@ Dot-source it: . .\scripts\activate.ps1
 It runs .venv\Scripts\Activate.ps1, sets PYTHONIOENCODING=utf-8, switches the console to UTF-8 (chcp 65001) and sets
 PYTHONPATH to src, so that "python -m jira2dashboard..." works by hand. Create .venv first with scripts\setup.ps1.
 PowerShell 5.1 compatible.
+USE CASES
+  Run python by hand                 . .\scripts\activate.ps1      then: python -m jira2dashboard.build_workbook --help
+  Run the project commands           not needed: .\scripts\run.ps1 <command> uses .venv itself
+  Not activated                      it must be dot-sourced (a space after the first dot), a plain call changes nothing
+
 
 .PARAMETER Help
 Show this help. --help and -? do the same.

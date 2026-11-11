@@ -9,6 +9,14 @@ once. The pid and the start time of the window are kept in %TEMP%\jira2dashboard
 stop-mock.ps1 only ever kills what this script started. It prints the path and the MD5 and SHA256 hashes of the python.exe
 that serves the fake Jira (the program an endpoint protection may have to allow); read only. Account of the fake Jira: mock@example.com / mock-token.
 ASCII only: PowerShell 5.1 reads a file without BOM as ANSI.
+USE CASES
+  A fake Jira to click on            .\scripts\start-mock.ps1                       (then open the workbook: scripts\manual-test.ps1 does both)
+  A small one, on another port       .\scripts\start-mock.ps1 -Port 8100 -Issues 150
+  From a test or a script            .\scripts\start-mock.ps1 -Hidden               (no window; stop it with stop-mock.ps1)
+  Port already held                  it says so and starts nothing: choose another -Port
+  It stopped at once                 run .\scripts\run.ps1 mock-jira --port <port> to see the error
+  Where is the log                   %LOCALAPPDATA%\jira2dashboard\logs\start-mock.log (last run only)
+
 
 .PARAMETER Port
 Port of the fake Jira, on 127.0.0.1. Default 8099.

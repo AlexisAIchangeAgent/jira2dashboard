@@ -11,6 +11,14 @@ Needs a clean working tree (everything committed). Builds in out\release\<versio
 Without -Publish it stops there: a dry run, nothing leaves the machine. With -Publish it creates the GitHub release
 and its tag on HEAD, which must already be pushed (gh must be logged in).
 ASCII only: PowerShell 5.1 reads a file without BOM as ANSI.
+USE CASES
+  Check a release before publishing  .\scripts\release.ps1 -Version v1.0.0            (dry run: nothing leaves the machine)
+  Publish it                         .\scripts\release.ps1 -Version v1.0.0 -Publish   (commit and push first: HEAD must be origin/main)
+  "the working tree has changes"     commit or stash, then run again
+  "HEAD is not origin/main"          push first
+  The run stopped half way           fix the cause and run it again: out\release\<version> is rebuilt, nothing is published before the end
+  Where is the log                   %LOCALAPPDATA%\jira2dashboard\logs\release.log (last run only)
+
 
 .PARAMETER Version
 The version, like v1.0.0. Required.

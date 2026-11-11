@@ -15,7 +15,8 @@ with its log in `$TEMP` (never in `out/`). Do not stop at the first red step: ru
 | 2 | vba-tests | `powershell -NoProfile -ExecutionPolicy Bypass -File scripts/run.ps1 vba-tests` | `$TEMP/fp_vba.log` |
 | 3 | test-excel | `powershell -NoProfile -ExecutionPolicy Bypass -File scripts/run.ps1 test-excel -q` | `$TEMP/fp_excel.log` |
 | 4 | test-network | `powershell -NoProfile -ExecutionPolicy Bypass -File scripts/run.ps1 test-network -q` | `$TEMP/fp_network.log` |
-| 5 | build | `powershell -NoProfile -ExecutionPolicy Bypass -File scripts/run.ps1 build` | `$TEMP/fp_build.log` |
+| 5 | test-scripts | `powershell -NoProfile -ExecutionPolicy Bypass -File scripts/run.ps1 test-scripts` | `$TEMP/fp_scripts.log` |
+| 6 | build | `powershell -NoProfile -ExecutionPolicy Bypass -File scripts/run.ps1 build` | `$TEMP/fp_build.log` |
 
 - Redirect outside PowerShell: `... > "$TEMP/fp_x.log" 2>&1; echo "exit $?"`. Never `cmd /c`, never `2>&1` inside
   PowerShell.

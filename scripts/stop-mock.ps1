@@ -7,6 +7,12 @@ Reads %TEMP%\jira2dashboard\mock-jira-<port>.pid, written by start-mock.ps1, and
 the Python launcher and the server: taskkill /T) only if a process with that pid AND that start time still runs. A
 program that reused the pid is left alone, and no other program on the port is ever looked at. Without a pid file it
 says so and does nothing. ASCII only: PowerShell 5.1 reads a file without BOM as ANSI.
+USE CASES
+  After a manual try                 .\scripts\stop-mock.ps1
+  A fake Jira on another port        .\scripts\stop-mock.ps1 -Port 8100
+  Nothing to stop                    it says so and does nothing: a fake Jira that these scripts did not start is never touched
+  Where is the log                   %LOCALAPPDATA%\jira2dashboard\logs\stop-mock.log (last run only)
+
 
 .PARAMETER Port
 Port of the fake Jira to stop. Default 8099.

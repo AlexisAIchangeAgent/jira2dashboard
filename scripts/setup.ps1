@@ -6,6 +6,14 @@ Creates .venv with Python 3.14 and installs the requirements.
 Creates .venv (py -3.14 -m venv) if it does not exist, upgrades pip, then installs requirements.txt (pywin32: what the
 workbook build and the Python extraction need) or, with -Dev, requirements-dev.txt (plus pytest, pytest-bdd and
 pytest-cov, to run the tests). Checks at the end that pywin32 can be imported. PowerShell 5.1 compatible.
+USE CASES
+  A developer machine                .\scripts\setup.ps1 -Dev            (then .\scripts\run.ps1 test)
+  A machine that only builds         .\scripts\setup.ps1                 (pywin32 only: build, extract, diagnose)
+  Behind a proxy                     .\scripts\setup.ps1 -Proxy http://proxy.company.com:8080
+  After a change of requirements     run it again: an existing .venv is kept, pip only installs what changed
+  "py -3.14 failed"                  install Python 3.14 from python.org, then run it again
+  Where is the log                   %LOCALAPPDATA%\jira2dashboard\logs\setup.log (last run only)
+
 
 .PARAMETER Dev
 Also install the test tools (requirements-dev.txt).

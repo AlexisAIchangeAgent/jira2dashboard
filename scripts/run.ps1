@@ -22,6 +22,18 @@ Commands:
   build          the workbook to deliver: out\release\jira2dashboard.xlsm (--out name.xlsm: in out\inter)
   clean          empty out\inter, except the test caches (build and vba-tests do it first)
   extract        without VBA: read Jira with Python, write data, results and charts to jira2dashboard.xlsx
+  test-scripts   Pester tests of scripts\*.ps1 and their coverage; fails under 93 % (-Filter, -Minimum)
+
+USE CASES
+  First time on a machine            powershell -ExecutionPolicy Bypass -File scripts\setup.ps1 -Dev
+  While you code                     .\scripts\run.ps1 test            (fast, no Excel); one test: .\scripts\run.ps1 test tests/unit/test_x.py::test_name
+  Before a commit                    .\scripts\run.ps1 coverage ; vba-tests ; test-excel ; test-network ; test-scripts ; build
+  Check the scripts of this folder   .\scripts\run.ps1 test-scripts        (Pester, coverage of the .ps1 under 93 % fails)
+  The workbook to deliver            .\scripts\run.ps1 build           then .\scripts\release.ps1 -Version v1.0.0
+  Try the macros against a fake Jira .\scripts\manual-test.ps1  (by hand)   or   .\scripts\scenario.ps1  (unattended)
+  Extract without Excel macros       .\scripts\run.ps1 extract --workbook C:\Data\jira2dashboard.xlsm
+  The macros are blocked at a client .\scripts\run.ps1 check-machine ; .\scripts\run.ps1 diagnose   (a report to paste into the ticket)
+  Where are the logs                 %LOCALAPPDATA%\jira2dashboard\logs\<script>.log (last run only); the workbook logs in its own logs folder
 
 .PARAMETER Help
 Show this help. --help, -h and -? do the same.
@@ -52,11 +64,18 @@ $commands = [ordered]@{
     "build"         = "the workbook to deliver: out\release\jira2dashboard.xlsm (--out name.xlsm: in out\inter)"
     "clean"         = "empty out\inter, except the test caches (build and vba-tests do it first)"
     "extract"       = "without VBA: read Jira with Python, write data, results and charts to jira2dashboard.xlsx"
+    "test-scripts"  = "Pester tests of scripts\*.ps1 and their coverage; fails under 93 % (-Filter, -Minimum)"
 }
 if ($args.Count -lt 1 -or @("--help", "-h", "-help", "help", "/?") -contains $args[0]) {
     Write-Host "Usage: .\scripts\run.ps1 <command> [arguments]   (.\scripts\run.ps1 <command> --help: its options)"
     Write-Host ""
     foreach ($name in $commands.Keys) { Write-Host ("  {0,-14} {1}" -f $name, $commands[$name]) }
+    Write-Host ""
+    Write-Host "Use cases:"
+    Write-Host "  while you code          .\scripts\run.ps1 test"
+    Write-Host "  before a commit         coverage, vba-tests, test-excel, test-network, test-scripts, build"
+    Write-Host "  try the macros          .\scripts\manual-test.ps1 (by hand) or .\scripts\scenario.ps1 (unattended)"
+    Write-Host "  a client machine        check-machine, then diagnose"
     if ($args.Count -lt 1) { exit 2 }
     exit 0
 }
@@ -95,5 +114,6 @@ switch ($command) {
     "build"         { & $python -m jira2dashboard.build_workbook @rest }
     "clean"         { & $python -m jira2dashboard.clean @rest }
     "extract"       { & $python -m jira2dashboard.standalone @rest }
+    "test-scripts"  { & powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $root "tests\ps\Run-ScriptTests.ps1") @rest }
 }
 exit $LASTEXITCODE

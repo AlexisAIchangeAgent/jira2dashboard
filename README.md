@@ -31,6 +31,8 @@ powershell -ExecutionPolicy Bypass -File scripts\setup.ps1 -Dev   # .venv with p
 .\scripts\run.ps1 test                                            # fast tests, under a minute
 .\scripts\run.ps1 build                                           # out\release\jira2dashboard.xlsm
 .\scripts\manual-test.ps1                                         # fake Jira + filled copy in a new Excel
+.\scripts\scenario.ps1                                            # the same chain unattended: Python extraction, checks, clean-up
+.\scriptsun.ps1 test-scripts                                    # Pester tests of scripts\*.ps1, coverage under 93 % fails
 .\scripts\run.ps1 extract --workbook C:\Data\jira2dashboard.xlsm   # no VBA: Jira -> jira2dashboard.xlsx
 ```
 
@@ -146,6 +148,7 @@ directly, without `cmd /c` or `2>&1`.
 | `start-mock.ps1` | Starts the fake Jira (`mock@example.com` / `mock-token`), prints the `python.exe` that serves it | `-Port`, `-Issues`, `-Hidden` |
 | `stop-mock.ps1` | Stops the fake Jira these scripts started, nothing else | `-Port` |
 | `manual-test.ps1` | Writes `out\manual_test\jira2dashboard4manualtest.xlsm`, starts the fake Jira, opens the copy | `-Workbook`, `-Port`, `-Python` |
+| `scenario.ps1` | Plays the whole scenario unattended (fake Jira, filled copy, Python extraction, checks, clean-up); a table of the steps with status and time; `-Excel` adds the macros | `-Workbook`, `-Port`, `-Excel`, `-KeepMock` |
 | `release.ps1` | Builds a release in `out\release\<version>`; `notes.md` has the SHA-256 and MD5 of both files | `-Version`, `-Publish` |
 
 **Double-click launchers.** Every `scripts\*.ps1` has a `.cmd` of the same name (`setup.cmd`, `run.cmd`,

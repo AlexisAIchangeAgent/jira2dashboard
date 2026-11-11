@@ -34,6 +34,8 @@ powershell -ExecutionPolicy Bypass -File scripts\setup.ps1 -Dev   # create .venv
 .\scripts\run.ps1 extract         # Python path without VBA: Jira -> jira2dashboard.xlsx (values + SVG charts)
 .\scripts\manual-test.ps1         # manual try: fake Jira + pre-filled copy (mock-workbook), opened in a new Excel
 .\scripts\stop-mock.ps1           # kill the fake Jira that start-mock.ps1 / manual-test.ps1 started
+.\scripts\scenario.ps1            # unattended scenario: fake Jira, filled copy, Python extraction, checks, clean-up (-Excel: + test-excel)
+.\scriptsun.ps1 test-scripts    # Pester 3.4 tests of scripts\*.ps1 (tests\ps), in process, with fakes; fails under 93 % command coverage
 .\scripts\release.ps1 -Version v1.0.0 [-Publish]   # zip of HEAD + built workbook in out\release; -Publish = GitHub release
 ```
 

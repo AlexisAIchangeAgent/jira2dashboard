@@ -328,6 +328,7 @@ Public Function RovoCsvRead(ByVal wb As Object, ByVal text As String) As Object
         Set RovoCsvRead = res: Exit Function
     End If
     Set allowed = CreateObject("Scripting.Dictionary"): Set protected = CreateObject("Scripting.Dictionary")
+    Set res("protected") = protected
     allowed("config") = True
     For Each spec In ReadTable(wb.Worksheets(SHEET_ROVO_SPEC))
         If LCase$(CStr(spec("Part") & "")) = "sheet" Then allowed(LCase$(CStr(spec("Name") & ""))) = True
@@ -356,6 +357,11 @@ Private Sub ImportItem(ByVal items As Collection, ByVal problems As Collection, 
     Dim isConfig As Boolean, r As Long, noValue As Boolean
     isConfig = (StrComp(sh, "Config", vbTextCompare) = 0)
     If isConfig Then
+        If Not IsPlainAscii(col) Then
+            Cov "PRM54"
+            problems.Add "Line " & line & ": a Config parameter name must be plain ASCII letters and digits."
+            Exit Sub
+        End If
         If protected.Exists(LCase$(col)) Then
             Cov "PRM53"
             problems.Add "Line " & line & ": " & col & " says where the credentials go: type it by hand, it is never loaded from a CSV."
@@ -376,6 +382,15 @@ Private Sub ImportItem(ByVal items As Collection, ByVal problems As Collection, 
     If r < 1 Then problems.Add "Line " & line & ": Row must be 1 or more.": Exit Sub
     items.Add Array(sh, r, col, v)
 End Sub
+
+Private Function IsPlainAscii(ByVal text As String) As Boolean
+    Dim i As Long, c As Long
+    For i = 1 To Len(text)
+        c = AscW(Mid$(text, i, 1))
+        If c < 32 Or c > 126 Then Exit Function
+    Next i
+    IsPlainAscii = True
+End Function
 
 Private Function CsvColumn(ByVal rec As Variant, ByVal name As String) As Long
     Dim i As Long
@@ -419,6 +434,9 @@ Public Function RovoCsvApply(ByVal wb As Object, ByVal res As Object) As String
                 r = FindRow(ws, cParam, CStr(item(2)))
                 If r = 0 Or cValue = 0 Then
                     problems.Add "Config has no parameter " & item(2) & "."
+                ElseIf res("protected").Exists(LCase$(TrimWhite(CStr(ws.Cells(r, cParam).Value & "")))) Then
+                    Cov "PRM55"
+                    problems.Add "Config parameter " & TrimWhite(CStr(ws.Cells(r, cParam).Value & "")) & " says where the credentials go: type it by hand."
                 Else
                     ws.Cells(r, cValue).Value = SafeCell(CStr(item(3)))
                     counts("Config") = Val(counts("Config") & "") + 1

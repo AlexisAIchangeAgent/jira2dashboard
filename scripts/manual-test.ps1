@@ -14,6 +14,15 @@ Try a workbook by hand against the fake Jira, without the automatic tests.
    out\manual_test\jira2dashboard.xlsx (values and SVG charts) in a new Excel.
 Stop the fake Jira with .\scripts\stop-mock.ps1. Close the copy before running this script again.
 ASCII only: PowerShell 5.1 reads a file without BOM as ANSI.
+USE CASES
+  Click through the macros           .\scripts\manual-test.ps1                       (Read the Jira configuration, then Extract from Jira and compute)
+  Try the Python path, no macro      .\scripts\manual-test.ps1 -Python
+  Try a downloaded version           .\scripts\manual-test.ps1 -Workbook C:\Downloads\jira2dashboard.xlsm
+  Two fake Jiras at once             .\scripts\manual-test.ps1 -Port 8100
+  The whole chain without clicking   .\scripts\scenario.ps1                          (unattended: Python extraction, checks, clean-up)
+  Excel crashed on the last page     a known defect: save your other work first, run it again
+  Where is the log                   %LOCALAPPDATA%\jira2dashboard\logs\manual-test.log (last run only)
+
 
 .PARAMETER Workbook
 The workbook to try. Default out\release\jira2dashboard.xlsm (built if missing).
