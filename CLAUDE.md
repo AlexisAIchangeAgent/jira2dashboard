@@ -50,6 +50,7 @@ The release zip leaves out the `export-ignore` paths of `.gitattributes` (CLAUDE
 Releases: the version is `vX.Y.Z` only (`v0.0.0-dryrun` is refused) and the number is AL's choice. The dry run
 (`release.ps1 -Version v0.0.0`) needs a clean tree, builds with Excel and leaves `out\release\<version>`: delete it afterwards.
 `-Publish` also needs HEAD == origin/main and `gh` logged in. `v0.1.0` (2026-11-06), `v0.2.0` (2026-11-07, commit 878807e) and `v0.3.0` (2026-11-11, commit 31c9574) are published.
+The release tags are on GitHub; a clone may hold only `v0.1.0` (`git fetch --tags`): `version.py` stamps the commit, never `git describe`.
 `diagnose` never opens the workbook, never reads `python.log` (JQL, Jira's messages) nor the Windows event log, and masks the home
 folder: keep it that way when adding a section. Allow-lists of an endpoint protection ask for the MD5 (`notes.md` has it) or, lasting longer, the path and name:
 the workbook is always `jira2dashboard.xlsm` (`paths.DELIVERED_NAME`), never with the version in its name.
@@ -278,6 +279,12 @@ then `mermaid.parse`), and check every `](#anchor)` link against the headings.
 - Edit scripts with quotes, `\r\n` or backslashes (Windows paths in Markdown): write a `.py` file with the Write tool and
   run it, not a Bash heredoc (a heredoc turned `tests\\features` into a form feed in a Markdown file).
   Pattern: `assert s.count(old) == 1` before each replace, write with `newline="\n"`, run with `.venv/Scripts/python.exe`.
+- In those `.py` edit scripts, VBA text with `""` ends a `"""` string early and `"\vba-tests.log"` holds a `\v`:
+  use `r'''...'''` and run `python -m py_compile` on the script first.
+- While `test-excel` / `vba-tests` run in the background, do not edit `src/` or `vba/`: each Excel module builds its
+  workbook from `vba/*.bas` when it starts, and the child processes import `src`.
+- Pester fakes of python are functions: a line they write to stderr lands in the transcript as a decorated error record,
+  which `python.exe` called with `2>&1 | Show-Line` does not do. Assert the text, not the absence of decoration.
 - `Windows fatal exception: code 0x800706be` (or `0x800706ba`) printed after Excel scenarios is teardown noise, also in
   green runs: only the test result counts.
 - **Hung test Excel (VBA error dialog):** run `vba-tests` with `timeout 420`. The Excel to kill is the one whose window
@@ -287,6 +294,7 @@ then `mermaid.parse`), and check every `](#anchor)` link against the headings.
   raise (a raise opens that dialog): wrap it like `AxisEnds` in `modTests.bas`.
 - **Excel hygiene (AL's rule):** after every Excel run, even a green one, `tasklist | grep -c EXCEL` must be back to what it was;
   stop only the Excel your run started (start time; title "Microsoft Visual Basic" when hung), never an older one.
+- The Excel that `manual-test.ps1` opens is AL's: leave it open; when AL says done, check `tasklist`, then `stop-mock.ps1 -Port 8099`.
 - `com_error -2146959355` ("Echec de l'execution du serveur") at `DispatchEx` = Excel failed to start: transient, rerun.
 - **A few VBA tests only:** copy `modTests.bas`, cut `TestNames()` to the tests wanted, run `vba-tests --offline`, restore with `cp`
   (about 1 minute instead of 5; never commit the cut list).
@@ -298,6 +306,8 @@ then `mermaid.parse`), and check every `](#anchor)` link against the headings.
   Python steps call `modX.Name` explicitly (`tests/steps/test_params.py`): update them.
 - The VBA guard hook also runs after a Bash/PowerShell command that changed a `.bas`, but only from the second command
   of a machine (the first one records the modules).
+- `test_vba_log_guard.py` reads the whole line of a log call, its trailing comment too: "URL", "body" or "resp" in a
+  comment on a `LogLine` line fails it.
 - **Checked facts (Microsoft Learn MCP, `mcp__claude_ai_Microsoft_Learn__*`):** entering a formula in manual calculation
   calculates it, so `CalculateFull` after the switch back to automatic is needed only when Excel was manual;
   `WinHttpSetTimeouts` does not bound proxy auto-detection (WPAD); `Application.StatusBar` reads `False` or the text
@@ -318,3 +328,5 @@ ask AL before starting. Measure first with the log and a scratch benchmark modul
 Also pending, offered to AL: when the macro loses its state (Esc then End during a long step), the Dashboard stays on its
 last status and Cancel does nothing; `AbortExtraction` and a slice that finds `mBusy` False could write a log line and
 "Stopped" in `A3`.
+Also offered to AL (2026-11-11): the Rovo buttons (`BtnRovoPrompt`, `BtnLoadRovoCsv`) log a single `RUN` line (no version,
+PARAM, time or end): give them `LogRunStart`/`LogRunEnd`; and `PARAM sheet X = 1 rows` should read `1 row`.
