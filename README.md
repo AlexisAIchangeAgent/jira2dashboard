@@ -32,7 +32,7 @@ powershell -ExecutionPolicy Bypass -File scripts\setup.ps1 -Dev   # .venv with p
 .\scripts\run.ps1 build                                           # out\release\jira2dashboard.xlsm
 .\scripts\manual-test.ps1                                         # fake Jira + filled copy in a new Excel
 .\scripts\scenario.ps1                                            # the same chain unattended: Python extraction, checks, clean-up
-.\scriptsun.ps1 test-scripts                                    # Pester tests of scripts\*.ps1, coverage under 93 % fails
+.\scripts\run.ps1 test-scripts                                    # Pester tests of scripts\*.ps1, coverage under 93 % fails
 .\scripts\run.ps1 extract --workbook C:\Data\jira2dashboard.xlsm   # no VBA: Jira -> jira2dashboard.xlsx
 ```
 
