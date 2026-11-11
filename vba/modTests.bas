@@ -53,7 +53,7 @@ Private Function TestNames() As Variant
         "T_HttpNetworkAndCancel", "T_RetryExhausted", "T_ChangelogChunks", "T_IssueRows", "T_WriteTable", "T_StatusIntervals", _
         "T_StatusChanges", "T_RetryDelay", "T_SafeAccess", "T_FilesUtf8", "T_StringifyBadObject", _
         "T_TooManyPages", "T_BackgroundExport", "T_TextNotConverted", "T_ParamsTables", "T_ParamsOnWorkbook", _
-        "T_TrimWhite", "T_ConfigSheet", "T_MandatoryConfig", "T_ProxyDetect", "T_ProxyScript", "T_ProjectsSheet", "T_ParseMoment", "T_ExtractFlowData", "T_ExtractJob", "T_ExtractCheckFields", "T_FlowBuild", "T_BaseUrlHttps", "T_Log", _
+        "T_TrimWhite", "T_ConfigSheet", "T_MandatoryConfig", "T_ProxyDetect", "T_ProxyScript", "T_ProjectsSheet", "T_ParseMoment", "T_ExtractFlowData", "T_ExtractJob", "T_ExtractCheckFields", "T_FlowBuild", "T_BaseUrlHttps", "T_Log", "T_LogHintAndOpen", _
         "T_JiraConfig", "T_AbortExtraction", "T_Utf8Oracle", "T_Utf8Invalid", "T_Base64Oracle")
 End Function
 
@@ -463,6 +463,21 @@ Public Sub T_BaseUrlHttps()
     Check "extract", "the configured fields of the data checks are asked, the empty ones are not", "Team and Sprint", _
           "key,project,issuetype,created,status,parent,resolutiondate,fixVersions,issuelinks,customfield_10400,customfield_10020", _
           ExtractFields("", CheckFields("", "", "", "customfield_10400", "customfield_10020"))
+End Sub
+
+Public Sub T_LogHintAndOpen()
+    ' After an error: the status names the log file and Notepad is asked to open it (a test only records the command).
+    Dim saved As String
+    saved = gLogPath
+    gLogPath = "C:/x y/run.log"
+    gLogOpenFake = True: gLogOpenCommand = ""
+    Check "log", "the hint names the log file", "path", " See the log: C:/x y/run.log", LogHint()
+    LogOpen
+    Check "log", "the log opens in Notepad, the path quoted", "command", "notepad.exe ""C:/x y/run.log""", gLogOpenCommand
+    gLogOpenFake = False
+    LogOpen                                          ' no person at the keyboard (a test Excel): nothing starts
+    Check "log", "an Excel started by a script does not start Notepad", "UserControl", False, Application.UserControl
+    gLogPath = saved
 End Sub
 
 Public Sub T_Log()

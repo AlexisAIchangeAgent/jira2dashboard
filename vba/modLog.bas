@@ -13,6 +13,8 @@ Option Explicit
 Public gLogPath As String                          ' empty = the default file; the tests point it to a file of their own
 Private Const LOG_MAX_BYTES As Long = 1000000      ' above this size a run starts a new file (the old one becomes .1.log)
 Private Const LOG_MAX_TEXT As Long = 300           ' longer texts are cut
+Public gLogOpenFake As Boolean                      ' tests: LogOpen records its command in gLogOpenCommand and starts nothing
+Public gLogOpenCommand As String
 Private mErrorsOnly As Boolean                     ' True while a run asked the level Errors
 
 Public Function LogFolderFrom(ByVal localAppData As String, ByVal temp As String) As String
@@ -110,6 +112,29 @@ Public Sub LogError(ByVal where As String, ByVal number As Long, ByVal descripti
     End If
     LogLine "ERROR", text
 End Sub
+
+Public Function LogHint() As String
+    ' The sentence added to the status of a stopped run: where the log is.
+    Cov "LOG14"
+    LogHint = " See the log: " & LogFile()
+End Function
+
+Public Sub LogOpen()
+    ' After an error, shows the log in Notepad when a person is at the keyboard (Excel started by the user, not by a test
+    ' or a script). Best effort: never raises. gLogOpenFake lets the tests read the command instead of starting Notepad.
+    Dim cmd As String
+    cmd = NotepadCommand(LogFile())
+    If gLogOpenFake Then Cov "LOG15": gLogOpenCommand = cmd: Exit Sub
+    On Error Resume Next
+    If Not Application.UserControl Then Cov "LOG16": Exit Sub
+    Shell cmd, vbNormalFocus
+    Err.Clear
+End Sub
+
+Public Function NotepadCommand(ByVal file As String) As String
+    Cov "LOG17"
+    NotepadCommand = "notepad.exe """ & file & """"
+End Function
 
 Public Function ErrorCode(ByVal number As Long) As String
     ' The errors raised by this project read vbObjectError+n; the others keep their number.

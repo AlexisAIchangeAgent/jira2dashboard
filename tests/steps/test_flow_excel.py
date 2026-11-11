@@ -930,7 +930,7 @@ def _click_extract(world, request):
 @then(parsers.parse("l'état du tableau de bord nomme les paramètres obligatoires vides \"{names}\""))
 def _mandatory_named(world, names):
     assert world["status"].startswith("Stopped: "), world["status"]
-    assert world["status"].endswith(f"(Mandatory = True): {names}"), world["status"]
+    assert f"(Mandatory = True): {names} See the log: " in world["status"], world["status"]      # the log path ends it
 
 
 @then("le faux Jira n'a reçu aucune requête")

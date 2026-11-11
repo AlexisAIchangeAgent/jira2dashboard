@@ -65,7 +65,7 @@ Failed:
     LogError "BtnExtractAndCompute", num, desc
     LogRunEnd "stopped"
     ExtractJobAbort
-    EndRun "Stopped: " & num & " - " & desc, 0
+    EndRunStopped num, desc
 End Sub
 
 Public Sub BtnCancelExtraction()
@@ -110,7 +110,7 @@ Failed:
     End If
     LogError "BtnReadJiraConfiguration", num, desc
     LogRunEnd "stopped"
-    EndRun "Stopped: " & num & " - " & desc, 0
+    EndRunStopped num, desc
 End Sub
 
 Public Sub ExtractSlice()
@@ -149,7 +149,7 @@ Failed:
     LogError "ExtractSlice", num, desc
     LogRunEnd "stopped"
     ExtractJobAbort
-    EndRun "Stopped: " & num & " - " & desc, 0
+    EndRunStopped num, desc
 End Sub
 
 Public Sub AbortExtraction()
@@ -191,6 +191,12 @@ Private Sub EndRun(ByVal message As String, ByVal fraction As Double)
     mBusy = False: mCancel = False: mNextSlice = 0: gHttpCancel = False
     Application.StatusBar = False
     ShowProgress fraction, message
+End Sub
+
+Private Sub EndRunStopped(ByVal num As Long, ByVal desc As String)
+    ' An error ends the run: the status says what and where the log is, and the log opens in Notepad (modLog.LogOpen).
+    EndRun "Stopped: " & num & " - " & desc & LogHint(), 0
+    LogOpen
 End Sub
 
 Private Sub ShowProgress(ByVal fraction As Double, ByVal text As String)
