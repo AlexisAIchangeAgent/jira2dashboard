@@ -29,7 +29,11 @@ def load(name: str):
     "tskill excel", "wmic process where name='EXCEL.EXE' call terminate",
     "Get-CimInstance Win32_Process -Filter \"Name='EXCEL.EXE'\" | Invoke-CimMethod -MethodName Terminate",
     "(Get-Process -Id 42).Kill()  # the test Excel", "Get-Process EXCEL | % { $_.Kill() }",
-    "Stop-Process -Id 5 -ProcessName EXCEL"])
+    "Stop-Process -Id 5 -ProcessName EXCEL",
+    # each part that kills must give a PID number, and no filter or object may stand for it (second review)
+    'taskkill /PID 1 /FI "IMAGENAME eq EXCEL.EXE"', "Stop-Process -InputObject (Get-Process excel)",
+    "Stop-Process -Id (Get-Process excel).Id", "Stop-Process -Id 1; kill excel", "taskkill /PID 1 && taskkill excel",
+    "Stop-Process -Id 1\nStop-Process excel"])
 def test_a_command_that_stops_excel_by_its_name_is_asked(command):
     assert load("excel_kill_guard").kills_excel_by_name(command)
 
@@ -37,7 +41,8 @@ def test_a_command_that_stops_excel_by_its_name_is_asked(command):
 @pytest.mark.parametrize("command", [
     "taskkill /PID 36044 /F", "Stop-Process -Id 1234 -Force", "tasklist | grep -c EXCEL", "taskkill /PID 99 /T",
     "powershell -File scripts/stop-mock.ps1 -Port 8099", "taskkill /PID 36044 /F  # the hung test Excel",
-    "Get-Process EXCEL | Select Id, StartTime, MainWindowTitle"])
+    "Get-Process EXCEL | Select Id, StartTime, MainWindowTitle",
+    "taskkill /PID 36044 /F; tasklist | grep -c EXCEL", "taskkill /PID 1 /T && taskkill /PID 2 /F  # two test Excel"])
 def test_a_command_that_names_one_process_or_kills_nothing_passes(command):
     assert not load("excel_kill_guard").kills_excel_by_name(command)
 
