@@ -123,7 +123,7 @@ VBA guard tests after each edit of `vba/*.bas` (`.claude/hooks/bas_guard.py`); s
   needs its `Case n` in `ErrorCode` and a row in the table (`test_error_codes.py` fails otherwise); a code is never reused or renumbered.
   The scripts use `J2D-SCR-nnn` (every `Fail`, `throw` and unknown-argument message of `scripts\*.ps1` carries one: a test pins it), `diagnose` lists
   its `Findings` as `J2D-SYS-02x` with the line `Codes to quote to the support`, `check-machine` prints `J2D-SYS-040` on a FAIL.
-  `test-excel` keeps the VBA log of each scenario in `scripts\logs\excel-tests\` (`testbench/keep_log.py`): read it after a run.
+  `test-excel` keeps the VBA log of each scenario in `logs\excel-test_<scenario>.log`, next to the test workbook (`out\inter\logs`, relative to the workbook like every log of the VBA; `testbench/keep_log.py`): read it after a run, before `build` or `vba-tests` empties `out\inter`.
 - **Jira configuration (VBA).** `modJiraConfig` (button Read the Jira configuration, `BtnReadJiraConfiguration`) reads
   projects, issue types, statuses, workflows (`workflows/preview`) and fields into proposal sheets `Jira*`; it never writes
   the parameter sheets (calls and mapping: the header of `modJiraConfig.bas`). Besides the five first sheets it writes

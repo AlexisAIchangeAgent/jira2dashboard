@@ -304,7 +304,7 @@ A figure that cannot be computed shows "not computable", never 0. Each data chec
 | Support code | `J2D-<AREA>-<NNN>`: first word of every `ERROR` line (VBA and Python logs), column `Error code` of the sheet `Steps`, status of the Dashboard | What the client reads to the support; `src/jira2dashboard/error_codes.py` (and the sheet `ErrorCodes`) gives cause, check, what to ask. Never renumbered; `python -m jira2dashboard.error_codes` prints the table |
 | Unfinished run | `HKCU\Software\VB and VBA Program Settings\jira2dashboard` | Next run logs "previous run did not end" |
 | VBA test log | `%TEMP%\jira2dashboard_vba_tests.log` | VBA tests only |
-| Excel scenario logs | `scripts\logs\excel-tests\<scenario>.log` | The VBA log lines of each `test-excel` scenario (kept after the run by `testbench/keep_log.py`) |
+| Excel scenario logs | `logs\excel-test_<scenario>.log` next to the test workbook (`out\inter\logs`) | The VBA log lines of each `test-excel` scenario, in the same `logs` folder as the log of the workbook (`testbench/keep_log.py`); `build` and `vba-tests` empty `out\inter` |
 | Fake Jira pid | `%TEMP%\jira2dashboard\mock-jira-<port>.pid` | What `stop-mock.ps1` may stop |
 | Test outputs | `out\inter\` | Test workbooks, chart PNGs, `.coverage` |
 | Event log | Event Viewer > Application, event 1000 | Faulting module of an Excel crash |
