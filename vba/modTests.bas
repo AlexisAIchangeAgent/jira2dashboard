@@ -544,7 +544,7 @@ Public Sub T_RovoCsv()
     For rowProxy = 2 To 60
         If CStr(wsC.Cells(rowProxy, 1).Value & "") = "FillRateThreshold" Then Exit For
     Next rowProxy
-    file = ThisWorkbook.Path & "\j2d_rovo_csv_" & Format$(Now, "hhnnss") & Int(Rnd() * 1000) & ".csv"     ' at the root of the folder of the workbook
+    file = Environ$("TEMP") & "\j2d_rovo_csv_" & Format$(Now, "hhnnss") & Int(Rnd() * 1000) & ".csv"     ' not next to the workbook: any folder
     f = FreeFile
     Open file For Binary Access Write As #f
     bytes = Utf8Encode(ChrW(&HFEFF) & text)                         ' a BOM, as Excel writes it
@@ -556,9 +556,6 @@ Public Sub T_RovoCsv()
     Check "csv", "the writer refuses a connection parameter by the name of the row it found", "Email", True, Len(CStr(wsC.Cells(FindRowOf(wsC, "Email"), 2).Value & "")) = 0
     Check "csv", "and says so", "problem", True, InStr(res("problems")(1), "Email says where the credentials go") > 0
     summary = ImportRovoCsv(ThisWorkbook, file)
-    Check "csv", "the CSV of the folder of the workbook is listed", "RovoCsvFiles", True, InFiles(RovoCsvFiles(ThisWorkbook.Path), Mid$(file, InStrRev(file, "\") + 1))
-    Check "csv", "a file of another folder is refused", "TEMP", True, RefusedOutside(Environ$("TEMP") & "\x.csv")
-    Check "csv", "the folder of the workbook is told with its path", "InWorkbookFolder", True, InWorkbookFolder(ThisWorkbook, file) And Not InWorkbookFolder(ThisWorkbook, "C:\elsewhere\x.csv")
     Check "csv", "Config: the Value of the parameter is written", "FillRateThreshold", "85", CStr(wsC.Cells(rowProxy, 2).Value)
     Check "csv", "a connection parameter is never loaded", "BaseUrl", True, InStr(CStr(wsC.Cells(FindRowOf(wsC, "BaseUrl"), 2).Value & ""), "evil") = 0
     Check "csv", "and is told as a problem", "BaseUrl", True, InStr(summary, "problem(s)") > 0
@@ -581,20 +578,6 @@ Public Sub T_RovoCsv()
     Err.Clear
     On Error GoTo 0
 End Sub
-
-Private Function InFiles(ByVal names As Collection, ByVal name As String) As Boolean
-    Dim n As Variant
-    For Each n In names
-        If StrComp(CStr(n), name, vbTextCompare) = 0 Then InFiles = True: Exit Function
-    Next n
-End Function
-
-Private Function RefusedOutside(ByVal path As String) As Boolean
-    On Error Resume Next
-    ImportRovoCsv ThisWorkbook, path
-    RefusedOutside = (Err.Number = vbObjectError + 632)
-    Err.Clear
-End Function
 
 Private Function FindRowOf(ByVal ws As Object, ByVal name As String) As Long
     Dim r As Long

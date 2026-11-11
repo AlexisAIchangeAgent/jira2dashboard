@@ -72,8 +72,8 @@ def manual(mandatory: tuple[str, ...]) -> list[tuple[str, str]]:
             "of the parameters. A value Rovo cannot see is marked UNKNOWN.",
         ]),
         (f'Button "{ROVO_LOAD_CAPTION}"', [
-            "The CSV that Rovo answered must be saved at the root of the folder of this workbook (the one .csv found there is "
-            "used; with several, a dialog opens in that folder). It then asks you to confirm. The Value of each parameter of Config that the "
+            "A dialog opens in the folder of this workbook: choose the CSV that Rovo answered, in any folder. The button "
+            "then asks you to confirm. The Value of each parameter of Config that the "
             "file gives replaces the current one; for every other sheet in the file (Projects, Iterations, PIs, Workflows, "
             "Transitions) all the current rows are replaced by its rows (the column Example stays).",
             "The connection parameters (BaseUrl, Email, ApiToken, ProxyServer, ProxyBypass, ProxyWindowsAuth) are never loaded: "

@@ -131,7 +131,7 @@ Public Sub BtnRovoPrompt()
     ws.Activate
     ws.Range(ws.Cells(1, 1), ws.Cells(n, 1)).Select
     ShowProgress -1, "Rovo prompt: " & n & " lines in the sheet " & SHEET_ROVO & ", selected: Ctrl+C, then paste into Rovo. " & _
-                     "Save its CSV answer at the root of the folder of this workbook, then click Load Rovo CSV."
+                     "Save its CSV answer, then click Load Rovo CSV and choose the file."
     LogRunEnd "ok"
     Exit Sub
 Failed:
@@ -142,36 +142,25 @@ Failed:
 End Sub
 
 Public Sub BtnLoadRovoCsv()
-    ' Asks for the CSV that Rovo answered (the prompt of the button Prompt for Rovo), then loads its values into the parameter
-    ' sheets (modParams.ImportRovoCsv). The user confirms first: the rows of the sheets in the file replace the current rows.
-    Dim num As Long, desc As String, file As Variant, summary As String, folder As String, files As Collection
+    ' Asks for the CSV that Rovo answered (the prompt of the button Prompt for Rovo) in a dialog that opens in the folder of
+    ' the workbook (the file may be anywhere), then loads its values into the parameter sheets (modParams.ImportRovoCsv). The
+    ' user confirms first: the rows of the sheets in the file replace the current rows.
+    Dim num As Long, desc As String, file As Variant, summary As String, folder As String
     If mBusy Then Beep: Exit Sub
     On Error GoTo Failed
     LogRunStart "button Load Rovo CSV", LogLevelSetting()             ' every click is a run of the log, a cancel too
     LogParameters ThisWorkbook                                       ' the values before the load
     folder = ThisWorkbook.Path
-    If Len(folder) = 0 Then
-        ShowProgress -1, "Rovo CSV: save this workbook first: the CSV must be at the root of its folder."
-        LogRunEnd "ok: nothing loaded (the workbook has no folder)"
-        Exit Sub
-    End If
-    Set files = RovoCsvFiles(folder)
-    If files.Count = 0 Then
-        ShowProgress -1, "Rovo CSV: no .csv file in " & folder & ". Save the CSV exported from Rovo there, then click again."
-        LogRunEnd "ok: nothing loaded (no .csv file in the folder of the workbook)"
-        Exit Sub
-    ElseIf files.Count = 1 Then
-        file = folder & "\" & files(1)                                   ' the only CSV of the folder: no dialog
-    Else
+    If Len(folder) > 0 Then
         On Error Resume Next
         ChDrive folder: ChDir folder                                     ' the dialog opens in the folder of the workbook
         On Error GoTo Failed
-        file = Application.GetOpenFilename("CSV files (*.csv),*.csv", , "The CSV answered by Rovo")
-        If VarType(file) = vbBoolean Then
-            ShowProgress -1, "Rovo CSV: no file chosen, nothing loaded."
-            LogRunEnd "cancelled: no file chosen"
-            Exit Sub
-        End If
+    End If
+    file = Application.GetOpenFilename("CSV files (*.csv),*.csv", , "The CSV answered by Rovo")
+    If VarType(file) = vbBoolean Then
+        ShowProgress -1, "Rovo CSV: no file chosen, nothing loaded."
+        LogRunEnd "cancelled: no file chosen"
+        Exit Sub
     End If
     If MsgBox("Load " & Mid$(file, InStrRev(file, "\") + 1) & " into the parameter sheets?" & vbLf & vbLf & _
               "The Value of each parameter of Config that the file gives replaces the current one. For every other sheet " & _

@@ -982,7 +982,8 @@ ROVO_CSV = (
 
 @given("une réponse de Rovo en CSV qui donne FillRateThreshold, une adresse de connexion, deux projets, une itération, un jeton à saisir et une valeur inconnue")
 def _rovo_csv(world):
-    world["csv"] = Path(world["wb"].Path) / "rovo_answer.csv"                      # at the root of the folder of the workbook
+    world["csv"] = Path(world["wb"].Path) / "rovo" / "rovo_answer.csv"             # not next to the workbook: any folder
+    world["csv"].parent.mkdir(exist_ok=True)
     world["csv"].write_bytes(ROVO_CSV.encode("utf-8"))
 
 

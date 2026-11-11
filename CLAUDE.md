@@ -150,7 +150,7 @@ python.log). `tests/unit/test_claude_hooks.py` and `test_claude_skills.py` test 
   `RovoPromptSpec` (Part | Name | Text); `modParams.WriteRovoPrompt` (button `modActions.BtnRovoPrompt`, cell `R1`) turns it into the
   sheet `RovoPrompt`: Config read live (name, mandatory, meaning, example, never the Value), each sheet with its header, and the CSV
   format asked of Rovo (Sheet, Row, Column, Value, Note). No clipboard call (the VBA creates only two COM objects): the lines are selected.
-  The button Load Rovo CSV (`BtnLoadRovoCsv`, cell `R3`; `ImportRovoCsvFile(path)` is its work without the dialogs) reads Rovo's CSV
+  The button Load Rovo CSV (`BtnLoadRovoCsv`, cell `R3`: a dialog at each click, opened in the folder of the workbook, the CSV in any folder; `ImportRovoCsvFile(path)` is its work without the dialogs) reads Rovo's CSV
   (`modParams.ParseCsv`, `RovoCsvRead`, `RovoCsvApply`: comma, semicolon or tab, UTF-8 with or without BOM): Config gets the Value
   of each parameter named, every other sheet of the file has all its rows replaced; UNKNOWN, empty and the token placeholder are
   not loaded.

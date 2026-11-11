@@ -358,12 +358,12 @@ Private Sub ImportItem(ByVal items As Collection, ByVal problems As Collection, 
     isConfig = (StrComp(sh, "Config", vbTextCompare) = 0)
     If isConfig Then
         If Not IsPlainAscii(col) Then
-            Cov "PRM54"
+            Cov "PRM51"
             problems.Add "Line " & line & ": a Config parameter name must be plain ASCII letters and digits."
             Exit Sub
         End If
         If protected.Exists(LCase$(col)) Then
-            Cov "PRM53"
+            Cov "PRM50"
             problems.Add "Line " & line & ": " & col & " says where the credentials go: type it by hand, it is never loaded from a CSV."
             Exit Sub
         End If
@@ -435,7 +435,7 @@ Public Function RovoCsvApply(ByVal wb As Object, ByVal res As Object) As String
                 If r = 0 Or cValue = 0 Then
                     problems.Add "Config has no parameter " & item(2) & "."
                 ElseIf res("protected").Exists(LCase$(TrimWhite(CStr(ws.Cells(r, cParam).Value & "")))) Then
-                    Cov "PRM55"
+                    Cov "PRM52"
                     problems.Add "Config parameter " & TrimWhite(CStr(ws.Cells(r, cParam).Value & "")) & " says where the credentials go: type it by hand."
                 Else
                     ws.Cells(r, cValue).Value = SafeCell(CStr(item(3)))
@@ -519,38 +519,9 @@ Public Function RovoCsvText(ByVal path As String) As String
     If size > 0 Then RovoCsvText = Utf8Decode(bytes)
 End Function
 
-Public Function RovoCsvFiles(ByVal folder As String) As Collection
-    ' The names of the .csv files at the root of the folder (the workbook runs from a folder not known in advance, and the CSV
-    ' of Rovo is kept at the root of that same folder).
-    Cov "PRM50"
-    Dim out As New Collection, name As String
-    Set RovoCsvFiles = out
-    If Len(folder) = 0 Then Exit Function
-    name = Dir$(folder & "\*.csv")
-    Do While Len(name) > 0
-        If LCase$(Right$(name, 4)) = ".csv" Then out.Add name
-        name = Dir$
-    Loop
-End Function
-
-Public Function InWorkbookFolder(ByVal wb As Object, ByVal path As String) As Boolean
-    ' True when the file is at the root of the folder of the workbook (True for a workbook that has no folder yet).
-    Cov "PRM51"
-    Dim folder As String, dir As String
-    folder = wb.Path
-    If Len(folder) = 0 Then InWorkbookFolder = True: Exit Function
-    If Right$(folder, 1) = "\" Then folder = Left$(folder, Len(folder) - 1)
-    If InStrRev(path, "\") > 0 Then dir = Left$(path, InStrRev(path, "\") - 1)
-    InWorkbookFolder = (StrComp(dir, folder, vbTextCompare) = 0)
-End Function
-
 Public Function ImportRovoCsv(ByVal wb As Object, ByVal path As String) As String
-    ' The answer of Rovo (CSV) into the parameter sheets; returns the summary. The file must be at the root of the folder of the
-    ' workbook. Nothing is sent anywhere: the file is read here.
-    If Not InWorkbookFolder(wb, path) Then
-        Cov "PRM52"
-        Err.Raise vbObjectError + 632, "ImportRovoCsv", "The CSV must be at the root of the folder of the workbook (" & wb.Path & "): copy it there."
-    End If
+    ' The answer of Rovo (CSV) into the parameter sheets; returns the summary. The file may be in any folder (the button asks
+    ' for it in a dialog). Nothing is sent anywhere: the file is read here.
     ImportRovoCsv = RovoCsvApply(wb, RovoCsvRead(wb, RovoCsvText(path)))
 End Function
 
