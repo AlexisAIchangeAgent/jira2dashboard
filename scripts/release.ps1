@@ -45,7 +45,7 @@ param(
     [Parameter(ValueFromRemainingArguments = $true)][string[]]$Rest = @()
 )
 if ($Help -or $Rest -contains "--help") { Get-Help $PSCommandPath -Detailed; exit 0 }
-if ($Rest.Count -gt 0) { Write-Host "release: unknown argument $($Rest -join ' '). See .\scripts\release.ps1 --help"; exit 2 }
+if ($Rest.Count -gt 0) { Write-Host "release: J2D-SCR-001 - unknown argument $($Rest -join ' '). See .\scripts\release.ps1 --help"; exit 2 }
 $ErrorActionPreference = "Stop"
 $root = Split-Path -Parent $PSScriptRoot
 Set-Location $root
@@ -62,28 +62,28 @@ if (-not (Get-Variable J2D_LogOwner -ErrorAction SilentlyContinue)) {
     } catch { }
 }
 
-function Fail([string]$message) {
-    Write-Host "release: $message"
+function Fail([string]$code, [string]$message) {
+    Write-Host "release: $code - $message"
     exit 1
 }
 
 # 1. The release is a commit: a clean tree, and with -Publish that commit is on GitHub
-if ($Version -notmatch '^v\d+\.\d+\.\d+$') { Fail "the version must look like v1.0.0 (got '$Version')." }
-if (git status --porcelain) { Fail "the working tree has changes: commit or stash them first." }
+if ($Version -notmatch '^v\d+\.\d+\.\d+$') { Fail "J2D-SCR-010" "the version must look like v1.0.0 (got '$Version')." }
+if (git status --porcelain) { Fail "J2D-SCR-011" "the working tree has changes: commit or stash them first." }
 $head = (git rev-parse HEAD).Trim()
 if ($Publish) {
     gh auth status          # no redirection: in PowerShell 5.1 a redirected stderr becomes an error under "Stop"
-    if ($LASTEXITCODE -ne 0) { Fail "gh is not logged in: run gh auth login." }
+    if ($LASTEXITCODE -ne 0) { Fail "J2D-SCR-012" "gh is not logged in: run gh auth login." }
     git fetch -q origin main
-    if ($LASTEXITCODE -ne 0) { Fail "git fetch failed." }
-    if ($head -ne (git rev-parse origin/main).Trim()) { Fail "HEAD is not origin/main: push first." }
-    if (git ls-remote --tags origin "refs/tags/$Version") { Fail "the tag $Version already exists on GitHub." }
+    if ($LASTEXITCODE -ne 0) { Fail "J2D-SCR-013" "git fetch failed." }
+    if ($head -ne (git rev-parse origin/main).Trim()) { Fail "J2D-SCR-014" "HEAD is not origin/main: push first." }
+    if (git ls-remote --tags origin "refs/tags/$Version") { Fail "J2D-SCR-015" "the tag $Version already exists on GitHub." }
 }
 
 # 2. The workbook, built from the same commit. The build empties out\inter first; out\release and the packages of
 #    older releases (out\release\<version>) stay.
 & (Join-Path $PSScriptRoot "run.ps1") build
-if ($LASTEXITCODE -ne 0) { Fail "the build of the workbook failed (see above)." }
+if ($LASTEXITCODE -ne 0) { Fail "J2D-SCR-016" "the build of the workbook failed (see above)." }
 $name = "jira2dashboard-$Version"
 $dist = Join-Path $root "out\release\$Version"
 New-Item -ItemType Directory -Force $dist | Out-Null
@@ -94,14 +94,14 @@ Write-Host "release: $xlsm"
 # 3. The code: git archive of HEAD, then check what it holds
 $zip = Join-Path $dist "$name.zip"
 git archive --format=zip "--prefix=$name/" -o $zip HEAD
-if ($LASTEXITCODE -ne 0) { Fail "git archive failed." }
+if ($LASTEXITCODE -ne 0) { Fail "J2D-SCR-017" "git archive failed." }
 Add-Type -AssemblyName System.IO.Compression.FileSystem
 $archive = [System.IO.Compression.ZipFile]::OpenRead($zip)
 try { $entries = @($archive.Entries | ForEach-Object { $_.FullName }) } finally { $archive.Dispose() }
 $leftOut = @($entries | Where-Object { $_ -match '^[^/]+/(CLAUDE\.md|archive/|\.claude/|\.venv/)' })
-if ($leftOut.Count -gt 0) { Fail ("the zip holds files it must leave out: " + ($leftOut -join ", ")) }
+if ($leftOut.Count -gt 0) { Fail "J2D-SCR-018" ("the zip holds files it must leave out: " + ($leftOut -join ", ")) }
 foreach ($must in "README.md", "scripts/run.ps1", "scripts/setup.ps1", "src/jira2dashboard/build_workbook.py") {
-    if ($entries -notcontains "$name/$must") { Fail "the zip misses $must." }
+    if ($entries -notcontains "$name/$must") { Fail "J2D-SCR-019" "the zip misses $must." }
 }
 Write-Host ("release: {0} ({1} entries)" -f $zip, $entries.Count)
 
@@ -143,5 +143,5 @@ if (-not $Publish) {
 
 # 5. Publish: the tag is created on GitHub, on HEAD
 gh release create $Version $xlsm $zip --target $head --title "jira2dashboard $Version" --notes-file $notesFile
-if ($LASTEXITCODE -ne 0) { Fail "gh release create failed." }
+if ($LASTEXITCODE -ne 0) { Fail "J2D-SCR-020" "gh release create failed." }
 Write-Host "release: published $Version"

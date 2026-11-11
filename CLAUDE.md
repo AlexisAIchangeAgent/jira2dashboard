@@ -121,6 +121,9 @@ VBA guard tests after each edit of `vba/*.bas` (`.claude/hooks/bas_guard.py`); s
   `ErrorCodes`; `modLog.ErrorCode(number, description)` is the VBA rule (602 has two causes: BaseUrl check, HTTP status = `JIRA-<status>`,
   status 0 = `NET-<WinHTTP error>`), `error_codes.code_of_vba` and `standalone.support_code` the Python one. A new `Err.Raise vbObjectError + n`
   needs its `Case n` in `ErrorCode` and a row in the table (`test_error_codes.py` fails otherwise); a code is never reused or renumbered.
+  The scripts use `J2D-SCR-nnn` (every `Fail`, `throw` and unknown-argument message of `scripts\*.ps1` carries one: a test pins it), `diagnose` lists
+  its `Findings` as `J2D-SYS-02x` with the line `Codes to quote to the support`, `check-machine` prints `J2D-SYS-040` on a FAIL.
+  `test-excel` keeps the VBA log of each scenario in `%LOCALAPPDATA%\jira2dashboard\logs\excel-tests\` (`testbench/keep_log.py`): read it after a run.
 - **Jira configuration (VBA).** `modJiraConfig` (button Read the Jira configuration, `BtnReadJiraConfiguration`) reads
   projects, issue types, statuses, workflows (`workflows/preview`) and fields into proposal sheets `Jira*`; it never writes
   the parameter sheets (calls and mapping: the header of `modJiraConfig.bas`). Besides the five first sheets it writes

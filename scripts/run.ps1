@@ -80,7 +80,7 @@ if ($args.Count -lt 1 -or @("--help", "-h", "-help", "help", "/?") -contains $ar
     exit 0
 }
 if (-not $commands.Contains($args[0])) {
-    Write-Host "run: unknown command '$($args[0])'. See .\scripts\run.ps1 --help"
+    Write-Host "run: J2D-SCR-002 - unknown command '$($args[0])'. See .\scripts\run.ps1 --help"
     exit 2
 }
 $command = $args[0]
@@ -90,7 +90,7 @@ if ($args.Count -gt 1) { $rest = $args[1..($args.Count - 1)] }
 $ErrorActionPreference = "Stop"
 $root = Split-Path -Parent $PSScriptRoot
 $python = Join-Path $root ".venv\Scripts\python.exe"
-if (-not (Test-Path $python)) { throw "No .venv: run scripts\setup.ps1 -Dev first." }
+if (-not (Test-Path $python)) { throw "J2D-SCR-003 - No .venv: run scripts\setup.ps1 -Dev first." }
 Set-Location $root
 # Log of this run (last run only): %LOCALAPPDATA%\jira2dashboard\logs\run.log. A log failure never stops the script.
 # Called by another script of this folder that already writes a log ($J2D_LogOwner, seen through the calling scope):

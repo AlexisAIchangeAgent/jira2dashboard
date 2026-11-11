@@ -30,6 +30,7 @@ from jira2dashboard.mockjira.server import MockJira
 from jira2dashboard import rovo_prompt as RP
 from jira2dashboard.params.model import load_all, mandatory_parameters, project_keys
 from jira2dashboard.paths import INTER_DIR
+from jira2dashboard.testbench import keep_log
 from jira2dashboard.standalone.results import data_check_rows
 
 scenarios("../features/flow_excel.feature")
@@ -54,7 +55,7 @@ def excel_scope(fixture_name, config):
 
 
 @pytest.fixture(scope=excel_scope)
-def flow_workbook(built_workbook):
+def flow_workbook(built_workbook, request):
     """A fresh Excel per scenario, on the workbook as built: each scenario stands alone. One Excel for the whole module
     (several extractions and builds in one process) crashed in about 2 runs out of 5 (open defect, CLAUDE.md)."""
     holder = {}
@@ -63,7 +64,10 @@ def flow_workbook(built_workbook):
         holder["wb"] = app.Workbooks.Open(str(built_workbook.resolve()))
         code = holder["wb"].VBProject.VBComponents(holder["wb"].CodeName).CodeModule
         assert "AbortExtraction" in code.Lines(1, code.CountOfLines)       # closing the workbook drops a pending slice
+        folder = holder["wb"].Path
+        started = keep_log.mark(folder)
         yield holder
+        keep_log.keep(folder, started, request.node.name)               # the VBA log of this scenario, readable after the run
         holder.pop("wb").Close(False)
         del app
         gc.collect()

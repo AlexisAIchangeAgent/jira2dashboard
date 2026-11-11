@@ -57,7 +57,7 @@ param(
     [Parameter(ValueFromRemainingArguments = $true)][string[]]$Rest = @()
 )
 if ($Help -or $Rest -contains "--help") { Get-Help $PSCommandPath -Detailed; exit 0 }
-if ($Rest.Count -gt 0) { Write-Host "manual-test: unknown argument $($Rest -join ' '). See .\scripts\manual-test.ps1 --help"; exit 2 }
+if ($Rest.Count -gt 0) { Write-Host "manual-test: J2D-SCR-001 - unknown argument $($Rest -join ' '). See .\scripts\manual-test.ps1 --help"; exit 2 }
 $ErrorActionPreference = "Stop"
 $root = Split-Path -Parent $PSScriptRoot
 Set-Location $root
@@ -74,8 +74,8 @@ if (-not (Get-Variable J2D_LogOwner -ErrorAction SilentlyContinue)) {
     } catch { }
 }
 
-function Fail([string]$message) {
-    Write-Host "manual-test: $message"
+function Fail([string]$code, [string]$message) {
+    Write-Host "manual-test: $code - $message"
     exit 1
 }
 
@@ -84,18 +84,18 @@ if (-not $Workbook) {
     $Workbook = Join-Path $root "out\release\jira2dashboard.xlsm"
     if (-not (Test-Path $Workbook)) {
         & (Join-Path $PSScriptRoot "run.ps1") build
-        if ($LASTEXITCODE -ne 0) { Fail "the build of the workbook failed (see above)." }
+        if ($LASTEXITCODE -ne 0) { Fail "J2D-SCR-016" "the build of the workbook failed (see above)." }
     }
 }
 & (Join-Path $PSScriptRoot "run.ps1") mock-workbook --workbook $Workbook --port $Port
-if ($LASTEXITCODE -ne 0) { Fail "the copy could not be prepared (see above)." }
+if ($LASTEXITCODE -ne 0) { Fail "J2D-SCR-021" "the copy could not be prepared (see above)." }
 & (Join-Path $PSScriptRoot "start-mock.ps1") -Port $Port
-if ($LASTEXITCODE -ne 0) { Fail "the fake Jira did not start (see above)." }
+if ($LASTEXITCODE -ne 0) { Fail "J2D-SCR-022" "the fake Jira did not start (see above)." }
 
 $copy = Join-Path $root "out\manual_test\jira2dashboard4manualtest.xlsm"
 if ($Python) {
     & (Join-Path $PSScriptRoot "run.ps1") extract --workbook $copy
-    if ($LASTEXITCODE -ne 0) { Fail "the Python extraction failed (see above and its log)." }
+    if ($LASTEXITCODE -ne 0) { Fail "J2D-SCR-023" "the Python extraction failed (see above and its log)." }
     $result = Join-Path $root "out\manual_test\jira2dashboard.xlsx"
     Start-Process excel.exe -ArgumentList "/x", "`"$result`""
     Write-Host "manual-test: $result opens in a new Excel: the data, the results and the charts, no macro."

@@ -99,3 +99,36 @@ def test_every_expected_error_of_the_extraction_has_a_code_of_the_table():
     for err in (ParamsError("x"), ParamsError("x", "J2D-CFG-002"), XlsxLocked("x"), FileNotFoundError("x"), ValueError("x")):
         assert extract.support_code(err) in E.BY_CODE, err
     assert extract.UNEXPECTED_CODE in E.BY_CODE
+
+
+# --- the scripts, diagnose and check-machine ---------------------------------------------------------------------------------
+
+ROOT = Path(__file__).resolve().parents[2]
+
+
+def test_every_code_written_in_the_scripts_and_the_python_tools_is_in_the_table():
+    pattern = re.compile(r"J2D-(?:CFG|JIRA|NET|DATA|FLOW|ROVO|SYS|SCR|VBA|GEN)-[0-9A-F]{2,8}")
+    files = list((ROOT / "scripts").glob("*.ps1")) + [ROOT / "src/jira2dashboard/diagnose.py", ROOT / "src/jira2dashboard/cli/check_machine.py"]
+    unknown = {code for path in files for code in pattern.findall(path.read_text(encoding="utf-8")) if code not in E.BY_CODE}
+    assert not unknown, f"codes used but not in error_codes.TABLE: {sorted(unknown)}"
+
+
+def test_every_failure_of_a_script_carries_a_code():
+    """Each Fail call, each throw and each unknown argument message of the scripts names a J2D-SCR code (start-mock's two
+    throws inside its probe of the interpreter are not failures of the script)."""
+    bare = []
+    for path in (ROOT / "scripts").glob("*.ps1"):
+        for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+            stripped = line.strip()
+            is_failure = (re.search(r'\bFail "', stripped) or re.search(r'\bthrow "', stripped) or "unknown argument" in stripped
+                          or "unknown command" in stripped or "FAILED. Log" in stripped)
+            if is_failure and "J2D-SCR-" not in stripped and not stripped.startswith("#") \
+                    and not re.search(r'throw "no (listener|path)"', stripped):
+                bare.append(f"{path.name}:{number}: {stripped}")
+    assert not bare, bare
+
+
+def test_every_script_code_of_the_table_is_used_by_a_script():
+    used = "".join(path.read_text(encoding="utf-8") for path in (ROOT / "scripts").glob("*.ps1"))
+    unused = [row.code for row in E.TABLE if row.code.startswith("J2D-SCR-") and row.code not in used]
+    assert not unused, unused

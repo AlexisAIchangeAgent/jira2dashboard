@@ -39,7 +39,7 @@ param(
     [Parameter(ValueFromRemainingArguments = $true)][string[]]$Rest = @()
 )
 if ($Help -or $Rest -contains "--help") { Get-Help $PSCommandPath -Detailed; exit 0 }
-if ($Rest.Count -gt 0) { Write-Host "setup: unknown argument $($Rest -join ' '). See .\scripts\setup.ps1 --help"; exit 2 }
+if ($Rest.Count -gt 0) { Write-Host "setup: J2D-SCR-001 - unknown argument $($Rest -join ' '). See .\scripts\setup.ps1 --help"; exit 2 }
 $ErrorActionPreference = "Stop"
 $root = Split-Path -Parent $PSScriptRoot
 Set-Location $root
@@ -58,7 +58,7 @@ if (-not (Get-Variable J2D_LogOwner -ErrorAction SilentlyContinue)) {
 
 if (-not (Test-Path ".venv\Scripts\python.exe")) {
     & py -3.14 -m venv .venv
-    if ($LASTEXITCODE -ne 0) { throw "py -3.14 -m venv failed (is Python 3.14 installed?)" }
+    if ($LASTEXITCODE -ne 0) { throw "J2D-SCR-004 - py -3.14 -m venv failed (is Python 3.14 installed?)" }
 }
 $python = Join-Path $root ".venv\Scripts\python.exe"
 
@@ -66,13 +66,13 @@ $pipArgs = @()
 if ($Proxy -ne "") { $pipArgs += @("--proxy", $Proxy) }
 
 & $python -m pip install @pipArgs --upgrade pip
-if ($LASTEXITCODE -ne 0) { throw "pip upgrade failed" }
+if ($LASTEXITCODE -ne 0) { throw "J2D-SCR-005 - pip upgrade failed" }
 
 $req = "requirements.txt"
 if ($Dev) { $req = "requirements-dev.txt" }
 & $python -m pip install @pipArgs -r $req
-if ($LASTEXITCODE -ne 0) { throw "pip install -r $req failed" }
+if ($LASTEXITCODE -ne 0) { throw "J2D-SCR-006 - pip install -r $req failed" }
 
 & $python -c "import win32com.client, pythoncom; print('pywin32 import OK')"
-if ($LASTEXITCODE -ne 0) { throw "pywin32 cannot be imported in .venv" }
+if ($LASTEXITCODE -ne 0) { throw "J2D-SCR-007 - pywin32 cannot be imported in .venv" }
 Write-Host "Setup OK ($req)."

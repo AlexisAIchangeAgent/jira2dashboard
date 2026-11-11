@@ -113,29 +113,73 @@ BLOCK_INTERNET = "BlockContentExecutionFromInternet (policy)"
 RESTRICTIVE_VBA_WARNINGS = {"3", "4"}                  # 3: only macros signed by a trusted publisher, 4: none
 
 
+NO_WORKBOOK, MOTW, NOT_TRUSTED, BLOCKED_BY_POLICY, UNSIGNED_DISABLED, OTHER_PRODUCT, NO_VBA_LOG, NOT_STABLE_NAME, \
+    NOTHING_IN_OFFICE, MACROS_DID_NOT_RUN = (f"J2D-SYS-0{n}" for n in (20, 21, 22, 23, 24, 25, 26, 27, 28, 29))   # error_codes.TABLE
+DEFENDER = re.compile(r"(windows|microsoft) defender", re.IGNORECASE)
+
+
 def macro_advice(ran: bool, workbook: Path | None, readings: Readings) -> list[str]:
     """What the macro check of check-machine means. `ran`: a macro of the workbook ran with Office's own security relaxed
     for the check (AutomationSecurity low). If it did not, Office is not the cause: something outside it stops the macros."""
     if not ran:
-        return ["The macros did not run even with Office's security relaxed: something outside Office stops them, most "
-                "likely the endpoint protection.",
+        return [f"{MACROS_DID_NOT_RUN}: The macros did not run even with Office's security relaxed: something outside Office "
+                "stops them, most likely the endpoint protection.",
                 "Next: run scripts\\run.ps1 diagnose for the ticket, and ask the security team to put a test machine in Audit "
                 "mode to read the alert (class, process, rule)."]
     reasons = []
     zone = zone_id(workbook) if workbook is not None and workbook.is_file() else None
     if zone is not None and zone >= 3:
-        reasons.append("the file has the Mark of the Web: right-click > Properties > Unblock, or put it in a Trusted Location.")
+        reasons.append(f"{MOTW}: the file has the Mark of the Web: right-click > Properties > Unblock, or put it in a Trusted Location.")
     if readings.policies.get(BLOCK_INTERNET) == "1":
-        reasons.append("a policy blocks macros of files from the Internet: unblock the file or use a Trusted Location.")
+        reasons.append(f"{BLOCKED_BY_POLICY}: a policy blocks macros of files from the Internet: unblock the file or use a Trusted Location.")
     for label in (VBA_POLICY, VBA_USER):
         value = readings.policies.get(label)
         if value in RESTRICTIVE_VBA_WARNINGS:
-            reasons.append(f"the macro setting of Office disables unsigned macros (VBAWarnings={value}): use a Trusted Location.")
+            reasons.append(f"{UNSIGNED_DISABLED}: the macro setting of Office disables unsigned macros (VBAWarnings={value}): use a Trusted Location.")
     if not reasons:
-        reasons.append("Nothing in Office explains a block: if the macros still do not run by hand, the endpoint protection is "
-                       "the likely cause (run.ps1 diagnose, ask the security team for its Audit mode).")
+        reasons.append(f"{NOTHING_IN_OFFICE}: Nothing in Office explains a block: if the macros still do not run by hand, the endpoint "
+                       "protection is the likely cause (run.ps1 diagnose, ask the security team for its Audit mode).")
     return ["The macros of this file run when Office's security is relaxed for this check. If they do not run by hand, "
             "look at Office:", *[f"- {reason}" for reason in reasons]]
+
+
+def findings(workbook: Path | None, readings: Readings, local_app_data: str, temp: str) -> list[tuple[str, str]]:
+    """What the readings say, as (support code, text): the codes the person quotes to the support (error_codes.TABLE).
+    A cause of a block (Mark of the Web, a policy, a macro setting) or a hint (name, trusted location, a security product)."""
+    found: list[tuple[str, str]] = []
+    cause = False
+    if workbook is None or not workbook.is_file():
+        found.append((NO_WORKBOOK, "No workbook found: build one or give --workbook FILE."))
+    else:
+        if workbook.name.lower() != DELIVERED_NAME:
+            found.append((NOT_STABLE_NAME, f"The file is named {workbook.name}, not {DELIVERED_NAME}."))
+        zone = zone_id(workbook)
+        if zone is not None and zone >= 3:
+            cause = True
+            found.append((MOTW, f"Mark of the Web (ZoneId={zone}, {zone_name(zone)})."))
+        if not in_trusted_location(workbook, readings.trusted_locations):
+            found.append((NOT_TRUSTED, f"Not in a Trusted Location of Excel ({len(readings.trusted_locations)} read)."))
+    if readings.policies.get(BLOCK_INTERNET) == "1":
+        cause = True
+        found.append((BLOCKED_BY_POLICY, "A policy blocks the macros of files from the Internet."))
+    for label in (VBA_POLICY, VBA_USER):
+        value = readings.policies.get(label)
+        if value in RESTRICTIVE_VBA_WARNINGS:
+            cause = True
+            found.append((UNSIGNED_DISABLED, f"{label} = {value}: unsigned macros are disabled."))
+    others = [name for name in readings.security_products or [] if not DEFENDER.search(name)]
+    if others:
+        found.append((OTHER_PRODUCT, "Security product(s): " + ", ".join(others) + "."))
+    if not vba_log_path(workbook, local_app_data, temp).is_file():
+        found.append((NO_VBA_LOG, "No VBA log: no macro has run here, or it was blocked before it started."))
+    if not cause:
+        found.append((NOTHING_IN_OFFICE, "Nothing in Office or in the file explains a block: the endpoint protection is the likely cause."))
+    return found
+
+
+def _findings_section(found: list[tuple[str, str]]) -> list[str]:
+    codes = ", ".join(dict.fromkeys(code for code, _ in found))
+    return [f"{code}: {text}" for code, text in found] + [f"Codes to quote to the support: {codes}"]
 
 
 def _file_section(workbook: Path | None) -> list[str]:
@@ -182,7 +226,8 @@ def report(workbook: Path | None, readings: Readings, *, home: str, local_app_da
     """The text to paste into the ticket. Only the VBA log is quoted (it holds no token, URL or Jira answer by design)."""
     log_title, log = _log_section(workbook, local_app_data, temp, log_lines)
     office = [f"{name}: {value}" for name, value in {**readings.office, **readings.policies}.items()] or ["not read."]
-    sections = [("File", _file_section(workbook)), ("Origin", _origin_section(workbook, readings)), ("Office", office),
+    found = findings(workbook, readings, local_app_data, temp)
+    sections = [("Findings", _findings_section(found)), ("File", _file_section(workbook)), ("Origin", _origin_section(workbook, readings)), ("Office", office),
                 ("Security products", _security_section(readings.security_products)),
                 ("Interpreters of the fake Jira", _interpreters_section(readings.interpreters)), (log_title, log)]
     text = [f"jira2dashboard diagnostic, {dt.datetime.now():%Y-%m-%d %H:%M}",

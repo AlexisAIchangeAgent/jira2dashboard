@@ -1,5 +1,6 @@
 """The pure part of `scripts\\run.ps1 diagnose` (jira2dashboard.diagnose): hashes, origin of the file, masking, log tail."""
 import hashlib
+import re
 from pathlib import Path
 
 import pytest
@@ -164,3 +165,75 @@ def test_permissive_office_settings_are_not_blamed(tmp_path):
                                       "BlockContentExecutionFromInternet (policy)": "not set"})
     assert "Mark of the Web" not in text and "VBAWarnings=" not in text and "policy blocks" not in text
     assert "Nothing in Office explains a block" in text and "endpoint protection" in text
+
+
+# --- the findings, with their support codes -----------------------------------------------------------------------------------
+
+def codes(tmp_path, workbook=None, **kw):
+    return [code for code, _ in D.findings(workbook, kw.pop("readings", readings()), str(tmp_path), str(tmp_path))]
+
+
+def a_workbook(tmp_path, name="jira2dashboard.xlsm", zone=None):
+    file = tmp_path / name
+    file.write_bytes(b"x")
+    if zone is not None:
+        stream_zone(file, zone)
+    return file
+
+
+def test_no_workbook_is_a_finding_with_its_code(tmp_path):
+    assert "J2D-SYS-020" in codes(tmp_path)
+    assert "J2D-SYS-020" not in codes(tmp_path, a_workbook(tmp_path))
+
+
+def test_the_mark_of_the_web_is_a_finding_with_its_code(tmp_path):
+    found = codes(tmp_path, a_workbook(tmp_path, zone=3))
+    assert "J2D-SYS-021" in found and "J2D-SYS-028" not in found                   # a cause was found in the file
+    assert "J2D-SYS-021" not in codes(tmp_path, a_workbook(tmp_path))
+
+
+def test_a_renamed_copy_and_a_folder_that_is_not_trusted_are_hints(tmp_path):
+    found = codes(tmp_path, a_workbook(tmp_path, name="jira2dashboard (1).xlsm"))
+    assert "J2D-SYS-027" in found and "J2D-SYS-022" in found
+    assert "J2D-SYS-027" not in codes(tmp_path, a_workbook(tmp_path))
+
+
+@pytest.mark.parametrize("policy, value, code", [("BlockContentExecutionFromInternet (policy)", "1", "J2D-SYS-023"),
+                                                 ("VBAWarnings (policy)", "4", "J2D-SYS-024"),
+                                                 ("VBAWarnings (user setting)", "3", "J2D-SYS-024")])
+def test_a_restrictive_office_setting_is_a_finding_with_its_code(tmp_path, policy, value, code):
+    found = codes(tmp_path, a_workbook(tmp_path), readings=readings(policies={policy: value}))
+    assert code in found and "J2D-SYS-028" not in found
+
+
+def test_nothing_in_office_points_at_the_endpoint_protection(tmp_path):
+    assert "J2D-SYS-028" in codes(tmp_path, a_workbook(tmp_path))
+
+
+def test_only_a_product_other_than_defender_is_a_finding(tmp_path):
+    assert "J2D-SYS-025" not in codes(tmp_path, a_workbook(tmp_path), readings=readings(security_products=["Windows Defender"]))
+    assert "J2D-SYS-025" not in codes(tmp_path, a_workbook(tmp_path), readings=readings(security_products=None))
+    assert "J2D-SYS-025" in codes(tmp_path, a_workbook(tmp_path), readings=readings(security_products=["Windows Defender", "Some EDR"]))
+
+
+def test_no_vba_log_is_a_finding_until_there_is_one(tmp_path):
+    workbook = a_workbook(tmp_path)
+    assert "J2D-SYS-026" in codes(tmp_path, workbook)
+    (tmp_path / "logs").mkdir()
+    (tmp_path / "logs" / "jira2dashboard.log").write_text("x\n", encoding="ascii")
+    assert "J2D-SYS-026" not in codes(tmp_path, workbook)
+
+
+def test_the_report_opens_with_the_findings_and_lists_the_codes_to_quote(tmp_path):
+    text = D.report(a_workbook(tmp_path, zone=3), readings(), home="", local_app_data=str(tmp_path), temp=str(tmp_path))
+    assert text.index("[Findings]") < text.index("[File]")
+    assert "J2D-SYS-021: Mark of the Web" in text
+    assert re.search(r"Codes to quote to the support: J2D-SYS-021.*J2D-SYS-022", text)
+
+
+def test_the_advice_of_the_macro_check_carries_the_codes(tmp_path):
+    assert "J2D-SYS-029" in advice(tmp_path, False)
+    assert "J2D-SYS-021" in advice(tmp_path, True, zone=3)
+    assert "J2D-SYS-023" in advice(tmp_path, True, **{"BlockContentExecutionFromInternet (policy)": "1"})
+    assert "J2D-SYS-024" in advice(tmp_path, True, **{"VBAWarnings (user setting)": "3"})
+    assert "J2D-SYS-028" in advice(tmp_path, True)

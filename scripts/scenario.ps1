@@ -62,7 +62,7 @@ param(
     [Parameter(ValueFromRemainingArguments = $true)][string[]]$Rest = @()
 )
 if ($Help -or $Rest -contains "--help") { Get-Help $PSCommandPath -Detailed; exit 0 }
-if ($Rest.Count -gt 0) { Write-Host "scenario: unknown argument $($Rest -join ' '). See .\scripts\scenario.ps1 --help"; exit 2 }
+if ($Rest.Count -gt 0) { Write-Host "scenario: J2D-SCR-001 - unknown argument $($Rest -join ' '). See .\scripts\scenario.ps1 --help"; exit 2 }
 $ErrorActionPreference = "Stop"
 $root = Split-Path -Parent $PSScriptRoot
 Set-Location $root
@@ -117,15 +117,15 @@ Write-Host "scenario: workbook $source, fake Jira on port $Port$(if ($Excel) { '
 Step "stop an earlier fake Jira" { & (Join-Path $PSScriptRoot "stop-mock.ps1") -Port $Port }
 Step "build the workbook if missing" {
     if (Test-Path $source) { Write-Host "scenario: $source exists, not built." }
-    elseif ($Workbook) { throw "the workbook $Workbook does not exist" }
+    elseif ($Workbook) { throw "J2D-SCR-041 - the workbook $Workbook does not exist" }
     else { & $run build }
 }
 Step "fill a copy of the workbook for the fake Jira" { & $run mock-workbook --workbook $source --port $Port }
 Step "start the fake Jira" { & (Join-Path $PSScriptRoot "start-mock.ps1") -Port $Port -Hidden }
 Step "extract with Python (no macro)" { & $run extract --workbook $copy }
 Step "check the xlsx" {
-    if (-not (Test-Path $result)) { throw "$result was not written" }
-    if ((Get-Item $result).Length -eq 0) { throw "$result is empty" }
+    if (-not (Test-Path $result)) { throw "J2D-SCR-042 - $result was not written" }
+    if ((Get-Item $result).Length -eq 0) { throw "J2D-SCR-043 - $result is empty" }
     Write-Host ("scenario: {0} ({1} bytes)" -f $result, (Get-Item $result).Length)
 }
 if ($Excel) {
@@ -142,7 +142,7 @@ Write-Host ""
 Write-Host "scenario: summary"
 foreach ($r in $results) { Write-Host ("  {0,2}  {1,-46} {2,-34} {3,7:N1} s" -f $r.Number, $r.Name, $r.Status, $r.Seconds) }
 if ($failed) {
-    Write-Host "scenario: FAILED. Log: $(Join-Path $env:LOCALAPPDATA 'jira2dashboard\logs\scenario.log')"
+    Write-Host "scenario: J2D-SCR-040 - FAILED. Log: $(Join-Path $env:LOCALAPPDATA 'jira2dashboard\logs\scenario.log')"
     exit 1
 }
 if ($KeepMock) { Write-Host "scenario: the fake Jira still runs on port ${Port}: stop it with .\scripts\stop-mock.ps1 -Port $Port" }

@@ -125,7 +125,7 @@ Describe "help of every script" {
         It "$script.ps1 refuses an unknown argument with exit code 2" {
             $r = Invoke-Script "$script.ps1" -Positional @("--nonsense")
             $r.Code | Should Be 2
-            $r.Out | Should Match "unknown argument --nonsense"
+            $r.Out | Should Match "J2D-SCR-001 - unknown argument --nonsense"
         }
     }
     It "activate.ps1 shows its help when dot-sourced with --help" {
@@ -165,11 +165,11 @@ Describe "run.ps1" {
     It "refuses an unknown command with 2" {
         $r = Invoke-Script "run.ps1" -Positional @("nonsense")
         $r.Code | Should Be 2
-        $r.Out | Should Match "unknown command 'nonsense'"
+        $r.Out | Should Match "J2D-SCR-002 - unknown command 'nonsense'"
     }
     It "asks for setup.ps1 when there is no .venv" {
         $r = Invoke-Script "run.ps1" -Positional @("test")
-        $r.Error | Should Match "No .venv: run scripts.setup.ps1 -Dev first"
+        $r.Error | Should Match "J2D-SCR-003 - No .venv: run scripts.setup.ps1 -Dev first"
     }
 
     $commands = [ordered]@{
@@ -382,7 +382,7 @@ Describe "start-mock.ps1" {
         Fake-Server $false
         $r = Invoke-Script "start-mock.ps1" -Named @{ Port = $global:Port }
         $r.Code | Should Be 1
-        $r.Out | Should Match "held by another program"
+        $r.Out | Should Match "J2D-SCR-030 - port \d+ is held by another program"
         Assert-MockCalled Start-Process -Scope It -Times 0
     }
     It "fails at once when the fake Jira stops at once" {
@@ -390,7 +390,7 @@ Describe "start-mock.ps1" {
         Fake-Server $false
         $r = Invoke-Script "start-mock.ps1" -Named @{ Port = $global:Port }
         $r.Code | Should Be 1
-        $r.Out | Should Match "stopped at once"
+        $r.Out | Should Match "J2D-SCR-031 - the fake Jira stopped at once"
         Test-Path (Pid-File $global:Port) | Should Be $false
     }
     It "stops what it started and fails when nothing answers after 60 seconds" {
@@ -399,7 +399,7 @@ Describe "start-mock.ps1" {
         Fake-Server $false
         $r = Invoke-Script "start-mock.ps1" -Named @{ Port = $global:Port }
         $r.Code | Should Be 1
-        $r.Out | Should Match "no answer on port $($global:Port) after 60 s"
+        $r.Out | Should Match "J2D-SCR-032 - no answer on port $($global:Port) after 60 s"
         (Calls) -contains "taskkill /PID $PID /T /F" | Should Be $true
     }
     It "writes its log, and goes on when the log cannot be written" {
@@ -464,14 +464,14 @@ Describe "release.ps1" {
         foreach ($bad in "", "1.0.0", "v1.0", "v0.0.0-dryrun") {
             $r = Invoke-Script "release.ps1" -Named @{ Version = $bad }
             $r.Code | Should Be 1
-            $r.Out | Should Match "the version must look like v1.0.0"
+            $r.Out | Should Match "J2D-SCR-010 - the version must look like v1.0.0"
         }
     }
     It "refuses a working tree with changes" {
         $global:Dirty = " M README.md"
         $r = Invoke-Script "release.ps1" -Named @{ Version = "v1.0.0" }
         $r.Code | Should Be 1
-        $r.Out | Should Match "the working tree has changes"
+        $r.Out | Should Match "J2D-SCR-011 - the working tree has changes"
     }
     It "dry run: builds the workbook and the zip, writes the notes with the hashes, publishes nothing" {
         $r = Invoke-Script "release.ps1" -Named @{ Version = "v1.0.0" }
@@ -516,7 +516,7 @@ Describe "release.ps1" {
     }
     It "-Publish needs gh logged in" {
         $global:GhAuthExit = 1
-        (Invoke-Script "release.ps1" -Named @{ Version = "v1.0.0"; Publish = $true }).Out | Should Match "gh is not logged in"
+        (Invoke-Script "release.ps1" -Named @{ Version = "v1.0.0"; Publish = $true }).Out | Should Match "J2D-SCR-012 - gh is not logged in"
     }
     It "-Publish needs git fetch to work" {
         $global:FetchExit = 1
@@ -702,7 +702,7 @@ Describe "scenario.ps1" {
     It "fails when the workbook given does not exist, and still stops the fake Jira" {
         $r = Invoke-Script "scenario.ps1" -Named @{ Workbook = (Join-Path $global:Base "missing.xlsm") }
         "$($r.Code)|$($r.Out)" | Should Match "^1\|"
-        $r.Out | Should Match "FAILED \(the workbook .*missing.xlsm does not exist\)"
+        ($r.Out -replace "\s+", " ") | Should Match "FAILED \(J2D-SCR-041 - the workbook .*missing.xlsm does not exist\)"
         $r.Out | Should Match "skipped \(an earlier step failed\)"
         (Calls)[-1] | Should Be "stop-mock -Port 8099"
     }
@@ -729,16 +729,16 @@ Describe "scenario.ps1" {
         $r = Invoke-Script "scenario.ps1"
         "$($r.Code)|$($r.Out)" | Should Match "^1\|"
         $r.Out | Should Match "FAILED"
-        $r.Out | Should Match "scenario: FAILED. Log: "
+        $r.Out | Should Match "scenario: J2D-SCR-040 - FAILED. Log: "
         (Calls)[-1] | Should Be "stop-mock -Port 8099"
     }
     It "fails when the xlsx was not written" {
         $global:WriteXlsx = "none"
-        ((Invoke-Script "scenario.ps1").Out -replace "\s+", " ") | Should Match "FAILED \(.*jira2dashboard.xlsx was not written\)"
+        ((Invoke-Script "scenario.ps1").Out -replace "\s+", " ") | Should Match "FAILED \(J2D-SCR-042 - .*jira2dashboard.xlsx was not written\)"
     }
     It "fails when the xlsx is empty" {
         $global:WriteXlsx = "empty"
-        (Invoke-Script "scenario.ps1").Out | Should Match "is empty"
+        ((Invoke-Script "scenario.ps1").Out -replace "\s+", " ") | Should Match "J2D-SCR-043 - .*is empty"
     }
     It "-Excel plays the Excel scenarios too, and a failure of them fails the scenario" {
         $r = Invoke-Script "scenario.ps1" -Named @{ Excel = $true }

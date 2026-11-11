@@ -35,7 +35,7 @@ param(
     [Parameter(ValueFromRemainingArguments = $true)][string[]]$Rest = @()
 )
 if ($Help -or $Rest -contains "--help") { Get-Help $PSCommandPath -Detailed; exit 0 }
-if ($Rest.Count -gt 0) { Write-Host "stop-mock: unknown argument $($Rest -join ' '). See .\scripts\stop-mock.ps1 --help"; exit 2 }
+if ($Rest.Count -gt 0) { Write-Host "stop-mock: J2D-SCR-001 - unknown argument $($Rest -join ' '). See .\scripts\stop-mock.ps1 --help"; exit 2 }
 $ErrorActionPreference = "Stop"
 
 # Log of this run (last run only): %LOCALAPPDATA%\jira2dashboard\logs\stop-mock.log. A log failure never stops the script.

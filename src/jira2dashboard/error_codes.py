@@ -10,7 +10,8 @@ A code reads `J2D-<AREA>-<NNN>`. It is never reused and never renumbered: a code
 | DATA | an answer that cannot be read (JSON) |
 | FLOW | building the tables, the formulas and the charts |
 | ROVO | the Rovo prompt and the Rovo CSV |
-| SYS  | Excel and the run itself (cancel, a run already going) |
+| SYS  | Excel and the run itself (cancel, a run already going), the machine (`diagnose`, `check-machine`) |
+| SCR  | the scripts of `scripts\\` (setup, run, release, manual-test, start-mock, scenario) |
 | VBA  | an error of VBA or Excel that this tool does not know: `J2D-VBA-<its number>` (hexadecimal when negative) |
 | GEN  | an error raised by this tool that has no code yet: `J2D-GEN-<its number>` (a gap to fill in this table) |
 
@@ -23,7 +24,7 @@ from __future__ import annotations
 import re
 from typing import NamedTuple
 
-CODE_FORMAT = re.compile(r"^J2D-(CFG|JIRA|NET|DATA|FLOW|ROVO|SYS|VBA|GEN)-[0-9A-F]{2,8}$")
+CODE_FORMAT = re.compile(r"^J2D-(CFG|JIRA|NET|DATA|FLOW|ROVO|SYS|SCR|VBA|GEN)-[0-9A-F]{2,8}$")
 
 
 class ErrorCode(NamedTuple):
@@ -88,8 +89,52 @@ TABLE: tuple[ErrorCode, ...] = (
     ErrorCode("J2D-SYS-002", 611, "An extraction is already running", "A second click or a second macro during a run", "Wait for the run to end or cancel it", "None"),
     ErrorCode("J2D-SYS-010", None, "The results file is open in another program", "The .xlsx of the Python extraction is open in Excel", "Close the file and run again", "None"),
     ErrorCode("J2D-SYS-011", None, "The workbook cannot be read", "The path is wrong, or the file is not an .xlsx/.xlsm workbook, or is damaged", "Check the --workbook path; open the file in Excel", "The file size and where it came from"),
+    ErrorCode("J2D-SYS-020", None, "diagnose: no workbook found", "No .xlsm next to the scripts and none given", "Build one (scripts\\run.ps1 build) or give one with --workbook", "None"),
+    ErrorCode("J2D-SYS-021", None, "The workbook has the Mark of the Web", "The file came from the Internet or a mail: Office opens it in Protected View and blocks the macros", "Right-click > Properties > Unblock, or put it in a Trusted Location", "The ZoneId in the report"),
+    ErrorCode("J2D-SYS-022", None, "The workbook is not in a Trusted Location of Excel", "Excel asks to enable macros for a file outside its trusted folders", "Put the file in a Trusted Location", "The number of trusted locations in the report"),
+    ErrorCode("J2D-SYS-023", None, "A policy blocks the macros of files from the Internet", "BlockContentExecutionFromInternet = 1", "Unblock the file or use a Trusted Location; ask IT if it still blocks", "The policy value in the report"),
+    ErrorCode("J2D-SYS-024", None, "Office disables unsigned macros", "VBAWarnings is 3 or 4 (user setting or policy)", "Use a Trusted Location, or ask IT to sign the macros or change the policy", "The VBAWarnings values in the report"),
+    ErrorCode("J2D-SYS-025", None, "A security product other than Windows Defender is registered", "An endpoint protection can stop macros or the COM objects they create", "Ask the security team to read its alerts or to put a test machine in Audit mode", "The product names in the report"),
+    ErrorCode("J2D-SYS-026", None, "No VBA log on this machine", "No macro has run here, or it was blocked before it started", "Open the workbook, enable macros and click a button", "None"),
+    ErrorCode("J2D-SYS-027", None, "The workbook is not named jira2dashboard.xlsm", "An allow-list on the name or the path misses a renamed copy", "Rename the file to jira2dashboard.xlsm", "The file name in the report"),
+    ErrorCode("J2D-SYS-028", None, "Nothing in Office or in the file explains a block", "The endpoint protection is the likely cause", "Run diagnose and ask the security team for the alert (class, process, rule)", "The report of diagnose"),
+    ErrorCode("J2D-SYS-029", None, "The macros did not run even with Office's security relaxed", "Something outside Office stops them, most likely the endpoint protection", "Run diagnose and ask the security team for its Audit mode", "The report of diagnose and of check-machine"),
+    ErrorCode("J2D-SYS-040", None, "A check of check-machine failed", "Excel, the VBA project access or a COM call failed on this machine", "Read the line FAIL: it names the check", "The output of check-machine"),
     ErrorCode("J2D-SYS-099", None, "Unexpected error in the Python extraction", "A case this tool does not know; the traceback is in python.log", "Send python.log", "python.log (it holds no token)"),
 )
+
+SCRIPT_ROWS = (
+    ("J2D-SCR-001", "A script got an argument it does not know", "A typo in an option", "Run the script with --help", "The command line"),
+    ("J2D-SCR-002", "run.ps1: unknown command", "A typo in the command", "Run .\\scripts\\run.ps1 --help for the list", "The command line"),
+    ("J2D-SCR-003", "No .venv", "setup.ps1 was not run on this machine", "Run scripts\\setup.ps1 (-Dev for the tests)", "None"),
+    ("J2D-SCR-004", "setup: the virtual environment was not created", "Python 3.14 is not installed or not found by py", "Install Python 3.14 (py -3.14 --version)", "The output of py -0"),
+    ("J2D-SCR-005", "setup: pip could not upgrade itself", "No access to the package index (proxy)", "Run setup.ps1 -Proxy http://proxy:port", "setup.log"),
+    ("J2D-SCR-006", "setup: pip could not install the requirements", "No access to the package index, or a wheel is missing", "Run setup.ps1 -Proxy http://proxy:port", "setup.log"),
+    ("J2D-SCR-007", "setup: pywin32 cannot be imported", "pywin32 was not installed in .venv", "Run setup.ps1 again", "setup.log"),
+    ("J2D-SCR-010", "release: the version is not vX.Y.Z", "A typo in -Version", "Use v1.0.0 as the form", "The value given"),
+    ("J2D-SCR-011", "release: the working tree has changes", "Uncommitted files", "Commit or stash them first", "git status"),
+    ("J2D-SCR-012", "release: gh is not logged in", "No GitHub session", "Run gh auth login", "None"),
+    ("J2D-SCR-013", "release: git fetch failed", "No access to GitHub (network, proxy)", "Check the network, then run again", "release.log"),
+    ("J2D-SCR-014", "release: HEAD is not origin/main", "A local commit is not pushed, or the branch is not main", "Push first", "git log origin/main..HEAD"),
+    ("J2D-SCR-015", "release: the tag already exists on GitHub", "The version was published before", "Choose a new version number", "None"),
+    ("J2D-SCR-016", "The build of the workbook failed", "Excel did not start, VBA project access is off, or the VBA does not compile", "Run run.ps1 build and read its output; run check-machine", "The output of the build"),
+    ("J2D-SCR-017", "release: git archive failed", "git is missing or the repository is damaged", "Run git status", "release.log"),
+    ("J2D-SCR-018", "release: the zip holds files it must leave out", ".gitattributes export-ignore lost a path", "Fix .gitattributes (test_release_contents.py pins the list)", "release.log"),
+    ("J2D-SCR-019", "release: the zip misses a required file", "A required path was removed from the repository", "Restore the file", "release.log"),
+    ("J2D-SCR-020", "release: gh release create failed", "No right on the repository or no network", "Check gh auth status", "release.log"),
+    ("J2D-SCR-021", "manual-test: the copy of the workbook could not be prepared", "mock-workbook failed (Excel, a locked file)", "Close the copy in Excel and run again", "manual-test.log"),
+    ("J2D-SCR-022", "manual-test: the fake Jira did not start", "The port is taken or Python cannot start", "Run start-mock.ps1 alone and read its message", "start-mock.log"),
+    ("J2D-SCR-023", "manual-test: the Python extraction failed", "See the J2D code of python.log", "Read python.log for the J2D code", "python.log"),
+    ("J2D-SCR-030", "start-mock: the port is held by another program", "Another program listens on the port", "Choose another one with -Port", "The port number"),
+    ("J2D-SCR-031", "start-mock: the fake Jira stopped at once", "A fault when it starts", "Run run.ps1 mock-jira --port <port> to see why", "start-mock.log"),
+    ("J2D-SCR-032", "start-mock: no answer on the port after 60 s", "The fake Jira is slow or blocked by a firewall or an endpoint protection", "Run run.ps1 mock-jira alone and watch it start", "start-mock.log"),
+    ("J2D-SCR-040", "scenario: a step failed", "See the step marked FAILED in the summary", "Read scenario.log from the line of the failed step", "scenario.log"),
+    ("J2D-SCR-041", "scenario: the workbook given does not exist", "A wrong -Workbook path", "Check the path", "The path"),
+    ("J2D-SCR-042", "scenario: the extraction wrote no .xlsx", "The Python extraction failed silently", "Read python.log", "python.log"),
+    ("J2D-SCR-043", "scenario: the .xlsx is empty", "The extraction stopped while writing", "Read python.log", "python.log"),
+)
+
+TABLE = TABLE + tuple(ErrorCode(code, None, meaning, cause, check, support) for code, meaning, cause, check, support in SCRIPT_ROWS)
 
 BY_CODE: dict[str, ErrorCode] = {row.code: row for row in TABLE}
 HEADER = ("Code", "Meaning", "Probable cause", "What to check", "What the support asks")

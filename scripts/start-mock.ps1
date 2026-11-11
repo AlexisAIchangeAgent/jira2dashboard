@@ -46,7 +46,7 @@ param(
     [Parameter(ValueFromRemainingArguments = $true)][string[]]$Rest = @()
 )
 if ($Help -or $Rest -contains "--help") { Get-Help $PSCommandPath -Detailed; exit 0 }
-if ($Rest.Count -gt 0) { Write-Host "start-mock: unknown argument $($Rest -join ' '). See .\scripts\start-mock.ps1 --help"; exit 2 }
+if ($Rest.Count -gt 0) { Write-Host "start-mock: J2D-SCR-001 - unknown argument $($Rest -join ' '). See .\scripts\start-mock.ps1 --help"; exit 2 }
 $ErrorActionPreference = "Stop"
 
 # Log of this run (last run only): %LOCALAPPDATA%\jira2dashboard\logs\start-mock.log. A log failure never stops the script.
@@ -62,8 +62,8 @@ if (-not (Get-Variable J2D_LogOwner -ErrorAction SilentlyContinue)) {
 }
 $pidFile = Join-Path (Join-Path $env:TEMP "jira2dashboard") "mock-jira-$Port.pid"
 
-function Fail([string]$message) {
-    Write-Host "start-mock: $message"
+function Fail([string]$code, [string]$message) {
+    Write-Host "start-mock: $code - $message"
     exit 1
 }
 
@@ -104,7 +104,7 @@ if (Started) {
     Write-Host "start-mock: a fake Jira started by these scripts already runs on http://127.0.0.1:$Port"
     exit 0
 }
-if (Answers $Port) { Fail "port $Port is held by another program: choose another one with -Port." }
+if (Answers $Port) { Fail "J2D-SCR-030" "port $Port is held by another program: choose another one with -Port." }
 
 $run = Join-Path $PSScriptRoot "run.ps1"
 $style = if ($Hidden) { "Hidden" } else { "Minimized" }
@@ -118,11 +118,11 @@ $deadline = (Get-Date).AddSeconds(60)
 while (-not (Answers $Port)) {
     if ($window.HasExited) {
         Remove-Item $pidFile
-        Fail "the fake Jira stopped at once. Run .\scripts\run.ps1 mock-jira --port $Port to see why."
+        Fail "J2D-SCR-031" "the fake Jira stopped at once. Run .\scripts\run.ps1 mock-jira --port $Port to see why."
     }
     if ((Get-Date) -gt $deadline) {
         & (Join-Path $PSScriptRoot "stop-mock.ps1") -Port $Port
-        Fail "no answer on port $Port after 60 s."
+        Fail "J2D-SCR-032" "no answer on port $Port after 60 s."
     }
     Start-Sleep -Milliseconds 300
 }

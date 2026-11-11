@@ -44,6 +44,9 @@ End Sub
 '''
 
 
+FAIL_CODE = "J2D-SYS-040"                               # error_codes.TABLE: a check of the machine failed
+
+
 def step(name):
     """Decorator: run a check, record PASS/FAIL, never stop the run."""
     def wrap(func):
@@ -56,7 +59,7 @@ def step(name):
             except Exception as err:  # noqa: BLE001 - report everything
                 info = describe(err)
                 RESULTS.append(("FAIL", name, info))
-                print(f"FAIL  {name}: {info}")
+                print(f"FAIL  {FAIL_CODE} {name}: {info}")
                 traceback.print_exc(limit=2)
                 return None
         return inner
@@ -272,7 +275,7 @@ def macro_check(app, workbook: Path | None):
     """Does a macro of the delivered workbook run? Office's own security is relaxed for this check, so a failure comes from
     outside Office (the endpoint protection) and a success leaves Office's settings as the suspects."""
     if workbook is None:
-        skip("delivered workbook: its macro runs", "no workbook to try: build one (scripts\\run.ps1 build) or give --workbook FILE")
+        skip("delivered workbook: its macro runs", f"{D.NO_WORKBOOK}: no workbook to try: build one (scripts\\run.ps1 build) or give --workbook FILE")
         return
 
     @step("delivered workbook: its macro runs (Office's security relaxed for this check)")
@@ -361,7 +364,7 @@ def main(argv: list[str] | None = None) -> int:
 
     print("\n=== SUMMARY ===")
     for status, name, detail in RESULTS:
-        print(f"{status:4}  {name}")
+        print(f"{status:4}  {name}" + (f"  [{FAIL_CODE}]" if status == "FAIL" else ""))
     fails = sum(1 for s, *_ in RESULTS if s == "FAIL")
     print(f"{len(RESULTS)} checks, {fails} failed")
     return 1 if fails else 0
