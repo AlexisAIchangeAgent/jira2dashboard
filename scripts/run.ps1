@@ -93,11 +93,16 @@ $python = Join-Path $root ".venv\Scripts\python.exe"
 if (-not (Test-Path $python)) { throw "No .venv: run scripts\setup.ps1 -Dev first." }
 Set-Location $root
 # Log of this run (last run only): %LOCALAPPDATA%\jira2dashboard\logs\run.log. A log failure never stops the script.
-try {
-    $logDir = Join-Path $env:LOCALAPPDATA "jira2dashboard\logs"
-    New-Item -ItemType Directory -Force $logDir | Out-Null
-    Start-Transcript -Path (Join-Path $logDir "run.log") -Force | Out-Null
-} catch { }
+# Called by another script of this folder that already writes a log ($J2D_LogOwner, seen through the calling scope):
+# no second transcript, the lines of this script go to the log of the caller.
+if (-not (Get-Variable J2D_LogOwner -ErrorAction SilentlyContinue)) {
+    try {
+        $logDir = Join-Path $env:LOCALAPPDATA "jira2dashboard\logs"
+        New-Item -ItemType Directory -Force $logDir | Out-Null
+        Start-Transcript -Path (Join-Path $logDir "run.log") -Force | Out-Null
+        $J2D_LogOwner = "run"
+    } catch { }
+}
 $env:PYTHONIOENCODING = "utf-8"
 $env:PYTHONPATH = (Join-Path $root "src")
 

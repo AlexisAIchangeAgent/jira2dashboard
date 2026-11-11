@@ -45,6 +45,7 @@ function Set-Fake([string]$key, [scriptblock]$behavior = $null, [string]$name = 
 function Calls { @($global:FakeCalls) }
 
 function Reset-Sandbox {
+    Get-ChildItem Function: | Where-Object { $_.Name -like ($global:Scripts + "*") } | ForEach-Object { Remove-Item "Function:\$($_.Name)" -ErrorAction SilentlyContinue }
     Get-ChildItem $global:Base -Force | Where-Object { $_.Name -ne "scripts" } | Remove-Item -Recurse -Force
     New-Item -ItemType Directory -Force (Join-Path $global:Base "local"), (Join-Path $global:Base "temp") | Out-Null
     $env:LOCALAPPDATA = Join-Path $global:Base "local"
@@ -761,5 +762,40 @@ Describe "scenario.ps1" {
         Set-Content $blocker "file"
         $env:LOCALAPPDATA = $blocker
         (Invoke-Script "scenario.ps1").Code | Should Be 0
+    }
+}
+
+# --- one transcript when a script calls another -------------------------------------------------------------------------------
+
+Describe "a script called by another one" {
+    BeforeEach { Reset-Sandbox }
+    AfterEach { Restore-Sandbox }
+
+    It "stop-mock.ps1 starts no transcript when its caller already logs" {
+        $J2D_LogOwner = "caller"
+        $r = Invoke-Script "stop-mock.ps1"
+        $r.Code | Should Be 0
+        $r.Out | Should Match "no fake Jira started"
+        Test-Path (Log-File "stop-mock") | Should Be $false
+    }
+    It "run.ps1 starts no transcript when its caller already logs" {
+        New-Venv
+        $J2D_LogOwner = "caller"
+        (Invoke-Script "run.ps1" -Positional @("test")).Code | Should Be 0
+        Test-Path (Log-File "run") | Should Be $false
+    }
+    It "scenario.ps1 keeps one log with the lines of the scripts it plays, and no log of theirs" {
+        Set-Fake "start-mock" { $global:LASTEXITCODE = 0 } -name (Join-Path $global:Scripts "start-mock.ps1")
+        Set-Fake "run" {
+            if ($args[0] -eq "extract") { New-Item -ItemType Directory -Force "out\manual_test" | Out-Null; Set-Content "out\manual_test\jira2dashboard.xlsx" "xlsx" }
+            if ($args[0] -eq "build") { New-Item -ItemType Directory -Force "out\release" | Out-Null; Set-Content "out\release\jira2dashboard.xlsm" "wb" }
+            $global:LASTEXITCODE = 0
+        } -name (Join-Path $global:Scripts "run.ps1")
+        $r = Invoke-Script "scenario.ps1"                                     # the real stop-mock.ps1 runs inside it
+        $r.Code | Should Be 0
+        Stop-Transcript | Out-Null
+        (Get-Content (Log-File "scenario") -Raw) | Should Match "stop-mock: no fake Jira started"
+        (Get-Content (Log-File "scenario") -Raw) | Should Not Match "Impossible de d|Start-Transcript"
+        Test-Path (Log-File "stop-mock") | Should Be $false
     }
 }

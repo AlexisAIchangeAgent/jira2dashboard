@@ -50,11 +50,16 @@ if ($Rest.Count -gt 0) { Write-Host "start-mock: unknown argument $($Rest -join 
 $ErrorActionPreference = "Stop"
 
 # Log of this run (last run only): %LOCALAPPDATA%\jira2dashboard\logs\start-mock.log. A log failure never stops the script.
-try {
-    $logDir = Join-Path $env:LOCALAPPDATA "jira2dashboard\logs"
-    New-Item -ItemType Directory -Force $logDir | Out-Null
-    Start-Transcript -Path (Join-Path $logDir "start-mock.log") -Force | Out-Null
-} catch { }
+# Called by another script of this folder that already writes a log ($J2D_LogOwner, seen through the calling scope):
+# no second transcript, the lines of this script go to the log of the caller.
+if (-not (Get-Variable J2D_LogOwner -ErrorAction SilentlyContinue)) {
+    try {
+        $logDir = Join-Path $env:LOCALAPPDATA "jira2dashboard\logs"
+        New-Item -ItemType Directory -Force $logDir | Out-Null
+        Start-Transcript -Path (Join-Path $logDir "start-mock.log") -Force | Out-Null
+        $J2D_LogOwner = "start-mock"
+    } catch { }
+}
 $pidFile = Join-Path (Join-Path $env:TEMP "jira2dashboard") "mock-jira-$Port.pid"
 
 function Fail([string]$message) {

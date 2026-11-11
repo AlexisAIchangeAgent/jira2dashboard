@@ -63,11 +63,16 @@ $root = Split-Path -Parent $PSScriptRoot
 Set-Location $root
 
 # Log of this run (last run only): %LOCALAPPDATA%\jira2dashboard\logs\manual-test.log. A log failure never stops the script.
-try {
-    $logDir = Join-Path $env:LOCALAPPDATA "jira2dashboard\logs"
-    New-Item -ItemType Directory -Force $logDir | Out-Null
-    Start-Transcript -Path (Join-Path $logDir "manual-test.log") -Force | Out-Null
-} catch { }
+# Called by another script of this folder that already writes a log ($J2D_LogOwner, seen through the calling scope):
+# no second transcript, the lines of this script go to the log of the caller.
+if (-not (Get-Variable J2D_LogOwner -ErrorAction SilentlyContinue)) {
+    try {
+        $logDir = Join-Path $env:LOCALAPPDATA "jira2dashboard\logs"
+        New-Item -ItemType Directory -Force $logDir | Out-Null
+        Start-Transcript -Path (Join-Path $logDir "manual-test.log") -Force | Out-Null
+        $J2D_LogOwner = "manual-test"
+    } catch { }
+}
 
 function Fail([string]$message) {
     Write-Host "manual-test: $message"
