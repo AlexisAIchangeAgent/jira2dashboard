@@ -110,7 +110,7 @@ python.log). `tests/unit/test_claude_hooks.py` and `test_claude_skills.py` test 
   crashed 64-bit Excel) -> `modJira` (search, bulk changelog) ->
   `modExtract` -> `modFlow` (status intervals) ; `modActions` is the dashboard button (`ExtractAndCompute`). The previous
   results are cleared only after Jira has answered. `modLog` writes the local log in the folder `logs` next to the workbook (it runs from a folder not known in advance; `%LOCALAPPDATA%\jira2dashboard\logs` is the fallback):
-  RUN, BEGIN/END per step, ERROR; never pass it a token, URL, JQL or Jira answer (`test_vba_log_guard.py` checks).
+  see **Logs** below; never pass it a token, URL, JQL or Jira answer (`test_vba_log_guard.py` checks).
 - **Python path without VBA (`standalone/`, `run.ps1 extract`).** A second consumer of the flow reference: it reads
   the parameter sheets of the filled workbook as a zip (`xlsx_read`, by header name, shape rules shared with
   params/*.md through `params.model.shape_problems`, Config rules of the VBA in `params_book`), calls Jira with the
@@ -129,18 +129,18 @@ python.log). `tests/unit/test_claude_hooks.py` and `test_claude_skills.py` test 
   needs its `Case n` in `ErrorCode` and a row in the table (`test_error_codes.py` fails otherwise); a code is never reused or renumbered.
   The scripts use `J2D-SCR-nnn` (every `Fail`, `throw` and unknown-argument message of `scripts\*.ps1` carries one: a test pins it), `diagnose` lists
   its `Findings` as `J2D-SYS-02x` with the line `Codes to quote to the support`, `check-machine` prints `J2D-SYS-040` on a FAIL.
-  Every Excel test (marker `excel`, all modules) leaves `out\inter\logs\excel-test_<test>.log` (fixture `keep_excel_logs` of `tests/conftest.py`,
-  `testbench/keep_log.py`): result and time, its lines of each log of `out\inter\logs` (the VBA log, `vba-tests.log` of the VBA test runner), its
-  `python.log`. `clean` keeps `out\inter\logs`, so a build does not delete them. `run.ps1` writes `scripts\logs\run_<command>.log` (one per command:
-  the fake Jira of `start-mock` runs `run.ps1 mock-jira` in its own process) and sends the output of Python through PowerShell (`2>&1 | Show-Line`,
-  UTF-8 console meanwhile), or the transcript would hold no result of pytest.
-- **What the logs give to debug.** VBA (`modLog`): the version of the workbook on the `RUN` line (hidden name `J2D_Version`, written at build by
+- **Logs.** VBA (`modLog`): the version of the workbook on the `RUN` line (hidden name `J2D_Version`, written at build by
   `version.py`: commit and date, plus the version given by `release.ps1`), `PARAM` lines right after `RUN` (`LogParameters`: each Config row in clear
   but BaseUrl, Email, ApiToken, ProxyServer, ProxyBypass and Filter, which read `(set)`/`(empty)`; `SHOWN_PARAMETERS`, compared with
   `CONFIG_PARAMETERS` by `test_vba_log_guard.py`: a new parameter is masked until added there), the time at the end of each `END` line and of
   `RUN end`, a `RETRY` line before each new attempt of a call to Jira (`modHttp.RetryText`), the code on `RUN end stopped <code>`. Python: the same,
   every Config value but the token. Keep a new step in a `LogBegin`/`LogEnd` pair; the Excel scenarios check the shape of a run (`logged_run` in
-  `tests/steps/test_flow_excel.py`).
+  `tests/steps/test_flow_excel.py`). `diagnose` quotes the end of the VBA log without its `PARAM` lines (it goes into a support ticket).
+  Every Excel test (marker `excel`, all modules) leaves `out\inter\logs\excel-test_<test>.log` (fixture `keep_excel_logs` of `tests/conftest.py`,
+  `testbench/keep_log.py`): result and time, its lines of each log of `out\inter\logs` (the VBA log, `vba-tests.log` of the VBA test runner), its
+  `python.log`. `clean` keeps `out\inter\logs`, so a build does not delete them. `run.ps1` writes `scripts\logs\run_<command>.log` (one per command:
+  the fake Jira of `start-mock` runs `run.ps1 mock-jira` in its own process) and sends the output of Python through PowerShell (`2>&1 | Show-Line`,
+  UTF-8 console meanwhile), or the transcript would hold no result of pytest.
 - **Jira configuration (VBA).** `modJiraConfig` (button Read the Jira configuration, `BtnReadJiraConfiguration`) reads
   projects, issue types, statuses, workflows (`workflows/preview`) and fields into proposal sheets `Jira*`; it never writes
   the parameter sheets (calls and mapping: the header of `modJiraConfig.bas`). Besides the five first sheets it writes
@@ -175,7 +175,7 @@ python.log). `tests/unit/test_claude_hooks.py` and `test_claude_skills.py` test 
   Its request log stores header names in lower case (`proxy-authorization`).
 - **COM layer.** `excel/com.py` holds the pure helpers and `excel_session`; `testbench/` builds, compiles and runs the VBA
   tests; `testbench/children/` scripts run as separate processes by path. Files omitted from coverage because they need
-  COM: `flow/sheets.py`, `cli/check_machine.py`, `mockjira/__main__.py`, and the `build*`/`main` functions (see
+  COM: `flow/sheets.py`, `cli/check_machine.py`, `cli/diagnose.py`, `mockjira/__main__.py`, and the `build*`/`main` functions (see
   `pyproject.toml`).
 
 Domain decisions and the metric definitions are in `docs/` (7 md files, **never edit them**). The handoff file `claude-code-handoff.md` was deleted
@@ -325,6 +325,9 @@ Pending, asked of AL (2026-11-07), not started: a lighter JSON object. The extra
 nothing). Replacing it by a `Collection` with keys would save about 10 to 12 s, but it touches every reader of a parsed
 object (`.Exists`, `.Keys`, `Item`: `modJson`, `modJira`, `modJiraConfig`, `modExtract`, `modText`, the `T_` tests), so
 ask AL before starting. Measure first with the log and a scratch benchmark module (see the VBA speed traps).
+A manual run on 2026-11-11 (log with the time of each step) took 16.8 s for the same 1 244 issues: 13 search pages
+about 0.3 s each, 25 changelog chunks about 0.3 s each, ItemFlow formulas 1.9 s. Re-measure the share of `JsonParse`
+before starting (the 2026-11-07 figures above predate it).
 Also pending, offered to AL: when the macro loses its state (Esc then End during a long step), the Dashboard stays on its
 last status and Cancel does nothing; `AbortExtraction` and a slice that finds `mBusy` False could write a log line and
 "Stopped" in `A3`.
