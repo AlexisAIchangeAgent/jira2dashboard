@@ -119,10 +119,11 @@ Public Function LogHint() As String
     LogHint = " See the log: " & LogFile()
 End Function
 
-Public Sub LogOpen()
+Public Sub LogOpen(Optional ByVal enabled As Boolean = True)
     ' After an error, shows the log in Notepad when a person is at the keyboard (Excel started by the user, not by a test
     ' or a script). Best effort: never raises. gLogOpenFake lets the tests read the command instead of starting Notepad.
     Dim cmd As String
+    If Not enabled Then Cov "LOG18": Exit Sub                  ' Config OpenLogOnError = No
     cmd = NotepadCommand(LogFile())
     If gLogOpenFake Then Cov "LOG15": gLogOpenCommand = cmd: Exit Sub
     On Error Resume Next

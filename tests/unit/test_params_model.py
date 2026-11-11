@@ -342,3 +342,12 @@ def test_an_empty_example_is_refused(params_copy):
     edit(params_copy, "config.md", "| Filter |  | updated >= -90d |", "| Filter |  |  |")
     with pytest.raises(ParamsError, match="Config: give Filter an example"):
         model.load_all(params_copy)
+
+
+def test_open_log_on_error_defaults_to_yes_and_must_be_yes_or_no(params_copy):
+    config = {row[0]: row[1] for row in sheet(model.load_all(), "Config").rows}
+    assert config["OpenLogOnError"] == "Yes"
+    edit(params_copy, "config.md", "| OpenLogOnError | Yes |", "| OpenLogOnError | Maybe |")
+    with pytest.raises(ParamsError) as err:
+        model.load_all(params_copy)
+    assert "OpenLogOnError must be Yes or No" in str(err.value)

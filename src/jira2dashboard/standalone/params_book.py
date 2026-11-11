@@ -24,7 +24,7 @@ EPOCH = dt.datetime(1899, 12, 30)
 WHITE = " \t\r\n "                                # what the VBA TrimWhite removes around a pasted value
 YES = ("yes", "oui", "true", "vrai", "1")             # modParams.IsYes
 DEFAULTS = {"ProxyWindowsAuth": "Yes", "TimeoutSeconds": "60", "MaxRetries": "4", "FlowLoadMode": "A",
-            "LogLevel": "Steps"}
+            "LogLevel": "Steps", "OpenLogOnError": "Yes"}
 
 
 def is_yes(value) -> bool:

@@ -40,7 +40,7 @@ CONFIG_PARAMETERS = ("BaseUrl", "Email", "ApiToken", "Filter", "WorkTypeField", 
                      "ProxyWindowsAuth", "FlowLoadMode", "AsOf", "TimeoutSeconds", "MaxRetries", "ParentRequiredTypes",
                      "FeatureTypes", "SubTaskTypes", "PointsRequiredTypes", "StoryPointsField", "BusinessValueField",
                      "PIField", "TeamField", "SprintField", "TargetStartField", "TargetEndField", "BlocksLinkType",
-                     "FillRateThreshold", "LogLevel")
+                     "FillRateThreshold", "LogLevel", "OpenLogOnError")
 # Mandatory parameters typed in the workbook at the client: they stay empty in the repo. Every other mandatory
 # parameter needs a value in params/config.md, or the delivered workbook would refuse to extract.
 TYPED_AT_CLIENT = ("BaseUrl", "Email", "ApiToken", "AsOf")
@@ -210,6 +210,8 @@ def _check_config(sheet: ParamSheet, problems: list[str]) -> None:
         problems.append("Config: BaseUrl must not contain a user name or a token (user:token@host)")
     if values.get("LogLevel") not in ("Steps", "Errors"):
         problems.append(f"Config: LogLevel must be Steps or Errors, got {values.get('LogLevel')!r}")
+    if values.get("OpenLogOnError") not in ("Yes", "No"):
+        problems.append(f"Config: OpenLogOnError must be Yes or No, got {values.get('OpenLogOnError')!r}")
     if values.get("FlowLoadMode") not in ("A", "B"):
         problems.append(f"Config: FlowLoadMode must be A or B, got {values.get('FlowLoadMode')!r}")
     as_of = values.get("AsOf")

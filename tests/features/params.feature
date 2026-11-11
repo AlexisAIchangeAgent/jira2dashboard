@@ -25,7 +25,7 @@ Fonctionnalité: Paramètres écrits dans le classeur
   Scénario: Les paramètres de connexion, de proxy et de filtre sont dans la feuille Config
     Soit les fichiers de paramètres du dépôt
     Quand je les charge
-    Alors la feuille "Config" a 26 lignes
+    Alors la feuille "Config" a 27 lignes
 
   Scénario: La feuille Config dit quels paramètres sont obligatoires
     Soit les fichiers de paramètres du dépôt

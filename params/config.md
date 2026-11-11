@@ -42,3 +42,4 @@ empty here, and **`ApiToken` must stay empty** (a test refuses a token in this f
 | BlocksLinkType | Blocks | Blocks | True | Name of the issue link type that means blocks (data checks DC22, DC23) |
 | FillRateThreshold | 90 | 90 | True | Minimum percentage of filled values per field, team and issue type (data check DC25) |
 | LogLevel | Steps | Steps | False | Detail of the local log of the runs (%LOCALAPPDATA%\jira2dashboard\logs): Steps = each step (BEGIN/END), Errors = only the start, the end and the errors |
+| OpenLogOnError | Yes | Yes | False | After an error of a button, open the local log in Notepad (Yes or No). The status of the Dashboard names the log file in both cases |

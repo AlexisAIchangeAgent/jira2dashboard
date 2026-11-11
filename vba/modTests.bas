@@ -474,6 +474,8 @@ Public Sub T_LogHintAndOpen()
     Check "log", "the hint names the log file", "path", " See the log: C:/x y/run.log", LogHint()
     LogOpen
     Check "log", "the log opens in Notepad, the path quoted", "command", "notepad.exe ""C:/x y/run.log""", gLogOpenCommand
+    gLogOpenCommand = "": LogOpen False
+    Check "log", "OpenLogOnError = No: Notepad is not asked", "command", "", gLogOpenCommand
     gLogOpenFake = False
     LogOpen                                          ' no person at the keyboard (a test Excel): nothing starts
     Check "log", "an Excel started by a script does not start Notepad", "UserControl", False, Application.UserControl

@@ -181,6 +181,14 @@ Private Function LogLevelSetting() As String
     Err.Clear
 End Function
 
+Private Function OpenLogSetting() As Boolean
+    ' Config OpenLogOnError (Yes or No); Yes when the sheet or the row is missing.
+    On Error Resume Next
+    OpenLogSetting = True
+    OpenLogSetting = IsYes(ConfigValue(ThisWorkbook.Worksheets("Config"), "OpenLogOnError", "Yes"))
+    Err.Clear
+End Function
+
 Private Sub ScheduleSlice()
     mNextSlice = Now
     mNextProc = SliceName()
@@ -196,7 +204,7 @@ End Sub
 Private Sub EndRunStopped(ByVal num As Long, ByVal desc As String)
     ' An error ends the run: the status says what and where the log is, and the log opens in Notepad (modLog.LogOpen).
     EndRun "Stopped: " & num & " - " & desc & LogHint(), 0
-    LogOpen
+    LogOpen OpenLogSetting()
 End Sub
 
 Private Sub ShowProgress(ByVal fraction As Double, ByVal text As String)
