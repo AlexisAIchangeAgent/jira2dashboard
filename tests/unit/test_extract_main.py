@@ -60,6 +60,7 @@ def test_the_log_gives_the_inputs_and_the_time_of_each_step_and_of_the_run(tmp_p
     sheets, the time at the end of each END line and of the line RUN end."""
     code, log = run(tmp_path, params(tmp_path, jira.base_url))
     assert code == 0
+    assert log.splitlines()[0].endswith(" | jira2dashboard unknown")              # a workbook without J2D_Version
     assert "PARAM ProxyServer = DIRECT\n" in log and "PARAM MaxRetries = 1\n" in log and "PARAM Filter = (empty)\n" in log
     assert "PARAM ApiToken = (set)\n" in log and MOCK_TOKEN not in log
     assert "PARAM sheet Projects = " in log and "PARAM sheet Iterations = " in log

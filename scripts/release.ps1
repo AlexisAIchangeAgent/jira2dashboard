@@ -82,7 +82,7 @@ if ($Publish) {
 
 # 2. The workbook, built from the same commit. The build empties out\inter first; out\release and the packages of
 #    older releases (out\release\<version>) stay.
-& (Join-Path $PSScriptRoot "run.ps1") build
+& (Join-Path $PSScriptRoot "run.ps1") build --version $Version          # the version goes into the workbook (RUN line of the log)
 if ($LASTEXITCODE -ne 0) { Fail "J2D-SCR-016" "the build of the workbook failed (see above)." }
 $name = "jira2dashboard-$Version"
 $dist = Join-Path $root "out\release\$Version"

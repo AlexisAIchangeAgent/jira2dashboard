@@ -298,8 +298,9 @@ A figure that cannot be computed shows "not computable", never 0. Each data chec
 
 | Name | Path | Purpose |
 |---|---|---|
-| VBA log | `logs\jira2dashboard.log` next to the workbook (`%LOCALAPPDATA%\jira2dashboard\logs` if that folder cannot be written) | `RUN`; `PARAM` (the inputs: each Config row, values of the client as `(set)`/`(empty)`, rows per parameter sheet); `BEGIN`/`END` per step, `END ... \| 0.235 s`; `ERROR <code>`; `RUN end ok \| 12.345 s` or `RUN end stopped <code> \| ...` |
-| Python log | `logs\python.log` next to the workbook | `PARAM` (every Config value, never the token), steps with their time, failed Jira calls, tracebacks |
+| VBA log | `logs\jira2dashboard.log` next to the workbook (`%LOCALAPPDATA%\jira2dashboard\logs` if that folder cannot be written) | `RUN` (with the version of the workbook); `PARAM` (the inputs: each Config row, the connection, the proxy and the filter as `(set)`/`(empty)`, rows per parameter sheet); `BEGIN`/`END` per step, `END ... \| 0.235 s`; `RETRY` (a call to Jira tried again: status, attempt, wait); `ERROR <code>`; `RUN end ok \| 12.345 s` or `RUN end stopped <code> \| ...` |
+| Python log | `logs\python.log` next to the workbook | `RUN` (with the version of the workbook read), `PARAM` (every Config value, never the token), steps with their time, failed Jira calls, tracebacks |
+| Workbook version | Hidden name `J2D_Version` of the workbook (`src/jira2dashboard/version.py`) | `v1.0.0 commit 1a2b3c4, built 2026-11-11 19:40` (`release.ps1` gives the version; `build` alone writes the commit and the date) |
 | Script logs | `scripts\logs\<script>.log`; `scripts\logs\run_<command>.log` for `run.ps1` (last run of each) | Transcript of the script, with the output of Python (pytest results, tracebacks) |
 | Status cell | `Dashboard!A3` | Current step, or `Stopped J2D-<AREA>-<NNN> - message` |
 | Support code | `J2D-<AREA>-<NNN>`: first word of every `ERROR` line (VBA and Python logs), column `Error code` of the sheet `Steps`, status of the Dashboard | What the client reads to the support; `src/jira2dashboard/error_codes.py` (and the sheet `ErrorCodes`) gives cause, check, what to ask. Never renumbered; `python -m jira2dashboard.error_codes` prints the table |
@@ -312,8 +313,8 @@ A figure that cannot be computed shows "not computable", never 0. Each data chec
 
 Both logs rotate at 1 MB and stay local. They never hold the token; the Python log holds the JQL, Jira's messages
 and every other Config value in clear (`PARAM` lines: e-mail, address of Jira, proxy): **reread a log before sharing
-it**. The VBA log shows only the settings of the tool in clear. `diagnose` quotes the end of the VBA log without its
-`PARAM` lines.
+it**. The VBA log shows every Config value but the connection, the proxy and the filter. `diagnose` quotes the end
+of the VBA log without its `PARAM` lines.
 
 | Error | Cause |
 |---|---|

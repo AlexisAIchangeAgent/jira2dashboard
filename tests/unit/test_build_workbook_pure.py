@@ -34,3 +34,8 @@ def test_the_workbook_to_deliver_goes_to_out_release():
 
 def test_a_variant_named_by_out_goes_to_out_inter():
     assert bw.target_for("try.xlsm") == INTER_DIR / "try.xlsm"
+
+
+def test_the_version_of_a_release_is_given_to_the_build():
+    assert bw.parse(["--version", "v1.0.0"]).version == "v1.0.0"
+    assert bw.parse([]).version is None

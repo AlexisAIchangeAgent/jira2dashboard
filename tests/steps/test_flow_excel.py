@@ -336,9 +336,12 @@ def logged_run(world, how: str) -> tuple[list[list[str]], str]:
              if " RUN previous run did not end " not in line]                           # an earlier scenario crashed
     kinds = [kind for kind, *_ in lines]
     assert lines[0][0] == "RUN" and lines[0][1].startswith(how + " | Excel "), lines[0]
+    assert re.search(r" \| jira2dashboard commit [0-9a-f]{7,}( with local changes)?, built \d{4}-\d\d-\d\d \d\d:\d\d$",
+                     lines[0][1]), lines[0]                                              # the version written at build
     params = [rest[0] for kind, *rest in lines if kind == "PARAM"]
     assert params and kinds[1:1 + len(params)] == ["PARAM"] * len(params), kinds       # the inputs, right after RUN
     assert {"ApiToken = (set)", "Email = (set)", "BaseUrl = (set)"} <= set(params), params
+    assert any(p.startswith("AsOf = 2026-") for p in params), params                   # AsOf and the field ids in clear
     assert any(p in params for p in ("FlowLoadMode = A", "FlowLoadMode = B")), params   # a setting of the tool, in clear
     assert any(p.startswith("sheet Projects = ") and p.endswith(" rows") for p in params), params
     assert lines[-1][0] == "RUN" and TIMED.search(" " + lines[-1][1]) and lines[-1][1].startswith("end ok | "), lines[-1]

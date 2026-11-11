@@ -128,10 +128,13 @@ VBA guard tests after each edit of `vba/*.bas` (`.claude/hooks/bas_guard.py`); s
   `python.log`. `clean` keeps `out\inter\logs`, so a build does not delete them. `run.ps1` writes `scripts\logs\run_<command>.log` (one per command:
   the fake Jira of `start-mock` runs `run.ps1 mock-jira` in its own process) and sends the output of Python through PowerShell (`2>&1 | Show-Line`,
   UTF-8 console meanwhile), or the transcript would hold no result of pytest.
-- **What the logs give to debug.** VBA (`modLog`): `PARAM` lines right after `RUN` (`LogParameters`: each Config row; a value in clear only for the
-  settings with a value in `params/config.md`, `SHOWN_PARAMETERS`, else `(set)`/`(empty)`; `test_vba_log_guard.py` compares the two), the time at the
-  end of each `END` line and of `RUN end`, the code on `RUN end stopped <code>`. Python: the same, every Config value but the token. Keep a new step
-  in a `LogBegin`/`LogEnd` pair; the Excel scenarios check the shape of a run (`logged_run` in `tests/steps/test_flow_excel.py`).
+- **What the logs give to debug.** VBA (`modLog`): the version of the workbook on the `RUN` line (hidden name `J2D_Version`, written at build by
+  `version.py`: commit and date, plus the version given by `release.ps1`), `PARAM` lines right after `RUN` (`LogParameters`: each Config row in clear
+  but BaseUrl, Email, ApiToken, ProxyServer, ProxyBypass and Filter, which read `(set)`/`(empty)`; `SHOWN_PARAMETERS`, compared with
+  `CONFIG_PARAMETERS` by `test_vba_log_guard.py`: a new parameter is masked until added there), the time at the end of each `END` line and of
+  `RUN end`, a `RETRY` line before each new attempt of a call to Jira (`modHttp.RetryText`), the code on `RUN end stopped <code>`. Python: the same,
+  every Config value but the token. Keep a new step in a `LogBegin`/`LogEnd` pair; the Excel scenarios check the shape of a run (`logged_run` in
+  `tests/steps/test_flow_excel.py`).
 - **Jira configuration (VBA).** `modJiraConfig` (button Read the Jira configuration, `BtnReadJiraConfiguration`) reads
   projects, issue types, statuses, workflows (`workflows/preview`) and fields into proposal sheets `Jira*`; it never writes
   the parameter sheets (calls and mapping: the header of `modJiraConfig.bas`). Besides the five first sheets it writes

@@ -5,10 +5,11 @@ it), the parameter sheets (Config, Projects, Iterations, Workflows, Transitions,
 sheets (FlowFormulas, ChartSpec). The client values stay empty: they are typed in the sheet Config after delivery.
 Exit code 0 when the VBA compiles, 1 otherwise.
 """
+import datetime as dt
 import sys
 from pathlib import Path
 
-from jira2dashboard import clean
+from jira2dashboard import clean, version
 from jira2dashboard.cli.args import bare_xlsm, parser
 from jira2dashboard.excel import com as R
 from jira2dashboard.flow.sheets import write_blueprint, write_manual
@@ -39,8 +40,11 @@ THISWORKBOOK_CODE = "\r\n".join((
     ""))
 
 
-def build_delivery(target: Path = TARGET) -> Path:
+def build_delivery(target: Path = TARGET, release: str | None = None) -> Path:
+    """The workbook to deliver at `target`; its hidden name J2D_Version says which commit built it (`release`: the
+    version given by scripts\\release.ps1), read back on the RUN line of the logs (version.py)."""
     sources = rvt.module_sources(MODULES)
+    stamp = version.stamp(release, *version.commit(), dt.datetime.now())
     with R.excel_session() as app:
         wb = R.new_workbook(app)
         R.assert_vba_access(wb)                                       # fail now, not deep inside the module import
@@ -54,6 +58,7 @@ def build_delivery(target: Path = TARGET) -> Path:
         for name, code in sources.items():
             R.add_or_replace_module(wb, name, code)
         R.set_module_code(R.workbook_component(wb), THISWORKBOOK_CODE)
+        wb.Names.Add(version.NAME, version.formula(stamp), False)      # hidden: Name, RefersTo, Visible
         dash.Activate()
         R.save_as_xlsm(wb, target, overwrite=True)
         wb.Close(False)
@@ -73,13 +78,16 @@ def parse(argv: list[str] | None = None):
     p.add_argument("--out", type=bare_xlsm, default=DELIVERY_NAME, metavar="NAME.xlsm",
                    help=f"name of the workbook: {DELIVERY_NAME} (default) goes to out\\release, any other name to "
                         "out\\inter")
+    p.add_argument("--version", metavar="vX.Y.Z", default=None,
+                   help="the version of a release, written into the workbook with the commit (scripts\\release.ps1 gives it)")
     return p.parse_args(argv)
 
 
 def main(argv: list[str] | None = None) -> int:
-    target = target_for(parse(argv).out)
+    args = parse(argv)
+    target = target_for(args.out)
     clean.main()                                                       # no intermediates left from older runs
-    build_delivery(target)
+    build_delivery(target, args.version)
     print(f"built {target}")
     result = rvt.compile_ok(target)
     print("compile:", result)

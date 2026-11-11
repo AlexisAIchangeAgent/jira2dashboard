@@ -50,6 +50,21 @@ def column_index(letters: str) -> int:
     return index
 
 
+def defined_name(path: Path, name: str) -> str | None:
+    """The text of a workbook name that holds a text constant (="..."), None when it is missing or the file is not read."""
+    try:
+        with zipfile.ZipFile(path) as package:
+            workbook = _xml(package, "xl/workbook.xml")
+    except (OSError, KeyError, zipfile.BadZipFile, NotAWorkbook, ElementTree.ParseError):
+        return None
+    for names in _children(workbook, "definedNames"):
+        for item in _children(names, "definedName"):
+            text = (item.text or "").strip()
+            if item.get("name") == name and len(text) >= 2 and text[0] == text[-1] == '"':
+                return text[1:-1].replace('""', '"')
+    return None
+
+
 def _sheet_paths(package: zipfile.ZipFile) -> dict[str, str]:
     """{sheet name: part path} from xl/workbook.xml and its relationships."""
     workbook = _xml(package, "xl/workbook.xml")

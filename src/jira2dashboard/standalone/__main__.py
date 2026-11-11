@@ -36,7 +36,8 @@ from jira2dashboard.standalone.http_winhttp import JiraClient, WinHttp, took
 from jira2dashboard.standalone.mapping import FieldIds, extracted, interval_rows
 from jira2dashboard.standalone.params_book import read_params, run_settings
 from jira2dashboard.standalone.proxy import choose_proxy, detect_proxy
-from jira2dashboard.standalone.xlsx_read import NotAWorkbook
+from jira2dashboard import version
+from jira2dashboard.standalone.xlsx_read import NotAWorkbook, defined_name
 from jira2dashboard.standalone.xlsx_write import Sheet, XlsxLocked, write_xlsx
 
 LOG_NAME = "python.log"
@@ -253,7 +254,8 @@ def main(argv: list[str] | None = None, *, sleep=time.sleep, detect=detect_proxy
         formatter, collected, handlers = _handlers(Path(args.log), args.verbose)
     started = time.monotonic()
     try:
-        log.info("RUN extract | Python %s | %s", sys.version.split()[0], Path(args.workbook).name)
+        log.info("RUN extract | Python %s | %s | jira2dashboard %s", sys.version.split()[0], Path(args.workbook).name,
+                 defined_name(Path(args.workbook), version.NAME) or version.UNKNOWN)
         out = run(args, formatter, collected, sleep, detect, transport)
         log.info("RUN end ok: %s%s", out, took(started))
         return 0

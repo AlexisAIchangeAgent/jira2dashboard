@@ -38,6 +38,19 @@ def test_values_come_back_as_they_were_written(tmp_path):
     assert second[7] == "ab" and len(second[8]) == W.MAX_TEXT          # no control character, Excel's length limit
 
 
+def test_a_workbook_name_that_holds_a_text_is_read(tmp_path):
+    path = tmp_path / "book.xlsm"
+    with zipfile.ZipFile(path, "w") as package:
+        package.writestr("xl/workbook.xml", (
+            '<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><definedNames>'
+            '<definedName name="Other">Sheet1!$A$1</definedName>'
+            '<definedName name="J2D_Version" hidden="1">"v1.0.0 commit 1a2b3c4, built ""now"""</definedName>'
+            '</definedNames></workbook>'))
+    assert R.defined_name(path, "J2D_Version") == 'v1.0.0 commit 1a2b3c4, built "now"'
+    assert R.defined_name(path, "Other") is None and R.defined_name(path, "Missing") is None
+    assert R.defined_name(tmp_path / "none.xlsm", "J2D_Version") is None
+
+
 def test_only_the_sheets_asked_for_are_read(tmp_path):
     path = W.write_xlsx(tmp_path / "out.xlsx", [W.Sheet("One", ("A",), [(1,)]), W.Sheet("Two", ("B",), [(2,)])])
     assert R.read_sheets(path, {"Two", "Missing"}) == {"Two": [["B"], [2]]}

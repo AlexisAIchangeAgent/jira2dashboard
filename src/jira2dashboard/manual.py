@@ -100,8 +100,9 @@ def manual(mandatory: tuple[str, ...]) -> list[tuple[str, str]]:
         ]),
         ("Local log", [
             r"logs\jira2dashboard.log, in the folder of the workbook: one line per step, with its time in seconds, and "
-            "the parameters of the run (PARAM lines: the values you typed for the connection, the proxy, the filter and the "
-            "fields read only (set) or (empty)). The last line of a stopped run gives its error code. It holds no token, e-mail, "
+            "the parameters of the run (PARAM lines: the values you typed for the connection, the proxy and the filter read "
+            "only (set) or (empty)), and a RETRY line when Jira asked to wait. The first line names the version of the "
+            "workbook, the last line of a stopped run gives its error code. It holds no token, e-mail, "
             "address or Jira answer. LogLevel in Config: Steps (each step) or Errors. The sheet Steps lists the steps of the last run with their status and time. After an error the Dashboard names the log file and "
             "Notepad opens it, unless OpenLogOnError is No.",
         ]),

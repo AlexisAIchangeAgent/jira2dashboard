@@ -36,7 +36,8 @@ Public Function HttpRequest(ByVal cfg As Object, ByVal method As String, ByVal u
                             Optional ByVal body As String = "") As Object
     ' Returns a Dictionary: Status (0 = network error), Text, RetryAfter, Error, Attempts.
     Cov "HTP02"
-    Dim attempt As Long, resp As Object, netFailures As Long
+    Dim attempt As Long, resp As Object, netFailures As Long, delayMs As Double, status As Long, problem As String, attempts As Long
+    attempts = cfg("MaxRetries") + 1
     For attempt = 0 To cfg("MaxRetries")
         Set resp = HttpSendOnce(cfg, method, url, body)
         resp("Attempts") = attempt + 1
@@ -50,10 +51,28 @@ Public Function HttpRequest(ByVal cfg As Object, ByVal method As String, ByVal u
         End If
         If attempt = cfg("MaxRetries") Then Cov "HTP03": Exit For
         Cov "HTP04"
-        WaitMs RetryDelayMs(cfg, attempt, resp("RetryAfter"))
+        delayMs = RetryDelayMs(cfg, attempt, resp("RetryAfter"))
+        status = resp("Status"): problem = resp("Error")
+        LogLine "RETRY", RetryText(status, problem, attempt + 1, attempts, delayMs)   ' why a step is slow: status, attempt and wait only
+        WaitMs delayMs
         If gHttpCancel Then Cov "HTP11": Err.Raise vbObjectError + 610, "HttpRequest", "Cancelled by the user."     ' before the next attempt
     Next attempt
     Set HttpRequest = resp
+End Function
+
+Public Function RetryText(ByVal status As Long, ByVal problem As String, ByVal attempt As Long, ByVal attempts As Long, _
+                          ByVal delayMs As Double) As String
+    ' "HTTP 429 at attempt 1 of 5: next attempt in 2.345 s"; with no answer at all, the support code of the WinHTTP error
+    ' (J2D-NET-12002) instead of its text; J2D-NET-001 when no error number came with it (as modLog.ErrorCode for HTTP 0).
+    Dim why As String, number As Long
+    If status = 0 Then
+        Cov "HTP12"
+        number = CLng(Val(problem))
+        If number = 0 Then why = "no answer (J2D-NET-001)" Else why = "no answer (" & ErrorCode(number) & ")"
+    Else
+        why = "HTTP " & status
+    End If
+    RetryText = why & " at attempt " & attempt & " of " & attempts & ": next attempt in " & LogDuration(delayMs / 1000)
 End Function
 
 Private Function IsRetryable(ByVal resp As Object) As Boolean

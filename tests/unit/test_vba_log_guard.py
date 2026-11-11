@@ -2,7 +2,7 @@
 answer of Jira: the calls to the logger pass step names, counts and saved error numbers only."""
 import re
 
-from jira2dashboard.params.model import load_all
+from jira2dashboard.params.model import CONFIG_PARAMETERS
 from jira2dashboard.testbench import run_vba_tests as rvt
 
 LOG_CALL = re.compile(r"\bLog(?:Line|Begin|End|Error|RunStart|RunEnd)\b(.*)$", re.MULTILINE)
@@ -34,16 +34,13 @@ def shown_parameters(source: str) -> set[str]:
     return {name for name in literal.split(",") if name}
 
 
-def repo_settings() -> set[str]:
-    """The parameters of Config with a value in params/config.md: the settings of the tool, the same for every client."""
-    config = next(sheet for sheet in load_all() if sheet.name == "Config")
-    value = config.header.index("Value")
-    return {row[0] for row in config.rows if row[value] not in (None, "")}
+MASKED = {"BaseUrl", "Email", "ApiToken", "ProxyServer", "ProxyBypass", "Filter"}     # the connection, the proxy, the JQL
 
 
-def test_the_log_shows_in_clear_only_the_settings_that_have_a_value_in_the_repository():
-    """modLog.LogParameters writes the inputs of a run (PARAM lines): the value only for the settings of the tool; every
-    value typed at the client (connection, proxy, filter, field ids, AsOf) reads (set) or (empty) (modLog.ParameterShown)."""
+def test_the_log_shows_every_parameter_in_clear_but_the_connection_the_proxy_and_the_filter():
+    """modLog.LogParameters writes the inputs of a run (PARAM lines): the value of each parameter of Config (AsOf and the
+    field ids too: AL's choice, 2026-11-11), but BaseUrl, Email, ApiToken, ProxyServer, ProxyBypass and Filter read (set) or
+    (empty) (modLog.ParameterShown). A new parameter is masked until it is added to SHOWN_PARAMETERS."""
     shown = shown_parameters(rvt.module_sources(rvt.ORDER)["modLog"])
-    assert shown == repo_settings()
-    assert not shown & {"BaseUrl", "Email", "ApiToken", "Filter", "ProxyServer", "ProxyBypass", "AsOf", "WorkTypeField"}
+    assert shown == set(CONFIG_PARAMETERS) - MASKED
+    assert not shown & MASKED

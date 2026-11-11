@@ -504,6 +504,7 @@ Describe "release.ps1" {
         Test-Path (Join-Path $dist "jira2dashboard-v1.0.0.zip") | Should Be $true
         $notes = Get-Content (Join-Path $dist "notes.md") -Raw
         $notes | Should Match "jira2dashboard v1.0.0 \(commit abc123\)"
+        (Calls) -contains "python -m jira2dashboard.build_workbook --version v1.0.0" | Should Be $true     # the version goes into the workbook
         $notes | Should Match "SHA256:\s+- jira2dashboard.xlsm: [0-9a-f]{64}"
         $notes | Should Match "MD5 .*\s+- jira2dashboard.xlsm: [0-9a-f]{32} \(\d+ bytes\)"
         @(Calls | Where-Object { $_ -like "gh *" }).Count | Should Be 0

@@ -80,6 +80,12 @@ Private Function RunTests(ByVal names As Variant) As String
     Dim nm As Variant, ok As Long, ko As Long, r As Variant, standalone As Boolean, started As Double, runnerLog As String
     Set mRows = New Collection
     runnerLog = LogFolderFrom(ThisWorkbook.Path, Environ$("LOCALAPPDATA"), Environ$("TEMP")) & "\vba-tests.log"
+    If mDone = 0 Then                                               ' a new run of the tests: the log holds the last run only
+        On Error Resume Next
+        Kill runnerLog
+        Err.Clear
+        On Error GoTo 0
+    End If
     gLogPath = runnerLog
     LogLine "TEST", "run of " & CountOfNames(names) & " tests in " & ThisWorkbook.Name
     Randomize 1
@@ -788,6 +794,12 @@ Public Sub T_LogInputsAndTimes()
     Check "logparam", "nor the address of Jira", "BaseUrl", "(set)", ParameterShown("BaseUrl", "https://x.atlassian.net")
     Check "logparam", "an empty value says so", "Email", "(empty)", ParameterShown("Email", "  ")
     Check "logparam", "a parameter not known reads as a value of the client", "NewOne", "(set)", ParameterShown("NewOne", "v")
+    Check "logparam", "AsOf is shown", "AsOf", "2026-11-03 18:00", ParameterShown("AsOf", "2026-11-03 18:00")
+    Check "logparam", "a field id is shown", "StoryPointsField", "customfield_10016", ParameterShown("StoryPointsField", "customfield_10016")
+    Check "logparam", "nor the filter", "Filter", "(set)", ParameterShown("Filter", "updated >= -90d")
+    Check "logparam", "a date typed in a cell reads in ISO", "AsOf date", "2026-11-03 18:00:00", _
+          ParameterText(DateSerial(2026, 11, 3) + TimeSerial(18, 0, 0))
+    Check "logparam", "a number reads as typed", "60", "60", ParameterText(60)
     LogRunStart "inputs and times"
     LogParameters ThisWorkbook
     LogBegin "outer"
@@ -804,6 +816,7 @@ Public Sub T_LogInputsAndTimes()
     Check "logtime", "nested steps each get their own time", "outer", True, InStr(text, " END outer | ") > 0
     Check "logtime", "an END without a BEGIN has no time", "stray", True, InStr(text, " END stray" & vbCrLf) > 0
     Check "logtime", "the line RUN end gives the time of the run", "ok", True, InStr(text, " RUN end ok | ") > 0 And InStr(text, " s" & vbCrLf) > 0
+    Check "logversion", "the RUN line names the version of the workbook", "RUN", True, InStr(text, " | jira2dashboard " & WorkbookVersion(ThisWorkbook) & vbCrLf) > 0
     LogRunStart "stopped run"
     LogError "Step", vbObjectError + 608, "Fill these values of the Config sheet first"
     LogRunEnd "stopped"
@@ -813,6 +826,9 @@ Public Sub T_LogInputsAndTimes()
     Check "logtime", "an end without a run start has no time", "twice", True, InStr(text, " RUN end stopped J2D-CFG-002" & vbCrLf) > 0
     Set other = Application.Workbooks.Add                           ' a workbook without any parameter sheet
     LogParameters other
+    Check "logversion", "a workbook without the name J2D_Version", "none", "unknown", WorkbookVersion(other)
+    other.Names.Add "J2D_Version", "=""v1.0.0 commit 1a2b3c4, built 2026-11-11 19:40""", False
+    Check "logversion", "the version written at build", "J2D_Version", "v1.0.0 commit 1a2b3c4, built 2026-11-11 19:40", WorkbookVersion(other)
     other.Close False
     text = FileText(file)
     Check "logparam", "a workbook without Config says so", "no Config", True, InStr(text, " PARAM no sheet Config" & vbCrLf) > 0
@@ -1497,6 +1513,14 @@ Public Sub T_Retry429()
     Set resp = HttpRequest(cfg, "GET", "https://x/a")
     Check "http", "retried after 429", "429 then 200", 200, resp("Status")
     Check "http", "attempts", "429 then 200", 2, resp("Attempts")
+    Check "http", "the log says why a call waits", "429", True, InStr(FileText(gLogPath), " RETRY HTTP 429 at attempt 1 of ") > 0
+    Check "http", "a RETRY line reads status, attempt and wait", "429", "HTTP 429 at attempt 1 of 5: next attempt in 2.345 s", _
+          RetryText(429, "", 1, 5, 2345)
+    Check "http", "with no answer, the support code of the WinHTTP error", "12002", _
+          "no answer (J2D-NET-12002) at attempt 2 of 5: next attempt in 1.000 s", _
+          RetryText(0, "-2147012894 The operation timed out", 2, 5, 1000)
+    Check "http", "with no answer and no error number, the generic code", "no number", _
+          "no answer (J2D-NET-001) at attempt 1 of 3: next attempt in 0.010 s", RetryText(0, "", 1, 3, 10)
 End Sub
 
 Public Sub T_HttpNetworkAndCancel()

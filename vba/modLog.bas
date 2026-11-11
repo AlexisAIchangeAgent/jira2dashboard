@@ -34,11 +34,12 @@ Private mLastCode As String                         ' the support code of the la
 Private mBegun As Collection                        ' start times (Timer) of the steps begun and not ended, for the END lines
 Private mRunStarted As Double                       ' Timer at the start of the run
 Private mRunOn As Boolean                           ' a run started and did not end yet: its RUN end line gets its time
-' The parameters of Config whose value the log shows: the settings of the tool, the ones with a value in the repository
-' (params/config.md). Every other one (connection, proxy, filter, field ids, AsOf: values of the client) reads (set) or
-' (empty). tests/unit/test_vba_log_guard.py compares this list with params/config.md.
-Private Const SHOWN_PARAMETERS As String = ",ProxyWindowsAuth,FlowLoadMode,TimeoutSeconds,MaxRetries,ParentRequiredTypes," & _
-    "FeatureTypes,SubTaskTypes,PointsRequiredTypes,BlocksLinkType,FillRateThreshold,LogLevel,OpenLogOnError,"
+' The parameters of Config whose value the log shows: all but the connection (BaseUrl, Email, ApiToken), the proxy
+' (ProxyServer, ProxyBypass) and the Filter (JQL), which read (set) or (empty); a parameter not in the list reads so too.
+' tests/unit/test_vba_log_guard.py compares this list with params.model.CONFIG_PARAMETERS.
+Private Const SHOWN_PARAMETERS As String = ",WorkTypeField,ProxyWindowsAuth,FlowLoadMode,AsOf,TimeoutSeconds,MaxRetries," & _
+    "ParentRequiredTypes,FeatureTypes,SubTaskTypes,PointsRequiredTypes,StoryPointsField,BusinessValueField,PIField," & _
+    "TeamField,SprintField,TargetStartField,TargetEndField,BlocksLinkType,FillRateThreshold,LogLevel,OpenLogOnError,"
 Private Const PARAMETER_SHEETS As String = "Projects,Workflows,Transitions,FieldMapping,Iterations,PIs"
 
 Public Function LogFolderFrom(ByVal workbookPath As String, ByVal localAppData As String, ByVal temp As String) As String
@@ -135,7 +136,7 @@ Public Sub LogParameters(ByVal wb As Object)
     Else
         Set ws = wb.Worksheets("Config")
         For Each row In ReadTable(ws)
-            LogLine "PARAM", CStr(row("Parameter")) & " = " & ParameterShown(CStr(row("Parameter")), CStr(row("Value") & ""))
+            LogLine "PARAM", CStr(row("Parameter")) & " = " & ParameterShown(CStr(row("Parameter")), ParameterText(row("Value")))
         Next row
     End If
     For Each sheetName In Split(PARAMETER_SHEETS, ",")
@@ -149,6 +150,29 @@ Public Sub LogParameters(ByVal wb As Object)
     Next sheetName
     Err.Clear
 End Sub
+
+Public Function ParameterText(ByVal value As Variant) As String
+    ' A cell of Config as text; a date (AsOf typed as a date) in ISO, whatever the language of Windows.
+    If VarType(value) = vbDate Then Cov "LOG38": ParameterText = Format$(value, "yyyy-mm-dd hh:nn:ss"): Exit Function
+    ParameterText = CStr(value & "")
+End Function
+
+Public Function WorkbookVersion(ByVal wb As Object) As String
+    ' The version written at build in the hidden name J2D_Version (src/jira2dashboard/version.py): "v1.0.0 commit 1a2b3c4,
+    ' built 2026-11-11 19:40"; "unknown" when the workbook has no such name. Never raises.
+    Dim refersTo As String
+    On Error Resume Next
+    refersTo = wb.Names("J2D_Version").RefersTo
+    Err.Clear
+    On Error GoTo 0
+    If Len(refersTo) < 3 Or Left$(refersTo, 2) <> "=""" Or Right$(refersTo, 1) <> """" Then
+        Cov "LOG39"
+        WorkbookVersion = "unknown"
+        Exit Function
+    End If
+    Cov "LOG40"
+    WorkbookVersion = Replace(Mid$(refersTo, 3, Len(refersTo) - 3), """""", """")
+End Function
 
 Public Function ParameterShown(ByVal name As String, ByVal value As String) As String
     ' What the log shows of a value of Config: the value for a setting of the tool (SHOWN_PARAMETERS), else (set) or (empty).
@@ -182,7 +206,8 @@ Public Sub LogRunStart(ByVal how As String, Optional ByVal level As String = "St
     StepsReset
     RotateLog
     mErrorsOnly = (StrComp(level, "Errors", vbTextCompare) = 0)
-    LogLine "RUN", how & " | Excel " & Application.Version & " build " & Application.Build & " " & bits & " | " & ThisWorkbook.Name
+    LogLine "RUN", how & " | Excel " & Application.Version & " build " & Application.Build & " " & bits & " | " & ThisWorkbook.Name & _
+                   " | jira2dashboard " & WorkbookVersion(ThisWorkbook)
     previous = GetSetting("jira2dashboard", FlagSection(), "RunInProgress", "")
     If Len(previous) > 0 Then
         Cov "LOG12"
