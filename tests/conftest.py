@@ -11,10 +11,40 @@ import pytest
 from jira2dashboard.excel import com
 from jira2dashboard.mockjira.dataset import Dataset, issue
 from jira2dashboard.paths import INTER_DIR
+from jira2dashboard.testbench import keep_log
 from jira2dashboard.testbench import run_vba_tests as rvt
 
 AS_OF = dt.datetime(2026, 11, 3, 18, 0)
 SHARED_WORKBOOK = INTER_DIR / "workbook_test.xlsm"
+TEST_LOGS = INTER_DIR / "logs"                  # the logs of the test workbooks (all in out\inter), kept by `clean`
+REPORTS = pytest.StashKey[dict]()
+
+
+@pytest.hookimpl(wrapper=True)
+def pytest_runtest_makereport(item, call):
+    """Keeps the report of each phase on the test: keep_excel_logs writes its result in the header of the kept log."""
+    report = yield
+    item.stash.setdefault(REPORTS, {})[report.when] = report
+    return report
+
+
+@pytest.fixture(autouse=True)
+def keep_excel_logs(request):
+    """Each Excel test (marker excel, every module) leaves its logs in out\\inter\\logs\\excel-test_<test>.log: its
+    result and time, the lines it added to each log of that folder (the VBA log, vba-tests.log), and the logs of its
+    temporary folder (python.log). Read them after a run: build and vba-tests keep that folder (testbench/keep_log.py)."""
+    if request.node.get_closest_marker("excel") is None:
+        yield
+        return
+    temporary = request.getfixturevalue("tmp_path")
+    marks = keep_log.mark(TEST_LOGS)
+    yield
+    reports = request.node.stash.get(REPORTS, {})
+    report = reports.get("call") or reports.get("setup")
+    result = report.outcome if report else "not run"
+    took = f"{report.duration:.3f} s" if report else "-"
+    header = f"# {request.node.nodeid} | {result} | {took} | {dt.datetime.now():%Y-%m-%d %H:%M:%S}"
+    keep_log.keep(TEST_LOGS, marks, request.node.name, header, sorted(temporary.rglob("*.log")))
 
 
 @pytest.fixture(scope="session")

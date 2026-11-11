@@ -1,5 +1,6 @@
 """The command `run.ps1 extract`: its log, its exit codes, the secrets it never writes (fake Jira in process)."""
 import base64
+import re
 
 import pytest
 
@@ -52,6 +53,31 @@ def test_verbose_logs_each_call_that_worked(tmp_path, jira):
     assert code == 0 and "search: GET /rest/api/3/search/jql -> HTTP 200" in log
     _code, quiet = run(tmp_path, params(tmp_path, jira.base_url), log_name="quiet.log")
     assert "-> HTTP 200" not in quiet
+
+
+def test_the_log_gives_the_inputs_and_the_time_of_each_step_and_of_the_run(tmp_path, jira):
+    """To debug from the log alone: a PARAM line per value of Config (never the token), the size of the other parameter
+    sheets, the time at the end of each END line and of the line RUN end."""
+    code, log = run(tmp_path, params(tmp_path, jira.base_url))
+    assert code == 0
+    assert "PARAM ProxyServer = DIRECT\n" in log and "PARAM MaxRetries = 1\n" in log and "PARAM Filter = (empty)\n" in log
+    assert "PARAM ApiToken = (set)\n" in log and MOCK_TOKEN not in log
+    assert "PARAM sheet Projects = " in log and "PARAM sheet Iterations = " in log
+    timed = re.compile(r" \| \d+\.\d{3} s$")
+    ends = [line for line in log.splitlines() if " END " in line or " RUN end " in line]
+    assert len(ends) >= 6 and all(timed.search(line) for line in ends), ends
+
+
+def test_a_stopped_run_gives_its_code_and_its_time_on_its_last_line(tmp_path):
+    code, log = run(tmp_path, tmp_path / "missing.xlsm")
+    assert code == 1
+    assert re.search(r"RUN end stopped J2D-SYS-011 \(log: .*\) \| \d+\.\d{3} s$", log.splitlines()[-1])
+
+
+def test_parameter_lines_never_show_the_token():
+    config = xlsx_write.Sheet("Config", ("Parameter", "Value"), [("ApiToken", "secret"), ("Email", "a@b.c"), ("Filter", None)])
+    lines = X.parameter_lines([config, xlsx_write.Sheet("Projects", ("Key",), [("A",), ("B",)])])
+    assert lines == ["ApiToken = (set)", "Email = a@b.c", "Filter = (empty)", "sheet Projects = 2 rows"]
 
 
 @pytest.mark.parametrize("content, message", [(None, "No such file"), (b"not a zip", "File is not a zip file")])

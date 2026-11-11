@@ -20,7 +20,7 @@ Commands:
   mock-jira      the fake Jira on http://127.0.0.1:8099 (--anomalies, --issues, --port...)
   mock-workbook  a copy of a workbook with Config, Iterations and PIs filled for the fake Jira
   build          the workbook to deliver: out\release\jira2dashboard.xlsm (--out name.xlsm: in out\inter)
-  clean          empty out\inter, except the test caches (build and vba-tests do it first)
+  clean          empty out\inter, except the test caches and the logs (build and vba-tests do it first)
   extract        without VBA: read Jira with Python, write data, results and charts to jira2dashboard.xlsx
   test-scripts   Pester tests of scripts\*.ps1 and their coverage; fails under 93 % (-Filter, -Minimum)
 
@@ -33,7 +33,8 @@ USE CASES
   Try the macros against a fake Jira .\scripts\manual-test.ps1  (by hand)   or   .\scripts\scenario.ps1  (unattended)
   Extract without Excel macros       .\scripts\run.ps1 extract --workbook C:\Data\jira2dashboard.xlsm
   The macros are blocked at a client .\scripts\run.ps1 check-machine ; .\scripts\run.ps1 diagnose   (a report to paste into the ticket)
-  Where are the logs                 scripts\logs\<script>.log (last run only); the workbook logs in its own logs folder
+  Where are the logs                 scripts\logs\run_<command>.log (last run of each command, with the output of Python);
+                                     scripts\logs\<script>.log for the other scripts; the workbook logs in its own logs folder
 
 .PARAMETER Help
 Show this help. --help, -h and -? do the same.
@@ -62,7 +63,7 @@ $commands = [ordered]@{
     "mock-jira"     = "the fake Jira on http://127.0.0.1:8099 (--anomalies, --issues, --port...)"
     "mock-workbook" = "a copy of a workbook with Config, Iterations and PIs filled for the fake Jira"
     "build"         = "the workbook to deliver: out\release\jira2dashboard.xlsm (--out name.xlsm: in out\inter)"
-    "clean"         = "empty out\inter, except the test caches (build and vba-tests do it first)"
+    "clean"         = "empty out\inter, except the test caches and the logs (build and vba-tests do it first)"
     "extract"       = "without VBA: read Jira with Python, write data, results and charts to jira2dashboard.xlsx"
     "test-scripts"  = "Pester tests of scripts\*.ps1 and their coverage; fails under 93 % (-Filter, -Minimum)"
 }
@@ -92,33 +93,47 @@ $root = Split-Path -Parent $PSScriptRoot
 $python = Join-Path $root ".venv\Scripts\python.exe"
 if (-not (Test-Path $python)) { throw "J2D-SCR-003 - No .venv: run scripts\setup.ps1 -Dev first." }
 Set-Location $root
-# Log of this run (last run only): scripts\logs\run.log. A log failure never stops the script.
+# Log of this run (last run of each command): scripts\logs\run_<command>.log, so that the fake Jira that start-mock.ps1
+# runs in its own window (run.ps1 mock-jira) does not write over the log of a test run. A log failure never stops the script.
 # Called by another script of this folder that already writes a log ($J2D_LogOwner, seen through the calling scope):
 # no second transcript, the lines of this script go to the log of the caller.
 if (-not (Get-Variable J2D_LogOwner -ErrorAction SilentlyContinue)) {
     try {
         $logDir = Join-Path $PSScriptRoot "logs"
         New-Item -ItemType Directory -Force $logDir | Out-Null
-        Start-Transcript -Path (Join-Path $logDir "run.log") -Force | Out-Null
+        Start-Transcript -Path (Join-Path $logDir "run_$command.log") -Force | Out-Null
         $J2D_LogOwner = "run"
     } catch { }
 }
 $env:PYTHONIOENCODING = "utf-8"
+$env:PYTHONUNBUFFERED = "1"                         # each line reaches the console and the log when it is written
 $env:PYTHONPATH = (Join-Path $root "src")
 
-switch ($command) {
-    "test"          { & $python -m pytest @rest }
-    "coverage"      { & $python -m pytest --cov --cov-report=term-missing @rest }
-    "test-excel"    { & $python -m pytest -m "excel and not network" @rest }
-    "test-network"  { & $python -m pytest -m "excel and network" @rest }
-    "vba-tests"     { & $python -m jira2dashboard.testbench.run_vba_tests @rest }
-    "check-machine" { & $python -m jira2dashboard.cli.check_machine @rest }
-    "diagnose"      { & $python -m jira2dashboard.cli.diagnose @rest }
-    "mock-jira"     { & $python -m jira2dashboard.mockjira @rest }
-    "mock-workbook" { & $python -m jira2dashboard.mock_workbook @rest }
-    "build"         { & $python -m jira2dashboard.build_workbook @rest }
-    "clean"         { & $python -m jira2dashboard.clean @rest }
-    "extract"       { & $python -m jira2dashboard.standalone @rest }
-    "test-scripts"  { & powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $root "tests\ps\Run-ScriptTests.ps1") @rest }
+# The output of the command goes through PowerShell, line by line (Show-Line): a program that writes straight to the console
+# is missing from the transcript, so the log would hold no result of pytest and no traceback. Its error output (2>&1) too,
+# as plain lines: no red NativeCommandError and no stop (ErrorActionPreference Continue from here). The console reads
+# UTF-8 meanwhile, as Python writes it (PYTHONIOENCODING), and gets its own encoding back at the end.
+filter Show-Line { Write-Host "$_" }
+$consoleEncoding = $null
+try { $consoleEncoding = [Console]::OutputEncoding; [Console]::OutputEncoding = New-Object System.Text.UTF8Encoding $false } catch { }
+$ErrorActionPreference = "Continue"
+try {
+    switch ($command) {
+        "test"          { & $python -m pytest @rest 2>&1 | Show-Line }
+        "coverage"      { & $python -m pytest --cov --cov-report=term-missing @rest 2>&1 | Show-Line }
+        "test-excel"    { & $python -m pytest -m "excel and not network" @rest 2>&1 | Show-Line }
+        "test-network"  { & $python -m pytest -m "excel and network" @rest 2>&1 | Show-Line }
+        "vba-tests"     { & $python -m jira2dashboard.testbench.run_vba_tests @rest 2>&1 | Show-Line }
+        "check-machine" { & $python -m jira2dashboard.cli.check_machine @rest 2>&1 | Show-Line }
+        "diagnose"      { & $python -m jira2dashboard.cli.diagnose @rest 2>&1 | Show-Line }
+        "mock-jira"     { & $python -m jira2dashboard.mockjira @rest 2>&1 | Show-Line }
+        "mock-workbook" { & $python -m jira2dashboard.mock_workbook @rest 2>&1 | Show-Line }
+        "build"         { & $python -m jira2dashboard.build_workbook @rest 2>&1 | Show-Line }
+        "clean"         { & $python -m jira2dashboard.clean @rest 2>&1 | Show-Line }
+        "extract"       { & $python -m jira2dashboard.standalone @rest 2>&1 | Show-Line }
+        "test-scripts"  { & powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $root "tests\ps\Run-ScriptTests.ps1") @rest 2>&1 | Show-Line }
+    }
+} finally {
+    if ($consoleEncoding) { try { [Console]::OutputEncoding = $consoleEncoding } catch { } }
 }
 exit $LASTEXITCODE

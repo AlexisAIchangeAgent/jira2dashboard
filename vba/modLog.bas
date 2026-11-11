@@ -13,6 +13,9 @@ Option Explicit
 ' Level (Config LogLevel, read by the caller): Steps = everything; Errors = no BEGIN/END lines.
 ' A run that does not end (Excel closed or crashed) leaves a flag in the registry (HKCU, VB and VBA Program Settings):
 ' the next run says so in the log.
+' To debug from the log alone: each END line ends with the time of its step ("| 0.235 s"), the line RUN end with the
+' time of the run and, when the run stopped, the support code of its error; LogParameters writes the inputs of the run
+' (PARAM lines: the rows of Config and the size of each parameter sheet) right after the RUN line.
 
 Public gLogPath As String                          ' empty = the default file; the tests point it to a file of their own
 Private Const LOG_MAX_BYTES As Long = 1000000      ' above this size a run starts a new file (the old one becomes .1.log)
@@ -28,6 +31,15 @@ Private mStepRows As Collection                     ' rows of the steps begun an
 Private mStepStarts As Collection                   ' their start times (Timer)
 Private mStepNext As Long                           ' the next free row
 Private mLastCode As String                         ' the support code of the last error of the run (shown in the sheet Steps)
+Private mBegun As Collection                        ' start times (Timer) of the steps begun and not ended, for the END lines
+Private mRunStarted As Double                       ' Timer at the start of the run
+Private mRunOn As Boolean                           ' a run started and did not end yet: its RUN end line gets its time
+' The parameters of Config whose value the log shows: the settings of the tool, the ones with a value in the repository
+' (params/config.md). Every other one (connection, proxy, filter, field ids, AsOf: values of the client) reads (set) or
+' (empty). tests/unit/test_vba_log_guard.py compares this list with params/config.md.
+Private Const SHOWN_PARAMETERS As String = ",ProxyWindowsAuth,FlowLoadMode,TimeoutSeconds,MaxRetries,ParentRequiredTypes," & _
+    "FeatureTypes,SubTaskTypes,PointsRequiredTypes,BlocksLinkType,FillRateThreshold,LogLevel,OpenLogOnError,"
+Private Const PARAMETER_SHEETS As String = "Projects,Workflows,Transitions,FieldMapping,Iterations,PIs"
 
 Public Function LogFolderFrom(ByVal workbookPath As String, ByVal localAppData As String, ByVal temp As String) As String
     ' logs next to the workbook; the folder of the user when the workbook has no folder of its own.
@@ -78,15 +90,79 @@ End Sub
 
 Public Sub LogBegin(ByVal stepName As String)
     StepsBegin stepName                                ' the sheet Steps shows every step, whatever the level
+    If mBegun Is Nothing Then Set mBegun = New Collection
+    mBegun.Add Timer
     If mErrorsOnly Then Exit Sub
     LogLine "BEGIN", stepName
 End Sub
 
 Public Sub LogEnd(ByVal stepName As String)
+    ' "END <text> | <seconds since its BEGIN> s"; an END whose BEGIN was not seen has no time.
+    Dim took As String
     StepsEnd stepName
+    If Not mBegun Is Nothing Then
+        If mBegun.Count > 0 Then
+            took = " | " & LogDuration(Elapsed(mBegun(mBegun.Count)))
+            mBegun.Remove mBegun.Count
+        End If
+    End If
     If mErrorsOnly Then Exit Sub
-    LogLine "END", stepName
+    LogLine "END", stepName & took
 End Sub
+
+Public Function LogDuration(ByVal seconds As Double) As String
+    ' "12.345 s", with a point whatever the language of Windows (Format$ writes the decimal comma of a French Windows).
+    Dim ms As Double
+    If seconds < 0 Then seconds = 0
+    ms = Int(seconds * 1000 + 0.5)
+    LogDuration = CStr(Int(ms / 1000)) & "." & Format$(ms - Int(ms / 1000) * 1000, "000") & " s"
+End Function
+
+Private Function Elapsed(ByVal started As Double) As Double
+    Elapsed = Timer - started
+    If Elapsed < 0 Then Elapsed = Elapsed + 86400            ' past midnight
+End Function
+
+Public Sub LogParameters(ByVal wb As Object)
+    ' The inputs of the run, after its RUN line: "PARAM <name> = <value>" for each row of Config (ParameterShown: only the
+    ' settings of the tool in clear), then "PARAM sheet <name> = <n> rows" for each parameter sheet. Never raises.
+    Dim ws As Object, row As Variant, sheetName As Variant
+    Cov "LOG32"
+    On Error Resume Next
+    If Not SheetExists(wb, "Config") Then
+        Cov "LOG33"
+        LogLine "PARAM", "no sheet Config"
+    Else
+        Set ws = wb.Worksheets("Config")
+        For Each row In ReadTable(ws)
+            LogLine "PARAM", CStr(row("Parameter")) & " = " & ParameterShown(CStr(row("Parameter")), CStr(row("Value") & ""))
+        Next row
+    End If
+    For Each sheetName In Split(PARAMETER_SHEETS, ",")
+        If SheetExists(wb, CStr(sheetName)) Then
+            LogLine "PARAM", "sheet " & sheetName & " = " & _
+                    (Application.WorksheetFunction.CountA(wb.Worksheets(CStr(sheetName)).Columns(1)) - 1) & " rows"
+        Else
+            Cov "LOG34"
+            LogLine "PARAM", "sheet " & sheetName & " = missing"
+        End If
+    Next sheetName
+    Err.Clear
+End Sub
+
+Public Function ParameterShown(ByVal name As String, ByVal value As String) As String
+    ' What the log shows of a value of Config: the value for a setting of the tool (SHOWN_PARAMETERS), else (set) or (empty).
+    value = TrimWhite(value)
+    If Len(value) = 0 Then
+        ParameterShown = "(empty)"
+    ElseIf InStr(1, SHOWN_PARAMETERS, "," & name & ",", vbTextCompare) > 0 Then
+        Cov "LOG35"
+        ParameterShown = value
+    Else
+        Cov "LOG36"
+        ParameterShown = "(set)"
+    End If
+End Function
 
 Public Sub LogRunStart(ByVal how As String, Optional ByVal level As String = "Steps")
     ' The first line of a run: a new file when the log is too big, then what is needed to read the lines that follow,
@@ -101,6 +177,8 @@ Public Sub LogRunStart(ByVal how As String, Optional ByVal level As String = "St
     #End If
     mFallback = False                                  ' try the folder next to the workbook again
     mLastCode = ""
+    Set mBegun = New Collection
+    mRunStarted = Timer: mRunOn = True
     StepsReset
     RotateLog
     mErrorsOnly = (StrComp(level, "Errors", vbTextCompare) = 0)
@@ -115,10 +193,16 @@ Public Sub LogRunStart(ByVal how As String, Optional ByVal level As String = "St
 End Sub
 
 Public Sub LogRunEnd(ByVal result As String)
-    ' The last line of a run: "end ok", "end cancelled", "end stopped". Clears the flag of the run in progress.
+    ' The last line of a run: "end ok | 12.345 s", "end cancelled...", "end stopped J2D-CFG-002 | 0.031 s" (the code of the
+    ' error that stopped it). Clears the flag of the run in progress.
+    Dim text As String
     Cov "LOG13"
     On Error Resume Next
-    LogLine "RUN", "end " & result
+    text = "end " & result
+    If LCase$(Left$(result, 7)) = "stopped" And Len(mLastCode) > 0 Then Cov "LOG37": text = text & " " & mLastCode
+    If mRunOn Then text = text & " | " & LogDuration(Elapsed(mRunStarted))
+    mRunOn = False
+    LogLine "RUN", text
     StepsClose result
     mErrorsOnly = False
     DeleteSetting "jira2dashboard", FlagSection(), "RunInProgress"

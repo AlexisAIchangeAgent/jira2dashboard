@@ -31,6 +31,7 @@ Public Sub ExtractAndCompute(Optional ByVal fromButton As Boolean = False)
     On Error GoTo Failed
     mBusy = True                                   ' a click during a DoEvents must not start a second job
     LogRunStart "macro ExtractAndCompute", LogLevelSetting()
+    LogParameters ThisWorkbook                     ' the inputs of the run (no value of the client: modLog.ParameterShown)
     Application.StatusBar = "Reading Jira..."
     ExtractFlowData                                ' empties the old results only once Jira has answered
     Application.StatusBar = "Building the flow sheets and the charts..."
@@ -56,6 +57,7 @@ Public Sub BtnExtractAndCompute()
     mBusy = True: mCancel = False: mExtracting = True: gHttpCancel = False
     Randomize                                                       ' the retry jitter must differ from one run to the next
     LogRunStart "button Extract from Jira and compute", LogLevelSetting()
+    LogParameters ThisWorkbook                                      ' the inputs of the run (no value of the client)
     ShowProgress 0, "Starting..."
     ExtractFlowDataStart
     ScheduleSlice
@@ -93,6 +95,7 @@ Public Sub BtnReadJiraConfiguration()
     mBusy = True: mCancel = False: mExtracting = True: gHttpCancel = False
     Randomize                                                       ' the retry jitter must differ from one run to the next
     LogRunStart "button Read the Jira configuration", LogLevelSetting()
+    LogParameters ThisWorkbook                                      ' the inputs of the run (no value of the client)
     ShowProgress 0, "Reading the Jira configuration..."
     RequireMandatory ThisWorkbook.Worksheets("Config"), "BaseUrl,Email,ApiToken"      ' only the connection is needed here
     summary = ReadJiraConfiguration(JiraConfigFromWorkbook(), ProjectKeys(ThisWorkbook.Worksheets("Projects")), ThisWorkbook)

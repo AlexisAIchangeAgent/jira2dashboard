@@ -53,7 +53,7 @@ Private Function TestNames() As Variant
         "T_HttpNetworkAndCancel", "T_RetryExhausted", "T_ChangelogChunks", "T_IssueRows", "T_WriteTable", "T_StatusIntervals", _
         "T_StatusChanges", "T_RetryDelay", "T_SafeAccess", "T_FilesUtf8", "T_StringifyBadObject", _
         "T_TooManyPages", "T_BackgroundExport", "T_TextNotConverted", "T_ParamsTables", "T_ParamsOnWorkbook", _
-        "T_TrimWhite", "T_ConfigSheet", "T_MandatoryConfig", "T_ProxyDetect", "T_ProxyScript", "T_ProjectsSheet", "T_ParseMoment", "T_ExtractFlowData", "T_ExtractJob", "T_ExtractCheckFields", "T_FlowBuild", "T_BaseUrlHttps", "T_Log", "T_ErrorCodes", "T_LogHintAndOpen", "T_StepsSheet", "T_RovoPrompt", "T_RovoCsv", _
+        "T_TrimWhite", "T_ConfigSheet", "T_MandatoryConfig", "T_ProxyDetect", "T_ProxyScript", "T_ProjectsSheet", "T_ParseMoment", "T_ExtractFlowData", "T_ExtractJob", "T_ExtractCheckFields", "T_FlowBuild", "T_BaseUrlHttps", "T_Log", "T_LogInputsAndTimes", "T_ErrorCodes", "T_LogHintAndOpen", "T_StepsSheet", "T_RovoPrompt", "T_RovoCsv", _
         "T_JiraConfig", "T_AbortExtraction", "T_Utf8Oracle", "T_Utf8Invalid", "T_Base64Oracle")
 End Function
 
@@ -75,9 +75,13 @@ End Function
 
 Private Function RunTests(ByVal names As Variant) As String
     ' Each result row is written as soon as its check runs; the progress bar moves after each test.
-    Dim nm As Variant, ok As Long, ko As Long, r As Variant, standalone As Boolean
+    ' The tests write to logs\vba-tests.log next to the test workbook, never to the real log; each test is framed by a line
+    ' "TEST <name>" and "TEST <name> done | <time>": after a crash of Excel, the last TEST line names the test that ran.
+    Dim nm As Variant, ok As Long, ko As Long, r As Variant, standalone As Boolean, started As Double, runnerLog As String
     Set mRows = New Collection
-    gLogPath = Environ$("TEMP") & "\jira2dashboard_vba_tests.log"   ' the tests never write to the real log
+    runnerLog = LogFolderFrom(ThisWorkbook.Path, Environ$("LOCALAPPDATA"), Environ$("TEMP")) & "\vba-tests.log"
+    gLogPath = runnerLog
+    LogLine "TEST", "run of " & CountOfNames(names) & " tests in " & ThisWorkbook.Name
     Randomize 1
     standalone = (mTotalPlanned = 0)
     If standalone Then mTotalPlanned = CountOfNames(names): mDone = 0
@@ -86,6 +90,8 @@ Private Function RunTests(ByVal names As Variant) As String
         Application.StatusBar = "Test " & (mDone + 1) & "/" & mTotalPlanned & ": " & nm & "..."
         mCurrent = nm
         Set gProxyFake = FakeProxySettings(False, "", "", "")   ' the proxy of this computer must not change a test
+        gLogPath = runnerLog: LogLine "TEST", CStr(nm)
+        started = Timer
         On Error Resume Next
         Err.Clear
         Application.Run "modTests." & nm
@@ -94,6 +100,7 @@ Private Function RunTests(ByVal names As Variant) As String
         Err.Clear
         On Error GoTo 0
         FakeOff
+        gLogPath = runnerLog: LogLine "TEST", nm & " done | " & LogDuration(Timer - started)
         mDone = mDone + 1
         ProgressShow mDone, mTotalPlanned
     Next nm
@@ -764,6 +771,57 @@ Public Sub T_Log()
     RmDir folder
     Err.Clear
     On Error GoTo 0
+End Sub
+
+Public Sub T_LogInputsAndTimes()
+    ' What the log gives to debug a run: the time of each step and of the run, the code of the error that stopped it, and
+    ' the inputs (PARAM lines) with no value of the client.
+    Dim saved As String, file As String, text As String, other As Object
+    saved = gLogPath
+    file = Environ$("TEMP") & "\j2d_log_inputs_" & Format$(Now, "hhnnss") & Int(Rnd() * 1000) & ".log"
+    gLogPath = file
+    Check "logtime", "a time reads in seconds with a point", "1.5", "1.500 s", LogDuration(1.5)
+    Check "logtime", "a time is rounded to the millisecond", "61.2346", "61.235 s", LogDuration(61.2346)
+    Check "logtime", "no negative time", "-2", "0.000 s", LogDuration(-2)
+    Check "logparam", "a setting of the tool is shown", "FlowLoadMode B", "B", ParameterShown("FlowLoadMode", " B ")
+    Check "logparam", "a value of the client is not shown", "ApiToken", "(set)", ParameterShown("ApiToken", "secret-token")
+    Check "logparam", "nor the address of Jira", "BaseUrl", "(set)", ParameterShown("BaseUrl", "https://x.atlassian.net")
+    Check "logparam", "an empty value says so", "Email", "(empty)", ParameterShown("Email", "  ")
+    Check "logparam", "a parameter not known reads as a value of the client", "NewOne", "(set)", ParameterShown("NewOne", "v")
+    LogRunStart "inputs and times"
+    LogParameters ThisWorkbook
+    LogBegin "outer"
+    LogBegin "inner"
+    LogEnd "inner: 3 items"
+    LogEnd "outer"
+    LogEnd "stray"
+    LogRunEnd "ok"
+    text = FileText(file)
+    Check "logparam", "a PARAM line per row of Config, the setting in clear", "FlowLoadMode", True, InStr(text, " PARAM FlowLoadMode = A" & vbCrLf) + InStr(text, " PARAM FlowLoadMode = B" & vbCrLf) > 0
+    Check "logparam", "and the value of the client as set or empty", "BaseUrl", True, InStr(text, " PARAM BaseUrl = (") > 0 And InStr(text, " PARAM BaseUrl = h") = 0
+    Check "logparam", "the size of each parameter sheet", "Projects", True, InStr(text, " PARAM sheet Projects = ") > 0 And InStr(text, " rows" & vbCrLf) > 0
+    Check "logtime", "an END line ends with the time of its step", "inner", True, InStr(text, " END inner: 3 items | ") > 0
+    Check "logtime", "nested steps each get their own time", "outer", True, InStr(text, " END outer | ") > 0
+    Check "logtime", "an END without a BEGIN has no time", "stray", True, InStr(text, " END stray" & vbCrLf) > 0
+    Check "logtime", "the line RUN end gives the time of the run", "ok", True, InStr(text, " RUN end ok | ") > 0 And InStr(text, " s" & vbCrLf) > 0
+    LogRunStart "stopped run"
+    LogError "Step", vbObjectError + 608, "Fill these values of the Config sheet first"
+    LogRunEnd "stopped"
+    LogRunEnd "stopped"                                              ' a second end (no run on): no time
+    text = FileText(file)
+    Check "logtime", "a stopped run gives the code of its error on its last line", "608", True, InStr(text, " RUN end stopped J2D-CFG-002 | ") > 0
+    Check "logtime", "an end without a run start has no time", "twice", True, InStr(text, " RUN end stopped J2D-CFG-002" & vbCrLf) > 0
+    Set other = Application.Workbooks.Add                           ' a workbook without any parameter sheet
+    LogParameters other
+    other.Close False
+    text = FileText(file)
+    Check "logparam", "a workbook without Config says so", "no Config", True, InStr(text, " PARAM no sheet Config" & vbCrLf) > 0
+    Check "logparam", "and names the missing sheets", "Workflows", True, InStr(text, " PARAM sheet Workflows = missing" & vbCrLf) > 0
+    On Error Resume Next
+    Kill file
+    Err.Clear
+    On Error GoTo 0
+    gLogPath = saved
 End Sub
 
 Private Function FileText(ByVal file As String) As String

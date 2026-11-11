@@ -206,11 +206,35 @@ Describe "run.ps1" {
         Invoke-Script "run.ps1" -Positional @("test") | Out-Null
         $global:Seen | Should Be ((Join-Path $global:Base "src") + "|utf-8")
     }
-    It "writes the log of the run, which is its transcript" {
+    It "writes the log of the run, which is its transcript, in a file of its command" {
         New-Venv
         Invoke-Script "run.ps1" -Positional @("test") | Out-Null
         Stop-Transcript | Out-Null
-        Test-Path (Log-File "run") | Should Be $true
+        Test-Path (Log-File "run_test") | Should Be $true
+        Test-Path (Log-File "run") | Should Be $false
+    }
+    It "keeps the output of python in the log, its error output too, and its exit code" {
+        New-Venv
+        Set-Fake "python" {                                     # a real native program writes the error line, as python.exe does
+            "a line of python"; & cmd.exe /c "echo a line on stderr 1>&2"; $global:LASTEXITCODE = 4
+        } -name $global:Python
+        $r = Invoke-Script "run.ps1" -Positional @("build")
+        Stop-Transcript | Out-Null
+        $r.Code | Should Be 4
+        $r.Out | Should Match "a line of python"
+        $log = Get-Content (Log-File "run_build") -Raw
+        $log | Should Match "a line of python"
+        $log | Should Match "a line on stderr"           # (here the fake is a function: PowerShell also logs it as an error record;
+                                                          # python.exe called with 2>&1 gives the plain line only)
+    }
+    It "sets the output of python unbuffered, and gives the console its encoding back" {
+        New-Venv
+        $before = [Console]::OutputEncoding.WebName
+        $global:Seen = ""
+        Set-Fake "python" { $global:Seen = "$env:PYTHONUNBUFFERED|$([Console]::OutputEncoding.WebName)" } -name $global:Python
+        Invoke-Script "run.ps1" -Positional @("test") | Out-Null
+        $global:Seen | Should Be "1|utf-8"
+        [Console]::OutputEncoding.WebName | Should Be $before
     }
     It "goes on when the log cannot be written" {
         New-Venv
@@ -774,7 +798,7 @@ Describe "a script called by another one" {
         New-Venv
         $J2D_LogOwner = "caller"
         (Invoke-Script "run.ps1" -Positional @("test")).Code | Should Be 0
-        Test-Path (Log-File "run") | Should Be $false
+        Test-Path (Log-File "run_test") | Should Be $false
     }
     It "scenario.ps1 keeps one log with the lines of the scripts it plays, and no log of theirs" {
         Set-Fake "start-mock" { $global:LASTEXITCODE = 0 } -name (Join-Path $global:Scripts "start-mock.ps1")

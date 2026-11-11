@@ -3,8 +3,9 @@ stays at the root.
 
 build and vba-tests run it first. out\\release holds what is delivered (the workbook of `build`, the release packages
 of scripts\\release.ps1) and out\\manual_test the copy of scripts\\manual-test.ps1 (jira2dashboard4manualtest.xlsm,
-filled for the fake Jira): never touched. out\\inter holds the rest (test workbooks, exports, logs): emptied, except
-the tool caches that pyproject.toml puts there (.coverage, .pytest_cache). Anything else at the root of out is a
+filled for the fake Jira): never touched. out\\inter holds the rest (test workbooks, exports): emptied, except the tool
+caches that pyproject.toml puts there (.coverage, .pytest_cache) and the folder logs (the logs of the test workbooks:
+VBA, vba-tests.log, excel-test_<test>.log), so that a build never deletes the logs of the last tests. Anything else at the root of out is a
 leftover of the old layout and goes. A file that a program still holds (Windows refuses to delete it) is kept and
 reported, never forced.
 """
@@ -16,6 +17,7 @@ from jira2dashboard.cli.args import parser
 from jira2dashboard.paths import INTER_DIR, MANUAL_TEST_DIR, OUT_DIR, RELEASE_DIR
 
 TOOL_CACHES = (".coverage", ".pytest_cache")
+KEPT_IN_INTER = TOOL_CACHES + ("logs",)            # the logs of the test workbooks stay to be read after a build
 FOLDERS = (RELEASE_DIR.name, INTER_DIR.name, MANUAL_TEST_DIR.name)
 
 
@@ -25,7 +27,7 @@ def entries(folder: Path) -> list[Path]:
 
 def intermediates(out_dir: Path) -> list[Path]:
     leftovers = [entry for entry in entries(out_dir) if entry.name not in FOLDERS]
-    inter = [entry for entry in entries(out_dir / INTER_DIR.name) if entry.name not in TOOL_CACHES]
+    inter = [entry for entry in entries(out_dir / INTER_DIR.name) if entry.name not in KEPT_IN_INTER]
     return sorted(leftovers + inter)
 
 

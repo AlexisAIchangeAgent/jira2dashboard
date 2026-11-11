@@ -32,7 +32,7 @@ from jira2dashboard.paths import RELEASE_DIR
 from jira2dashboard.standalone import jira_api as J
 from jira2dashboard.standalone import results as R
 from jira2dashboard.standalone.charts_svg import chart_pictures
-from jira2dashboard.standalone.http_winhttp import JiraClient, WinHttp
+from jira2dashboard.standalone.http_winhttp import JiraClient, WinHttp, took
 from jira2dashboard.standalone.mapping import FieldIds, extracted, interval_rows
 from jira2dashboard.standalone.params_book import read_params, run_settings
 from jira2dashboard.standalone.proxy import choose_proxy, detect_proxy
@@ -141,6 +141,22 @@ def _masked(sheets) -> list[Sheet]:
     return out
 
 
+def parameter_lines(sheets) -> list[str]:
+    """The inputs of the run for the log (PARAM lines): each value of Config, the API token as (set) or (empty), then the
+    number of rows of each other parameter sheet. The log is complete on purpose (AL's choice), never the token."""
+    lines = []
+    for sheet in sheets:
+        if sheet.name == "Config":
+            value = sheet.header.index("Value")
+            for row in sheet.rows:
+                text = "" if row[value] is None else str(row[value]).strip()
+                shown = ("(set)" if row[0] in SECRET_PARAMETERS else text) if text else "(empty)"
+                lines.append(f"{row[0]} = {shown}")
+        else:
+            lines.append(f"sheet {sheet.name} = {len(sheet.rows)} rows")
+    return lines
+
+
 def run(args, formatter: Scrubbed, collected: Collected, sleep=time.sleep, detect=detect_proxy,
         transport=WinHttp) -> Path:
     started = time.monotonic()
@@ -149,6 +165,8 @@ def run(args, formatter: Scrubbed, collected: Collected, sleep=time.sleep, detec
     out = Path(args.out) if args.out else workbook.with_name(OUT_NAME)
     log.info("BEGIN parameters of %s", workbook)
     sheets = read_params(workbook)
+    for line in parameter_lines(sheets):
+        log.info("PARAM %s", line)
     settings = run_settings(sheets)
     c = settings.connection
     authorization = J.basic_auth(c.email, c.token)
@@ -156,20 +174,23 @@ def run(args, formatter: Scrubbed, collected: Collected, sleep=time.sleep, detec
     base = J.check_base_url(c.base_url)
     jql = J.projects_jql(settings.projects, settings.filter)
     fields = J.search_fields(settings.work_type_field, settings.fields)
-    log.info("END parameters: %d iterations, AsOf %s, FlowLoadMode %s", len(settings.iterations), settings.as_of,
-             settings.mode)
+    log.info("END parameters: %d iterations, AsOf %s, FlowLoadMode %s%s", len(settings.iterations), settings.as_of,
+             settings.mode, took(started))
+    step = time.monotonic()
     proxy = choose_proxy(c.proxy_server, c.proxy_bypass, base, detect)
-    log.info("END proxy: %s%s", proxy.mode, f" ({proxy.server})" if proxy.server else "")
+    log.info("END proxy: %s%s%s", proxy.mode, f" ({proxy.server})" if proxy.server else "", took(step))
     client = JiraClient(base, authorization, c.max_retries,
                         transport(c.timeout_s, proxy.server, proxy.bypass, c.windows_auth), sleep=sleep)
     log.info("BEGIN search: %s", jql)
+    step = time.monotonic()
     issues = client.search_all(jql, fields)
     log.info("BEGIN changelogs of %d issues", len(issues))
     pages = client.changelogs([i["key"] for i in issues])
     extract = extracted(issues, pages, FieldIds(settings.work_type_field, settings.fields), settings.projects,
                         settings.blocks_link_type)
-    log.info("END Jira: %d issues, %d changelog items, %d links", len(extract.rows), extract.changelog_items,
-             len(extract.links))
+    log.info("END Jira: %d issues, %d changelog items, %d links%s", len(extract.rows), extract.changelog_items,
+             len(extract.links), took(step))
+    step = time.monotonic()
     intervals = [row for issue in extract.flow for row in interval_rows(issue, settings.as_of, settings.rules)]
     unknown = sorted({row[3] for row in intervals if row[4] == UNCLASSIFIED})
     if unknown:
@@ -179,8 +200,8 @@ def run(args, formatter: Scrubbed, collected: Collected, sleep=time.sleep, detec
     first, end = settings.iterations[0].start, settings.iterations[-1].end
     pictures = chart_pictures(results.metrics, results.teams, [p.name for p in settings.iterations], results.loads,
                               R.days_of(first, end), args.team)
-    log.info("END results: %d items, %d metrics rows, %d charts", len(results.items), len(results.metrics),
-             len(pictures))
+    log.info("END results: %d items, %d metrics rows, %d charts%s", len(results.items), len(results.metrics),
+             len(pictures), took(step))
     run_rows = [
         ("Made by", "jira2dashboard, Python path without VBA (scripts\\run.ps1 extract): values, no formula"),
         ("Started (UTC)", started_at), ("Workbook read", str(workbook.resolve())), ("Jira", base), ("JQL", jql),
@@ -230,19 +251,20 @@ def main(argv: list[str] | None = None, *, sleep=time.sleep, detect=detect_proxy
         args.log = str(Path(tempfile.gettempdir()) / "jira2dashboard" / "logs" / LOG_NAME)
         print(f"extract: cannot write the log there ({err}); the log goes to {args.log}")
         formatter, collected, handlers = _handlers(Path(args.log), args.verbose)
+    started = time.monotonic()
     try:
         log.info("RUN extract | Python %s | %s", sys.version.split()[0], Path(args.workbook).name)
         out = run(args, formatter, collected, sleep, detect, transport)
-        log.info("RUN end ok: %s", out)
+        log.info("RUN end ok: %s%s", out, took(started))
         return 0
     except (ParamsError, J.JiraError, XlsxLocked, NotAWorkbook, FileNotFoundError, zipfile.BadZipFile) as err:
         code = support_code(err)
         log.error("%s | %s", code, err)
-        log.info("RUN end stopped %s (log: %s)", code, args.log)
+        log.info("RUN end stopped %s (log: %s)%s", code, args.log, took(started))
         return 1
     except Exception:                                   # noqa: BLE001 - the traceback goes to the log, then exit 1
         log.exception("%s | unexpected error", UNEXPECTED_CODE)
-        log.info("RUN end stopped %s (log: %s)", UNEXPECTED_CODE, args.log)
+        log.info("RUN end stopped %s (log: %s)%s", UNEXPECTED_CODE, args.log, took(started))
         return 1
     finally:
         for handler in handlers:

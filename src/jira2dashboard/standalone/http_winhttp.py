@@ -19,6 +19,11 @@ RESOLVE_MS = 10_000
 log = logging.getLogger("jira2dashboard.extract")
 
 
+def took(since: float) -> str:
+    """" | 1.234 s": the time since `since` (time.monotonic), at the end of an END line of the log."""
+    return f" | {time.monotonic() - since:.3f} s"
+
+
 class WinHttp:
     """One request through the COM object WinHttp.WinHttpRequest.5.1 (synchronous: no Excel to keep alive here)."""
 
@@ -107,9 +112,10 @@ class JiraClient:
         """Every issue of the JQL, page after page (nextPageToken until isLast)."""
         issues, token = [], ""
         for page in range(1, J.MAX_SEARCH_PAGES + 1):
+            started = time.monotonic()
             answer = self.call("GET", J.search_path(jql, fields, token), "search")
             issues += answer.get("issues") or []
-            log.info("END search page %d: %d issues", page, len(issues))
+            log.info("END search page %d: %d issues%s", page, len(issues), took(started))
             following = answer.get("nextPageToken") or ""
             if answer.get("isLast") is True or not following:
                 return issues
@@ -123,7 +129,7 @@ class JiraClient:
         """The changelog pages of the issues, 1000 keys a call."""
         pages = []
         for number, chunk in enumerate(J.chunks(keys)):
-            token, seen = "", 0
+            token, seen, started = "", 0, time.monotonic()
             while True:
                 answer = self.call("POST", "/rest/api/3/changelog/bulkfetch", "changelogs",
                                    J.changelog_body(chunk, token))
@@ -135,5 +141,5 @@ class JiraClient:
                 if following == token or seen > J.MAX_CHANGELOG_PAGES:
                     raise J.JiraError(505, "Jira keeps sending the same changelog page: stop here and try again later.")
                 token = following
-            log.info("END changelogs from issue %d of %d", number * J.CHANGELOG_CHUNK + 1, len(keys))
+            log.info("END changelogs from issue %d of %d%s", number * J.CHANGELOG_CHUNK + 1, len(keys), took(started))
         return pages

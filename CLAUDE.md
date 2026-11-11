@@ -30,7 +30,7 @@ powershell -ExecutionPolicy Bypass -File scripts\setup.ps1 -Dev   # create .venv
 .\scripts\run.ps1 diagnose        # paste-ready report when the macros are blocked (hashes, Mark of the Web, Office, security products)
 .\scripts\run.ps1 mock-jira       # fake Jira on http://127.0.0.1:8099 (--anomalies: with the known data anomalies)
 .\scripts\run.ps1 build           # delivery workbook out\release\jira2dashboard.xlsm (--out name.xlsm: to out\inter)
-.\scripts\run.ps1 clean           # empty out\inter except the test caches (build and vba-tests do it first)
+.\scripts\run.ps1 clean           # empty out\inter except the test caches and the logs (build and vba-tests do it first)
 .\scripts\run.ps1 extract         # Python path without VBA: Jira -> jira2dashboard.xlsx (values + SVG charts)
 .\scripts\manual-test.ps1         # manual try: fake Jira + pre-filled copy (mock-workbook), opened in a new Excel
 .\scripts\stop-mock.ps1           # kill the fake Jira that start-mock.ps1 / manual-test.ps1 started
@@ -70,8 +70,8 @@ From Bash: `powershell -NoProfile -ExecutionPolicy Bypass -File scripts/run.ps1 
 (the redirect is outside PowerShell). Write logs, benches and scratch files to `$TEMP` or the scratchpad, never to
 `out/`. `out\release` holds what is delivered (the workbook of `build`, the packages of `release.ps1`) and is never
 cleaned; `out\manual_test` holds the manual-test copy `jira2dashboard4manualtest.xlsm` (and its `-Python` xlsx),
-never cleaned either; `out\inter` holds the rest (test workbooks, exports, `.coverage`, `.pytest_cache`),
-emptied by `build` / `vba-tests` except the caches (`src/jira2dashboard/clean.py`). Tests write to `INTER_DIR`.
+never cleaned either; `out\inter` holds the rest (test workbooks, exports, `.coverage`, `.pytest_cache`, `logs`),
+emptied by `build` / `vba-tests` except the caches and `logs` (`src/jira2dashboard/clean.py`). Tests write to `INTER_DIR`.
 
 Before finishing a change run the full pass: `coverage`, `vba-tests`, `test-excel`, `test-network`, `build`
 (skill `/full-pass`). The Claude config is versioned in `.claude/` (like this file) but left out of the release
@@ -123,7 +123,15 @@ VBA guard tests after each edit of `vba/*.bas` (`.claude/hooks/bas_guard.py`); s
   needs its `Case n` in `ErrorCode` and a row in the table (`test_error_codes.py` fails otherwise); a code is never reused or renumbered.
   The scripts use `J2D-SCR-nnn` (every `Fail`, `throw` and unknown-argument message of `scripts\*.ps1` carries one: a test pins it), `diagnose` lists
   its `Findings` as `J2D-SYS-02x` with the line `Codes to quote to the support`, `check-machine` prints `J2D-SYS-040` on a FAIL.
-  `test-excel` keeps the VBA log of each scenario in `logs\excel-test_<scenario>.log`, next to the test workbook (`out\inter\logs`, relative to the workbook like every log of the VBA; `testbench/keep_log.py`): read it after a run, before `build` or `vba-tests` empties `out\inter`.
+  Every Excel test (marker `excel`, all modules) leaves `out\inter\logs\excel-test_<test>.log` (fixture `keep_excel_logs` of `tests/conftest.py`,
+  `testbench/keep_log.py`): result and time, its lines of each log of `out\inter\logs` (the VBA log, `vba-tests.log` of the VBA test runner), its
+  `python.log`. `clean` keeps `out\inter\logs`, so a build does not delete them. `run.ps1` writes `scripts\logs\run_<command>.log` (one per command:
+  the fake Jira of `start-mock` runs `run.ps1 mock-jira` in its own process) and sends the output of Python through PowerShell (`2>&1 | Show-Line`,
+  UTF-8 console meanwhile), or the transcript would hold no result of pytest.
+- **What the logs give to debug.** VBA (`modLog`): `PARAM` lines right after `RUN` (`LogParameters`: each Config row; a value in clear only for the
+  settings with a value in `params/config.md`, `SHOWN_PARAMETERS`, else `(set)`/`(empty)`; `test_vba_log_guard.py` compares the two), the time at the
+  end of each `END` line and of `RUN end`, the code on `RUN end stopped <code>`. Python: the same, every Config value but the token. Keep a new step
+  in a `LogBegin`/`LogEnd` pair; the Excel scenarios check the shape of a run (`logged_run` in `tests/steps/test_flow_excel.py`).
 - **Jira configuration (VBA).** `modJiraConfig` (button Read the Jira configuration, `BtnReadJiraConfiguration`) reads
   projects, issue types, statuses, workflows (`workflows/preview`) and fields into proposal sheets `Jira*`; it never writes
   the parameter sheets (calls and mapping: the header of `modJiraConfig.bas`). Besides the five first sheets it writes
@@ -209,7 +217,7 @@ then `mermaid.parse`), and check every `](#anchor)` link against the headings.
   sets `gRowBatch`). Profile with the log (`BEGIN`/`END` of each sub-step) and a scratch copy of the workbook that gets a
   temporary benchmark module through `VBProject.VBComponents.Add` (never commit it).
 - **Test markers.** `excel` and `network` tests are excluded from the default run; Excel scenarios build the delivered
-  workbook once per module and open it in a fresh Excel per scenario.
+  workbook once per module and open it in a fresh Excel per scenario. Each leaves `out\inter\logs\excel-test_<test>.log`.
 - **pytest-bdd binding.** Steps are local to their module: a new `.feature` that reuses Excel steps is bound with a second
   `scenarios()` call in `tests/steps/test_flow_excel.py`. A `.feature` bound by no `scenarios()` call is not run (used for
   scenarios written ahead, e.g. `workflow_by_type.feature`).

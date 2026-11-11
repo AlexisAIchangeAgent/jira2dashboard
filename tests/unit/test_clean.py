@@ -17,6 +17,8 @@ def fill(out):
     (inter / ".pytest_cache").mkdir()
     (inter / "dashboard").mkdir()
     (inter / "dashboard" / "chart.png").write_bytes(b"x")
+    (inter / "logs").mkdir()
+    (inter / "logs" / "jira2dashboard.log").write_text("RUN")              # the logs of the test workbooks stay
     (out / "jira2dashboard.xlsm").write_bytes(b"x")                      # leftovers of the old layout
     (out / "excel10_1.log").write_text("log")
 
@@ -36,12 +38,13 @@ def test_intermediates_are_the_content_of_inter_but_the_tool_caches_and_everythi
         "jira2dashboard.xlsm"]
 
 
-def test_clean_keeps_release_the_manual_test_copy_and_the_tool_caches(tmp_path):
+def test_clean_keeps_release_the_manual_test_copy_the_tool_caches_and_the_logs(tmp_path):
     fill(tmp_path)
     removed, in_use = clean.clean(tmp_path)
     assert len(removed) == 5 and in_use == []
     assert tree(tmp_path) == [
-        "inter", "inter/.coverage", "inter/.pytest_cache", "manual_test", "manual_test/jira2dashboard4manualtest.xlsm",
+        "inter", "inter/.coverage", "inter/.pytest_cache", "inter/logs", "inter/logs/jira2dashboard.log",
+        "manual_test", "manual_test/jira2dashboard4manualtest.xlsm",
         "release", "release/jira2dashboard.xlsm", "release/v1.0.0", "release/v1.0.0/jira2dashboard-v1.0.0.zip"]
 
 

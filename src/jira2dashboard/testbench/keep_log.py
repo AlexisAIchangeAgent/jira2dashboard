@@ -1,10 +1,12 @@
-"""Keeps the VBA log of an Excel scenario in its own file, next to the log of the workbook.
+"""Keeps the logs of each Excel test in a file of its own, in the folder logs of the test workbooks.
 
-The workbook of the Excel scenarios writes `logs\\jira2dashboard.log` in its own folder (`out\\inter\\logs` for the test workbook, as
-`out\\release\\logs` for the delivered one), and one log serves every scenario of a module. `mark` notes where the log ends before a
-scenario, `keep` copies what the scenario added to `logs\\excel-test_<scenario>.log` in the same folder: a path relative to the
-workbook, never a fixed one (the log of the VBA holds no token, URL or answer of Jira by design). `build` and `vba-tests` empty
-`out\\inter`, logs included. Never raises: a log that cannot be kept must not fail a test.
+The test workbooks live in out\\inter, so their logs go to out\\inter\\logs (relative to the workbook, as the delivered one
+writes out\\release\\logs): jira2dashboard.log (the VBA of every workbook of the tests), vba-tests.log (the VBA test
+runner). One file serves every test. `mark` notes the size of each log before a test; `keep` writes
+out\\inter\\logs\\excel-test_<test>.log after it: a header (test, result, time), what each log got during the test, then
+the logs the test wrote in its temporary folder (python.log of the Python path). One file per test, even with no line,
+so that each Excel test has its log. `clean` (build, vba-tests) keeps out\\inter\\logs. The logs of the VBA hold no token,
+URL or answer of Jira by design; python.log never the token. Never raises: a log that cannot be kept must not fail a test.
 """
 from __future__ import annotations
 
@@ -12,35 +14,68 @@ import re
 from pathlib import Path
 
 LOG_NAME = "jira2dashboard.log"
+KEPT_PREFIX = "excel-test_"
 
 
 def file_name(scenario: str) -> str:
     """A name for a Windows file out of the name of a test (brackets and signs of the parametrize are dropped)."""
-    return "excel-test_" + re.sub(r"[^A-Za-z0-9_.-]+", "_", scenario).strip("_")[:110] + ".log"
+    return KEPT_PREFIX + re.sub(r"[^A-Za-z0-9_.-]+", "_", scenario).strip("_")[:110] + ".log"
 
 
-def mark(workbook_folder: str | Path) -> int:
-    """Where the log of the workbook ends now (0 when there is none yet)."""
+def _logs(folder: Path) -> list[Path]:
     try:
-        return (Path(workbook_folder) / "logs" / LOG_NAME).stat().st_size
+        return sorted(p for p in folder.glob("*.log") if not p.name.startswith(KEPT_PREFIX))
     except OSError:
-        return 0
+        return []
 
 
-def keep(workbook_folder: str | Path, started_at: int, scenario: str) -> Path | None:
-    """Copies the lines written since `started_at` to `<workbook folder>\\logs\\excel-test_<scenario>.log`; its path, None when
-    there is nothing to keep."""
+def mark(logs_folder: str | Path) -> dict[str, int]:
+    """The size of each log of the folder now (the kept files of the tests apart); empty when there is none yet."""
+    sizes = {}
+    for path in _logs(Path(logs_folder)):
+        try:
+            sizes[path.name] = path.stat().st_size
+        except OSError:
+            continue
+    return sizes
+
+
+def added(logs_folder: str | Path, marks: dict[str, int]) -> list[tuple[str, str]]:
+    """(name, text) of what each log got since `marks`; a log smaller than its mark was rotated (above 1 MB): taken whole."""
+    out = []
+    for path in _logs(Path(logs_folder)):
+        try:
+            start = marks.get(path.name, 0)
+            if start > path.stat().st_size:
+                start = 0
+            with open(path, "rb") as handle:
+                handle.seek(start)
+                data = handle.read()
+        except OSError:
+            continue
+        if data.strip():
+            out.append((path.name, data.decode("utf-8", "replace").replace("\r\n", "\n").rstrip("\n")))
+    return out
+
+
+def keep(logs_folder: str | Path, marks: dict[str, int], scenario: str, header: str,
+         others: list[Path] | tuple[Path, ...] = ()) -> Path | None:
+    """Writes <logs folder>\\excel-test_<scenario>.log; its path, None when it cannot be written."""
+    parts = [header]
+    for name, text in added(logs_folder, marks):
+        parts += [f"--- {name}: the lines of this test", text]
+    for path in others:
+        try:
+            text = path.read_text(encoding="utf-8", errors="replace").rstrip("\n")
+        except OSError:
+            continue
+        parts += [f"--- {path.name}: written in the temporary folder of the test", text]
+    if len(parts) == 1:
+        parts.append("--- no log line during this test")
     try:
-        logs = Path(workbook_folder) / "logs"
-        with open(logs / LOG_NAME, "rb") as handle:
-            if started_at > (logs / LOG_NAME).stat().st_size:       # the log was rotated (above 1 MB): take it whole
-                started_at = 0
-            handle.seek(started_at)
-            data = handle.read()
-        if not data.strip():
-            return None
-        target = logs / file_name(scenario)
-        target.write_bytes(data)
+        target = Path(logs_folder) / file_name(scenario)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text("\n".join(parts) + "\n", encoding="utf-8", newline="\r\n")
         return target
     except OSError:
         return None

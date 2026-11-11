@@ -5,6 +5,7 @@ import dataclasses
 import datetime as dt
 import gc
 import os
+import re
 import time
 from pathlib import Path
 
@@ -30,7 +31,6 @@ from jira2dashboard.mockjira.server import MockJira
 from jira2dashboard import rovo_prompt as RP
 from jira2dashboard.params.model import load_all, mandatory_parameters, project_keys
 from jira2dashboard.paths import INTER_DIR
-from jira2dashboard.testbench import keep_log
 from jira2dashboard.standalone.results import data_check_rows
 
 scenarios("../features/flow_excel.feature")
@@ -55,7 +55,7 @@ def excel_scope(fixture_name, config):
 
 
 @pytest.fixture(scope=excel_scope)
-def flow_workbook(built_workbook, request):
+def flow_workbook(built_workbook):
     """A fresh Excel per scenario, on the workbook as built: each scenario stands alone. One Excel for the whole module
     (several extractions and builds in one process) crashed in about 2 runs out of 5 (open defect, CLAUDE.md)."""
     holder = {}
@@ -64,10 +64,7 @@ def flow_workbook(built_workbook, request):
         holder["wb"] = app.Workbooks.Open(str(built_workbook.resolve()))
         code = holder["wb"].VBProject.VBComponents(holder["wb"].CodeName).CodeModule
         assert "AbortExtraction" in code.Lines(1, code.CountOfLines)       # closing the workbook drops a pending slice
-        folder = holder["wb"].Path
-        started = keep_log.mark(folder)
-        yield holder
-        keep_log.keep(folder, started, request.node.name)               # the VBA log of this scenario, readable after the run
+        yield holder                                                     # its logs: keep_excel_logs (tests/conftest.py)
         holder.pop("wb").Close(False)
         del app
         gc.collect()
@@ -325,6 +322,33 @@ def log_file(world) -> Path:
     return Path(world["wb"].Path) / "logs" / "jira2dashboard.log"
 
 
+TIMED = re.compile(r" \| \d+\.\d{3} s$")                       # "END ... | 0.235 s", "RUN end ok | 11.834 s"
+
+
+def logged_run(world, how: str) -> tuple[list[list[str]], str]:
+    """The lines of the run in the log since world["log_from"] ([KIND, text]) and their text, checked for what every run
+    gives to debug it: its RUN line, then its inputs (PARAM, no value of the client), then steps that each end before the
+    next with their time, and RUN end ok with the time of the run."""
+    raw = log_file(world).read_bytes()
+    start = world["log_from"] if len(raw) >= world["log_from"] else 0                 # a new file when the log was big
+    text = raw[start:].decode("ascii")                                                  # plain ASCII, or this fails
+    lines = [line.split(" ", 3)[2:] for line in text.splitlines()                      # date time KIND text
+             if " RUN previous run did not end " not in line]                           # an earlier scenario crashed
+    kinds = [kind for kind, *_ in lines]
+    assert lines[0][0] == "RUN" and lines[0][1].startswith(how + " | Excel "), lines[0]
+    params = [rest[0] for kind, *rest in lines if kind == "PARAM"]
+    assert params and kinds[1:1 + len(params)] == ["PARAM"] * len(params), kinds       # the inputs, right after RUN
+    assert {"ApiToken = (set)", "Email = (set)", "BaseUrl = (set)"} <= set(params), params
+    assert any(p in params for p in ("FlowLoadMode = A", "FlowLoadMode = B")), params   # a setting of the tool, in clear
+    assert any(p.startswith("sheet Projects = ") and p.endswith(" rows") for p in params), params
+    assert lines[-1][0] == "RUN" and TIMED.search(" " + lines[-1][1]) and lines[-1][1].startswith("end ok | "), lines[-1]
+    steps = kinds[1 + len(params):-1]
+    assert steps == ["BEGIN", "END"] * (len(steps) // 2), kinds                          # each step ends before the next
+    ends = [rest[0] for kind, *rest in lines if kind == "END"]
+    assert all(TIMED.search(end) for end in ends), ends[:3]                             # each step gives its time
+    return lines, text
+
+
 @then("la feuille Steps montre chaque étape avec son statut et son temps")
 def _steps_sheet(world):
     rows = sheet_rows(world["wb"], "Steps")
@@ -335,18 +359,10 @@ def _steps_sheet(world):
     assert any(s.startswith("search page 1") for s in steps) and any(s.startswith("changelogs from issue") for s in steps), steps
 
 
-@then("le journal local décrit l'exécution étape par étape, sans jeton, adresse ni réponse de Jira")
+@then("le journal local décrit l'exécution étape par étape, avec ses paramètres et le temps de chaque étape, sans jeton, "
+      "adresse ni réponse de Jira")
 def _log(world):
-    raw = log_file(world).read_bytes()
-    start = world["log_from"] if len(raw) >= world["log_from"] else 0                 # a new file when the log was big
-    text = raw[start:].decode("ascii")                                                  # plain ASCII, or this fails
-    lines = [line.split(" ", 3)[2:] for line in text.splitlines()                      # date time KIND text
-             if " RUN previous run did not end " not in line]                           # an earlier scenario crashed
-    kinds = [kind for kind, *_ in lines]
-    assert lines[0][1].startswith("button Extract from Jira and compute | Excel "), lines[0]
-    assert lines[-1] == ["RUN", "end ok"], lines[-1]
-    steps = kinds[1:-1]
-    assert steps == ["BEGIN", "END"] * (len(steps) // 2), kinds                          # each step ends before the next
+    lines, text = logged_run(world, "button Extract from Jira and compute")
     begun = [rest[0] for kind, *rest in lines if kind == "BEGIN"]
     for name in ("search page 1", "changelogs from issue 1 of 150", "raw sheets: write", "flow sheets: charts"):
         assert name in begun, (name, begun[:5])
@@ -868,16 +884,10 @@ def _no_workflow(world):
         assert sheet_rows(world["wb"], name) == [], name
 
 
-@then("le journal local décrit la lecture de la configuration, sans jeton, adresse ni réponse de Jira")
+@then("le journal local décrit la lecture de la configuration, avec ses paramètres et le temps de chaque étape, sans "
+      "jeton, adresse ni réponse de Jira")
 def _configuration_log(world):
-    raw = log_file(world).read_bytes()
-    start = world["log_from"] if len(raw) >= world["log_from"] else 0
-    text = raw[start:].decode("ascii")
-    lines = [line.split(" ", 3)[2:] for line in text.splitlines() if " RUN previous run did not end " not in line]
-    kinds = [kind for kind, *_ in lines]
-    assert lines[0][1].startswith("button Read the Jira configuration | Excel "), lines[0]
-    assert lines[-1] == ["RUN", "end ok"], lines[-1]
-    assert kinds[1:-1] == ["BEGIN", "END"] * ((len(kinds) - 2) // 2), kinds
+    lines, text = logged_run(world, "button Read the Jira configuration")
     begun = [rest[0] for kind, *rest in lines if kind == "BEGIN"]
     count = len(project_keys())
     assert begun == ["proxy detection", "projects"] + \
@@ -1089,6 +1099,12 @@ def _mandatory_named(world, names):
     assert world["status"].endswith(str(log_file(world))), world["status"]                   # next to the workbook
     errors = [line for line in log_file(world).read_text(encoding="ascii").splitlines() if " ERROR " in line]
     assert errors and " ERROR J2D-CFG-002 | Btn" in errors[-1] and " | vbObjectError+608 | " in errors[-1], errors   # the code the client reads out
+    run = log_file(world).read_text(encoding="ascii").splitlines()
+    run = run[max(n for n, line in enumerate(run) if " RUN button " in line):]               # the last run
+    assert any(line.endswith(f" PARAM {names} = (empty)") for line in run), run              # its inputs name the empty one
+    assert any(line.endswith(" PARAM BaseUrl = (set)") for line in run), run                  # and never the address
+    assert not any("127.0.0.1" in line or "http" in line for line in run), run
+    assert re.search(r" RUN end stopped J2D-CFG-002 \| \d+\.\d{3} s$", run[-1]), run[-1]  # the code on the last line
     codes = {row["Code"]: row for row in sheet_rows(world["wb"], "ErrorCodes")}                  # the table is in the delivered workbook
     assert "J2D-CFG-002" in codes and "J2D-JIRA-401" in codes, sorted(codes)
 

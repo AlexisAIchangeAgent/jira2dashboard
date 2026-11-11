@@ -23,7 +23,7 @@ Fonctionnalité: Le bouton « Read the Jira configuration » propose les paramè
     Et la feuille JiraProjectFields donne les champs de chaque type de ticket de chaque projet
     Et la feuille JiraFieldUsage compte les tickets où chaque champ est rempli
     Et les feuilles de paramètres n'ont pas changé
-    Et le journal local décrit la lecture de la configuration, sans jeton, adresse ni réponse de Jira
+    Et le journal local décrit la lecture de la configuration, avec ses paramètres et le temps de chaque étape, sans jeton, adresse ni réponse de Jira
 
   @excel
   Scénario: Sans droit de lire les workflows, les autres propositions sont écrites et l'état le dit

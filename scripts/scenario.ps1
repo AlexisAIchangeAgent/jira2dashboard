@@ -16,7 +16,8 @@ Runs, in this order, the scripts of this folder (the output of each one is in th
 A step that fails stops the scenario: the next steps are skipped (the clean-up still runs). At the end a table lists each
 step with its status and its time. The log of the run (last run only) is scripts\logs\scenario.log: its
 lines "step N: name" and "scenario: ..." tell which step failed. The scripts it plays write into that same log (one transcript,
-not one per script): run.log, start-mock.log... keep the log of their last run on their own.
+not one per script, with the output of Python): run_<command>.log, start-mock.log... keep the log of their last run on
+their own.
 Exit status: 0 when every step passed, 1 when a step failed, 2 for a wrong argument.
 ASCII only: PowerShell 5.1 reads a file without BOM as ANSI.
 

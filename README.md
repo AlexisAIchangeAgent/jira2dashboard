@@ -298,13 +298,14 @@ A figure that cannot be computed shows "not computable", never 0. Each data chec
 
 | Name | Path | Purpose |
 |---|---|---|
-| VBA log | `logs\jira2dashboard.log` next to the workbook (`%LOCALAPPDATA%\jira2dashboard\logs` if that folder cannot be written) | `RUN`, `BEGIN`/`END` per step, `ERROR` |
-| Python log | `logs\python.log` next to the workbook | Steps, failed Jira calls, tracebacks |
+| VBA log | `logs\jira2dashboard.log` next to the workbook (`%LOCALAPPDATA%\jira2dashboard\logs` if that folder cannot be written) | `RUN`; `PARAM` (the inputs: each Config row, values of the client as `(set)`/`(empty)`, rows per parameter sheet); `BEGIN`/`END` per step, `END ... \| 0.235 s`; `ERROR <code>`; `RUN end ok \| 12.345 s` or `RUN end stopped <code> \| ...` |
+| Python log | `logs\python.log` next to the workbook | `PARAM` (every Config value, never the token), steps with their time, failed Jira calls, tracebacks |
+| Script logs | `scripts\logs\<script>.log`; `scripts\logs\run_<command>.log` for `run.ps1` (last run of each) | Transcript of the script, with the output of Python (pytest results, tracebacks) |
 | Status cell | `Dashboard!A3` | Current step, or `Stopped J2D-<AREA>-<NNN> - message` |
 | Support code | `J2D-<AREA>-<NNN>`: first word of every `ERROR` line (VBA and Python logs), column `Error code` of the sheet `Steps`, status of the Dashboard | What the client reads to the support; `src/jira2dashboard/error_codes.py` (and the sheet `ErrorCodes`) gives cause, check, what to ask. Never renumbered; `python -m jira2dashboard.error_codes` prints the table |
 | Unfinished run | `HKCU\Software\VB and VBA Program Settings\jira2dashboard` | Next run logs "previous run did not end" |
-| VBA test log | `%TEMP%\jira2dashboard_vba_tests.log` | VBA tests only |
-| Excel scenario logs | `logs\excel-test_<scenario>.log` next to the test workbook (`out\inter\logs`) | The VBA log lines of each `test-excel` scenario, in the same `logs` folder as the log of the workbook (`testbench/keep_log.py`); `build` and `vba-tests` empty `out\inter` |
+| VBA test log | `logs\vba-tests.log` next to the test workbook (`out\inter\logs`) | VBA tests only: `TEST <name>` before each test, `TEST <name> done \| <time>` after (after a crash, the last `TEST` line names the test) |
+| Excel test logs | `out\inter\logs\excel-test_<test>.log` | One per Excel test (`test-excel`, `test-network`): result and time, its lines of each log of `out\inter\logs`, its `python.log` (`tests/conftest.py`, `testbench/keep_log.py`). `clean`, `build` and `vba-tests` keep `out\inter\logs` |
 | Fake Jira pid | `%TEMP%\jira2dashboard\mock-jira-<port>.pid` | What `stop-mock.ps1` may stop |
 | Test outputs | `out\inter\` | Test workbooks, chart PNGs, `.coverage` |
 | Event log | Event Viewer > Application, event 1000 | Faulting module of an Excel crash |
