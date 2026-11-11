@@ -946,9 +946,11 @@ def _rovo_status(world):
 
 ROVO_CSV = (
     "\ufeffSheet,Row,Column,Value,Note\n"
-    "Config,,ProxyBypass,*.corp.example,seen in the proxy page\n"
+    "Config,,FillRateThreshold,85,seen in the page of the ART\n"
+    "Config,,BaseUrl,https://evil.example,injected\n"
     "Config,,ApiToken,TO BE TYPED BY THE USER,\n"
-    "Config,,Email,UNKNOWN,check\n"
+    "Config,,Filter,UNKNOWN,check\n"
+    "Config,,SprintField,,not found\n"
     "Projects,1,Project,ZZA,\n"
     "Projects,1,Role,Program,\n"
     "Projects,1,Team,\"Train Z, Alpha\",a comma in the value\n"
@@ -960,10 +962,9 @@ ROVO_CSV = (
     "Iterations,1,End,2026-10-26,\n")
 
 
-@given("une réponse de Rovo en CSV qui donne ProxyBypass, deux projets, une itération, un jeton à saisir et une valeur inconnue")
+@given("une réponse de Rovo en CSV qui donne FillRateThreshold, une adresse de connexion, deux projets, une itération, un jeton à saisir et une valeur inconnue")
 def _rovo_csv(world):
-    world["csv"] = INTER_DIR / "rovo_answer.csv"
-    world["csv"].parent.mkdir(parents=True, exist_ok=True)
+    world["csv"] = Path(world["wb"].Path) / "rovo_answer.csv"                      # at the root of the folder of the workbook
     world["csv"].write_bytes(ROVO_CSV.encode("utf-8"))
 
 
@@ -982,12 +983,13 @@ def _rovo_load(world):
     world["summary"] = retry(lambda: app.Run(prefix + "ImportRovoCsvFile", str(world["csv"])))
 
 
-@then("la feuille Config a reçu ProxyBypass et rien d'autre")
+@then("la feuille Config a reçu FillRateThreshold et aucun paramètre de connexion")
 def _rovo_config_loaded(world):
     before, after = world["before"]["Config"], world["wb"].Worksheets("Config").UsedRange.Value
     changed = [row[0] for old, row in zip(before, after) if old != row]
-    assert changed == ["ProxyBypass"], changed
-    assert dict((row[0], row[1]) for row in after)["ProxyBypass"] == "*.corp.example"
+    assert changed == ["FillRateThreshold"], changed                              # BaseUrl of the CSV was not loaded
+    values = dict((row[0], row[1]) for row in after)
+    assert str(values["FillRateThreshold"]) == "85" and "evil" not in str(values["BaseUrl"])
 
 
 @then("la feuille Projects contient les deux lignes du CSV et plus aucune autre")
@@ -1013,8 +1015,8 @@ def _rovo_others_kept(world):
 
 @then("l'état du tableau de bord résume ce qui est chargé et les valeurs inconnues")
 def _rovo_summary(world):
-    assert world["summary"].startswith("Rovo CSV loaded: Config 1 value(s); Projects 2 row(s); Iterations 1 row(s). 3 value(s) UNKNOWN"), world["summary"]
-    assert "problem" not in world["summary"], world["summary"]
+    assert world["summary"].startswith("Rovo CSV loaded: Config 1 value(s): FillRateThreshold; Projects 2 row(s); Iterations 1 row(s). 3 value(s) UNKNOWN"), world["summary"]
+    assert "2 problem(s), first: Line 3: BaseUrl says where the credentials go" in world["summary"], world["summary"]
 
 
 # --- first use: the first steps, the sheet Manual and the column Mandatory of Config (first_use.feature) --------------

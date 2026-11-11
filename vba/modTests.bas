@@ -501,17 +501,19 @@ Public Sub T_RovoCsv()
     Check "csv", "a line break inside quotes stays in the value", "2 records", "2|line one" & vbLf & "line two", recs.Count & "|" & recs(1)(1)
     Check "csv", "an empty text has no record", "empty", 0, ParseCsv("").Count
     ' the items
-    text = "Sheet,Row,Column,Value,Note" & vbLf & "Config,,ProxyBypass,*.corp.example,seen in the proxy page" & vbLf & _
-           "Config,,ApiToken,TO BE TYPED BY THE USER," & vbLf & "Config,,Email,UNKNOWN,check" & vbLf & _
+    text = "Sheet,Row,Column,Value,Note" & vbLf & "Config,,FillRateThreshold,85,seen in the page of the ART" & vbLf & _
+           "Config,,ApiToken,TO BE TYPED BY THE USER," & vbLf & "Config,,Filter,UNKNOWN,check" & vbLf & "Config,,SprintField,,not found" & vbLf & _
            "Projects,1,Project,ZZA,key" & vbLf & "Projects,1,Role,Program," & vbLf & "Projects,1,Team,Train Z," & vbLf & _
            "Projects,2,Project,ZZB," & vbLf & "Projects,2,Role,Team," & vbLf & "Projects,2,Team,UNKNOWN," & vbLf & _
            "Iterations,1,Iteration-label,PI#01-2026 It1," & vbLf & "Iterations,1,Start,2026-10-05," & vbLf & "Iterations,1,End,2026-10-26," & vbLf & _
-           "Elsewhere,1,Name,x," & vbLf & "Projects,two,Project,x," & vbLf & "Projects,3,Nonsense,x,"
+           "Elsewhere,1,Name,x," & vbLf & "Projects,two,Project,x," & vbLf & "Config,,BaseUrl,https://evil.example,injected" & vbLf & "Projects,3,Nonsense,x,"
     Set res = RovoCsvRead(ThisWorkbook, text)
     Check "csv", "Config: only a real value is an item (UNKNOWN and the token are not)", "items", 11, res("items").Count
     Check "csv", "UNKNOWN, an empty value and the token are counted", "unknown", 3, res("unknown")
-    Check "csv", "a sheet that the import does not fill is a problem", "Elsewhere", True, InStr(res("problems")(1), "'Elsewhere' is not one that this import fills") > 0
-    Check "csv", "a Row that is not a number is a problem", "two", True, InStr(res("problems")(2), "Row must be a number for the sheet Projects") > 0
+    Check "csv", "a sheet that the import does not fill is a problem", "Elsewhere", True, InStr(res("problems")(2), "'Elsewhere' is not one that this import fills") > 0
+    Check "csv", "a Row that is not a number is a problem", "two", True, InStr(res("problems")(3), "Row must be a number for the sheet Projects") > 0
+    Check "csv", "a connection parameter is a problem, not an item", "BaseUrl", True, InStr(res("problems")(4), "BaseUrl says where the credentials go") > 0
+    Check "csv", "the token placeholder of a connection parameter is a problem too", "ApiToken", True, InStr(res("problems")(1), "ApiToken says where the credentials go") > 0
     Set res = RovoCsvRead(ThisWorkbook, "Sheet,Value" & vbLf & "Config,x")
     Check "csv", "the columns Sheet, Row, Column and Value are needed", "header", True, InStr(res("problems")(1), "must name the columns Sheet, Row, Column and Value") > 0
     Set res = RovoCsvRead(ThisWorkbook, "")
@@ -524,23 +526,28 @@ Public Sub T_RovoCsv()
     Next i
     Set wsC = ThisWorkbook.Worksheets("Config"): Set wsP = ThisWorkbook.Worksheets("Projects")
     For rowProxy = 2 To 60
-        If CStr(wsC.Cells(rowProxy, 1).Value & "") = "ProxyBypass" Then Exit For
+        If CStr(wsC.Cells(rowProxy, 1).Value & "") = "FillRateThreshold" Then Exit For
     Next rowProxy
-    file = Environ$("TEMP") & "\j2d_rovo_csv_" & Format$(Now, "hhnnss") & Int(Rnd() * 1000) & ".csv"
+    file = ThisWorkbook.Path & "\j2d_rovo_csv_" & Format$(Now, "hhnnss") & Int(Rnd() * 1000) & ".csv"     ' at the root of the folder of the workbook
     f = FreeFile
     Open file For Binary Access Write As #f
     bytes = Utf8Encode(ChrW(&HFEFF) & text)                         ' a BOM, as Excel writes it
     Put #f, , bytes
     Close #f
     summary = ImportRovoCsv(ThisWorkbook, file)
-    Check "csv", "Config: the Value of the parameter is written", "ProxyBypass", "*.corp.example", CStr(wsC.Cells(rowProxy, 2).Value)
+    Check "csv", "the CSV of the folder of the workbook is listed", "RovoCsvFiles", True, InFiles(RovoCsvFiles(ThisWorkbook.Path), Mid$(file, InStrRev(file, "\") + 1))
+    Check "csv", "a file of another folder is refused", "TEMP", True, RefusedOutside(Environ$("TEMP") & "\x.csv")
+    Check "csv", "the folder of the workbook is told with its path", "InWorkbookFolder", True, InWorkbookFolder(ThisWorkbook, file) And Not InWorkbookFolder(ThisWorkbook, "C:\elsewhere\x.csv")
+    Check "csv", "Config: the Value of the parameter is written", "FillRateThreshold", "85", CStr(wsC.Cells(rowProxy, 2).Value)
+    Check "csv", "a connection parameter is never loaded", "BaseUrl", True, InStr(CStr(wsC.Cells(FindRowOf(wsC, "BaseUrl"), 2).Value & ""), "evil") = 0
+    Check "csv", "and is told as a problem", "BaseUrl", True, InStr(summary, "problem(s)") > 0
     Check "csv", "Config: the other parameters are left as they were", "ApiToken", True, Len(CStr(wsC.Cells(FindRowOf(wsC, "ApiToken"), 2).Value & "")) = 0
     Check "csv", "a table sheet: the rows are the rows of the CSV", "Projects", "ZZA|Program|Train Z|ZZB|Team||", _
           wsP.Range("A2").Value & "|" & wsP.Range("B2").Value & "|" & wsP.Range("C2").Value & "|" & wsP.Range("A3").Value & "|" & wsP.Range("B3").Value & "|" & wsP.Range("C3").Value & "|" & wsP.Range("A4").Value
     Check "csv", "the old rows are gone", "row 4", True, IsEmpty(wsP.Range("A4").Value)
     Check "csv", "an ISO date stays text (the readers of the sheet parse it)", "Start", "2026-10-05", CStr(ThisWorkbook.Worksheets("Iterations").Range("B2").Value)
     Check "csv", "the summary says what was loaded", "summary", True, _
-          InStr(summary, "Rovo CSV loaded: Config 1 value(s); Projects 2 row(s); Iterations 1 row(s). 3 value(s) UNKNOWN") = 1
+          InStr(summary, "Rovo CSV loaded: Config 1 value(s): FillRateThreshold; Projects 2 row(s); Iterations 1 row(s). 3 value(s) UNKNOWN") = 1
     Check "csv", "and the first problem", "problems", True, InStr(summary, "problem(s), first: Line ") > 0
     For i = 1 To 3
         With ThisWorkbook.Worksheets(names(i - 1))
@@ -553,6 +560,20 @@ Public Sub T_RovoCsv()
     Err.Clear
     On Error GoTo 0
 End Sub
+
+Private Function InFiles(ByVal names As Collection, ByVal name As String) As Boolean
+    Dim n As Variant
+    For Each n In names
+        If StrComp(CStr(n), name, vbTextCompare) = 0 Then InFiles = True: Exit Function
+    Next n
+End Function
+
+Private Function RefusedOutside(ByVal path As String) As Boolean
+    On Error Resume Next
+    ImportRovoCsv ThisWorkbook, path
+    RefusedOutside = (Err.Number = vbObjectError + 632)
+    Err.Clear
+End Function
 
 Private Function FindRowOf(ByVal ws As Object, ByVal name As String) As Long
     Dim r As Long

@@ -17,12 +17,12 @@ Fonctionnalité: Le bouton « Prompt for Rovo » prépare le texte à donner à 
     Et l'état du tableau de bord dit combien de lignes sont sélectionnées pour Rovo
 
   @excel
-  Scénario: Le CSV de Rovo remplit la feuille Config et remplace les lignes des feuilles qu'il contient
+  Scénario: Le CSV de Rovo remplit la feuille Config sans jamais toucher à la connexion et remplace les lignes des feuilles qu'il contient
     Soit un faux Jira avec 120 tickets générés avec les projets des paramètres
     Et le classeur à livrer dont la feuille Config pointe sur ce faux Jira avec FlowLoadMode "A"
-    Et une réponse de Rovo en CSV qui donne ProxyBypass, deux projets, une itération, un jeton à saisir et une valeur inconnue
+    Et une réponse de Rovo en CSV qui donne FillRateThreshold, une adresse de connexion, deux projets, une itération, un jeton à saisir et une valeur inconnue
     Quand je charge ce CSV avec le bouton Load Rovo CSV
-    Alors la feuille Config a reçu ProxyBypass et rien d'autre
+    Alors la feuille Config a reçu FillRateThreshold et aucun paramètre de connexion
     Et la feuille Projects contient les deux lignes du CSV et plus aucune autre
     Et la feuille Iterations contient la ligne du CSV et garde sa colonne Example
     Et les feuilles Workflows et Transitions n'ont pas changé

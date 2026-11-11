@@ -178,6 +178,7 @@ Public Function RovoPromptLines(ByVal wb As Object) As Collection
     Dim out As New Collection, spec As Variant
     For Each spec In ReadTable(wb.Worksheets(SHEET_ROVO_SPEC))
         Select Case LCase$(CStr(spec("Part") & ""))
+            Case "keep"                                                  ' a connection parameter: not part of the prompt text
             Case "config": Cov "PRM31": AddConfigLines wb.Worksheets("Config"), out
             Case "sheet": Cov "PRM32": out.Add SheetLine(wb, CStr(spec("Name") & ""), CStr(spec("Text") & ""))
             Case Else: Cov "PRM33": out.Add CStr(spec("Text") & "")
@@ -315,7 +316,7 @@ Public Function RovoCsvRead(ByVal wb As Object, ByVal text As String) As Object
     Cov "PRM40"
     Dim res As Object, items As New Collection, problems As New Collection, recs As Collection, rec As Variant
     Dim cSheet As Long, cRow As Long, cCol As Long, cVal As Long, allowed As Object, line As Long, sh As String, r As Long
-    Dim v As String, col As String, spec As Variant
+    Dim v As String, col As String, spec As Variant, protected As Object
     Set res = CreateObject("Scripting.Dictionary")
     Set res("items") = items: Set res("problems") = problems: res("unknown") = 0
     Set recs = ParseCsv(text)
@@ -326,10 +327,11 @@ Public Function RovoCsvRead(ByVal wb As Object, ByVal text As String) As Object
         problems.Add "The first line must name the columns Sheet, Row, Column and Value (it holds: " & Join(recs(1), ", ") & ")."
         Set RovoCsvRead = res: Exit Function
     End If
-    Set allowed = CreateObject("Scripting.Dictionary")
+    Set allowed = CreateObject("Scripting.Dictionary"): Set protected = CreateObject("Scripting.Dictionary")
     allowed("config") = True
     For Each spec In ReadTable(wb.Worksheets(SHEET_ROVO_SPEC))
         If LCase$(CStr(spec("Part") & "")) = "sheet" Then allowed(LCase$(CStr(spec("Name") & ""))) = True
+        If LCase$(CStr(spec("Part") & "")) = "keep" Then protected(LCase$(CStr(spec("Name") & ""))) = True
     Next spec
     For Each rec In recs
         line = line + 1
@@ -342,17 +344,24 @@ Public Function RovoCsvRead(ByVal wb As Object, ByVal text As String) As Object
             ElseIf Len(col) = 0 Then
                 problems.Add "Line " & line & ": the column is empty."
             Else
-                ImportItem items, problems, res, line, sh, TrimWhite(CsvAt(rec, cRow)), col, v
+                ImportItem items, problems, res, protected, line, sh, TrimWhite(CsvAt(rec, cRow)), col, v
             End If
         End If
     Next rec
     Set RovoCsvRead = res
 End Function
 
-Private Sub ImportItem(ByVal items As Collection, ByVal problems As Collection, ByVal res As Object, ByVal line As Long, _
+Private Sub ImportItem(ByVal items As Collection, ByVal problems As Collection, ByVal res As Object, ByVal protected As Object, ByVal line As Long, _
                        ByVal sh As String, ByVal rowText As String, ByVal col As String, ByVal v As String)
     Dim isConfig As Boolean, r As Long, noValue As Boolean
     isConfig = (StrComp(sh, "Config", vbTextCompare) = 0)
+    If isConfig Then
+        If protected.Exists(LCase$(col)) Then
+            Cov "PRM53"
+            problems.Add "Line " & line & ": " & col & " says where the credentials go: type it by hand, it is never loaded from a CSV."
+            Exit Sub
+        End If
+    End If
     noValue = (Len(v) = 0 Or StrComp(v, "UNKNOWN", vbTextCompare) = 0 Or StrComp(Left$(v, 12), "TO BE TYPED ", vbTextCompare) = 0)
     If noValue Then Cov "PRM44": res("unknown") = res("unknown") + 1: v = ""
     If isConfig Then
@@ -397,6 +406,7 @@ Public Function RovoCsvApply(ByVal wb As Object, ByVal res As Object) As String
     Cov "PRM46"
     Dim item As Variant, ws As Object, counts As Object, cleared As Object, names As String, k As Variant, c As Long, r As Long
     Dim cValue As Long, cParam As Long, last As Long, problems As Collection, summary As String, nProblems As Long, first As String
+    Dim loaded As String
     Set counts = CreateObject("Scripting.Dictionary"): Set cleared = CreateObject("Scripting.Dictionary")
     Set problems = res("problems")
     For Each item In res("items")
@@ -412,6 +422,7 @@ Public Function RovoCsvApply(ByVal wb As Object, ByVal res As Object) As String
                 Else
                     ws.Cells(r, cValue).Value = SafeCell(CStr(item(3)))
                     counts("Config") = Val(counts("Config") & "") + 1
+                    If counts("Config") <= 8 Then loaded = loaded & IIf(Len(loaded) > 0, ", ", "") & item(2)
                 End If
             Else
                 If Not cleared.Exists(ws.Name) Then ClearTableBody ws: cleared(ws.Name) = 0
@@ -429,7 +440,7 @@ Public Function RovoCsvApply(ByVal wb As Object, ByVal res As Object) As String
         names = names & IIf(Len(names) > 0, "; ", "") & k & " " & cleared(k) & " row(s)"
     Next k
     summary = "Rovo CSV loaded: "
-    If counts.Exists("Config") Then summary = summary & "Config " & counts("Config") & " value(s)"
+    If counts.Exists("Config") Then summary = summary & "Config " & counts("Config") & " value(s): " & loaded & IIf(counts("Config") > 8, ", ...", "")
     If Len(names) > 0 Then summary = summary & IIf(counts.Exists("Config"), "; ", "") & names
     If counts.Count = 0 And Len(names) = 0 Then summary = summary & "nothing to load"
     summary = summary & ". " & res("unknown") & " value(s) UNKNOWN (left empty or unchanged)."
@@ -490,8 +501,38 @@ Public Function RovoCsvText(ByVal path As String) As String
     If size > 0 Then RovoCsvText = Utf8Decode(bytes)
 End Function
 
+Public Function RovoCsvFiles(ByVal folder As String) As Collection
+    ' The names of the .csv files at the root of the folder (the workbook runs from a folder not known in advance, and the CSV
+    ' of Rovo is kept at the root of that same folder).
+    Cov "PRM50"
+    Dim out As New Collection, name As String
+    Set RovoCsvFiles = out
+    If Len(folder) = 0 Then Exit Function
+    name = Dir$(folder & "\*.csv")
+    Do While Len(name) > 0
+        If LCase$(Right$(name, 4)) = ".csv" Then out.Add name
+        name = Dir$
+    Loop
+End Function
+
+Public Function InWorkbookFolder(ByVal wb As Object, ByVal path As String) As Boolean
+    ' True when the file is at the root of the folder of the workbook (True for a workbook that has no folder yet).
+    Cov "PRM51"
+    Dim folder As String, dir As String
+    folder = wb.Path
+    If Len(folder) = 0 Then InWorkbookFolder = True: Exit Function
+    If Right$(folder, 1) = "\" Then folder = Left$(folder, Len(folder) - 1)
+    If InStrRev(path, "\") > 0 Then dir = Left$(path, InStrRev(path, "\") - 1)
+    InWorkbookFolder = (StrComp(dir, folder, vbTextCompare) = 0)
+End Function
+
 Public Function ImportRovoCsv(ByVal wb As Object, ByVal path As String) As String
-    ' The answer of Rovo (CSV) into the parameter sheets; returns the summary. Nothing is sent anywhere: the file is read here.
+    ' The answer of Rovo (CSV) into the parameter sheets; returns the summary. The file must be at the root of the folder of the
+    ' workbook. Nothing is sent anywhere: the file is read here.
+    If Not InWorkbookFolder(wb, path) Then
+        Cov "PRM52"
+        Err.Raise vbObjectError + 632, "ImportRovoCsv", "The CSV must be at the root of the folder of the workbook (" & wb.Path & "): copy it there."
+    End If
     ImportRovoCsv = RovoCsvApply(wb, RovoCsvRead(wb, RovoCsvText(path)))
 End Function
 

@@ -10,7 +10,10 @@ its answer as CSV (Sheet, Row, Column, Value, Note).
 SPEC_SHEET = "RovoPromptSpec"
 PROMPT_SHEET = "RovoPrompt"
 SPEC_HEADER = ("Part", "Name", "Text")
-TEXT, CONFIG, SHEET = "text", "config", "sheet"
+TEXT, CONFIG, SHEET, KEEP = "text", "config", "sheet", "keep"
+# The parameters that say where the credentials go: the CSV can tell them to the user but the button Load Rovo CSV never writes
+# them (a CSV, made by Rovo from what it reads in Jira, must not be able to redirect the e-mail and the token to another host).
+PROTECTED = ("BaseUrl", "Email", "ApiToken", "ProxyServer", "ProxyBypass", "ProxyWindowsAuth")
 CSV_COLUMNS = ("Sheet", "Row", "Column", "Value", "Note")
 UNKNOWN = "UNKNOWN"
 
@@ -25,6 +28,8 @@ INTRO = (
     "- Never invent a field id, a status name or a date.",
     "- Never write an API token or a password: for ApiToken write TO BE TYPED BY THE USER.",
     "- This text holds no value of my workbook: only the names and the meaning of what to fill.",
+    "- The connection parameters (" + ", ".join(PROTECTED) + ") are typed by hand: give your value for information, the workbook "
+    "does not load them from your answer.",
     "",
 )
 CONFIG_TITLE = ("SHEET Config - one line per parameter: name, mandatory or optional, meaning, and an example of the form "
@@ -69,5 +74,6 @@ def spec_rows() -> list[tuple[str, str, str]]:
     rows.append((TEXT, "", ""))
     rows += [(SHEET, name, rule) for name, rule in SHEET_RULES.items()]
     rows += [(TEXT, "", line) for line in FORMAT]
+    rows += [(KEEP, name, "connection parameter: typed by hand, never loaded from the CSV") for name in PROTECTED]
     return rows
 
