@@ -53,7 +53,7 @@ Private Function TestNames() As Variant
         "T_HttpNetworkAndCancel", "T_RetryExhausted", "T_ChangelogChunks", "T_IssueRows", "T_WriteTable", "T_StatusIntervals", _
         "T_StatusChanges", "T_RetryDelay", "T_SafeAccess", "T_FilesUtf8", "T_StringifyBadObject", _
         "T_TooManyPages", "T_BackgroundExport", "T_TextNotConverted", "T_ParamsTables", "T_ParamsOnWorkbook", _
-        "T_TrimWhite", "T_ConfigSheet", "T_MandatoryConfig", "T_ProxyDetect", "T_ProxyScript", "T_ProjectsSheet", "T_ParseMoment", "T_ExtractFlowData", "T_ExtractJob", "T_ExtractCheckFields", "T_FlowBuild", "T_BaseUrlHttps", "T_Log", "T_LogHintAndOpen", _
+        "T_TrimWhite", "T_ConfigSheet", "T_MandatoryConfig", "T_ProxyDetect", "T_ProxyScript", "T_ProjectsSheet", "T_ParseMoment", "T_ExtractFlowData", "T_ExtractJob", "T_ExtractCheckFields", "T_FlowBuild", "T_BaseUrlHttps", "T_Log", "T_LogHintAndOpen", "T_StepsSheet", _
         "T_JiraConfig", "T_AbortExtraction", "T_Utf8Oracle", "T_Utf8Invalid", "T_Base64Oracle")
 End Function
 
@@ -479,6 +479,46 @@ Public Sub T_LogHintAndOpen()
     gLogOpenFake = False
     LogOpen                                          ' no person at the keyboard (a test Excel): nothing starts
     Check "log", "an Excel started by a script does not start Notepad", "UserControl", False, Application.UserControl
+    gLogPath = saved
+End Sub
+
+Public Sub T_StepsSheet()
+    ' The sheet Steps: a row per step with its status and its time; a stopped run leaves "error", a cancelled one "cancelled".
+    Dim saved As String, ws As Object, i As Long
+    saved = gLogPath
+    gLogPath = Environ$("TEMP") & "\j2d_steps_test_" & Format$(Now, "hhnnss") & Int(Rnd() * 1000) & ".log"
+    Application.DisplayAlerts = False
+    If SheetExists(ThisWorkbook, "Steps") Then ThisWorkbook.Worksheets("Steps").Delete
+    Application.DisplayAlerts = True
+    LogRunStart "steps test"
+    Set ws = ThisWorkbook.Worksheets("Steps")
+    Check "steps", "the sheet is created with its header", "A1:C1", "Step|Status|Time elapsed (s)", ws.Range("A1").Value & "|" & ws.Range("B1").Value & "|" & ws.Range("C1").Value
+    LogBegin "outer"
+    LogBegin "inner"
+    Check "steps", "a step that began is running, its time is empty", "inner", "inner|running|", ws.Range("A3").Value & "|" & ws.Range("B3").Value & "|" & ws.Range("C3").Value
+    LogEnd "inner: 5 items"
+    LogEnd "outer"
+    Check "steps", "the end closes the last step begun; its text says more", "inner", "inner: 5 items|done", ws.Range("A3").Value & "|" & ws.Range("B3").Value
+    Check "steps", "an end that does not extend the name keeps the name", "outer", "outer|done", ws.Range("A2").Value & "|" & ws.Range("B2").Value
+    Check "steps", "the time is a number of seconds", "C2", True, IsNumeric(ws.Range("C2").Value) And Not IsEmpty(ws.Range("C2").Value)
+    LogEnd "stray"
+    Check "steps", "an end without a begin adds nothing", "A4", True, IsEmpty(ws.Range("A4").Value)
+    LogBegin "stopped step"
+    LogRunEnd "stopped"
+    Check "steps", "a stopped run leaves its running step as error", "A4", "stopped step|error", ws.Range("A4").Value & "|" & ws.Range("B4").Value
+    LogRunStart "second run", "Errors"                                ' the level Errors keeps the sheet: it shows every step
+    Check "steps", "a new run empties the sheet", "A2", True, IsEmpty(ws.Range("A2").Value)
+    LogBegin "waiting"
+    LogRunEnd "cancelled during a wait for Jira"
+    Check "steps", "a cancelled run says cancelled", "A2", "waiting|cancelled", ws.Range("A2").Value & "|" & ws.Range("B2").Value
+    LogRunStart "third run"
+    LogBegin "last"
+    LogRunEnd "ok"
+    Check "steps", "a run that ends ok leaves nothing running", "A2", "last|done", ws.Range("A2").Value & "|" & ws.Range("B2").Value
+    On Error Resume Next
+    Kill gLogPath
+    Err.Clear
+    On Error GoTo 0
     gLogPath = saved
 End Sub
 

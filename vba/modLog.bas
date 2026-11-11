@@ -20,6 +20,11 @@ Public gLogOpenCommand As String
 Public gLogFallbackFile As String                 ' tests: the file used when gLogPath cannot be written
 Private mFallback As Boolean                       ' True once the folder next to the workbook could not be written (until the next run)
 Private mErrorsOnly As Boolean                     ' True while a run asked the level Errors
+Private Const STEPS_SHEET As String = "Steps"
+Private mStepSheet As Object
+Private mStepRows As Collection                     ' rows of the steps begun and not ended (a stack: steps can nest)
+Private mStepStarts As Collection                   ' their start times (Timer)
+Private mStepNext As Long                           ' the next free row
 
 Public Function LogFolderFrom(ByVal workbookPath As String, ByVal localAppData As String, ByVal temp As String) As String
     ' logs next to the workbook; the folder of the user when the workbook has no folder of its own.
@@ -69,11 +74,13 @@ Public Sub LogLine(ByVal kind As String, ByVal text As String)
 End Sub
 
 Public Sub LogBegin(ByVal stepName As String)
+    StepsBegin stepName                                ' the sheet Steps shows every step, whatever the level
     If mErrorsOnly Then Exit Sub
     LogLine "BEGIN", stepName
 End Sub
 
 Public Sub LogEnd(ByVal stepName As String)
+    StepsEnd stepName
     If mErrorsOnly Then Exit Sub
     LogLine "END", stepName
 End Sub
@@ -90,6 +97,7 @@ Public Sub LogRunStart(ByVal how As String, Optional ByVal level As String = "St
         bits = "32-bit"
     #End If
     mFallback = False                                  ' try the folder next to the workbook again
+    StepsReset
     RotateLog
     mErrorsOnly = (StrComp(level, "Errors", vbTextCompare) = 0)
     LogLine "RUN", how & " | Excel " & Application.Version & " build " & Application.Build & " " & bits & " | " & ThisWorkbook.Name
@@ -107,9 +115,100 @@ Public Sub LogRunEnd(ByVal result As String)
     Cov "LOG13"
     On Error Resume Next
     LogLine "RUN", "end " & result
+    StepsClose result
     mErrorsOnly = False
     DeleteSetting "jira2dashboard", FlagSection(), "RunInProgress"
     Err.Clear
+End Sub
+
+' ---- The sheet Steps: the steps of the run in progress, with their status and time ----------------------------------
+' One row per step (LogBegin adds it as "running", LogEnd closes it as "done" with its time, in seconds); a run that stops
+' leaves its running rows as "error" or "cancelled". The sheet is created at the first run and emptied at each run start.
+' Whatever happens here is ignored: the sheet is a view of the run, never a reason to stop it.
+
+
+Private Sub StepsReset()
+    Cov "LOG21"
+    Dim shown As Object
+    On Error Resume Next
+    Set mStepRows = New Collection: Set mStepStarts = New Collection
+    Set mStepSheet = Nothing
+    Set shown = Application.ActiveSheet
+    If SheetExists(ThisWorkbook, STEPS_SHEET) Then
+        Set mStepSheet = ThisWorkbook.Worksheets(STEPS_SHEET)
+    Else
+        Cov "LOG22"
+        Set mStepSheet = ThisWorkbook.Worksheets.Add(, ThisWorkbook.Worksheets(ThisWorkbook.Worksheets.Count))
+        mStepSheet.Name = STEPS_SHEET
+        mStepSheet.Columns(1).ColumnWidth = 70
+        mStepSheet.Columns(2).ColumnWidth = 12
+        mStepSheet.Columns(3).ColumnWidth = 18
+        mStepSheet.Columns(3).NumberFormat = "0.0"
+        shown.Activate                              ' the sheet shown before stays shown
+    End If
+    If mStepSheet Is Nothing Then Err.Clear: Exit Sub
+    mStepSheet.Cells.ClearContents
+    mStepSheet.Range("A1:C1").Value = Array("Step", "Status", "Time elapsed (s)")
+    mStepSheet.Range("A1:C1").Font.Bold = True
+    mStepNext = 2
+    Err.Clear
+End Sub
+
+Private Sub StepsBegin(ByVal stepName As String)
+    On Error Resume Next
+    If mStepSheet Is Nothing Then Exit Sub
+    mStepSheet.Cells(mStepNext, 1).Value = SafeCell(stepName)
+    mStepSheet.Cells(mStepNext, 2).Value = "running"
+    mStepRows.Add mStepNext
+    mStepStarts.Add Timer
+    mStepNext = mStepNext + 1
+    Err.Clear
+End Sub
+
+Private Sub StepsEnd(ByVal text As String)
+    ' Closes the last step begun. The text of the END replaces the name when it says more ("search page 3: 100 issues").
+    Dim r As Long, started As Double, current As String
+    On Error Resume Next
+    If mStepSheet Is Nothing Then Exit Sub
+    If mStepRows.Count = 0 Then Cov "LOG23": Exit Sub          ' an END whose BEGIN was not seen (another run, or a new sheet)
+    r = mStepRows(mStepRows.Count): started = mStepStarts(mStepStarts.Count)
+    mStepRows.Remove mStepRows.Count: mStepStarts.Remove mStepStarts.Count
+    current = CStr(mStepSheet.Cells(r, 1).Value)
+    If Len(text) > Len(current) And Left$(text, Len(current)) = current Then
+        Cov "LOG25"
+        mStepSheet.Cells(r, 1).Value = SafeCell(text)
+    End If
+    StepsFinish r, started, "done"
+    Err.Clear
+End Sub
+
+Private Sub StepsClose(ByVal result As String)
+    ' The run ended: a step still running stopped with it.
+    Dim i As Long, status As String
+    On Error Resume Next
+    If mStepSheet Is Nothing Then Exit Sub
+    If mStepRows.Count = 0 Then Exit Sub
+    Cov "LOG24"
+    If LCase$(Left$(result, 2)) = "ok" Then
+        status = "done"
+    ElseIf LCase$(Left$(result, 9)) = "cancelled" Then
+        status = "cancelled"
+    Else
+        status = "error"
+    End If
+    For i = mStepRows.Count To 1 Step -1
+        StepsFinish CLng(mStepRows(i)), CDbl(mStepStarts(i)), status
+    Next i
+    Set mStepRows = New Collection: Set mStepStarts = New Collection
+    Err.Clear
+End Sub
+
+Private Sub StepsFinish(ByVal r As Long, ByVal started As Double, ByVal status As String)
+    Dim seconds As Double
+    seconds = Timer - started
+    If seconds < 0 Then seconds = seconds + 86400            ' past midnight
+    mStepSheet.Cells(r, 2).Value = status
+    mStepSheet.Cells(r, 3).Value = Round(seconds, 1)
 End Sub
 
 Private Function FlagSection() As String

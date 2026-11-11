@@ -319,6 +319,16 @@ def log_file(world) -> Path:
     return Path(world["wb"].Path) / "logs" / "jira2dashboard.log"
 
 
+@then("la feuille Steps montre chaque étape avec son statut et son temps")
+def _steps_sheet(world):
+    rows = sheet_rows(world["wb"], "Steps")
+    assert rows and list(rows[0]) == ["Step", "Status", "Time elapsed (s)"], rows[:1]
+    assert {r["Status"] for r in rows} == {"done"}, [r for r in rows if r["Status"] != "done"]      # none left running
+    assert all(isinstance(r["Time elapsed (s)"], float) and r["Time elapsed (s)"] >= 0 for r in rows)
+    steps = [r["Step"] for r in rows]
+    assert any(s.startswith("search page 1") for s in steps) and any(s.startswith("changelogs from issue") for s in steps), steps
+
+
 @then("le journal local décrit l'exécution étape par étape, sans jeton, adresse ni réponse de Jira")
 def _log(world):
     raw = log_file(world).read_bytes()
