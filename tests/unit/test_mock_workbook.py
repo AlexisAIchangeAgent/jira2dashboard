@@ -1,7 +1,10 @@
 """The copy of a workbook for a manual test against the fake Jira: what goes into Config, Iterations and PIs."""
+import csv
 import datetime as dt
+import io
 
 from jira2dashboard import clean
+from jira2dashboard import rovo_prompt as RP
 from jira2dashboard import mock_workbook as M
 from jira2dashboard.mockjira.anomalies import PI, PI_WINDOW
 from jira2dashboard.mockjira.dataset import FieldIds
@@ -15,6 +18,29 @@ def test_the_config_points_to_the_fake_jira_on_the_port_with_its_account_and_ref
     values = M.config_values(M.base_url(8099))
     assert {k: values[k] for k in ("BaseUrl", "Email", "ApiToken", "AsOf")} == {
         "BaseUrl": "http://127.0.0.1:8099", "Email": MOCK_EMAIL, "ApiToken": MOCK_TOKEN, "AsOf": "2026-11-03 18:00"}
+
+
+def test_the_rovo_csv_gives_the_configuration_of_the_fake_jira_but_never_the_connection():
+    text = M.rovo_csv()
+    assert text.startswith("\ufeffSheet,Row,Column,Value,Note\r\n")
+    rows = list(csv.reader(io.StringIO(text.removeprefix("\ufeff"))))[1:]
+    config = {column: value for sheet, _row, column, value, _note in rows if sheet == "Config"}
+    assert config["AsOf"] == f"{AS_OF:%Y-%m-%d %H:%M}" and config["StoryPointsField"] == FieldIds().story_points
+    assert not set(config) & set(RP.PROTECTED)                                  # the button never loads them anyway
+    cells = {(sheet, int(row), column): value for sheet, row, column, value, _note in rows if sheet != "Config"}
+    first = M.iterations()[0]
+    assert cells[("Iterations", 1, "Iteration-label")] == first.name and cells[("Iterations", 1, "Start")] == f"{first.start:%Y-%m-%d}"
+    assert len([1 for sheet, row, column in cells if sheet == "Iterations" and column == "End"]) == len(M.iterations())
+    assert cells[("PIs", 1, "PI")] == PI
+    assert {sheet for sheet, _row, _column in cells} == set(RP.SHEET_RULES)
+    projects = next(sheet for sheet in load_all() if sheet.name == "Projects")
+    assert len([1 for sheet, _row, column in cells if sheet == "Projects" and column == "Project"]) == len(projects.rows)
+
+
+def test_a_date_reads_as_rovo_writes_it():
+    assert M.csv_value(dt.datetime(2026, 10, 5)) == "2026-10-05"
+    assert M.csv_value(dt.datetime(2026, 11, 3, 18, 0)) == "2026-11-03 18:00"
+    assert M.csv_value(None) == "" and M.csv_value(3) == "3"
 
 
 def test_the_reference_date_is_the_one_of_the_generated_data():

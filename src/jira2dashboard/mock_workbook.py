@@ -4,12 +4,17 @@ The copy, out\\manual_test\\jira2dashboard4manualtest.xlsm, gets what a client w
 account, reference date and custom field ids of the fake Jira of `run.ps1 mock-jira`; 14-day iterations in Iterations;
 the PI of the known anomalies in PIs. The workbook given is never changed: the one to deliver keeps its client values
 empty. out\\manual_test is never emptied by clean, build or vba-tests; the copy is rewritten at each run.
+Next to it, rovo_mock_jira.csv: the same configuration as Rovo would answer it (the CSV of the button Load Rovo CSV), to
+try that button by hand. The connection (address, account, token, proxy) is not in it: the button never loads it.
 """
+import csv
 import datetime as dt
+import io
 import shutil
 import sys
 from pathlib import Path
 
+from jira2dashboard import rovo_prompt as RP
 from jira2dashboard.cli.args import parser
 from jira2dashboard.excel import com
 from jira2dashboard.flow.model import Iteration
@@ -23,6 +28,8 @@ from jira2dashboard.standalone.xlsx_write import Sheet, write_xlsx
 
 COPY_NAME = "jira2dashboard4manualtest.xlsm"
 COPY = MANUAL_TEST_DIR / COPY_NAME
+CSV_NAME = "rovo_mock_jira.csv"
+CSV_NOTE = "configuration of the fake Jira (run.ps1 mock-jira)"
 FIELD_IDS = {"StoryPointsField": "story_points", "BusinessValueField": "business_value", "PIField": "pi",
              "TeamField": "team", "SprintField": "sprint", "TargetStartField": "target_start",
              "TargetEndField": "target_end"}          # Config parameter of a data check -> attribute of FieldIds
@@ -71,6 +78,31 @@ def params_book(url: str, values: dict[str, str] | None = None) -> list[Sheet]:
 
 def write_params_book(path: Path, url: str, values: dict[str, str] | None = None) -> Path:
     return write_xlsx(path, params_book(url, values))
+
+
+def csv_value(value) -> str:
+    """A cell of a parameter sheet as Rovo writes it: a date as yyyy-mm-dd (with the time when it has one)."""
+    if isinstance(value, dt.datetime):
+        return f"{value:%Y-%m-%d}" if value.time() == dt.time() else f"{value:%Y-%m-%d %H:%M}"
+    return "" if value is None else str(value)
+
+
+def rovo_csv(port: int = 8099) -> str:
+    """The answer Rovo would give for the fake Jira, in the CSV the button Load Rovo CSV reads (rovo_prompt.CSV_COLUMNS):
+    the Config values of config_values but the connection (rovo_prompt.PROTECTED, never loaded from a CSV), then every row
+    of the sheets the prompt asks for (rovo_prompt.SHEET_RULES), with a BOM as Excel writes a UTF-8 CSV."""
+    out = io.StringIO()
+    writer = csv.writer(out, lineterminator="\r\n")
+    writer.writerow(RP.CSV_COLUMNS)
+    for name, value in config_values(base_url(port)).items():
+        if name not in RP.PROTECTED:
+            writer.writerow(("Config", "", name, value, CSV_NOTE))
+    for sheet in params_book(base_url(port)):
+        if sheet.name in RP.SHEET_RULES:
+            for number, row in enumerate(sheet.rows, start=1):
+                for column, value in zip(sheet.header, row):
+                    writer.writerow((sheet.name, number, column, csv_value(value), ""))
+    return "\ufeff" + out.getvalue()
 
 
 def write_iterations(ws, iterations: list[Iteration]) -> None:
@@ -129,6 +161,8 @@ def main(argv: list[str] | None = None) -> int:
         return 1
     fill_copy(COPY, base_url(args.port))
     print(f"mock-workbook: {COPY}")
+    (COPY.parent / CSV_NAME).write_bytes(rovo_csv(args.port).encode("utf-8"))
+    print(f"mock-workbook: {COPY.parent / CSV_NAME} (to try Load Rovo CSV; type the connection by hand)")
     return 0
 
 

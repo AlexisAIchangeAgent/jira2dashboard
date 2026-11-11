@@ -987,6 +987,35 @@ def _rovo_csv(world):
     world["csv"].write_bytes(ROVO_CSV.encode("utf-8"))
 
 
+@given("le CSV de configuration du faux Jira, dans un dossier à part")
+def _rovo_mock_csv(world):
+    world["csv"] = Path(world["wb"].Path) / "rovo" / mock_workbook.CSV_NAME         # not next to the workbook
+    world["csv"].parent.mkdir(exist_ok=True)
+    world["csv"].write_bytes(mock_workbook.rovo_csv().encode("utf-8"))
+
+
+@then("la feuille Config a reçu la date de référence et les champs du faux Jira, et aucun paramètre de connexion")
+def _rovo_mock_config(world):
+    config = {name: ("" if value is None else str(value)) for name, value, *_ in world["wb"].Worksheets("Config").UsedRange.Value[1:]}
+    expected = mock_workbook.config_values(mock_workbook.base_url(8099))
+    for name in ["AsOf", "WorkTypeField", *mock_workbook.FIELD_IDS]:
+        assert config[name] == expected[name], (name, config[name])
+    assert all(config[name] in ("", "Yes") for name in RP.PROTECTED), {n: config[n] for n in RP.PROTECTED}   # Yes: the repo value of ProxyWindowsAuth
+
+
+@then("les feuilles Iterations et PIs ont les itérations et le PI du faux Jira")
+def _rovo_mock_iterations(world):
+    for name, expected in (("Iterations", mock_workbook.iterations()), ("PIs", mock_workbook.PIS)):
+        rows = [row for row in world["wb"].Worksheets(name).UsedRange.Value[1:] if row[0] is not None]
+        got = [(str(r[0]), as_day(r[1]), as_day(r[2])) for r in rows]
+        assert got == [(i.name, f"{i.start:%Y-%m-%d}", f"{i.end:%Y-%m-%d}") for i in expected], (name, got[:2])
+
+
+def as_day(value) -> str:
+    """A cell of a date column: the text the CSV wrote (yyyy-mm-dd), or a date Excel made of it."""
+    return value.strftime("%Y-%m-%d") if hasattr(value, "strftime") else str(value)[:10]
+
+
 @when("je charge ce CSV avec le bouton Load Rovo CSV")
 def _rovo_load(world):
     wb = world["wb"]

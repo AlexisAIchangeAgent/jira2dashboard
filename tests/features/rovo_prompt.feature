@@ -29,3 +29,11 @@ Fonctionnalité: Le bouton « Prompt for Rovo » prépare le texte à donner à 
     Et les feuilles Workflows et Transitions n'ont pas changé
     Et l'état du tableau de bord résume ce qui est chargé et les valeurs inconnues
     Et le journal local décrit le run du bouton "Load Rovo CSV", avec ses paramètres et le temps de son étape
+
+  @excel
+  Scénario: Le CSV de configuration du faux Jira remplit le classeur livré comme la copie de manual-test, sauf la connexion
+    Soit le classeur à livrer
+    Et le CSV de configuration du faux Jira, dans un dossier à part
+    Quand je charge ce CSV avec le bouton Load Rovo CSV
+    Alors la feuille Config a reçu la date de référence et les champs du faux Jira, et aucun paramètre de connexion
+    Et les feuilles Iterations et PIs ont les itérations et le PI du faux Jira
