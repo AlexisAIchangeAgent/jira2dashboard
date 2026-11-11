@@ -147,11 +147,18 @@ Public Sub BtnLoadRovoCsv()
     Dim num As Long, desc As String, file As Variant, summary As String, folder As String, files As Collection
     If mBusy Then Beep: Exit Sub
     On Error GoTo Failed
+    LogRunStart "button Load Rovo CSV", LogLevelSetting()             ' every click is a run of the log, a cancel too
+    LogParameters ThisWorkbook                                       ' the values before the load
     folder = ThisWorkbook.Path
-    If Len(folder) = 0 Then ShowProgress -1, "Rovo CSV: save this workbook first: the CSV must be at the root of its folder.": Exit Sub
+    If Len(folder) = 0 Then
+        ShowProgress -1, "Rovo CSV: save this workbook first: the CSV must be at the root of its folder."
+        LogRunEnd "ok: nothing loaded (the workbook has no folder)"
+        Exit Sub
+    End If
     Set files = RovoCsvFiles(folder)
     If files.Count = 0 Then
         ShowProgress -1, "Rovo CSV: no .csv file in " & folder & ". Save the CSV exported from Rovo there, then click again."
+        LogRunEnd "ok: nothing loaded (no .csv file in the folder of the workbook)"
         Exit Sub
     ElseIf files.Count = 1 Then
         file = folder & "\" & files(1)                                   ' the only CSV of the folder: no dialog
@@ -160,7 +167,11 @@ Public Sub BtnLoadRovoCsv()
         ChDrive folder: ChDir folder                                     ' the dialog opens in the folder of the workbook
         On Error GoTo Failed
         file = Application.GetOpenFilename("CSV files (*.csv),*.csv", , "The CSV answered by Rovo")
-        If VarType(file) = vbBoolean Then ShowProgress -1, "Rovo CSV: no file chosen, nothing loaded.": Exit Sub
+        If VarType(file) = vbBoolean Then
+            ShowProgress -1, "Rovo CSV: no file chosen, nothing loaded."
+            LogRunEnd "cancelled: no file chosen"
+            Exit Sub
+        End If
     End If
     If MsgBox("Load " & Mid$(file, InStrRev(file, "\") + 1) & " into the parameter sheets?" & vbLf & vbLf & _
               "The Value of each parameter of Config that the file gives replaces the current one. For every other sheet " & _
@@ -168,29 +179,35 @@ Public Sub BtnLoadRovoCsv()
               "Save a copy of the workbook first if you want to keep the current values.", vbOKCancel + vbQuestion, _
               "Load the CSV of Rovo") <> vbOK Then
         ShowProgress -1, "Rovo CSV: cancelled, nothing loaded."
+        LogRunEnd "cancelled: not confirmed"
         Exit Sub
     End If
     summary = ImportRovoCsvFile(CStr(file))
     ShowProgress -1, summary
+    LogRunEnd "ok"
     Exit Sub
 Failed:
     num = Err.Number: desc = Err.Description
     LogError "BtnLoadRovoCsv", num, desc
-    LogRunEnd "stopped"                                              ' the run of ImportRovoCsvFile, when the error came from it
+    LogRunEnd "stopped"
     EndRunStopped num, desc
 End Sub
 
 Public Function ImportRovoCsvFile(ByVal path As String) As String
-    ' The work of BtnLoadRovoCsv without the dialogs (the tests and other macros use it). One run of the log, as the other
-    ' buttons: its RUN line, the parameters before the load, the load and its time, RUN end. An error goes up to the caller
-    ' (BtnLoadRovoCsv logs it and ends the run as stopped). The summary is not logged: it quotes names read in the CSV.
-    Dim summary As String
-    LogRunStart "button Load Rovo CSV", LogLevelSetting()
-    LogParameters ThisWorkbook                                       ' the values before the load
+    ' The work of BtnLoadRovoCsv without the dialogs (the tests and other macros use it): the step "Rovo CSV" of the run of
+    ' the button. Called alone (no run in progress), it is a run of its own, as a button: its RUN line, the parameters before
+    ' the load, the step and its time, RUN end. An error goes up to the caller. The summary is not logged: it quotes names
+    ' read in the CSV.
+    Dim summary As String, own As Boolean
+    own = Not LogRunActive()
+    If own Then
+        LogRunStart "button Load Rovo CSV", LogLevelSetting()
+        LogParameters ThisWorkbook                                   ' the values before the load
+    End If
     LogBegin "Rovo CSV"
     summary = ImportRovoCsv(ThisWorkbook, path)
     LogEnd "Rovo CSV loaded"
-    LogRunEnd "ok"
+    If own Then LogRunEnd "ok"
     ImportRovoCsvFile = summary
 End Function
 

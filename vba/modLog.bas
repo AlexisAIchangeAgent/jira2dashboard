@@ -217,6 +217,11 @@ Public Sub LogRunStart(ByVal how As String, Optional ByVal level As String = "St
     Err.Clear
 End Sub
 
+Public Function LogRunActive() As Boolean
+    ' True between LogRunStart and LogRunEnd: a macro called by a button that already logs its run adds only its steps.
+    LogRunActive = mRunOn
+End Function
+
 Public Sub LogRunEnd(ByVal result As String)
     ' The last line of a run: "end ok | 12.345 s", "end cancelled...", "end stopped J2D-CFG-002 | 0.031 s" (the code of the
     ' error that stopped it). Clears the flag of the run in progress.

@@ -807,7 +807,9 @@ Public Sub T_LogInputsAndTimes()
     LogEnd "inner: 3 items"
     LogEnd "outer"
     LogEnd "stray"
+    Check "logrun", "a run is in progress between its start and its end", "start", True, LogRunActive()
     LogRunEnd "ok"
+    Check "logrun", "and no longer after its end", "end", False, LogRunActive()
     text = FileText(file)
     Check "logparam", "a PARAM line per row of Config, the setting in clear", "FlowLoadMode", True, InStr(text, " PARAM FlowLoadMode = A" & vbCrLf) + InStr(text, " PARAM FlowLoadMode = B" & vbCrLf) > 0
     Check "logparam", "and the value of the client as set or empty", "BaseUrl", True, InStr(text, " PARAM BaseUrl = (") > 0 And InStr(text, " PARAM BaseUrl = h") = 0
