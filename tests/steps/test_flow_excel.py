@@ -324,7 +324,7 @@ def log_file(world) -> Path:
 @then("la feuille Steps montre chaque étape avec son statut et son temps")
 def _steps_sheet(world):
     rows = sheet_rows(world["wb"], "Steps")
-    assert rows and list(rows[0]) == ["Step", "Status", "Time elapsed (s)"], rows[:1]
+    assert rows and list(rows[0]) == ["Step", "Status", "Time elapsed (s)", "Error code"], rows[:1]
     assert {r["Status"] for r in rows} == {"done"}, [r for r in rows if r["Status"] != "done"]      # none left running
     assert all(isinstance(r["Time elapsed (s)"], float) and r["Time elapsed (s)"] >= 0 for r in rows)
     steps = [r["Step"] for r in rows]
@@ -1080,9 +1080,13 @@ def _click_extract(world, request):
 
 @then(parsers.parse("l'état du tableau de bord nomme les paramètres obligatoires vides \"{names}\""))
 def _mandatory_named(world, names):
-    assert world["status"].startswith("Stopped: "), world["status"]
+    assert world["status"].startswith("Stopped J2D-CFG-002 - "), world["status"]
     assert f"(Mandatory = True): {names} See the log: " in world["status"], world["status"]      # the log path ends it
     assert world["status"].endswith(str(log_file(world))), world["status"]                   # next to the workbook
+    errors = [line for line in log_file(world).read_text(encoding="ascii").splitlines() if " ERROR " in line]
+    assert errors and " ERROR J2D-CFG-002 | Btn" in errors[-1] and " | vbObjectError+608 | " in errors[-1], errors   # the code the client reads out
+    codes = {row["Code"]: row for row in sheet_rows(world["wb"], "ErrorCodes")}                  # the table is in the delivered workbook
+    assert "J2D-CFG-002" in codes and "J2D-JIRA-401" in codes, sorted(codes)
 
 
 @then("le faux Jira n'a reçu aucune requête")

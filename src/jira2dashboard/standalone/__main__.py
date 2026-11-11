@@ -210,6 +210,18 @@ def run(args, formatter: Scrubbed, collected: Collected, sleep=time.sleep, detec
     return out
 
 
+UNEXPECTED_CODE = "J2D-SYS-099"
+
+
+def support_code(err: Exception) -> str:
+    """The code of an expected error of the run (error_codes.py): the same text as the VBA gives to the same cause."""
+    if isinstance(err, (J.JiraError, ParamsError)):
+        return err.support_code if isinstance(err, J.JiraError) else err.code
+    if isinstance(err, XlsxLocked):
+        return "J2D-SYS-010"
+    return "J2D-SYS-011"                                # the workbook: not found, not a zip, not a workbook
+
+
 def main(argv: list[str] | None = None, *, sleep=time.sleep, detect=detect_proxy, transport=WinHttp) -> int:
     args = parse(argv)
     try:
@@ -224,12 +236,13 @@ def main(argv: list[str] | None = None, *, sleep=time.sleep, detect=detect_proxy
         log.info("RUN end ok: %s", out)
         return 0
     except (ParamsError, J.JiraError, XlsxLocked, NotAWorkbook, FileNotFoundError, zipfile.BadZipFile) as err:
-        log.error("%s", err)
-        log.info("RUN end stopped (log: %s)", args.log)
+        code = support_code(err)
+        log.error("%s | %s", code, err)
+        log.info("RUN end stopped %s (log: %s)", code, args.log)
         return 1
     except Exception:                                   # noqa: BLE001 - the traceback goes to the log, then exit 1
-        log.exception("unexpected error")
-        log.info("RUN end stopped (log: %s)", args.log)
+        log.exception("%s | unexpected error", UNEXPECTED_CODE)
+        log.info("RUN end stopped %s (log: %s)", UNEXPECTED_CODE, args.log)
         return 1
     finally:
         for handler in handlers:

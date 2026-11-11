@@ -9,6 +9,7 @@ from jira2dashboard.excel import com as R
 from jira2dashboard.flow import blueprint as B
 from jira2dashboard.flow import dashboard_spec as D
 from jira2dashboard import manual as M
+from jira2dashboard import error_codes as EC
 from jira2dashboard import rovo_prompt as RP
 
 EXCEL_ERRORS = {-2146826281: "#DIV/0!", -2146826246: "#N/A", -2146826259: "#NAME?", -2146826288: "#NULL!",
@@ -57,6 +58,11 @@ def write_blueprint(wb, dash=None, button_macro: str | None = None) -> None:
     R.write_block(ws, 1, 1, [list(RP.SPEC_HEADER)] + [list(row) for row in RP.spec_rows()])
     ws.Columns("A:B").ColumnWidth = 12
     ws.Columns("C").ColumnWidth = 120
+    ws = R.add_sheet_after_last(wb, "ErrorCodes")                    # the support codes: what each one means and what to check
+    R.write_block(ws, 1, 1, [list(EC.HEADER)] + [list(row) for row in EC.rows()])
+    ws.Range("A1:E1").Font.Bold = True
+    ws.Columns("A").ColumnWidth = 16
+    ws.Columns("B:E").ColumnWidth = 50
     write_dashboard_frame(wb, R.add_sheet_after_last(wb, "Dashboard") if dash is None else dash, button_macro)
 
 

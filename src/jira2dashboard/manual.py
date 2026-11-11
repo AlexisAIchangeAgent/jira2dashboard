@@ -88,7 +88,8 @@ def manual(mandatory: tuple[str, ...]) -> list[tuple[str, str]]:
             "At the end the sheets ItemFlow, DailyLoad, Metrics, ChartData and the charts are rebuilt to the size of "
             "the new data. Run it as often as needed.",
             "Cell B2 of the Dashboard: the team of the Flow Distribution chart.",
-            'A status that starts with "Stopped" gives the error. The local log tells more (below).',
+            'A status that starts with "Stopped" gives the error, with its code (J2D-...): read it to the support. The sheet ErrorCodes '
+            'says what each code means and what to check. The local log tells more (below).',
         ]),
         ("Results", [
             'Metrics: one row per iteration and team. A figure that cannot be computed reads "not computable", never 0.',

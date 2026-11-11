@@ -53,7 +53,7 @@ Private Function TestNames() As Variant
         "T_HttpNetworkAndCancel", "T_RetryExhausted", "T_ChangelogChunks", "T_IssueRows", "T_WriteTable", "T_StatusIntervals", _
         "T_StatusChanges", "T_RetryDelay", "T_SafeAccess", "T_FilesUtf8", "T_StringifyBadObject", _
         "T_TooManyPages", "T_BackgroundExport", "T_TextNotConverted", "T_ParamsTables", "T_ParamsOnWorkbook", _
-        "T_TrimWhite", "T_ConfigSheet", "T_MandatoryConfig", "T_ProxyDetect", "T_ProxyScript", "T_ProjectsSheet", "T_ParseMoment", "T_ExtractFlowData", "T_ExtractJob", "T_ExtractCheckFields", "T_FlowBuild", "T_BaseUrlHttps", "T_Log", "T_LogHintAndOpen", "T_StepsSheet", "T_RovoPrompt", "T_RovoCsv", _
+        "T_TrimWhite", "T_ConfigSheet", "T_MandatoryConfig", "T_ProxyDetect", "T_ProxyScript", "T_ProjectsSheet", "T_ParseMoment", "T_ExtractFlowData", "T_ExtractJob", "T_ExtractCheckFields", "T_FlowBuild", "T_BaseUrlHttps", "T_Log", "T_ErrorCodes", "T_LogHintAndOpen", "T_StepsSheet", "T_RovoPrompt", "T_RovoCsv", _
         "T_JiraConfig", "T_AbortExtraction", "T_Utf8Oracle", "T_Utf8Invalid", "T_Base64Oracle")
 End Function
 
@@ -635,7 +635,7 @@ Public Sub T_StepsSheet()
     Application.DisplayAlerts = True
     LogRunStart "steps test"
     Set ws = ThisWorkbook.Worksheets("Steps")
-    Check "steps", "the sheet is created with its header", "A1:C1", "Step|Status|Time elapsed (s)", ws.Range("A1").Value & "|" & ws.Range("B1").Value & "|" & ws.Range("C1").Value
+    Check "steps", "the sheet is created with its header", "A1:D1", "Step|Status|Time elapsed (s)|Error code", ws.Range("A1").Value & "|" & ws.Range("B1").Value & "|" & ws.Range("C1").Value & "|" & ws.Range("D1").Value
     LogBegin "outer"
     LogBegin "inner"
     Check "steps", "a step that began is running, its time is empty", "inner", "inner|running|", ws.Range("A3").Value & "|" & ws.Range("B3").Value & "|" & ws.Range("C3").Value
@@ -647,8 +647,11 @@ Public Sub T_StepsSheet()
     LogEnd "stray"
     Check "steps", "an end without a begin adds nothing", "A4", True, IsEmpty(ws.Range("A4").Value)
     LogBegin "stopped step"
+    LogError "Step", vbObjectError + 608, "Fill these values of the Config sheet first"
     LogRunEnd "stopped"
-    Check "steps", "a stopped run leaves its running step as error", "A4", "stopped step|error", ws.Range("A4").Value & "|" & ws.Range("B4").Value
+    Check "steps", "a stopped run leaves its running step as error, with the support code of the error", "A4", "stopped step|error|J2D-CFG-002", _
+          ws.Range("A4").Value & "|" & ws.Range("B4").Value & "|" & ws.Range("D4").Value
+    Check "steps", "a step that ended well has no code", "D2", True, IsEmpty(ws.Range("D2").Value)
     LogRunStart "second run", "Errors"                                ' the level Errors keeps the sheet: it shows every step
     Check "steps", "a new run empties the sheet", "A2", True, IsEmpty(ws.Range("A2").Value)
     LogBegin "waiting"
@@ -663,6 +666,22 @@ Public Sub T_StepsSheet()
     Err.Clear
     On Error GoTo 0
     gLogPath = saved
+End Sub
+
+Public Sub T_ErrorCodes()
+    ' The support codes (modLog.ErrorCode): the same table as src/jira2dashboard/error_codes.py (a unit test compares the two).
+    Check "errcode", "a project error maps to its code", "608", "J2D-CFG-002", ErrorCode(vbObjectError + 608)
+    Check "errcode", "the cancel button is a code of its own", "610", "J2D-SYS-001", ErrorCode(vbObjectError + 610)
+    Check "errcode", "an answer of Jira carries its HTTP status", "401", "J2D-JIRA-401", ErrorCode(vbObjectError + 602, "HTTP 401 after 1 attempt(s).  {x}")
+    Check "errcode", "the BaseUrl check shares 602 and has its own code", "602", "J2D-CFG-005", ErrorCode(vbObjectError + 602, "BaseUrl must start with https://")
+    Check "errcode", "no answer at all carries the WinHTTP error", "12007", "J2D-NET-12007", _
+          ErrorCode(vbObjectError + 602, "HTTP 0 after 3 attempt(s). -2147012889 The server name or address could not be resolved")
+    Check "errcode", "no answer and no known number", "HTTP 0", "J2D-NET-001", ErrorCode(vbObjectError + 602, "HTTP 0 after 3 attempt(s). cancelled")
+    Check "errcode", "a WinHTTP HRESULT raised by itself", "&H80072EE7", "J2D-NET-12007", ErrorCode(&H80072EE7)
+    Check "errcode", "a WinHTTP number without the HRESULT", "12029", "J2D-NET-12029", ErrorCode(12029)
+    Check "errcode", "an error of VBA keeps its number", "13", "J2D-VBA-13", ErrorCode(13)
+    Check "errcode", "a negative error of VBA reads in hexadecimal", "&H80004005", "J2D-VBA-80004005", ErrorCode(&H80004005)
+    Check "errcode", "a project error that has no code yet", "999", "J2D-GEN-999", ErrorCode(vbObjectError + 999)
 End Sub
 
 Public Sub T_Log()
@@ -688,12 +707,12 @@ Public Sub T_Log()
     text = FileText(file)
     LogError "Step", vbObjectError + 513, "Unexpected character ""x"" at position 3"
     Check "log", "a JSON parse error keeps its number only (its text quotes the answer of Jira)", "513", True, _
-          InStr(FileText(file), "ERROR Step | vbObjectError+513 | (description not logged") > 0 And InStr(FileText(file), "Unexpected") = 0
+          InStr(FileText(file), "ERROR J2D-DATA-001 | Step | vbObjectError+513 | (description not logged") > 0 And InStr(FileText(file), "Unexpected") = 0
     Check "log", "an error that quotes the answer of Jira keeps its number only", "602", True, _
-          InStr(text, "ERROR Step | vbObjectError+602 | (description not logged") > 0 And InStr(text, "secret") = 0
+          InStr(text, "ERROR J2D-JIRA-500 | Step | vbObjectError+602 | (description not logged") > 0 And InStr(text, "secret") = 0
     Check "log", "a project error reads vbObjectError+n, with its description", "605", True, _
-          InStr(text, "ERROR Step | vbObjectError+605 | Sheet Iterations has no iteration") > 0
-    Check "log", "a VBA error keeps its number", "13", True, InStr(text, "ERROR Step | 13 | Type mismatch") > 0
+          InStr(text, "ERROR J2D-GEN-605 | Step | vbObjectError+605 | Sheet Iterations has no iteration") > 0
+    Check "log", "a VBA error keeps its number", "13", True, InStr(text, "ERROR J2D-VBA-13 | Step | 13 | Type mismatch") > 0
     WriteFileText file, String$(1000001, "y")                       ' too big: the next run starts a new file
     LogRunStart "test"
     Check "log", "a log above 1 MB becomes .1.log", "1000001 bytes", True, FileLen(folder & "\sub\run.1.log") >= 1000001

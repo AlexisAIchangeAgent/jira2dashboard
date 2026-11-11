@@ -8,6 +8,8 @@ import base64
 import json
 from urllib.parse import quote
 
+from jira2dashboard import error_codes as EC
+
 PAGE_SIZE = 100
 CHANGELOG_CHUNK = 1000
 MAX_SEARCH_PAGES = 2000
@@ -27,6 +29,11 @@ class JiraError(Exception):
     def __init__(self, code: int, message: str):
         super().__init__(message)
         self.code = code
+
+    @property
+    def support_code(self) -> str:
+        """The code the person reads to the support (error_codes.py), the same as the VBA gives to this number."""
+        return EC.code_of_vba(self.code, str(self))
 
 
 def trim_white(value: str | None) -> str:

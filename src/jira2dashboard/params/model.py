@@ -18,7 +18,11 @@ YES_NO = ("yes", "no")
 
 
 class ParamsError(ValueError):
-    """One or more problems in params/*.md, one per line."""
+    """One or more problems in params/*.md, one per line. `code` is the support code (error_codes.py)."""
+
+    def __init__(self, message: str, code: str = "J2D-CFG-020"):
+        super().__init__(message)
+        self.code = code
 
 
 @dataclass(frozen=True)

@@ -300,7 +300,8 @@ A figure that cannot be computed shows "not computable", never 0. Each data chec
 |---|---|---|
 | VBA log | `logs\jira2dashboard.log` next to the workbook (`%LOCALAPPDATA%\jira2dashboard\logs` if that folder cannot be written) | `RUN`, `BEGIN`/`END` per step, `ERROR` |
 | Python log | `logs\python.log` next to the workbook | Steps, failed Jira calls, tracebacks |
-| Status cell | `Dashboard!A3` | Current step, or the error message |
+| Status cell | `Dashboard!A3` | Current step, or `Stopped J2D-<AREA>-<NNN> - message` |
+| Support code | `J2D-<AREA>-<NNN>`: first word of every `ERROR` line (VBA and Python logs), column `Error code` of the sheet `Steps`, status of the Dashboard | What the client reads to the support; `src/jira2dashboard/error_codes.py` (and the sheet `ErrorCodes`) gives cause, check, what to ask. Never renumbered; `python -m jira2dashboard.error_codes` prints the table |
 | Unfinished run | `HKCU\Software\VB and VBA Program Settings\jira2dashboard` | Next run logs "previous run did not end" |
 | VBA test log | `%TEMP%\jira2dashboard_vba_tests.log` | VBA tests only |
 | Fake Jira pid | `%TEMP%\jira2dashboard\mock-jira-<port>.pid` | What `stop-mock.ps1` may stop |

@@ -8,6 +8,8 @@ Option Explicit
 ' The log never holds the API token, an e-mail address, a URL or an answer of Jira: callers pass step names and numbers,
 ' and the descriptions of the errors that quote the answer of Jira (602, 607) are not written.
 ' The logger never raises: a line that cannot be written is dropped.
+' Every error line starts with a support code, J2D-<AREA>-<NNN> (ErrorCode below; the table with the cause and the check of
+' each code is src/jira2dashboard/error_codes.py, shown in the sheet ErrorCodes): the person reads the code to the support.
 ' Level (Config LogLevel, read by the caller): Steps = everything; Errors = no BEGIN/END lines.
 ' A run that does not end (Excel closed or crashed) leaves a flag in the registry (HKCU, VB and VBA Program Settings):
 ' the next run says so in the log.
@@ -25,6 +27,7 @@ Private mStepSheet As Object
 Private mStepRows As Collection                     ' rows of the steps begun and not ended (a stack: steps can nest)
 Private mStepStarts As Collection                   ' their start times (Timer)
 Private mStepNext As Long                           ' the next free row
+Private mLastCode As String                         ' the support code of the last error of the run (shown in the sheet Steps)
 
 Public Function LogFolderFrom(ByVal workbookPath As String, ByVal localAppData As String, ByVal temp As String) As String
     ' logs next to the workbook; the folder of the user when the workbook has no folder of its own.
@@ -97,6 +100,7 @@ Public Sub LogRunStart(ByVal how As String, Optional ByVal level As String = "St
         bits = "32-bit"
     #End If
     mFallback = False                                  ' try the folder next to the workbook again
+    mLastCode = ""
     StepsReset
     RotateLog
     mErrorsOnly = (StrComp(level, "Errors", vbTextCompare) = 0)
@@ -144,12 +148,13 @@ Private Sub StepsReset()
         mStepSheet.Columns(2).ColumnWidth = 12
         mStepSheet.Columns(3).ColumnWidth = 18
         mStepSheet.Columns(3).NumberFormat = "0.0"
+        mStepSheet.Columns(4).ColumnWidth = 20
         shown.Activate                              ' the sheet shown before stays shown
     End If
     If mStepSheet Is Nothing Then Err.Clear: Exit Sub
     mStepSheet.Cells.ClearContents
-    mStepSheet.Range("A1:C1").Value = Array("Step", "Status", "Time elapsed (s)")
-    mStepSheet.Range("A1:C1").Font.Bold = True
+    mStepSheet.Range("A1:D1").Value = Array("Step", "Status", "Time elapsed (s)", "Error code")
+    mStepSheet.Range("A1:D1").Font.Bold = True
     mStepNext = 2
     Err.Clear
 End Sub
@@ -209,6 +214,7 @@ Private Sub StepsFinish(ByVal r As Long, ByVal started As Double, ByVal status A
     If seconds < 0 Then seconds = seconds + 86400            ' past midnight
     mStepSheet.Cells(r, 2).Value = status
     mStepSheet.Cells(r, 3).Value = Round(seconds, 1)
+    If status = "error" And Len(mLastCode) > 0 Then Cov "LOG31": mStepSheet.Cells(r, 4).Value = mLastCode
 End Sub
 
 Private Function FlagSection() As String
@@ -219,8 +225,10 @@ End Function
 Public Sub LogError(ByVal where As String, ByVal number As Long, ByVal description As String)
     ' The caller passes the values it saved from Err: any On Error statement clears Err.
     Cov "LOG07"
-    Dim text As String
-    text = where & " | " & ErrorCode(number) & " | "
+    Dim text As String, code As String
+    code = ErrorCode(number, description)
+    mLastCode = code
+    text = code & " | " & where & " | " & ErrorNumber(number) & " | "
     If number = vbObjectError + 602 Or number = vbObjectError + 607 Or number = vbObjectError + 513 Then
         Cov "LOG08"
         text = text & "(description not logged: it quotes the answer of Jira)"
@@ -254,14 +262,98 @@ Public Function NotepadCommand(ByVal file As String) As String
     NotepadCommand = "notepad.exe """ & file & """"
 End Function
 
-Public Function ErrorCode(ByVal number As Long) As String
+Public Function ErrorNumber(ByVal number As Long) As String
     ' The errors raised by this project read vbObjectError+n; the others keep their number.
     If number >= vbObjectError And number < vbObjectError + 65536 Then
         Cov "LOG09"
-        ErrorCode = "vbObjectError+" & CStr(number - vbObjectError)
+        ErrorNumber = "vbObjectError+" & CStr(number - vbObjectError)
     Else
-        ErrorCode = CStr(number)
+        ErrorNumber = CStr(number)
     End If
+End Function
+
+Public Function ErrorCode(ByVal number As Long, Optional ByVal description As String = "") As String
+    ' The support code of an error: J2D-<AREA>-<NNN>, never reused, never renumbered. AREA: CFG (parameters), JIRA (what Jira
+    ' answered: the number is the HTTP status for 4xx/5xx), NET (no answer: connection, proxy, certificate, time out; the number
+    ' is the WinHTTP error), DATA (JSON), FLOW (tables and charts), ROVO, SYS (Excel, the run itself), VBA (an error of VBA
+    ' or Excel: its number). The table with the cause and the check of each code: src/jira2dashboard/error_codes.py.
+    Dim n As Long, status As Long, net As Long
+    If number >= vbObjectError And number < vbObjectError + 65536 Then
+        n = number - vbObjectError
+        Select Case n
+            Case 600: ErrorCode = "J2D-CFG-001"
+            Case 608: ErrorCode = "J2D-CFG-002"
+            Case 603: ErrorCode = "J2D-CFG-003"
+            Case 604: ErrorCode = "J2D-CFG-004"
+            Case 620: ErrorCode = "J2D-CFG-006"
+            Case 701: ErrorCode = "J2D-CFG-010"
+            Case 704: ErrorCode = "J2D-CFG-011"
+            Case 703: ErrorCode = "J2D-CFG-012"
+            Case 601: ErrorCode = "J2D-JIRA-010"
+            Case 606: ErrorCode = "J2D-JIRA-011"
+            Case 505: ErrorCode = "J2D-JIRA-012"
+            Case 621: ErrorCode = "J2D-JIRA-013"
+            Case 607: ErrorCode = "J2D-JIRA-020"
+            Case 513: ErrorCode = "J2D-DATA-001"
+            Case 514: ErrorCode = "J2D-DATA-002"
+            Case 702: ErrorCode = "J2D-FLOW-001"
+            Case 705: ErrorCode = "J2D-FLOW-002"
+            Case 706: ErrorCode = "J2D-FLOW-003"
+            Case 707: ErrorCode = "J2D-FLOW-004"
+            Case 708: ErrorCode = "J2D-FLOW-005"
+            Case 709: ErrorCode = "J2D-FLOW-006"
+            Case 630: ErrorCode = "J2D-ROVO-001"
+            Case 631: ErrorCode = "J2D-ROVO-002"
+            Case 632: ErrorCode = "J2D-ROVO-003"
+            Case 610: ErrorCode = "J2D-SYS-001"
+            Case 611: ErrorCode = "J2D-SYS-002"
+            Case 602                                           ' two causes: the BaseUrl check, and an answer of Jira that is not 200
+                If Left$(description, 5) <> "HTTP " Then
+                    ErrorCode = "J2D-CFG-005"
+                Else
+                    status = CLng(Val(Mid$(description, 6)))
+                    If status > 0 Then
+                        Cov "LOG26"
+                        ErrorCode = "J2D-JIRA-" & Format$(status, "000")
+                    Else
+                        Cov "LOG27"
+                        net = WinHttpNumber(description)
+                        If net > 0 Then ErrorCode = "J2D-NET-" & CStr(net) Else ErrorCode = "J2D-NET-001"
+                    End If
+                End If
+            Case Else
+                Cov "LOG30"
+                ErrorCode = "J2D-GEN-" & Format$(n, "000")
+        End Select
+    Else
+        net = WinHttpOf(number)
+        If net > 0 Then
+            Cov "LOG28"
+            ErrorCode = "J2D-NET-" & CStr(net)
+        Else
+            Cov "LOG29"
+            If number < 0 Then ErrorCode = "J2D-VBA-" & Hex$(number) Else ErrorCode = "J2D-VBA-" & CStr(number)
+        End If
+    End If
+End Function
+
+Private Function WinHttpOf(ByVal number As Long) As Long
+    ' A WinHTTP error comes as 0x80072Exx (HRESULT) or as the plain 12xxx: its number, 0 for any other error.
+    Dim low As Long
+    low = number And &HFFFF&
+    If number = low Or (number And &HFFFF0000) = &H80070000 Then
+        If low >= 12000 And low <= 12200 Then WinHttpOf = low
+    End If
+End Function
+
+Private Function WinHttpNumber(ByVal description As String) As Long
+    ' The text of an HTTP 0 reads "... attempt(s). <error number> <description>": the number is the one of WinHTTP.
+    Dim p As Long, v As Double
+    p = InStr(description, "attempt(s). ")
+    If p = 0 Then Exit Function
+    v = Val(Mid$(description, p + 12))
+    If v < -2147483648# Or v > 2147483647# Then Exit Function
+    WinHttpNumber = WinHttpOf(CLng(v))
 End Function
 
 Private Function Stamp() As String

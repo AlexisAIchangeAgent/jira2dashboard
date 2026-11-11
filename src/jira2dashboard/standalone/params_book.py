@@ -191,16 +191,17 @@ def run_settings(sheets: list[ParamSheet]) -> RunSettings:
     config = by_name["Config"]
     missing = missing_mandatory(config)
     if missing:
-        raise ParamsError(f"Fill these values of the Config sheet first (Mandatory = True): {', '.join(missing)}")
+        raise ParamsError(f"Fill these values of the Config sheet first (Mandatory = True): {', '.join(missing)}", "J2D-CFG-002")
     iterations = [Iteration(name, dt.datetime.fromisoformat(start), dt.datetime.fromisoformat(end))
                for name, start, end in by_name["Iterations"].rows]
     if not iterations:
-        raise ParamsError("Sheet Iterations has no iteration: type the iterations (Iteration-label | Start | End) to compute")
+        raise ParamsError("Sheet Iterations has no iteration: type the iterations (Iteration-label | Start | End) to compute",
+                          "J2D-CFG-012")
     values = config_values(config)
     as_of = _parse_moment(values["AsOf"])
     if as_of is None:
         raise ParamsError("Config: AsOf is empty: type the UTC date and time of the extraction, for example "
-                          "2026-11-03 18:00")
+                          "2026-11-03 18:00", "J2D-CFG-004")
     connection = Connection(
         base_url=values["BaseUrl"], email=values["Email"], token=values["ApiToken"],
         proxy_server=values["ProxyServer"], proxy_bypass=values["ProxyBypass"],

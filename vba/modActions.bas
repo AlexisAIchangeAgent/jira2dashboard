@@ -269,7 +269,7 @@ End Sub
 
 Private Sub EndRunStopped(ByVal num As Long, ByVal desc As String)
     ' An error ends the run: the status says what and where the log is, and the log opens in Notepad (modLog.LogOpen).
-    EndRun "Stopped: " & num & " - " & desc & LogHint(), 0
+    EndRun "Stopped " & ErrorCode(num, desc) & " - " & desc & LogHint(), 0
     LogOpen OpenLogSetting()
 End Sub
 
