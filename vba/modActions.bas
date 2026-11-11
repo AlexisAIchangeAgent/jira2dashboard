@@ -113,6 +113,25 @@ Failed:
     EndRunStopped num, desc
 End Sub
 
+Public Sub BtnRovoPrompt()
+    ' Writes the prompt for Rovo into the sheet RovoPrompt (modParams.WriteRovoPrompt) and selects its lines: Ctrl+C, then paste
+    ' into Rovo. The workbook never sends it anywhere. Not while an extraction runs (the sheet would change under it).
+    Dim num As Long, desc As String, n As Long, ws As Object
+    If mBusy Then Beep: Exit Sub
+    On Error GoTo Failed
+    n = WriteRovoPrompt(ThisWorkbook)
+    LogLine "RUN", "button Prompt for Rovo | " & n & " lines"
+    Set ws = ThisWorkbook.Worksheets(SHEET_ROVO)
+    ws.Activate
+    ws.Range(ws.Cells(1, 1), ws.Cells(n, 1)).Select
+    ShowProgress -1, "Rovo prompt: " & n & " lines in the sheet " & SHEET_ROVO & ", selected: Ctrl+C, then paste into Rovo."
+    Exit Sub
+Failed:
+    num = Err.Number: desc = Err.Description
+    LogError "BtnRovoPrompt", num, desc
+    EndRunStopped num, desc
+End Sub
+
 Public Sub ExtractSlice()
     ' Called by Application.OnTime: one step, then the next call is scheduled. Keep it short (UI thread).
     Dim num As Long, desc As String

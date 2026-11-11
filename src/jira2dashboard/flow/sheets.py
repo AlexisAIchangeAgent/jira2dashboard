@@ -9,6 +9,7 @@ from jira2dashboard.excel import com as R
 from jira2dashboard.flow import blueprint as B
 from jira2dashboard.flow import dashboard_spec as D
 from jira2dashboard import manual as M
+from jira2dashboard import rovo_prompt as RP
 
 EXCEL_ERRORS = {-2146826281: "#DIV/0!", -2146826246: "#N/A", -2146826259: "#NAME?", -2146826288: "#NULL!",
                 -2146826252: "#NUM!", -2146826265: "#REF!", -2146826273: "#VALUE!", -2146826254: "#CALC!"}
@@ -37,6 +38,7 @@ def error_cells(wb) -> dict[str, int]:
 
 CANCEL_MACRO = "modActions.BtnCancelExtraction"
 CONFIG_MACRO = "modActions.BtnReadJiraConfiguration"
+ROVO_MACRO = "modActions.BtnRovoPrompt"
 
 
 def write_blueprint(wb, dash=None, button_macro: str | None = None) -> None:
@@ -50,6 +52,10 @@ def write_blueprint(wb, dash=None, button_macro: str | None = None) -> None:
         ws = R.add_sheet_after_last(wb, name)
         R.write_block(ws, 1, 1, [list(header)] + [list(row) for row in rows])      # text: a formula stays text here
         ws.Columns("A:B").ColumnWidth = 28
+    ws = R.add_sheet_after_last(wb, RP.SPEC_SHEET)                  # the text behind the button Prompt for Rovo
+    R.write_block(ws, 1, 1, [list(RP.SPEC_HEADER)] + [list(row) for row in RP.spec_rows()])
+    ws.Columns("A:B").ColumnWidth = 12
+    ws.Columns("C").ColumnWidth = 120
     write_dashboard_frame(wb, R.add_sheet_after_last(wb, "Dashboard") if dash is None else dash, button_macro)
 
 
@@ -71,6 +77,7 @@ def write_dashboard_frame(wb, dash, button_macro: str | None = None) -> None:
         R.add_macro_button(dash, "J1", D.EXTRACT_CAPTION, button_macro, 190, 26)
         R.add_macro_button(dash, D.CANCEL_CELL, D.CANCEL_CAPTION, CANCEL_MACRO, 80, 26)
         R.add_macro_button(dash, D.CONFIG_CELL, D.CONFIG_CAPTION, CONFIG_MACRO, 170, 26)
+        R.add_macro_button(dash, D.ROVO_CELL, D.ROVO_CAPTION, ROVO_MACRO, 105, 26)
         R.add_progress_bar(dash, D.BAR_CELL, 190, 14)
 
 

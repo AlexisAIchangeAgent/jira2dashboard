@@ -3,7 +3,7 @@
 Pure text. flow/sheets.py writes it at build time (`write_manual`). The button captions and the list of mandatory
 parameters come from their sources, so the manual follows the code.
 """
-from jira2dashboard.flow.dashboard_spec import CANCEL_CAPTION, CONFIG_CAPTION, EXTRACT_CAPTION
+from jira2dashboard.flow.dashboard_spec import CANCEL_CAPTION, CONFIG_CAPTION, EXTRACT_CAPTION, ROVO_CAPTION
 from jira2dashboard.params.model import TYPED_AT_CLIENT
 
 MANUAL_SHEET = "Manual"
@@ -18,7 +18,8 @@ def first_steps() -> list[str]:
         f"First time: do these steps in this order (details: sheet {MANUAL_SHEET})",
         f"1. Sheet Config: fill every value whose Mandatory is True. {', '.join(TYPED_AT_CLIENT)} are empty in a new "
         "workbook.",
-        "2. Sheet Projects: the Jira projects, and which one is the Program. Sheet Iterations: the iterations.",
+        "2. Sheet Projects: the Jira projects, and which one is the Program. Sheet Iterations: the iterations. "
+        f'"{ROVO_CAPTION}" prepares a prompt for Rovo that lists the values to find.',
         f'3. Click "{CONFIG_CAPTION}". Read the proposal sheets {PROPOSAL_SHEETS}.',
         "4. Copy what fits into the sheets Workflows and Transitions, and the field ids into the ...Field rows of Config.",
         f'5. Click "{EXTRACT_CAPTION}" and wait for the bar to reach the end. "{CANCEL_CAPTION}" stops it.',
@@ -59,6 +60,14 @@ def manual(mandatory: tuple[str, ...]) -> list[tuple[str, str]]:
             f"{PROPOSAL_SHEETS}. It never changes the parameter sheets.",
             "Decide by hand: Order, IsStart, IsEnd, Active or Wait, Removed instead of Done, and the Type of a "
             "transition. Then copy into Workflows and Transitions, and the field ids into the ...Field rows of Config.",
+        ]),
+        (f'Button "{ROVO_CAPTION}"', [
+            "It writes the sheet RovoPrompt: a prompt that asks Rovo for every value to type in this workbook (the connection, "
+            "the flow metrics, the projects, iterations, PIs, workflows and transitions). The lines are selected: Ctrl+C, "
+            "then paste them into Rovo.",
+            "Rovo answers with a table; export it as CSV (Sheet, Row, Column, Value, Note) and type the values in the "
+            "sheets. The prompt holds no value of this workbook (no address, e-mail or token): only the names and the meaning "
+            "of the parameters. A value Rovo cannot see is marked UNKNOWN.",
         ]),
         (f'Button "{EXTRACT_CAPTION}"', [
             "It reads Jira in small slices: the bar moves, cell A3 says what happens, and Excel stays usable.",

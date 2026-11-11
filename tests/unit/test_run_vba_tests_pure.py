@@ -48,7 +48,7 @@ def test_real_vba_modules_are_ascii_and_have_unique_markers():
     markers = rvt.coverage_markers(sources)
     # 65 originally + modParams PRM01..PRM23 + TXT16 (TrimWhite) + JIR14..JIR21 (proxy, Config sheet, hints, filter)
     # + modExtract MEX01..MEX09 (the job: MEX07-09), JIR23 (search page)
-    assert len(markers) == 247          # + TXT17 (malformed Jira date), PRM24 (AsOf typed as a date), JIR22 (http BaseUrl refused), FLB30-32, FLW08, MEX04-06
+    assert len(markers) == 253          # + TXT17 (malformed Jira date), PRM24 (AsOf typed as a date), JIR22 (http BaseUrl refused), FLB30-32, FLW08, MEX04-06
     #                                     + code review 2026-11-04: FLB35, HTP08-09, HTP10-11 (Cancel during a retry wait), TXT18-28 (UTF-8 and Base64 in plain VBA), JIR24-25, JSN19-20, PRM25
     #                                     + modLog LOG01..LOG25 (the local log of the runs, its level and run flag, the hint and Notepad after an error)
     #                                     + modJiraConfig JCF01..JCF34 (the Jira configuration read into proposal sheets)
@@ -57,7 +57,7 @@ def test_real_vba_modules_are_ascii_and_have_unique_markers():
     #                                     + MEX10..MEX13 (the raw sheets in steps: issue rows, intervals, write, default batch)
     assert sorted(m for m in markers if m.startswith("LOG")) == [f"LOG{n:02d}" for n in range(1, 26)]
     assert sorted(m for m in markers if m.startswith("JCF")) == [f"JCF{n:02d}" for n in range(1, 35)]
-    assert sorted(m for m in markers if m.startswith("PRM")) == [f"PRM{n:02d}" for n in range(1, 30)]
+    assert sorted(m for m in markers if m.startswith("PRM")) == [f"PRM{n:02d}" for n in range(1, 36)]
     assert sorted(m for m in markers if m.startswith("MEX")) == [f"MEX{n:02d}" for n in range(1, 14)]
     assert sorted(m for m in markers if m.startswith("PXY")) == [f"PXY{n:02d}" for n in range(1, 12)]
     # + modFlowBuild FLB01..FLB36 (build of the flow sheets, the data checks and the charts)

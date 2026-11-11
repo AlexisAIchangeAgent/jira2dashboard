@@ -27,6 +27,7 @@ from jira2dashboard.mockjira import config as jira_config
 from jira2dashboard.mockjira.flow_adapter import to_flow_issues
 from jira2dashboard.mockjira.generator import generate
 from jira2dashboard.mockjira.server import MockJira
+from jira2dashboard import rovo_prompt as RP
 from jira2dashboard.params.model import load_all, mandatory_parameters, project_keys
 from jira2dashboard.paths import INTER_DIR
 from jira2dashboard.standalone.results import data_check_rows
@@ -34,6 +35,7 @@ from jira2dashboard.standalone.results import data_check_rows
 scenarios("../features/flow_excel.feature")
 scenarios("../features/jira_config.feature")             # same workbook and fake Jira steps
 scenarios("../features/first_use.feature")
+scenarios("../features/rovo_prompt.feature")
 
 TARGET = INTER_DIR / "flow_workbook.xlsm"
 TOLERANCE = 1e-6                    # days (0.09 s): Excel dates are doubles, the reference works in whole seconds
@@ -878,6 +880,66 @@ def _configuration_log(world):
         [f"configuration of project {n} of {count}" for n in range(1, count + 1)] + ["fields", "proposal sheets"], begun
     for secret in ("tok-123", "me@example.com", "127.0.0.1", "http", "{", "workflows/preview"):
         assert secret not in text, secret
+
+
+# --- rovo_prompt.feature: the button Prompt for Rovo ---------------------------------------------------------------------
+
+def rovo_lines(world) -> list[str]:
+    cells = world["wb"].Worksheets("RovoPrompt").UsedRange.Value
+    return ["" if row[0] is None else str(row[0]) for row in cells]
+
+
+@when("je clique sur le bouton Prompt for Rovo")
+def _rovo_click(world):
+    wb = world["wb"]
+    buttons = {shape.TextFrame.Characters().Text: (shape.OnAction, shape.TopLeftCell.Address)
+               for shape in wb.Worksheets("Dashboard").Shapes if shape.Type == MSO_FORM_CONTROL}
+    on_action, cell = buttons[D.ROVO_CAPTION]                                  # the button the user clicks is there
+    assert on_action.endswith(sheets.ROVO_MACRO), on_action
+    assert cell.replace("$", "") == D.ROVO_CELL, cell
+    macro(world, on_action.rpartition(".")[2])
+    world["status"] = macro(world, "ProgressSnapshot").partition("|")[2]
+    world["config_before"] = [(r[0], r[1]) for r in wb.Worksheets("Config").UsedRange.Value[1:]]
+
+
+@then("la feuille RovoPrompt liste chaque paramètre de la feuille Config avec son caractère obligatoire")
+def _rovo_config(world):
+    text = "\n".join(rovo_lines(world))
+    rows = param_rows("Config")
+    assert len(rows) > 20
+    for name, _value, _example, mandatory, _description in rows:
+        kind = "mandatory" if str(mandatory).lower() == "true" else "optional"
+        assert f"- {name} ({kind}): " in text, name
+
+
+@then("la feuille RovoPrompt nomme chaque feuille à remplir avec ses colonnes")
+def _rovo_sheets(world):
+    text = "\n".join(rovo_lines(world))
+    for name in RP.SHEET_RULES:
+        header = [h for h in world["wb"].Worksheets(name).Range("A1:Z1").Value[0] if h not in (None, "Example")]
+        assert f"SHEET {name} - columns: {' | '.join(header)}. " in text, name
+
+
+@then("la feuille RovoPrompt demande une réponse en CSV avec les colonnes Sheet, Row, Column, Value et Note")
+def _rovo_csv(world):
+    lines = rovo_lines(world)
+    assert ",".join(RP.CSV_COLUMNS) in lines and any("CSV" in line for line in lines)
+    assert lines[0] == RP.INTRO[0]                                              # the prompt starts with the spec
+
+
+@then("la feuille RovoPrompt ne contient aucune valeur saisie dans la feuille Config")
+def _rovo_no_value(world):
+    text = "\n".join(rovo_lines(world))
+    typed = {name: str(value) for name, value in world["config_before"] if name in ("BaseUrl", "Email", "ApiToken")}
+    assert typed["BaseUrl"].startswith("http://127.0.0.1:") and typed["Email"] and typed["ApiToken"], typed   # the scenario typed them
+    for name, value in typed.items():
+        assert value not in text, name
+    assert "127.0.0.1" not in text
+
+
+@then("l'état du tableau de bord dit combien de lignes sont sélectionnées pour Rovo")
+def _rovo_status(world):
+    assert world["status"].startswith(f"Rovo prompt: {len(rovo_lines(world))} lines in the sheet RovoPrompt"), world["status"]
 
 
 # --- first use: the first steps, the sheet Manual and the column Mandatory of Config (first_use.feature) --------------

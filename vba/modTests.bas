@@ -53,7 +53,7 @@ Private Function TestNames() As Variant
         "T_HttpNetworkAndCancel", "T_RetryExhausted", "T_ChangelogChunks", "T_IssueRows", "T_WriteTable", "T_StatusIntervals", _
         "T_StatusChanges", "T_RetryDelay", "T_SafeAccess", "T_FilesUtf8", "T_StringifyBadObject", _
         "T_TooManyPages", "T_BackgroundExport", "T_TextNotConverted", "T_ParamsTables", "T_ParamsOnWorkbook", _
-        "T_TrimWhite", "T_ConfigSheet", "T_MandatoryConfig", "T_ProxyDetect", "T_ProxyScript", "T_ProjectsSheet", "T_ParseMoment", "T_ExtractFlowData", "T_ExtractJob", "T_ExtractCheckFields", "T_FlowBuild", "T_BaseUrlHttps", "T_Log", "T_LogHintAndOpen", "T_StepsSheet", _
+        "T_TrimWhite", "T_ConfigSheet", "T_MandatoryConfig", "T_ProxyDetect", "T_ProxyScript", "T_ProjectsSheet", "T_ParseMoment", "T_ExtractFlowData", "T_ExtractJob", "T_ExtractCheckFields", "T_FlowBuild", "T_BaseUrlHttps", "T_Log", "T_LogHintAndOpen", "T_StepsSheet", "T_RovoPrompt", _
         "T_JiraConfig", "T_AbortExtraction", "T_Utf8Oracle", "T_Utf8Invalid", "T_Base64Oracle")
 End Function
 
@@ -480,6 +480,41 @@ Public Sub T_LogHintAndOpen()
     LogOpen                                          ' no person at the keyboard (a test Excel): nothing starts
     Check "log", "an Excel started by a script does not start Notepad", "UserControl", False, Application.UserControl
     gLogPath = saved
+End Sub
+
+Public Sub T_RovoPrompt()
+    ' The prompt for Rovo: the lines of RovoPromptSpec in order, the parameters of Config read live (name, mandatory, meaning,
+    ' example), the header of each sheet, and never a Value of Config (it may hold the address, the e-mail or the token).
+    Dim lines As Collection, text As String, ln As Variant, ws As Object, wsC As Object, rowBaseUrl As Long, r As Long, saved As Variant
+    Dim n As Long, firstText As String
+    Set wsC = ThisWorkbook.Worksheets("Config")
+    For r = 2 To 60
+        If CStr(wsC.Cells(r, 1).Value & "") = "BaseUrl" Then rowBaseUrl = r: Exit For
+    Next r
+    saved = wsC.Cells(rowBaseUrl, 2).Value
+    wsC.Cells(rowBaseUrl, 2).Value = "https://SECRET-HOST.example.net"
+    Set lines = RovoPromptLines(ThisWorkbook)
+    For Each ln In lines
+        text = text & ln & vbLf
+    Next ln
+    wsC.Cells(rowBaseUrl, 2).Value = saved
+    Check "rovo", "the first line is the first row of the spec", "intro", CStr(ReadTable(ThisWorkbook.Worksheets(SHEET_ROVO_SPEC))(1)("Text")), CStr(lines(1))
+    Check "rovo", "a parameter of Config: name, mandatory, meaning", "BaseUrl", True, InStr(text, "- BaseUrl (mandatory): ") > 0
+    Check "rovo", "an optional parameter says so", "ProxyServer", True, InStr(text, "- ProxyServer (optional): ") > 0
+    Check "rovo", "the example of the form of the value follows", "Example:", True, InStr(text, " Example: ") > 0
+    Check "rovo", "no Value of Config is in the prompt", "SECRET-HOST", 0, InStr(text, "SECRET-HOST")
+    Check "rovo", "a sheet: its header row, then its rule", "Projects", True, InStr(text, "SHEET Projects - columns: Project | Role | Team. ") > 0
+    Check "rovo", "the column Example of a sheet is not a column to fill", "Iterations", True, _
+          InStr(text, "SHEET Iterations - columns: Iteration-label | Start | End. ") > 0
+    Check "rovo", "the format asks for a CSV with its columns", "Sheet,Row,Column,Value,Note", True, InStr(text, "Sheet,Row,Column,Value,Note") > 0
+    n = WriteRovoPrompt(ThisWorkbook)
+    Set ws = ThisWorkbook.Worksheets(SHEET_ROVO)
+    Check "rovo", "the sheet RovoPrompt holds one line per row", "count", lines.Count, n
+    Check "rovo", "the last line of the sheet is the last line of the prompt", "last", CStr(lines(lines.Count)), CStr(ws.Cells(n, 1).Value)
+    Check "rovo", "nothing under the last line", "next", True, IsEmpty(ws.Cells(n + 1, 1).Value)
+    firstText = CStr(ws.Cells(1, 1).Value)
+    Check "rovo", "a second run rewrites the same sheet", "first line", firstText, CStr(lines(1))
+    Check "rovo", "and writes the same number of lines", "count", n, WriteRovoPrompt(ThisWorkbook)
 End Sub
 
 Public Sub T_StepsSheet()

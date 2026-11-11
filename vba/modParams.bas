@@ -7,6 +7,8 @@ Option Explicit
 
 Public Const SHEET_WORKFLOWS As String = "Workflows"
 Public Const SHEET_TRANSITIONS As String = "Transitions"
+Public Const SHEET_ROVO_SPEC As String = "RovoPromptSpec"
+Public Const SHEET_ROVO As String = "RovoPrompt"
 
 Public Function ReadTable(ByVal ws As Object) As Collection
     ' Row 1 holds the headers. Returns one Dictionary (header -> cell value) per row whose first cell is not empty.
@@ -167,6 +169,71 @@ Public Sub RequireMandatory(ByVal wsConfig As Object, Optional ByVal onlyNames A
         Err.Raise vbObjectError + 608, "RequireMandatory", "Fill these values of the Config sheet first (Mandatory = True): " & missing
     End If
 End Sub
+
+Public Function RovoPromptLines(ByVal wb As Object) As Collection
+    ' The prompt for Rovo, one line per item: the rows of the sheet RovoPromptSpec (Part | Name | Text) in order. A text row
+    ' is a line as it is, "config" becomes one line per parameter of the sheet Config, "sheet" one line for a parameter sheet.
+    ' The Value column of Config is never read: it may hold the address, the e-mail or the token.
+    Cov "PRM30"
+    Dim out As New Collection, spec As Variant
+    For Each spec In ReadTable(wb.Worksheets(SHEET_ROVO_SPEC))
+        Select Case LCase$(CStr(spec("Part") & ""))
+            Case "config": Cov "PRM31": AddConfigLines wb.Worksheets("Config"), out
+            Case "sheet": Cov "PRM32": out.Add SheetLine(wb, CStr(spec("Name") & ""), CStr(spec("Text") & ""))
+            Case Else: Cov "PRM33": out.Add CStr(spec("Text") & "")
+        End Select
+    Next spec
+    Set RovoPromptLines = out
+End Function
+
+Private Sub AddConfigLines(ByVal wsConfig As Object, ByVal out As Collection)
+    ' "- Name (mandatory): meaning. Example: form of the value", from the columns Parameter, Mandatory, Description, Example.
+    Dim row As Variant, text As String, example As String
+    For Each row In ReadTable(wsConfig)
+        text = "- " & CStr(row("Parameter") & "") & IIf(IsYes(CStr(row("Mandatory") & "")), " (mandatory): ", " (optional): ") & _
+               CStr(row("Description") & "")
+        example = CStr(row("Example") & "")
+        If Len(example) > 0 Then text = text & " Example: " & example
+        out.Add text
+    Next row
+End Sub
+
+Private Function SheetLine(ByVal wb As Object, ByVal name As String, ByVal rule As String) As String
+    ' "SHEET Projects - columns: Project | Role | Team. rule", the columns read from the header row of the sheet.
+    Dim ws As Object, c As Long, cols As String, head As String
+    If Not SheetExists(wb, name) Then SheetLine = "SHEET " & name & " - this sheet is not in the workbook. " & rule: Exit Function
+    Set ws = wb.Worksheets(name)
+    For c = 1 To ws.Columns.Count
+        head = CStr(ws.Cells(1, c).Value & "")
+        If Len(head) = 0 Then Exit For
+        If head <> "Example" Then cols = cols & IIf(Len(cols) > 0, " | ", "") & head
+    Next c
+    SheetLine = "SHEET " & name & " - columns: " & cols & ". " & rule
+End Function
+
+Public Function WriteRovoPrompt(ByVal wb As Object) As Long
+    ' Writes the prompt into the sheet RovoPrompt (created at the end when missing), column A, one line per row, and returns
+    ' the number of lines. The user selects them, copies and pastes them into Rovo.
+    Cov "PRM34"
+    Dim lines As Collection, data() As Variant, i As Long, ws As Object
+    Set lines = RovoPromptLines(wb)
+    If lines.Count = 0 Then Err.Raise vbObjectError + 630, "WriteRovoPrompt", "The sheet " & SHEET_ROVO_SPEC & " has no row: rebuild the workbook."
+    If SheetExists(wb, SHEET_ROVO) Then
+        Set ws = wb.Worksheets(SHEET_ROVO)
+    Else
+        Cov "PRM35"
+        Set ws = wb.Worksheets.Add(, wb.Worksheets(wb.Worksheets.Count))
+        ws.Name = SHEET_ROVO
+    End If
+    ws.Cells.ClearContents
+    ReDim data(1 To lines.Count, 1 To 1)
+    For i = 1 To lines.Count
+        data(i, 1) = SafeCell(CStr(lines(i)))
+    Next i
+    ws.Range(ws.Cells(1, 1), ws.Cells(lines.Count, 1)).Value = data
+    ws.Columns(1).ColumnWidth = 150
+    WriteRovoPrompt = lines.Count
+End Function
 
 Public Function IsYes(ByVal text As String) As Boolean
     ' The sheet is read in a French Excel: Yes / Oui / True / Vrai / 1 mean yes.
