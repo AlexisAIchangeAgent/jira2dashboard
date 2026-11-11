@@ -75,8 +75,13 @@ emptied by `build` / `vba-tests` except the caches and `logs` (`src/jira2dashboa
 
 Before finishing a change run the full pass: `coverage`, `vba-tests`, `test-excel`, `test-network`, `build`
 (skill `/full-pass`). The Claude config is versioned in `.claude/` (like this file) but left out of the release
-(`export-ignore`); only `.claude/settings.local.json`, the personal settings, is gitignored. A PostToolUse hook runs the
-VBA guard tests after each edit of `vba/*.bas` (`.claude/hooks/bas_guard.py`); skills `full-pass`, `add-data-check`.
+(`export-ignore`); only `.claude/settings.local.json`, the personal settings, is gitignored. Hooks (`.claude/hooks`):
+`bas_guard.py` runs the VBA guard tests after an edit of `vba/*.bas`, and after a Bash/PowerShell command that changed a
+module (sizes and times kept in `%TEMP%\jira2dashboard\bas_guard.json`); `excel_kill_guard.py` asks before a command that
+stops Excel by its name (`taskkill /IM`, `Stop-Process -Name`). Skills: `full-pass`, `add-data-check`, `read-logs` (summary
+of the logs: `summarize_logs.py`), `release` (user only). Agents (`.claude/agents`, read-only): `vba-reviewer` (a `.bas`
+change against the VBA traps, before `vba-tests`), `parity-checker` (VBA vs Python path, formulas vs `flow/`, modLog vs
+python.log). `tests/unit/test_claude_hooks.py` and `test_claude_skills.py` test the scripts (skipped without `.claude`).
 
 ## Architecture (big picture)
 
@@ -291,8 +296,8 @@ then `mermaid.parse`), and check every `](#anchor)` link against the headings.
   the test workbook only (`build` compiles the delivered modules, `vba-tests` adds `modTests`). `--bisect` loads the
   modules in order, so a forward reference shows as a false failure at an early module: scan for `Private` names instead.
   Python steps call `modX.Name` explicitly (`tests/steps/test_params.py`): update them.
-- The local `.claude` hook runs only after Edit/Write: a `.bas` changed through a Bash/Python script skips it. Run the 3
-  guard tests by hand.
+- The VBA guard hook also runs after a Bash/PowerShell command that changed a `.bas`, but only from the second command
+  of a machine (the first one records the modules).
 - **Checked facts (Microsoft Learn MCP, `mcp__claude_ai_Microsoft_Learn__*`):** entering a formula in manual calculation
   calculates it, so `CalculateFull` after the switch back to automatic is needed only when Excel was manual;
   `WinHttpSetTimeouts` does not bound proxy auto-detection (WPAD); `Application.StatusBar` reads `False` or the text
