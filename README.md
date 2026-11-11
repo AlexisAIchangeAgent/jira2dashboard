@@ -104,7 +104,8 @@ answered.
 | `Issues`, `StatusIntervals`, `IssueLinks` | Raw data (values) | VBA |
 | `Controls`, `ItemFlow`, `DailyLoad`, `Metrics`, `FillRates`, `DataChecks`, `ChartData` | Results (formulas) | VBA |
 | `FlowFormulas`, `ChartSpec`, `ChecksSpec` | The plan. Do not edit. | build |
-| `JiraIssueTypes`, `JiraStatuses`, `JiraWorkflows`, `JiraTransitions`, `JiraFields` | Proposals read from Jira | VBA |
+| `JiraIssueTypes`, `JiraStatuses`, `JiraWorkflows`, `JiraTransitions`, `JiraFields` | Proposals read from Jira (workflows and moves end with the column Project) | VBA |
+| `JiraProjectWorkflows`, `JiraProjectFields`, `JiraFieldUsage` | Per project: workflow and issue types; fields of the create screen; fields filled in one page of issues | VBA |
 
 ## 4. Repository layout
 

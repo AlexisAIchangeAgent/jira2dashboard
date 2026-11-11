@@ -116,7 +116,8 @@ VBA guard tests after each edit of `vba/*.bas` (`.claude/hooks/bas_guard.py`); s
   (`Scrubbed` formatter; `test_extract_main` checks).
 - **Jira configuration (VBA).** `modJiraConfig` (button Read the Jira configuration, `BtnReadJiraConfiguration`) reads
   projects, issue types, statuses, workflows (`workflows/preview`) and fields into proposal sheets `Jira*`; it never writes
-  the parameter sheets (calls and mapping: the header of `modJiraConfig.bas`). Its Rovo counterpart, to compare Jira with the workbook:
+  the parameter sheets (calls and mapping: the header of `modJiraConfig.bas`). Besides the five first sheets it writes
+  `JiraProjectWorkflows`, `JiraProjectFields` (createmeta, needs Create issues) and `JiraFieldUsage` (one page of issues per project). Its Rovo counterpart, to compare Jira with the workbook:
   `rovo/rovo_settings_analyser.md` (agent config, not code).
 - **Rovo side (md only, no code).** `rovo/` holds the master copies of the Rovo Studio agents. `rovo/rovo-guide.md` is
   the current guide; `docs/rovo-guide.md` is frozen. Steering is hybrid: the workbook computes, and the RTE publishes

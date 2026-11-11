@@ -1,8 +1,9 @@
 # language: fr
 Fonctionnalité: Le bouton « Read the Jira configuration » propose les paramètres à partir de Jira
   Le bouton lit Jira en lecture seule (projets, types de ticket, statuts, workflows, transitions, champs) et écrit des
-  feuilles de propositions dans le classeur : JiraIssueTypes, JiraStatuses, JiraWorkflows, JiraTransitions et
-  JiraFields. Il ne change jamais les feuilles de paramètres : l'utilisateur relit les propositions, décide ce qui
+  feuilles de propositions dans le classeur : JiraIssueTypes, JiraStatuses, JiraWorkflows, JiraTransitions, JiraFields,
+  JiraProjectWorkflows (les workflows de chaque projet), JiraProjectFields (les champs de chaque type de ticket) et
+  JiraFieldUsage (les champs remplis dans les tickets lus). Il ne change jamais les feuilles de paramètres : l'utilisateur relit les propositions, décide ce qui
   reste humain (ordre, début, fin, attente ou activité, type de passage) et recopie. Rien ne sort du poste.
   Le faux Jira est construit à partir des paramètres du dépôt : les propositions doivent redonner ces paramètres.
 
@@ -17,6 +18,10 @@ Fonctionnalité: Le bouton « Read the Jira configuration » propose les paramè
     Et la feuille JiraWorkflows redonne les statuts de la feuille Workflows, avec une catégorie proposée et les statuts libres
     Et la feuille JiraTransitions redonne les passages de la feuille Transitions
     Et la feuille JiraFields liste les champs du faux Jira avec leur identifiant
+    Et les feuilles JiraWorkflows et JiraTransitions disent quels projets utilisent chaque workflow
+    Et la feuille JiraProjectWorkflows résume les workflows de chaque projet avec leurs types de ticket
+    Et la feuille JiraProjectFields donne les champs de chaque type de ticket de chaque projet
+    Et la feuille JiraFieldUsage compte les tickets où chaque champ est rempli
     Et les feuilles de paramètres n'ont pas changé
     Et le journal local décrit la lecture de la configuration, sans jeton, adresse ni réponse de Jira
 

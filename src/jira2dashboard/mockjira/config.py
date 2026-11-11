@@ -13,6 +13,8 @@ ISSUE_TYPES = {"Feature": ("10001", 1), "Story": ("10002", 0), "Task": ("10003",
                "Sub-task": ("10005", -1)}
 PROJECT_PAGE, PROJECT_PAGE_MAX = 50, 100
 PREVIEW_MAX_TYPES = 25
+CREATE_META_PAGE_MAX = 100
+CREATE_META_REQUIRED = ("summary", "issuetype", "project")      # what Jira asks on every create screen
 _PREVIEW_CATEGORY = {"new": "TODO", "indeterminate": "IN_PROGRESS", "done": "DONE"}     # the preview has its own enum
 
 
@@ -66,6 +68,21 @@ def project_search(ds: Dataset, query: dict) -> dict:
 
 def _statuses(workflow: str, sheets: dict[str, ParamSheet]) -> list[str]:
     return [row[2] for row in sheets["Workflows"].rows if row[0] == workflow]
+
+
+def create_meta_fields(ds: Dataset, key: str, type_id: str, query: dict) -> dict:
+    """GET /rest/api/3/issue/createmeta/{project}/issuetypes/{issueTypeId}?startAt=&maxResults=: the fields of the create
+    screen of one issue type (id, name, required, schema), offset paging. The fake offers the whole field catalog."""
+    if key not in ds.projects():
+        raise _error(404, f"No project could be found with key '{key}'.")
+    if type_id not in {ISSUE_TYPES[name][0] for name in _issue_types(ds, key)}:
+        raise _error(404, f"Issue type {type_id} is not available in project {key}.")
+    start = int(_first(query, "startAt", "0"))
+    size = min(int(_first(query, "maxResults", str(CREATE_META_PAGE_MAX))), CREATE_META_PAGE_MAX)
+    catalog = ds.fields.catalog()
+    fields = [{"fieldId": f["id"], "name": f["name"], "required": f["id"] in CREATE_META_REQUIRED, "schema": f["schema"]}
+              for f in catalog[start:start + size]]
+    return {"startAt": start, "maxResults": size, "total": len(catalog), "fields": fields}
 
 
 def project_statuses(ds: Dataset, key: str, sheets: list[ParamSheet] | None = None) -> list[dict]:

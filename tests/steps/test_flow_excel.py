@@ -788,6 +788,56 @@ def _fields(world):
     assert [(r["Id"], r["Name"]) for r in rows] == [(f["id"], f["name"]) for f in world["dataset"].fields.catalog()]
 
 
+@then("les feuilles JiraWorkflows et JiraTransitions disent quels projets utilisent chaque workflow")
+def _workflow_projects(world):
+    users: dict[str, set] = {}
+    for i in world["dataset"].issues:
+        if i.project in project_keys():
+            users.setdefault(i.workflow, set()).add(i.project)
+    for name, workflow_column in (("JiraWorkflows", "Workflow"), ("JiraTransitions", "Workflow")):
+        rows = sheet_rows(world["wb"], name)
+        assert rows and all(set(r["Project"].split(", ")) == users[r[workflow_column]] for r in rows), name
+    assert all(r["Scope"] == "DIRECTED" and r["TransitionId"] != "" for r in sheet_rows(world["wb"], "JiraTransitions"))
+
+
+@then("la feuille JiraProjectWorkflows résume les workflows de chaque projet avec leurs types de ticket")
+def _project_workflows(world):
+    issues = [i for i in world["dataset"].issues if i.project in project_keys()]
+    expected = {}
+    for i in issues:
+        expected.setdefault((i.project, i.workflow), set()).add(i.type)
+    statuses = [row[0] for row in param_rows("Workflows")]
+    moves = [row[0] for row in param_rows("Transitions")]
+    rows = sheet_rows(world["wb"], "JiraProjectWorkflows")
+    got = {(r["Project"], r["Workflow"]): (set(r["IssueTypes"].split(", ")), number_or_text(r["Statuses"]),
+                                           number_or_text(r["Transitions"])) for r in rows}
+    assert len(rows) == len(expected)
+    assert got == {key: (types, statuses.count(key[1]), moves.count(key[1])) for key, types in expected.items()}
+
+
+@then("la feuille JiraProjectFields donne les champs de chaque type de ticket de chaque projet")
+def _project_fields(world):
+    catalog = world["dataset"].fields.catalog()
+    pairs = {(i.project, i.type) for i in world["dataset"].issues if i.project in project_keys()}
+    rows = sheet_rows(world["wb"], "JiraProjectFields")
+    assert {(r["Project"], r["IssueType"], r["FieldId"], r["Name"]) for r in rows} == \
+        {(p, t, f["id"], f["name"]) for p, t in pairs for f in catalog}
+    assert len(rows) == len(pairs) * len(catalog)
+    assert {r["FieldId"] for r in rows if r["Required"] == "Yes"} == set(jira_config.CREATE_META_REQUIRED)
+
+
+@then("la feuille JiraFieldUsage compte les tickets où chaque champ est rempli")
+def _field_usage(world):
+    issues = world["dataset"].issues
+    rows = sheet_rows(world["wb"], "JiraFieldUsage")
+    for key in project_keys():
+        mine = [r for r in rows if r["Project"] == key]
+        read = min(100, sum(1 for i in issues if i.project == key))                   # one page of the search
+        assert mine and {number_or_text(r["IssuesRead"]) for r in mine} == {read}, key
+        assert all(0 <= number_or_text(r["IssuesWithValue"]) <= read for r in mine), key
+        assert {number_or_text(r["IssuesWithValue"]) for r in mine if r["FieldId"] == "summary"} == {read}, key
+
+
 @then("les feuilles de paramètres n'ont pas changé")
 def _parameters_kept(world):
     wb = world["wb"]

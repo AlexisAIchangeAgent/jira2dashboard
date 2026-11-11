@@ -117,3 +117,24 @@ def test_preview_checks_its_body(body, status):
     with pytest.raises(ApiError) as err:
         config.workflows_preview(DS, body)
     assert err.value.status == status
+
+
+def test_create_meta_gives_the_fields_of_the_create_screen_with_paging():
+    found = project("TA")
+    type_id = found["issueTypes"][0]["id"]
+    first = config.create_meta_fields(DS, "TA", type_id, {"startAt": ["0"], "maxResults": ["5"]})
+    assert (first["startAt"], first["maxResults"], len(first["fields"])) == (0, 5, 5)
+    assert first["total"] == len(DS.fields.catalog())
+    last = config.create_meta_fields(DS, "TA", type_id, {"startAt": [str(first["total"] - 1)]})
+    assert len(last["fields"]) == 1
+    required = {f["fieldId"] for f in first["fields"] + last["fields"] if f["required"]}
+    assert required <= set(config.CREATE_META_REQUIRED)
+
+
+def test_create_meta_of_an_unknown_project_or_an_absent_issue_type_is_404():
+    with pytest.raises(ApiError) as err:
+        config.create_meta_fields(DS, "NOPE", "10002", {})
+    assert err.value.status == 404
+    with pytest.raises(ApiError) as err:
+        config.create_meta_fields(DS, "TA", "99999", {})
+    assert err.value.status == 404

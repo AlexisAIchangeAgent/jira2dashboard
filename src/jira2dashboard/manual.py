@@ -8,7 +8,8 @@ from jira2dashboard.params.model import TYPED_AT_CLIENT
 
 MANUAL_SHEET = "Manual"
 HEADING, TEXT = "heading", "text"
-PROPOSAL_SHEETS = "JiraIssueTypes, JiraStatuses, JiraWorkflows, JiraTransitions and JiraFields"
+PROPOSAL_SHEETS = ("JiraIssueTypes, JiraStatuses, JiraWorkflows, JiraTransitions, JiraFields, JiraProjectWorkflows, "
+                   "JiraProjectFields and JiraFieldUsage")
 
 
 def first_steps() -> list[str]:

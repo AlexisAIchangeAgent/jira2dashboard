@@ -27,6 +27,7 @@ from jira2dashboard.mockjira.errors import ApiError
 
 GONE_PATHS = ("/rest/api/3/search", "/rest/api/3/search/id")
 PROJECT_STATUSES = re.compile(r"/rest/api/3/project/([^/]+)/statuses")
+CREATE_META = re.compile(r"/rest/api/3/issue/createmeta/([^/]+)/issuetypes/([^/]+)")
 GONE_MESSAGE = "The requested API has been removed. Please migrate to the /rest/api/3/search/jql API."
 PAC_PATH = "/proxy.pac"                       # a proxy script (PAC) that sends every address to this fake as a proxy
 PAC_TYPE = "application/x-ns-proxy-autoconfig"
@@ -224,6 +225,10 @@ def _make_handler(state: _State):
             statuses = PROJECT_STATUSES.fullmatch(path)
             if method == "GET" and statuses:
                 return 200, config.project_statuses(ds, urllib.parse.unquote(statuses.group(1))), {}
+            meta = CREATE_META.fullmatch(path)
+            if method == "GET" and meta:
+                return 200, config.create_meta_fields(ds, urllib.parse.unquote(meta.group(1)),
+                                                      urllib.parse.unquote(meta.group(2)), query), {}
             if (method, path) == ("POST", "/rest/api/3/workflows/preview"):
                 return 200, config.workflows_preview(ds, body), {}
             known = {"/rest/api/3/search/jql", "/rest/api/3/search/approximate-count",

@@ -1645,12 +1645,13 @@ Public Sub T_JiraConfig()
     Dim cfg As Object, keys As New Collection, base As String, summary As String, nm As Variant, e As Variant, wf As String
     Dim wfB As String, statusesB As String, rowsW As New Collection, rowsM As New Collection
     Dim wsT As Object, wsS As Object, wsW As Object, wsM As Object, wsF As Object, previews As String, raised As Long
-    Dim many As New Collection, one As New Collection, i As Long
+    Dim many As New Collection, one As New Collection, i As Long, wsU As Object, wsP As Object, wsG As Object
     Set cfg = TestConfig()
     base = cfg("BaseUrl")
     keys.Add "PRG": keys.Add "TA": keys.Add "TB": keys.Add "XX"
     Application.DisplayAlerts = False
-    For Each nm In Array("JiraIssueTypes", "JiraStatuses", "JiraWorkflows", "JiraTransitions", "JiraFields")
+    For Each nm In Array("JiraIssueTypes", "JiraStatuses", "JiraWorkflows", "JiraTransitions", "JiraFields", "JiraProjectWorkflows", _
+                         "JiraProjectFields", "JiraFieldUsage")
         If SheetExists(ThisWorkbook, CStr(nm)) Then ThisWorkbook.Worksheets(CStr(nm)).Delete
     Next nm
     Application.DisplayAlerts = True
@@ -1661,7 +1662,7 @@ Public Sub T_JiraConfig()
          "'workflows':[{'name':'WF-A','queryContext':[{'project':'P','issueTypes':[TYPES]}]," & _
          "'statuses':[{'statusReference':'r1'},{'statusReference':'r2'},{'statusReference':'r3'},{'statusReference':'r4'}]," & _
          "'transitions':[{'type':'INITIAL','name':'Create','toStatusReference':'r1','links':[]}," & _
-         "{'type':'DIRECTED','name':'Start','toStatusReference':'r2','links':[{'fromStatusReference':'r1'},{'fromStatusReference':'r4'}]}," & _
+         "{'type':'DIRECTED','name':'Start','id':'11','toStatusReference':'r2','links':[{'fromStatusReference':'r1'},{'fromStatusReference':'r4'}]}," & _
          "{'type':'DIRECTED','name':'Close','toStatusReference':'r3','links':[{'fromStatusReference':'r2'},{'fromStatusReference':'zz'}]}," & _
          "{'type':'GLOBAL','name':'Park','toStatusReference':'r4','links':[]}]}MORE_WORKFLOWS]}"
     ' TA: its stories follow WF-A (also the workflow of PRG), its sub-tasks follow WF-B.
@@ -1686,6 +1687,22 @@ Public Sub T_JiraConfig()
         FakeAdd "GET", StatusesUrl(base, CStr(nm)), 200, J("[{'id':'1','name':'Story','subtask':false,'statuses':[" & _
             "{'id':'5','name':'Doing','statusCategory':{'key':'indeterminate','name':'In progress'}}]}]")
     Next nm
+    ' The create screens (createmeta, paged) and one page of issues per project (which fields are filled).
+    FakeAdd "GET", CreateMetaUrl(base, "PRG", "10001", 0), 200, J("{'startAt':0,'total':1,'fields':[{'fieldId':'summary'," & _
+        "'name':'Summary','required':true,'schema':{'type':'string'}}]}")
+    FakeAdd "GET", CreateMetaUrl(base, "TA", "10002", 0), 200, J("{'startAt':0,'total':2,'fields':[{'fieldId':'labels'," & _
+        "'name':'Labels','required':false,'schema':{'type':'array'}}]}")
+    FakeAdd "GET", CreateMetaUrl(base, "TA", "10002", 1), 200, J("{'startAt':1,'total':2,'fields':[{'fieldId':'duedate'," & _
+        "'name':'Due date','required':false,'schema':{'type':'date'}}]}")
+    FakeAdd "GET", CreateMetaUrl(base, "TA", "10005", 0), 200, J("{'total':1,'results':[{'fieldId':'parent'," & _
+        "'name':'Parent','required':true,'schema':{'type':'issuelink'}}]}")
+    FakeAdd "GET", CreateMetaUrl(base, "TB", "10002", 0), 403, J("{'errorMessages':['no permission']}")
+    For Each nm In Array("PRG", "TA", "TB")
+        FakeAdd "GET", JiraSearchUrl(base, ProjectsJql(ColOf(CStr(nm))), "", JIRA_PAGE_SIZE, "*all", "names"), 200, _
+            J("{'isLast':true,'names':{'summary':'Summary','labels':'Labels'},'issues':[" & _
+              "{'key':'A-1','fields':{'summary':'s','labels':[],'duedate':null,'assignee':{'name':'x'}}}," & _
+              "{'key':'A-2','fields':{'summary':'','labels':['l'],'duedate':null,'assignee':null}}]}")
+    Next nm
     FakeAdd "GET", base & "/rest/api/3/field", 200, J("[{'id':'customfield_1','name':'Team','custom':true,'schema':{'type':'team'," & _
         "'custom':'com.atlassian.teams:rm-teams-custom-field-team'}},{'id':'status','name':'Status','custom':false," & _
         "'schema':{'type':'status','system':'status'}}]")
@@ -1693,6 +1710,27 @@ Public Sub T_JiraConfig()
     Set wsT = ThisWorkbook.Worksheets("JiraIssueTypes"): Set wsS = ThisWorkbook.Worksheets("JiraStatuses")
     Set wsW = ThisWorkbook.Worksheets("JiraWorkflows"): Set wsM = ThisWorkbook.Worksheets("JiraTransitions")
     Set wsF = ThisWorkbook.Worksheets("JiraFields")
+    Set wsU = ThisWorkbook.Worksheets("JiraProjectWorkflows"): Set wsP = ThisWorkbook.Worksheets("JiraProjectFields")
+    Set wsG = ThisWorkbook.Worksheets("JiraFieldUsage")
+    Check "jiraconfig", "a workflow shared by two projects names both", "WF-A", "WF-A|1|Open|Backlog|||0|TODO|PRG, TA", RowText(wsW, 2, 9)
+    Check "jiraconfig", "a workflow of one project names it", "WF-B", "WF-B|1|Triage|Backlog|||0|TODO|TA", RowText(wsW, 6, 9)
+    Check "jiraconfig", "a move has its id, its scope and its projects", "Start", "WF-A|Open|Doing||Start|11|DIRECTED|PRG, TA", RowText(wsM, 2, 8)
+    Check "jiraconfig", "summary: a project, its workflow, its issue types, its counts", "PRG", "PRG|WF-A|Feature|4|4", RowText(wsU, 2, 5)
+    Check "jiraconfig", "summary: the shared workflow is listed for each project", "TA", "TA|WF-A|Story|4|4", RowText(wsU, 3, 5)
+    Check "jiraconfig", "summary: the second workflow of a project", "TA", "TA|WF-B|Sub-task|2|1", RowText(wsU, 4, 5)
+    Check "jiraconfig", "summary: a workflow that could not be read stays visible", "TB", "TB||Story|0|0", RowText(wsU, 5, 5)
+    Check "jiraconfig", "create screen of the first project", "PRG", "PRG|Feature|summary|Summary|Yes|string", RowText(wsP, 2, 6)
+    Check "jiraconfig", "create screen read page by page", "TA Story", "TA|Story|labels|Labels|No|array;TA|Story|duedate|Due date|No|date", _
+          RowText(wsP, 3, 6) & ";" & RowText(wsP, 4, 6)
+    Check "jiraconfig", "create screen answered with results", "TA Sub-task", "TA|Sub-task|parent|Parent|Yes|issuelink", RowText(wsP, 5, 6)
+    Check "jiraconfig", "no right on the create screen: no row, and the status says so", "TB", 5, LastRow(wsP)
+    Check "jiraconfig", "the status tells the create screen could not be read", "403 on TB", True, _
+          InStr(summary, "create screen could not be read for 1 project(s)") > 0
+    Check "jiraconfig", "fields filled: counted in the issues read", "summary", "PRG|summary|Summary|1|2", RowText(wsG, 2, 5)
+    Check "jiraconfig", "fields filled: an empty list is not filled", "labels", "PRG|labels|Labels|1|2", RowText(wsG, 3, 5)
+    Check "jiraconfig", "fields filled: null is not filled; a field without a name", "duedate", "PRG|duedate||0|2", RowText(wsG, 4, 5)
+    Check "jiraconfig", "fields filled: an object is filled, null is not", "assignee", "PRG|assignee||1|2", RowText(wsG, 5, 5)
+    Check "jiraconfig", "fields filled: 4 fields for each of 3 projects", "rows", 13, LastRow(wsG)
     Check "jiraconfig", "summary counts", "3 of 4 keys, 2 workflows, 2 fields", True, _
           InStr(summary, "Jira configuration read: 3 project(s), 2 workflow(s), 2 field(s).") = 1
     Check "jiraconfig", "a key that Jira does not know is told", "XX", True, InStr(summary, "1 project key(s) of the Projects sheet not found") > 0
