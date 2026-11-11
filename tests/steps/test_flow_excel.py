@@ -326,6 +326,8 @@ def status_rows(world) -> list[tuple[str, str]]:
         name, value = dash.Cells(first.Row + offset, 1).Value, dash.Cells(first.Row + offset, 2).Value
         if name is None and value is None:
             break
+        if isinstance(value, float) and value.is_integer():
+            value = int(value)                                  # a whole number is written as a number (COM reads 9.0)
         rows.append(("" if name is None else str(name), "" if value is None else str(value)))
     return rows
 

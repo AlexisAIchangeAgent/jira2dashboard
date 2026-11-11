@@ -634,17 +634,17 @@ Public Sub T_StepsSheet()
     Check "steps", "the sheet is created with its header", "A1:D1", "Step|Status|Time elapsed (s)|Error code", ws.Range("A1").Value & "|" & ws.Range("B1").Value & "|" & ws.Range("C1").Value & "|" & ws.Range("D1").Value
     LogBegin "outer"
     LogBegin "inner"
-    Check "steps", "a step that began is running, its time is empty", "inner", "inner|running|", ws.Range("A3").Value & "|" & ws.Range("B3").Value & "|" & ws.Range("C3").Value
+    Check "steps", "nothing is written while the run goes on (the Dashboard shows its progress)", "A2", True, IsEmpty(ws.Range("A2").Value)
     LogEnd "inner: 5 items"
     LogEnd "outer"
-    Check "steps", "the end closes the last step begun; its text says more", "inner", "inner: 5 items|done", ws.Range("A3").Value & "|" & ws.Range("B3").Value
-    Check "steps", "an end that does not extend the name keeps the name", "outer", "outer|done", ws.Range("A2").Value & "|" & ws.Range("B2").Value
-    Check "steps", "the time is a number of seconds", "C2", True, IsNumeric(ws.Range("C2").Value) And Not IsEmpty(ws.Range("C2").Value)
     LogEnd "stray"
-    Check "steps", "an end without a begin adds nothing", "A4", True, IsEmpty(ws.Range("A4").Value)
     LogBegin "stopped step"
     LogError "Step", vbObjectError + 608, "Fill these values of the Config sheet first"
     LogRunEnd "stopped"
+    Check "steps", "at the end, the steps in the order they began; the end text says more", "inner", "outer|done|inner: 5 items|done", _
+          ws.Range("A2").Value & "|" & ws.Range("B2").Value & "|" & ws.Range("A3").Value & "|" & ws.Range("B3").Value
+    Check "steps", "the time is a number of seconds", "C2", True, IsNumeric(ws.Range("C2").Value) And Not IsEmpty(ws.Range("C2").Value)
+    Check "steps", "an end without a begin adds nothing", "A5", True, IsEmpty(ws.Range("A5").Value)
     Check "steps", "a stopped run leaves its running step as error, with the support code of the error", "A4", "stopped step|error|J2D-CFG-002", _
           ws.Range("A4").Value & "|" & ws.Range("B4").Value & "|" & ws.Range("D4").Value
     Check "steps", "a step that ended well has no code", "D2", True, IsEmpty(ws.Range("D2").Value)

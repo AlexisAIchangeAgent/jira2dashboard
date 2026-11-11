@@ -305,6 +305,12 @@ Private Sub EndRunStopped(ByVal num As Long, ByVal desc As String)
     LogOpen OpenLogSetting()
 End Sub
 
+Private Function StatusValue(ByVal text As String) As Variant
+    ' A value of a status row: a whole number as a number (Excel marks a number stored as text), any other text as text.
+    If Len(text) > 0 And Len(text) <= 9 And text Like String$(Len(text), "#") Then StatusValue = CLng(text): Exit Function
+    StatusValue = SafeCell(text)
+End Function
+
 Private Sub ShowProgress(ByVal fraction As Double, ByVal text As String)
     ' The bar (rectangles pbBack and pbFill) and the status of the Dashboard; a fraction < 0 keeps the bar. A text
     ' "Title | Name: value | ..." (modText.StatusParts) shows its title in the status cell (name dashStatus) and one row per
@@ -324,7 +330,7 @@ Private Sub ShowProgress(ByVal fraction As Double, ByVal text As String)
     For i = 2 To parts.Count
         If i - 1 > STATUS_ROWS Then Exit For
         cell.Offset(i - 1, 0).Value = SafeCell(CStr(parts(i)(0)))
-        cell.Offset(i - 1, 1).Value = SafeCell(CStr(parts(i)(1)))
+        cell.Offset(i - 1, 1).Value = StatusValue(CStr(parts(i)(1)))
     Next i
     Application.StatusBar = text
     If fraction >= 1 Or Not mBusy Then Application.StatusBar = False

@@ -27,9 +27,10 @@ Private mFallback As Boolean                       ' True once the folder next t
 Private mErrorsOnly As Boolean                     ' True while a run asked the level Errors
 Private Const STEPS_SHEET As String = "Steps"
 Private mStepSheet As Object
-Private mStepRows As Collection                     ' rows of the steps begun and not ended (a stack: steps can nest)
+Private mStepData() As Variant                      ' the steps of the run (1 To 4, 1 To mStepCount): name, status, seconds, code
+Private mStepCount As Long
+Private mStepRows As Collection                     ' indexes of the steps begun and not ended (a stack: steps can nest)
 Private mStepStarts As Collection                   ' their start times (Timer)
-Private mStepNext As Long                           ' the next free row
 Private mLastCode As String                         ' the support code of the last error of the run (shown in the sheet Steps)
 Private mBegun As Collection                        ' start times (Timer) of the steps begun and not ended, for the END lines
 Private mRunStarted As Double                       ' Timer at the start of the run
@@ -239,17 +240,20 @@ Public Sub LogRunEnd(ByVal result As String)
     Err.Clear
 End Sub
 
-' ---- The sheet Steps: the steps of the run in progress, with their status and time ----------------------------------
-' One row per step (LogBegin adds it as "running", LogEnd closes it as "done" with its time, in seconds); a run that stops
-' leaves its running rows as "error" or "cancelled". The sheet is created at the first run and emptied at each run start.
-' Whatever happens here is ignored: the sheet is a view of the run, never a reason to stop it.
-
+' ---- The sheet Steps: the steps of the last run, with their status and time ------------------------------------------
+' One row per step (LogBegin adds it, LogEnd closes it as "done" with its time, in seconds); a run that stops leaves the
+' steps still running as "error" or "cancelled". The steps are kept in memory and written in one go when the run ends
+' (LogRunEnd): a write to another sheet at each step, while the Dashboard shows the progress, made Excel draw the sheet
+' Steps over the Dashboard, and every write in a slice of the extraction adds to the risk of its known crash. The sheet is
+' created at the first run and emptied at each run start. Whatever happens here is ignored: the sheet is a view of the
+' run, never a reason to stop it.
 
 Private Sub StepsReset()
     Cov "LOG21"
     Dim shown As Object
     On Error Resume Next
     Set mStepRows = New Collection: Set mStepStarts = New Collection
+    mStepCount = 0: Erase mStepData
     Set mStepSheet = Nothing
     Set shown = Application.ActiveSheet
     If SheetExists(ThisWorkbook, STEPS_SHEET) Then
@@ -269,18 +273,17 @@ Private Sub StepsReset()
     mStepSheet.Cells.ClearContents
     mStepSheet.Range("A1:D1").Value = Array("Step", "Status", "Time elapsed (s)", "Error code")
     mStepSheet.Range("A1:D1").Font.Bold = True
-    mStepNext = 2
     Err.Clear
 End Sub
 
 Private Sub StepsBegin(ByVal stepName As String)
     On Error Resume Next
     If mStepSheet Is Nothing Then Exit Sub
-    mStepSheet.Cells(mStepNext, 1).Value = SafeCell(stepName)
-    mStepSheet.Cells(mStepNext, 2).Value = "running"
-    mStepRows.Add mStepNext
+    mStepCount = mStepCount + 1
+    ReDim Preserve mStepData(1 To 4, 1 To mStepCount)
+    mStepData(1, mStepCount) = stepName: mStepData(2, mStepCount) = "running"
+    mStepRows.Add mStepCount
     mStepStarts.Add Timer
-    mStepNext = mStepNext + 1
     Err.Clear
 End Sub
 
@@ -292,33 +295,44 @@ Private Sub StepsEnd(ByVal text As String)
     If mStepRows.Count = 0 Then Cov "LOG23": Exit Sub          ' an END whose BEGIN was not seen (another run, or a new sheet)
     r = mStepRows(mStepRows.Count): started = mStepStarts(mStepStarts.Count)
     mStepRows.Remove mStepRows.Count: mStepStarts.Remove mStepStarts.Count
-    current = CStr(mStepSheet.Cells(r, 1).Value)
+    current = CStr(mStepData(1, r))
     If Len(text) > Len(current) And Left$(text, Len(current)) = current Then
         Cov "LOG25"
-        mStepSheet.Cells(r, 1).Value = SafeCell(text)
+        mStepData(1, r) = text
     End If
     StepsFinish r, started, "done"
     Err.Clear
 End Sub
 
 Private Sub StepsClose(ByVal result As String)
-    ' The run ended: a step still running stopped with it.
-    Dim i As Long, status As String
+    ' The run ended: a step still running stopped with it; then every step is written to the sheet in one go.
+    Dim i As Long, status As String, rows() As Variant, screen As Boolean
     On Error Resume Next
     If mStepSheet Is Nothing Then Exit Sub
-    If mStepRows.Count = 0 Then Exit Sub
-    Cov "LOG24"
-    If LCase$(Left$(result, 2)) = "ok" Then
-        status = "done"
-    ElseIf LCase$(Left$(result, 9)) = "cancelled" Then
-        status = "cancelled"
-    Else
-        status = "error"
+    If mStepRows.Count > 0 Then
+        Cov "LOG24"
+        If LCase$(Left$(result, 2)) = "ok" Then
+            status = "done"
+        ElseIf LCase$(Left$(result, 9)) = "cancelled" Then
+            status = "cancelled"
+        Else
+            status = "error"
+        End If
+        For i = mStepRows.Count To 1 Step -1
+            StepsFinish CLng(mStepRows(i)), CDbl(mStepStarts(i)), status
+        Next i
+        Set mStepRows = New Collection: Set mStepStarts = New Collection
     End If
-    For i = mStepRows.Count To 1 Step -1
-        StepsFinish CLng(mStepRows(i)), CDbl(mStepStarts(i)), status
+    If mStepCount = 0 Then Err.Clear: Exit Sub
+    ReDim rows(1 To mStepCount, 1 To 4)
+    For i = 1 To mStepCount
+        rows(i, 1) = SafeCell(CStr(mStepData(1, i))): rows(i, 2) = mStepData(2, i)
+        rows(i, 3) = mStepData(3, i): rows(i, 4) = mStepData(4, i)
     Next i
-    Set mStepRows = New Collection: Set mStepStarts = New Collection
+    screen = Application.ScreenUpdating
+    Application.ScreenUpdating = False                       ' one write, then the shown sheet is drawn again
+    mStepSheet.Range(mStepSheet.Cells(2, 1), mStepSheet.Cells(mStepCount + 1, 4)).Value = rows
+    Application.ScreenUpdating = screen
     Err.Clear
 End Sub
 
@@ -326,9 +340,9 @@ Private Sub StepsFinish(ByVal r As Long, ByVal started As Double, ByVal status A
     Dim seconds As Double
     seconds = Timer - started
     If seconds < 0 Then seconds = seconds + 86400            ' past midnight
-    mStepSheet.Cells(r, 2).Value = status
-    mStepSheet.Cells(r, 3).Value = Round(seconds, 1)
-    If status = "error" And Len(mLastCode) > 0 Then Cov "LOG31": mStepSheet.Cells(r, 4).Value = mLastCode
+    mStepData(2, r) = status
+    mStepData(3, r) = Round(seconds, 1)
+    If status = "error" And Len(mLastCode) > 0 Then Cov "LOG31": mStepData(4, r) = mLastCode
 End Sub
 
 Private Function FlagSection() As String
