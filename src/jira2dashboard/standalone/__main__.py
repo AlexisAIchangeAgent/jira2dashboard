@@ -154,7 +154,7 @@ def parameter_lines(sheets) -> list[str]:
                 shown = ("(set)" if row[0] in SECRET_PARAMETERS else text) if text else "(empty)"
                 lines.append(f"{row[0]} = {shown}")
         else:
-            lines.append(f"sheet {sheet.name} = {len(sheet.rows)} rows")
+            lines.append(f"sheet {sheet.name} = {len(sheet.rows)} row{'' if len(sheet.rows) == 1 else 's'}")
     return lines
 
 

@@ -15,6 +15,7 @@ Fonctionnalité: Le bouton « Prompt for Rovo » prépare le texte à donner à 
     Et la feuille RovoPrompt demande une réponse en CSV avec les colonnes Sheet, Row, Column, Value et Note
     Et la feuille RovoPrompt ne contient aucune valeur saisie dans la feuille Config
     Et l'état du tableau de bord dit combien de lignes sont sélectionnées pour Rovo
+    Et le journal local décrit le run du bouton "Prompt for Rovo", avec ses paramètres et le temps de son étape
 
   @excel
   Scénario: Le CSV de Rovo remplit la feuille Config sans jamais toucher à la connexion et remplace les lignes des feuilles qu'il contient
@@ -27,3 +28,4 @@ Fonctionnalité: Le bouton « Prompt for Rovo » prépare le texte à donner à 
     Et la feuille Iterations contient la ligne du CSV et garde sa colonne Example
     Et les feuilles Workflows et Transitions n'ont pas changé
     Et l'état du tableau de bord résume ce qui est chargé et les valeurs inconnues
+    Et le journal local décrit le run du bouton "Load Rovo CSV", avec ses paramètres et le temps de son étape

@@ -829,10 +829,14 @@ Public Sub T_LogInputsAndTimes()
     Check "logversion", "a workbook without the name J2D_Version", "none", "unknown", WorkbookVersion(other)
     other.Names.Add "J2D_Version", "=""v1.0.0 commit 1a2b3c4, built 2026-11-11 19:40""", False
     Check "logversion", "the version written at build", "J2D_Version", "v1.0.0 commit 1a2b3c4, built 2026-11-11 19:40", WorkbookVersion(other)
+    other.Worksheets(1).Name = "PIs"                                 ' a header and one row: "1 row", not "1 rows"
+    other.Worksheets(1).Range("A1:A2").Value = Application.Transpose(Array("PI", "PI#01-2026"))
+    LogParameters other
     other.Close False
     text = FileText(file)
     Check "logparam", "a workbook without Config says so", "no Config", True, InStr(text, " PARAM no sheet Config" & vbCrLf) > 0
     Check "logparam", "and names the missing sheets", "Workflows", True, InStr(text, " PARAM sheet Workflows = missing" & vbCrLf) > 0
+    Check "logparam", "one row reads in the singular", "PIs", True, InStr(text, " PARAM sheet PIs = 1 row" & vbCrLf) > 0
     On Error Resume Next
     Kill file
     Err.Clear

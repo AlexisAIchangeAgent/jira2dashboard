@@ -127,7 +127,7 @@ End Function
 Public Sub LogParameters(ByVal wb As Object)
     ' The inputs of the run, after its RUN line: "PARAM <name> = <value>" for each row of Config (ParameterShown: only the
     ' settings of the tool in clear), then "PARAM sheet <name> = <n> rows" for each parameter sheet. Never raises.
-    Dim ws As Object, row As Variant, sheetName As Variant
+    Dim ws As Object, row As Variant, sheetName As Variant, n As Long
     Cov "LOG32"
     On Error Resume Next
     If Not SheetExists(wb, "Config") Then
@@ -141,8 +141,8 @@ Public Sub LogParameters(ByVal wb As Object)
     End If
     For Each sheetName In Split(PARAMETER_SHEETS, ",")
         If SheetExists(wb, CStr(sheetName)) Then
-            LogLine "PARAM", "sheet " & sheetName & " = " & _
-                    (Application.WorksheetFunction.CountA(wb.Worksheets(CStr(sheetName)).Columns(1)) - 1) & " rows"
+            n = Application.WorksheetFunction.CountA(wb.Worksheets(CStr(sheetName)).Columns(1)) - 1     ' the header apart
+            LogLine "PARAM", "sheet " & sheetName & " = " & n & IIf(n = 1, " row", " rows")
         Else
             Cov "LOG34"
             LogLine "PARAM", "sheet " & sheetName & " = missing"

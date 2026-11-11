@@ -122,17 +122,22 @@ Public Sub BtnRovoPrompt()
     Dim num As Long, desc As String, n As Long, ws As Object
     If mBusy Then Beep: Exit Sub
     On Error GoTo Failed
+    LogRunStart "button Prompt for Rovo", LogLevelSetting()            ' a run of the log, as the other buttons
+    LogParameters ThisWorkbook
+    LogBegin "prompt for Rovo"
     n = WriteRovoPrompt(ThisWorkbook)
-    LogLine "RUN", "button Prompt for Rovo | " & n & " lines"
+    LogEnd "prompt for Rovo: " & n & " lines"
     Set ws = ThisWorkbook.Worksheets(SHEET_ROVO)
     ws.Activate
     ws.Range(ws.Cells(1, 1), ws.Cells(n, 1)).Select
     ShowProgress -1, "Rovo prompt: " & n & " lines in the sheet " & SHEET_ROVO & ", selected: Ctrl+C, then paste into Rovo. " & _
                      "Save its CSV answer at the root of the folder of this workbook, then click Load Rovo CSV."
+    LogRunEnd "ok"
     Exit Sub
 Failed:
     num = Err.Number: desc = Err.Description
     LogError "BtnRovoPrompt", num, desc
+    LogRunEnd "stopped"
     EndRunStopped num, desc
 End Sub
 
@@ -171,14 +176,21 @@ Public Sub BtnLoadRovoCsv()
 Failed:
     num = Err.Number: desc = Err.Description
     LogError "BtnLoadRovoCsv", num, desc
+    LogRunEnd "stopped"                                              ' the run of ImportRovoCsvFile, when the error came from it
     EndRunStopped num, desc
 End Sub
 
 Public Function ImportRovoCsvFile(ByVal path As String) As String
-    ' The work of BtnLoadRovoCsv without the dialogs: the tests and other macros use it.
+    ' The work of BtnLoadRovoCsv without the dialogs (the tests and other macros use it). One run of the log, as the other
+    ' buttons: its RUN line, the parameters before the load, the load and its time, RUN end. An error goes up to the caller
+    ' (BtnLoadRovoCsv logs it and ends the run as stopped). The summary is not logged: it quotes names read in the CSV.
     Dim summary As String
+    LogRunStart "button Load Rovo CSV", LogLevelSetting()
+    LogParameters ThisWorkbook                                       ' the values before the load
+    LogBegin "Rovo CSV"
     summary = ImportRovoCsv(ThisWorkbook, path)
-    LogLine "RUN", "Rovo CSV loaded"
+    LogEnd "Rovo CSV loaded"
+    LogRunEnd "ok"
     ImportRovoCsvFile = summary
 End Function
 

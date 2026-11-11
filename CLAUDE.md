@@ -331,5 +331,3 @@ before starting (the 2026-11-07 figures above predate it).
 Also pending, offered to AL: when the macro loses its state (Esc then End during a long step), the Dashboard stays on its
 last status and Cancel does nothing; `AbortExtraction` and a slice that finds `mBusy` False could write a log line and
 "Stopped" in `A3`.
-Also offered to AL (2026-11-11): the Rovo buttons (`BtnRovoPrompt`, `BtnLoadRovoCsv`) log a single `RUN` line (no version,
-PARAM, time or end): give them `LogRunStart`/`LogRunEnd`; and `PARAM sheet X = 1 rows` should read `1 row`.

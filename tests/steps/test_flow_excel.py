@@ -914,6 +914,7 @@ def _rovo_click(world):
     on_action, cell = buttons[D.ROVO_CAPTION]                                  # the button the user clicks is there
     assert on_action.endswith(sheets.ROVO_MACRO), on_action
     assert cell.replace("$", "") == D.ROVO_CELL, cell
+    world["log_from"] = log_file(world).stat().st_size if log_file(world).exists() else 0
     macro(world, on_action.rpartition(".")[2])
     world["status"] = macro(world, "ProgressSnapshot").partition("|")[2]
     world["config_before"] = [(r[0], r[1]) for r in wb.Worksheets("Config").UsedRange.Value[1:]]
@@ -995,9 +996,22 @@ def _rovo_load(world):
     assert cell.replace("$", "") == D.ROVO_LOAD_CELL, cell
     world["before"] = {name: wb.Worksheets(name).UsedRange.Value for name in PARAMETER_SHEETS}
     macro(world, "ProgressSnapshot")                                           # the proxies of the scenario
+    world["log_from"] = log_file(world).stat().st_size if log_file(world).exists() else 0
     app, prefix = world["app"], world["prefix"]
     # the dialog of the button (GetOpenFilename) cannot be driven: the macro it calls is
     world["summary"] = retry(lambda: app.Run(prefix + "ImportRovoCsvFile", str(world["csv"])))
+
+
+ROVO_STEPS = {"Prompt for Rovo": "prompt for Rovo", "Load Rovo CSV": "Rovo CSV"}
+
+
+@then(parsers.parse('le journal local décrit le run du bouton "{how}", avec ses paramètres et le temps de son étape'))
+def _rovo_log(world, how):
+    """The Rovo buttons open and close a run of the log as the other buttons: version, PARAM, one timed step, RUN end."""
+    lines, text = logged_run(world, f"button {how}")
+    assert [rest[0] for kind, *rest in lines if kind == "BEGIN"] == [ROVO_STEPS[how]], lines
+    for secret in ("tok-123", "me@example.com", "127.0.0.1", "http"):
+        assert secret not in text, secret
 
 
 @then("la feuille Config a reçu FillRateThreshold et aucun paramètre de connexion")

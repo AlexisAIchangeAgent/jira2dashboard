@@ -77,8 +77,10 @@ def test_a_stopped_run_gives_its_code_and_its_time_on_its_last_line(tmp_path):
 
 def test_parameter_lines_never_show_the_token():
     config = xlsx_write.Sheet("Config", ("Parameter", "Value"), [("ApiToken", "secret"), ("Email", "a@b.c"), ("Filter", None)])
-    lines = X.parameter_lines([config, xlsx_write.Sheet("Projects", ("Key",), [("A",), ("B",)])])
-    assert lines == ["ApiToken = (set)", "Email = a@b.c", "Filter = (empty)", "sheet Projects = 2 rows"]
+    lines = X.parameter_lines([config, xlsx_write.Sheet("Projects", ("Key",), [("A",), ("B",)]),
+                               xlsx_write.Sheet("PIs", ("PI",), [("PI#01-2026",)]), xlsx_write.Sheet("Iterations", ("Name",), [])])
+    assert lines == ["ApiToken = (set)", "Email = a@b.c", "Filter = (empty)", "sheet Projects = 2 rows", "sheet PIs = 1 row",
+                     "sheet Iterations = 0 rows"]
 
 
 @pytest.mark.parametrize("content, message", [(None, "No such file"), (b"not a zip", "File is not a zip file")])
