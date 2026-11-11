@@ -16,6 +16,7 @@ Exit code 0 when the file is written, 1 otherwise.
 """
 import datetime as dt
 import logging
+import tempfile
 import logging.handlers
 import sys
 import time
@@ -46,6 +47,7 @@ def default_log(workbook: str) -> Path:
     return Path(workbook).resolve().parent / "logs" / LOG_NAME
 OUT_NAME = "jira2dashboard.xlsx"
 MASK = "********"
+SECRET_PARAMETERS = ("ApiToken",)                  # not copied in clear into the xlsx; the e-mail stays (the existing choice, test_standalone)
 log = logging.getLogger("jira2dashboard.extract")
 EXAMPLES = """
 examples:
@@ -65,6 +67,12 @@ def parse(argv: list[str] | None = None):
     p.add_argument("--log", default="", help=f"the log file (default: logs\\{LOG_NAME} next to the workbook)")
     p.add_argument("--verbose", action="store_true", help="also log each call to Jira that worked")
     args = p.parse_args(argv)
+    if args.out:                                      # a plain xlsx must never replace the filled workbook (macros, Config)
+        out = Path(args.out)
+        if out.suffix.lower() != ".xlsx":
+            p.error(f"--out must be a file name ending in .xlsx (got {args.out})")
+        if out.resolve() == Path(args.workbook).resolve():
+            p.error("--out is the workbook itself: the extraction would replace it")
     args.log = args.log or str(default_log(args.workbook))
     return args
 
@@ -128,7 +136,7 @@ def _masked(sheets) -> list[Sheet]:
         rows = list(sheet.rows)
         if sheet.name == "Config":
             value = sheet.header.index("Value")
-            rows = [r[:value] + (MASK if r[0] == "ApiToken" and r[value] else r[value],) + r[value + 1:] for r in rows]
+            rows = [r[:value] + (MASK if r[0] in SECRET_PARAMETERS and r[value] else r[value],) + r[value + 1:] for r in rows]
         out.append(Sheet(sheet.name, sheet.header, rows))
     return out
 
@@ -204,7 +212,12 @@ def run(args, formatter: Scrubbed, collected: Collected, sleep=time.sleep, detec
 
 def main(argv: list[str] | None = None, *, sleep=time.sleep, detect=detect_proxy, transport=WinHttp) -> int:
     args = parse(argv)
-    formatter, collected, handlers = _handlers(Path(args.log), args.verbose)
+    try:
+        formatter, collected, handlers = _handlers(Path(args.log), args.verbose)
+    except OSError as err:                              # a read-only or locked folder next to the workbook
+        args.log = str(Path(tempfile.gettempdir()) / "jira2dashboard" / "logs" / LOG_NAME)
+        print(f"extract: cannot write the log there ({err}); the log goes to {args.log}")
+        formatter, collected, handlers = _handlers(Path(args.log), args.verbose)
     try:
         log.info("RUN extract | Python %s | %s", sys.version.split()[0], Path(args.workbook).name)
         out = run(args, formatter, collected, sleep, detect, transport)

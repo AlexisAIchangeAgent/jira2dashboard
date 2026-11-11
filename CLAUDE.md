@@ -22,7 +22,7 @@ Always go through `scripts\run.ps1` (PowerShell 5.1, no venv activation needed);
 ```powershell
 powershell -ExecutionPolicy Bypass -File scripts\setup.ps1 -Dev   # create .venv (py -3.14) and install
 .\scripts\run.ps1 test            # fast unit + Gherkin tests, no Excel (the inner loop)
-.\scripts\run.ps1 coverage        # same + coverage of the pure code; fails under 90 %
+.\scripts\run.ps1 coverage        # same + coverage of the pure code; fails under 93 %
 .\scripts\run.ps1 test-excel      # scenarios that drive Excel (marker `excel`, no network)
 .\scripts\run.ps1 test-network    # Excel + network scenarios (marker `network`)
 .\scripts\run.ps1 vba-tests       # build + compile + run the VBA test suite; --offline, --bisect, --out name.xlsm
@@ -181,7 +181,7 @@ then `mermaid.parse`), and check every `](#anchor)` link against the headings.
 - **Craftsmanship.** KISS, YAGNI, DDD vocabulary (`flow/model.py`: Issue, Interval, ItemFlow, Rules...). Keep logic in pure
   modules and push COM/IO to thin edges so it can be tested without Excel. Prove that a new test discriminates: break the
   code on purpose (mutation) and watch it fail, then restore.
-- **Coverage.** Pure Python >= 90 % (currently about 99 %), enforced by `run.ps1 coverage`. VBA branches carry
+- **Coverage.** Pure Python >= 93 % (currently about 99 %), enforced by `run.ps1 coverage`. VBA branches carry
   `Cov "ID"` markers; `vba-tests` requires **100 % of markers hit** and the unit test
   `test_real_vba_modules_are_ascii_and_have_unique_markers` pins the marker count and ranges: update it when adding markers.
   Trivial entry points (`modActions`, `modButtons`) carry none.

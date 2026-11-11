@@ -23,6 +23,8 @@ def _xml(package: zipfile.ZipFile, part: str):
     data = package.read(part)
     if b"<!DOCTYPE" in data.upper():
         raise NotAWorkbook(f"{part} declares a DOCTYPE: refused")
+    if data[:2] in (b"\xff\xfe", b"\xfe\xff") or b"\x00" in data[:8]:       # UTF-16: the check above cannot see a DOCTYPE in it
+        raise NotAWorkbook(f"{part} is not UTF-8: refused")
     return ElementTree.fromstring(data)
 
 

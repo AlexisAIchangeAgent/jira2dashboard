@@ -60,8 +60,13 @@ def main(argv: list[str] | None = None) -> int:
     dataset = dataset_for(args)
     fields = dataset.fields
     credentials = None if args.no_auth else (args.email, args.token)
-    with MockJira(dataset, port=args.port, credentials=credentials, page_clamp=args.page_clamp,
-                  proxy_challenge=args.proxy_challenge) as jira:
+    try:
+        jira = MockJira(dataset, port=args.port, credentials=credentials, page_clamp=args.page_clamp,
+                        proxy_challenge=args.proxy_challenge).start()
+    except OSError as err:                                  # a port that is taken or out of range: tell, no traceback
+        print(f"mock-jira: cannot listen on port {args.port} ({err}). Choose another one with --port.")
+        return 1
+    try:
         extra = " with the known anomalies" if args.anomalies else ""
         print(f"Fake Jira: {len(dataset.issues)} issues in {', '.join(dataset.projects())}{extra} (seed {args.seed}).")
         print(f"  BaseUrl : {jira.base_url}")
@@ -73,6 +78,8 @@ def main(argv: list[str] | None = None) -> int:
                 time.sleep(1)
         except KeyboardInterrupt:
             print("stopped")
+    finally:
+        jira.stop()
     return 0
 
 

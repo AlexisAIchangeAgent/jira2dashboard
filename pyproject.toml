@@ -30,7 +30,7 @@ data_file = "out/inter/.coverage"
 omit = ["*/cli/check_machine.py", "*/cli/diagnose.py", "*/mockjira/__main__.py", "*/flow/sheets.py"]
 
 [tool.coverage.report]
-fail_under = 90
+fail_under = 93
 show_missing = true
 exclude_also = [
     '''def (start_excel|excel_pid|excel_session|_quit_quietly|_kill_if_still_excel|read_access_vbom|assert_vba_access)\b''',    '''def (new_workbook|add_sheet_after_last|block_range|write_block|put_en_us|components|get_component)\b''',
@@ -38,7 +38,7 @@ exclude_also = [
     '''def (set_sheet_code_name|add_macro_button|open_without_macros|compile_vba_project|run_macro)\b''',
     '''def (run_child|_kill_child_excel|write_params|try_workbook_macro)\b''',
     '''def (build|add_progress_bar|write_coverage_map|compile_ok|run_tests|bisect|main|build_delivery)\b''',
-    '''def (write_periods|write_config|fill_copy)\b''',
+    '''def (write_iterations|write_config|fill_copy)\b''',
 ]
 
 [tool.pytest.ini_options]

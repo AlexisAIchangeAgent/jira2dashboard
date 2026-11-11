@@ -11,7 +11,7 @@ that command. Create .venv first with scripts\setup.ps1 (-Dev for the test tools
 
 Commands:
   test           fast unit and Gherkin tests, no Excel (pytest arguments allowed)
-  coverage       the same, plus the coverage of the pure code; fails under 90 %
+  coverage       the same, plus the coverage of the pure code; fails under 93 %
   test-excel     the scenarios that drive Excel (marker excel, no network)
   test-network   the Excel scenarios that need the network (marker network)
   vba-tests      build, compile and run the VBA test suite (--offline, --bisect, --out name.xlsm)
@@ -53,7 +53,7 @@ Runs some Excel scenarios, with pytest arguments.
 # Plain $args (no param block) so that "--out", "--offline"... reach Python untouched.
 $commands = [ordered]@{
     "test"          = "fast unit and Gherkin tests, no Excel (pytest arguments allowed)"
-    "coverage"      = "the same, plus the coverage of the pure code; fails under 90 %"
+    "coverage"      = "the same, plus the coverage of the pure code; fails under 93 %"
     "test-excel"    = "the scenarios that drive Excel (marker excel, no network)"
     "test-network"  = "the Excel scenarios that need the network (marker network)"
     "vba-tests"     = "build, compile and run the VBA test suite (--offline, --bisect, --out name.xlsm)"

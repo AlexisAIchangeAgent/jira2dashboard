@@ -248,11 +248,14 @@ def extracted(issues: list[dict], changelog_pages: list[dict], ids: FieldIds, pr
     links = block_links(issues, link_type)
     program = program_project(projects)
     ordered = sorted(issues, key=lambda i: ((i.get("fields") or {}).get("project") or {}).get("key") != program)
+    blocked_by: dict[str, list[str]] = {}
+    for blocker, blocked in links:
+        blocked_by.setdefault(blocker, []).append(blocked)
     rows, flow = [], []
     for issue in ordered:
         row = issue_row(issue, ids, moved)
         rows.append(row)
-        blocks = tuple(blocked for blocker, blocked in links if blocker == row[0])
+        blocks = tuple(blocked_by.get(row[0], ()))
         flow.append(flow_issue(row, changes.get(row[0], []), projects, blocks,
                                versions_of(issue.get("fields") or {})))
     return Extract(rows, flow, links, len(items))

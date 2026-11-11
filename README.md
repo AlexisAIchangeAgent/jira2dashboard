@@ -161,7 +161,7 @@ publishes); `activate.cmd` opens a console with `.venv` activated. `_launch.cmd`
 | Command | What it does | Main options |
 |---|---|---|
 | `test` | Fast unit and Gherkin tests, no Excel | pytest arguments |
-| `coverage` | `test` plus coverage; fails under 90 % | pytest arguments |
+| `coverage` | `test` plus coverage; fails under 93 % | pytest arguments |
 | `test-excel` | Scenarios that drive Excel | pytest arguments |
 | `test-network` | Excel scenarios that also need the network | pytest arguments |
 | `vba-tests` | Builds, compiles and runs the VBA tests | `--offline`, `--bisect`, `--out` |
@@ -350,7 +350,7 @@ the code is broken on purpose.
 
 | Level | Run with | Excel |
 |---|---|---|
-| Unit and pure scenarios | `test`, `coverage` (≥ 90 %) | no |
+| Unit and pure scenarios | `test`, `coverage` (≥ 93 %) | no |
 | Excel scenarios (`excel` marker) | `test-excel` | yes |
 | Excel + network (`network` marker) | `test-network` | yes |
 | VBA tests `T_`, `N_` (100 % of `Cov` markers) | `vba-tests` | yes |

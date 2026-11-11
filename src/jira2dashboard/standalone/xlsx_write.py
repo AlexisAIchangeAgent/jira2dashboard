@@ -132,6 +132,11 @@ def blank_png(width: int, height: int) -> bytes:
             + chunk(b"IDAT", zlib.compress(row * height, 9)) + chunk(b"IEND", b""))
 
 
+def _attr(text: str) -> str:
+    """Text for an XML attribute in double quotes: escape() leaves the double quote alone."""
+    return escape(text, {'"': "&quot;"})
+
+
 def _drawing_xml(sheet: Sheet, first_rel: int) -> str:
     """Pictures in a grid, `pictures_per_row` across; a default column is 64 px wide, a default row 20 px high."""
     anchors = []
@@ -144,7 +149,7 @@ def _drawing_xml(sheet: Sheet, first_rel: int) -> str:
         anchors.append(
             f'<xdr:oneCellAnchor><xdr:from><xdr:col>{col}</xdr:col><xdr:colOff>0</xdr:colOff><xdr:row>{row}</xdr:row>'
             f'<xdr:rowOff>0</xdr:rowOff></xdr:from><xdr:ext cx="{cx}" cy="{cy}"/><xdr:pic><xdr:nvPicPr>'
-            f'<xdr:cNvPr id="{n + 2}" name="{escape(picture.name)}" descr="{escape(picture.title)}"/>'
+            f'<xdr:cNvPr id="{n + 2}" name="{_attr(picture.name)}" descr="{_attr(picture.title)}"/>'
             f'<xdr:cNvPicPr><a:picLocks noChangeAspect="1"/></xdr:cNvPicPr></xdr:nvPicPr><xdr:blipFill>'
             f'<a:blip r:embed="rId{png_rel}"><a:extLst><a:ext uri="{SVG_EXTENSION}"><asvg:svgBlip '
             f'xmlns:asvg="http://schemas.microsoft.com/office/drawing/2016/SVG/main" r:embed="rId{svg_rel}"/></a:ext>'
@@ -209,7 +214,7 @@ def xlsx_parts(sheets: list[Sheet]) -> dict[str, bytes]:
             parts[f"xl/media/image{media}.svg"] = picture.svg.encode("utf-8")
             targets += [("image", f"../media/image{media}.png"), ("image", f"../media/image{media}.svg")]
         parts[f"xl/drawings/_rels/drawing{drawings}.xml.rels"] = _rels(targets).encode("utf-8")
-    sheet_list = "".join(f'<sheet name="{escape(s.name)}" sheetId="{n}" r:id="rId{n}"/>'
+    sheet_list = "".join(f'<sheet name="{_attr(s.name)}" sheetId="{n}" r:id="rId{n}"/>'
                          for n, s in enumerate(sheets, start=1))
     parts["xl/workbook.xml"] = (f'{XML_HEAD}<workbook xmlns="{NS_MAIN}" xmlns:r="{NS_R}"><sheets>{sheet_list}</sheets>'
                                 "</workbook>").encode("utf-8")

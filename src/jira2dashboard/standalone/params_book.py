@@ -8,6 +8,7 @@ number), the Workflows numbers as whole numbers. Then the rules shared with para
 (error 608 of the VBA), a readable AsOf (604), at least one iteration (703).
 """
 import datetime as dt
+import re
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -180,7 +181,7 @@ class RunSettings:
 def _number(value: str, default: int, minimum: int) -> int:
     """The VBA reads it with Val: no number gives 0; below `minimum` gives `default` (timeout) or the minimum (retries)."""
     digits = value.strip()
-    number = int(digits) if digits.lstrip("-").isdecimal() else 0
+    number = int(digits) if re.fullmatch(r"-?[0-9]+", digits) else 0
     return number if number >= minimum else default
 
 

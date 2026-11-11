@@ -136,15 +136,16 @@ def run_tests(target: Path, network: bool) -> dict:
     return json.loads(last_line)
 
 
-def bisect() -> None:
-    """Add modules one by one and compile each step to find the first failure."""
+def bisect() -> bool:
+    """Add modules one by one and compile each step to find the first failure. True when every step compiles."""
     for n in range(1, len(ORDER) + 1):
         target = INTER_DIR / f"bisect_{n}.xlsm"
         build(ORDER[:n], target)
         result = compile_ok(target)
         print(f"{ORDER[n - 1]:14} -> {result}")
         if result != "COMPILED_OK":
-            return
+            return False
+    return True
 
 
 EXAMPLES = """
@@ -171,8 +172,7 @@ def main(argv: list[str] | None = None) -> int:
     out = INTER_DIR / args.out
     clean.main()                                                       # no intermediates left from older runs
     if args.bisect:
-        bisect()
-        return 0
+        return 0 if bisect() else 1
     markers = build(ORDER, out)
     print(f"built {out} with {len(ORDER)} modules, {len(markers)} coverage markers")
     result = compile_ok(out)
