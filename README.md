@@ -105,7 +105,7 @@ answered.
 | `Controls`, `ItemFlow`, `DailyLoad`, `Metrics`, `FillRates`, `DataChecks`, `ChartData` | Results (formulas) | VBA |
 | `FlowFormulas`, `ChartSpec`, `ChecksSpec` | The plan. Do not edit. | build |
 | `JiraIssueTypes`, `JiraStatuses`, `JiraWorkflows`, `JiraTransitions`, `JiraFields` | Proposals read from Jira (workflows and moves end with the column Project) | VBA |
-| `RovoPromptSpec`, `RovoPrompt` | The text behind the button Prompt for Rovo, and the prompt it writes (a CSV answer is asked: Sheet, Row, Column, Value, Note) | Python (spec), VBA |
+| `RovoPromptSpec`, `RovoPrompt` | The text behind the button Prompt for Rovo, and the prompt it writes (a CSV answer is asked: Sheet, Row, Column, Value, Note); the button Load Rovo CSV loads that answer into Config and the parameter sheets | Python (spec), VBA |
 | `JiraProjectWorkflows`, `JiraProjectFields`, `JiraFieldUsage` | Per project: workflow and issue types; fields of the create screen; fields filled in one page of issues | VBA |
 
 ## 4. Repository layout

@@ -53,7 +53,7 @@ Private Function TestNames() As Variant
         "T_HttpNetworkAndCancel", "T_RetryExhausted", "T_ChangelogChunks", "T_IssueRows", "T_WriteTable", "T_StatusIntervals", _
         "T_StatusChanges", "T_RetryDelay", "T_SafeAccess", "T_FilesUtf8", "T_StringifyBadObject", _
         "T_TooManyPages", "T_BackgroundExport", "T_TextNotConverted", "T_ParamsTables", "T_ParamsOnWorkbook", _
-        "T_TrimWhite", "T_ConfigSheet", "T_MandatoryConfig", "T_ProxyDetect", "T_ProxyScript", "T_ProjectsSheet", "T_ParseMoment", "T_ExtractFlowData", "T_ExtractJob", "T_ExtractCheckFields", "T_FlowBuild", "T_BaseUrlHttps", "T_Log", "T_LogHintAndOpen", "T_StepsSheet", "T_RovoPrompt", _
+        "T_TrimWhite", "T_ConfigSheet", "T_MandatoryConfig", "T_ProxyDetect", "T_ProxyScript", "T_ProjectsSheet", "T_ParseMoment", "T_ExtractFlowData", "T_ExtractJob", "T_ExtractCheckFields", "T_FlowBuild", "T_BaseUrlHttps", "T_Log", "T_LogHintAndOpen", "T_StepsSheet", "T_RovoPrompt", "T_RovoCsv", _
         "T_JiraConfig", "T_AbortExtraction", "T_Utf8Oracle", "T_Utf8Invalid", "T_Base64Oracle")
 End Function
 
@@ -481,6 +481,85 @@ Public Sub T_LogHintAndOpen()
     Check "log", "an Excel started by a script does not start Notepad", "UserControl", False, Application.UserControl
     gLogPath = saved
 End Sub
+
+Public Sub T_RovoCsv()
+    ' The CSV answered by Rovo: the reader (quotes, line breaks in quotes, the comma, the semicolon and the tab), the items it
+    ' keeps (UNKNOWN and the token are not values), and the load into the sheets Config, Projects and Iterations (saved and
+    ' restored: other tests read them).
+    Dim recs As Collection, res As Object, text As String, summary As String, saved(1 To 3) As Variant, addr(1 To 3) As String
+    Dim names As Variant, i As Long, wsP As Object, wsC As Object, rowProxy As Long, f As Long, file As String, bytes() As Byte
+    Set recs = ParseCsv("a,""b,1"",""say """"hi""""""" & vbCrLf & vbCrLf & "x,,y" & vbLf & "last")
+    Check "csv", "a quoted comma and a doubled quote", "b,1|say ""hi""", "b,1|say ""hi""", recs(1)(1) & "|" & recs(1)(2)
+    Check "csv", "an empty line is no record; CRLF and LF both end one", "3 records", 3, recs.Count
+    Check "csv", "an empty value between two commas", "x,,y", "x||y", recs(2)(0) & "|" & recs(2)(1) & "|" & recs(2)(2)
+    Check "csv", "the last record has no line break", "last", "last", recs(3)(0)
+    Set recs = ParseCsv("a;""b;c""" & vbLf & "1;2")
+    Check "csv", "the semicolon when it is the most frequent", "a;b;c", "a|b;c|1|2", recs(1)(0) & "|" & recs(1)(1) & "|" & recs(2)(0) & "|" & recs(2)(1)
+    Set recs = ParseCsv("a" & vbTab & "b" & vbLf & "1" & vbTab & "2")
+    Check "csv", "the tab when it is the most frequent", "tab", 2, UBound(recs(1)) + 1
+    Set recs = ParseCsv("a,""line one" & vbLf & "line two""" & vbLf & "b")
+    Check "csv", "a line break inside quotes stays in the value", "2 records", "2|line one" & vbLf & "line two", recs.Count & "|" & recs(1)(1)
+    Check "csv", "an empty text has no record", "empty", 0, ParseCsv("").Count
+    ' the items
+    text = "Sheet,Row,Column,Value,Note" & vbLf & "Config,,ProxyBypass,*.corp.example,seen in the proxy page" & vbLf & _
+           "Config,,ApiToken,TO BE TYPED BY THE USER," & vbLf & "Config,,Email,UNKNOWN,check" & vbLf & _
+           "Projects,1,Project,ZZA,key" & vbLf & "Projects,1,Role,Program," & vbLf & "Projects,1,Team,Train Z," & vbLf & _
+           "Projects,2,Project,ZZB," & vbLf & "Projects,2,Role,Team," & vbLf & "Projects,2,Team,UNKNOWN," & vbLf & _
+           "Iterations,1,Iteration-label,PI#01-2026 It1," & vbLf & "Iterations,1,Start,2026-10-05," & vbLf & "Iterations,1,End,2026-10-26," & vbLf & _
+           "Elsewhere,1,Name,x," & vbLf & "Projects,two,Project,x," & vbLf & "Projects,3,Nonsense,x,"
+    Set res = RovoCsvRead(ThisWorkbook, text)
+    Check "csv", "Config: only a real value is an item (UNKNOWN and the token are not)", "items", 11, res("items").Count
+    Check "csv", "UNKNOWN, an empty value and the token are counted", "unknown", 3, res("unknown")
+    Check "csv", "a sheet that the import does not fill is a problem", "Elsewhere", True, InStr(res("problems")(1), "'Elsewhere' is not one that this import fills") > 0
+    Check "csv", "a Row that is not a number is a problem", "two", True, InStr(res("problems")(2), "Row must be a number for the sheet Projects") > 0
+    Set res = RovoCsvRead(ThisWorkbook, "Sheet,Value" & vbLf & "Config,x")
+    Check "csv", "the columns Sheet, Row, Column and Value are needed", "header", True, InStr(res("problems")(1), "must name the columns Sheet, Row, Column and Value") > 0
+    Set res = RovoCsvRead(ThisWorkbook, "")
+    Check "csv", "an empty file is a problem", "empty", "The file has no line.", res("problems")(1)
+    ' the load: Config, Projects, Iterations are saved, written, read back and restored
+    names = Array("Config", "Projects", "Iterations")
+    For i = 1 To 3
+        saved(i) = ThisWorkbook.Worksheets(names(i - 1)).UsedRange.Value
+        addr(i) = ThisWorkbook.Worksheets(names(i - 1)).UsedRange.Address
+    Next i
+    Set wsC = ThisWorkbook.Worksheets("Config"): Set wsP = ThisWorkbook.Worksheets("Projects")
+    For rowProxy = 2 To 60
+        If CStr(wsC.Cells(rowProxy, 1).Value & "") = "ProxyBypass" Then Exit For
+    Next rowProxy
+    file = Environ$("TEMP") & "\j2d_rovo_csv_" & Format$(Now, "hhnnss") & Int(Rnd() * 1000) & ".csv"
+    f = FreeFile
+    Open file For Binary Access Write As #f
+    bytes = Utf8Encode(ChrW(&HFEFF) & text)                         ' a BOM, as Excel writes it
+    Put #f, , bytes
+    Close #f
+    summary = ImportRovoCsv(ThisWorkbook, file)
+    Check "csv", "Config: the Value of the parameter is written", "ProxyBypass", "*.corp.example", CStr(wsC.Cells(rowProxy, 2).Value)
+    Check "csv", "Config: the other parameters are left as they were", "ApiToken", True, Len(CStr(wsC.Cells(FindRowOf(wsC, "ApiToken"), 2).Value & "")) = 0
+    Check "csv", "a table sheet: the rows are the rows of the CSV", "Projects", "ZZA|Program|Train Z|ZZB|Team||", _
+          wsP.Range("A2").Value & "|" & wsP.Range("B2").Value & "|" & wsP.Range("C2").Value & "|" & wsP.Range("A3").Value & "|" & wsP.Range("B3").Value & "|" & wsP.Range("C3").Value & "|" & wsP.Range("A4").Value
+    Check "csv", "the old rows are gone", "row 4", True, IsEmpty(wsP.Range("A4").Value)
+    Check "csv", "an ISO date stays text (the readers of the sheet parse it)", "Start", "2026-10-05", CStr(ThisWorkbook.Worksheets("Iterations").Range("B2").Value)
+    Check "csv", "the summary says what was loaded", "summary", True, _
+          InStr(summary, "Rovo CSV loaded: Config 1 value(s); Projects 2 row(s); Iterations 1 row(s). 3 value(s) UNKNOWN") = 1
+    Check "csv", "and the first problem", "problems", True, InStr(summary, "problem(s), first: Line ") > 0
+    For i = 1 To 3
+        With ThisWorkbook.Worksheets(names(i - 1))
+            .UsedRange.ClearContents
+            .Range(addr(i)).Value = saved(i)
+        End With
+    Next i
+    On Error Resume Next
+    Kill file
+    Err.Clear
+    On Error GoTo 0
+End Sub
+
+Private Function FindRowOf(ByVal ws As Object, ByVal name As String) As Long
+    Dim r As Long
+    For r = 2 To 80
+        If CStr(ws.Cells(r, 1).Value & "") = name Then FindRowOf = r: Exit Function
+    Next r
+End Function
 
 Public Sub T_RovoPrompt()
     ' The prompt for Rovo: the lines of RovoPromptSpec in order, the parameters of Config read live (name, mandatory, meaning,

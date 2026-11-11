@@ -942,6 +942,81 @@ def _rovo_status(world):
     assert world["status"].startswith(f"Rovo prompt: {len(rovo_lines(world))} lines in the sheet RovoPrompt"), world["status"]
 
 
+# --- rovo_prompt.feature: the button Load Rovo CSV -------------------------------------------------------------------------
+
+ROVO_CSV = (
+    "\ufeffSheet,Row,Column,Value,Note\n"
+    "Config,,ProxyBypass,*.corp.example,seen in the proxy page\n"
+    "Config,,ApiToken,TO BE TYPED BY THE USER,\n"
+    "Config,,Email,UNKNOWN,check\n"
+    "Projects,1,Project,ZZA,\n"
+    "Projects,1,Role,Program,\n"
+    "Projects,1,Team,\"Train Z, Alpha\",a comma in the value\n"
+    "Projects,2,Project,ZZB,\n"
+    "Projects,2,Role,Team,\n"
+    "Projects,2,Team,UNKNOWN,ask the RTE\n"
+    "Iterations,1,Iteration-label,PI#01-2026 It1,\n"
+    "Iterations,1,Start,2026-10-05,\n"
+    "Iterations,1,End,2026-10-26,\n")
+
+
+@given("une réponse de Rovo en CSV qui donne ProxyBypass, deux projets, une itération, un jeton à saisir et une valeur inconnue")
+def _rovo_csv(world):
+    world["csv"] = INTER_DIR / "rovo_answer.csv"
+    world["csv"].parent.mkdir(parents=True, exist_ok=True)
+    world["csv"].write_bytes(ROVO_CSV.encode("utf-8"))
+
+
+@when("je charge ce CSV avec le bouton Load Rovo CSV")
+def _rovo_load(world):
+    wb = world["wb"]
+    buttons = {shape.TextFrame.Characters().Text: (shape.OnAction, shape.TopLeftCell.Address)
+               for shape in wb.Worksheets("Dashboard").Shapes if shape.Type == MSO_FORM_CONTROL}
+    on_action, cell = buttons[D.ROVO_LOAD_CAPTION]                              # the button the user clicks is there
+    assert on_action.endswith(sheets.ROVO_LOAD_MACRO), on_action
+    assert cell.replace("$", "") == D.ROVO_LOAD_CELL, cell
+    world["before"] = {name: wb.Worksheets(name).UsedRange.Value for name in PARAMETER_SHEETS}
+    macro(world, "ProgressSnapshot")                                           # the proxies of the scenario
+    app, prefix = world["app"], world["prefix"]
+    # the dialog of the button (GetOpenFilename) cannot be driven: the macro it calls is
+    world["summary"] = retry(lambda: app.Run(prefix + "ImportRovoCsvFile", str(world["csv"])))
+
+
+@then("la feuille Config a reçu ProxyBypass et rien d'autre")
+def _rovo_config_loaded(world):
+    before, after = world["before"]["Config"], world["wb"].Worksheets("Config").UsedRange.Value
+    changed = [row[0] for old, row in zip(before, after) if old != row]
+    assert changed == ["ProxyBypass"], changed
+    assert dict((row[0], row[1]) for row in after)["ProxyBypass"] == "*.corp.example"
+
+
+@then("la feuille Projects contient les deux lignes du CSV et plus aucune autre")
+def _rovo_projects(world):
+    rows = [r for r in sheet_rows(world["wb"], "Projects") if any(r.values())]            # cleared rows may stay in the used range
+    assert [(r["Project"], r["Role"], r["Team"]) for r in rows] == [("ZZA", "Program", "Train Z, Alpha"), ("ZZB", "Team", "")], rows
+
+
+@then("la feuille Iterations contient la ligne du CSV et garde sa colonne Example")
+def _rovo_iterations(world):
+    rows = sheet_rows(world["wb"], "Iterations")
+    assert (rows[0]["Iteration-label"], rows[0]["Start"], rows[0]["End"]) == ("PI#01-2026 It1", "2026-10-05", "2026-10-26"), rows[0]
+    assert [r["Example"] for r in rows if r["Example"]], rows                    # the notes of column D stayed
+    assert [r["Iteration-label"] for r in rows[1:]] == [""] * (len(rows) - 1), rows
+
+
+@then("les feuilles Workflows et Transitions n'ont pas changé")
+def _rovo_others_kept(world):
+    wb = world["wb"]
+    for name in ("Workflows", "Transitions", "FieldMapping"):
+        assert wb.Worksheets(name).UsedRange.Value == world["before"][name], name
+
+
+@then("l'état du tableau de bord résume ce qui est chargé et les valeurs inconnues")
+def _rovo_summary(world):
+    assert world["summary"].startswith("Rovo CSV loaded: Config 1 value(s); Projects 2 row(s); Iterations 1 row(s). 3 value(s) UNKNOWN"), world["summary"]
+    assert "problem" not in world["summary"], world["summary"]
+
+
 # --- first use: the first steps, the sheet Manual and the column Mandatory of Config (first_use.feature) --------------
 
 def dashboard_buttons(wb):

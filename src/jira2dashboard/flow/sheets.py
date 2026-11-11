@@ -39,6 +39,7 @@ def error_cells(wb) -> dict[str, int]:
 CANCEL_MACRO = "modActions.BtnCancelExtraction"
 CONFIG_MACRO = "modActions.BtnReadJiraConfiguration"
 ROVO_MACRO = "modActions.BtnRovoPrompt"
+ROVO_LOAD_MACRO = "modActions.BtnLoadRovoCsv"
 
 
 def write_blueprint(wb, dash=None, button_macro: str | None = None) -> None:
@@ -78,6 +79,7 @@ def write_dashboard_frame(wb, dash, button_macro: str | None = None) -> None:
         R.add_macro_button(dash, D.CANCEL_CELL, D.CANCEL_CAPTION, CANCEL_MACRO, 80, 26)
         R.add_macro_button(dash, D.CONFIG_CELL, D.CONFIG_CAPTION, CONFIG_MACRO, 170, 26)
         R.add_macro_button(dash, D.ROVO_CELL, D.ROVO_CAPTION, ROVO_MACRO, 105, 26)
+        R.add_macro_button(dash, D.ROVO_LOAD_CELL, D.ROVO_LOAD_CAPTION, ROVO_LOAD_MACRO, 105, 18)
         R.add_progress_bar(dash, D.BAR_CELL, 190, 14)
 
 

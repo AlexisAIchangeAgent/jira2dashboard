@@ -132,6 +132,39 @@ Failed:
     EndRunStopped num, desc
 End Sub
 
+Public Sub BtnLoadRovoCsv()
+    ' Asks for the CSV that Rovo answered (the prompt of the button Prompt for Rovo), then loads its values into the parameter
+    ' sheets (modParams.ImportRovoCsv). The user confirms first: the rows of the sheets in the file replace the current rows.
+    Dim num As Long, desc As String, file As Variant, summary As String
+    If mBusy Then Beep: Exit Sub
+    On Error GoTo Failed
+    file = Application.GetOpenFilename("CSV files (*.csv;*.txt),*.csv;*.txt", , "The CSV answered by Rovo")
+    If VarType(file) = vbBoolean Then ShowProgress -1, "Rovo CSV: no file chosen, nothing loaded.": Exit Sub
+    If MsgBox("Load " & Mid$(file, InStrRev(file, "\") + 1) & " into the parameter sheets?" & vbLf & vbLf & _
+              "The Value of each parameter of Config that the file gives replaces the current one. For every other sheet " & _
+              "in the file (Projects, Iterations, PIs, Workflows, Transitions) all the current rows are replaced by its rows. " & _
+              "Save a copy of the workbook first if you want to keep the current values.", vbOKCancel + vbQuestion, _
+              "Load the CSV of Rovo") <> vbOK Then
+        ShowProgress -1, "Rovo CSV: cancelled, nothing loaded."
+        Exit Sub
+    End If
+    summary = ImportRovoCsvFile(CStr(file))
+    ShowProgress -1, summary
+    Exit Sub
+Failed:
+    num = Err.Number: desc = Err.Description
+    LogError "BtnLoadRovoCsv", num, desc
+    EndRunStopped num, desc
+End Sub
+
+Public Function ImportRovoCsvFile(ByVal path As String) As String
+    ' The work of BtnLoadRovoCsv without the dialogs: the tests and other macros use it.
+    Dim summary As String
+    summary = ImportRovoCsv(ThisWorkbook, path)
+    LogLine "RUN", "Rovo CSV loaded"
+    ImportRovoCsvFile = summary
+End Function
+
 Public Sub ExtractSlice()
     ' Called by Application.OnTime: one step, then the next call is scheduled. Keep it short (UI thread).
     Dim num As Long, desc As String

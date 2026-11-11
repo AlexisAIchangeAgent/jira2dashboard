@@ -235,6 +235,266 @@ Public Function WriteRovoPrompt(ByVal wb As Object) As Long
     WriteRovoPrompt = lines.Count
 End Function
 
+' ---- The answer of Rovo (CSV: Sheet, Row, Column, Value, Note) loaded into the parameter sheets ---------------------------------
+
+Public Function ParseCsv(ByVal text As String) As Collection
+    ' CSV as Rovo or Excel export it (RFC 4180): the delimiter is the comma, the semicolon or the tab (the most frequent one on
+    ' the first line outside quotes); a value in double quotes may hold the delimiter, a line break and "" for a quote. One
+    ' array of strings per record; an empty line is no record.
+    Cov "PRM36"
+    Dim out As New Collection, delim As String, i As Long, n As Long, ch As String, inQ As Boolean, field As String
+    Dim rec() As String, count As Long, started As Boolean
+    delim = CsvDelimiter(text)
+    n = Len(text)
+    ReDim rec(0 To 15)
+    For i = 1 To n
+        ch = Mid$(text, i, 1)
+        If inQ Then
+            If ch = """" Then
+                If Mid$(text, i + 1, 1) = """" Then field = field & """": i = i + 1 Else inQ = False
+            Else
+                field = field & ch
+            End If
+        ElseIf ch = """" And Len(field) = 0 Then
+            inQ = True: started = True
+        ElseIf ch = delim Then
+            CsvAddField rec, count, field
+            started = True
+        ElseIf ch = vbCr Or ch = vbLf Then
+            If ch = vbCr And Mid$(text, i + 1, 1) = vbLf Then i = i + 1
+            If started Or Len(field) > 0 Then CsvAddField rec, count, field: CsvEmit out, rec, count
+            started = False
+        Else
+            field = field & ch
+        End If
+    Next i
+    If started Or Len(field) > 0 Then Cov "PRM37": CsvAddField rec, count, field: CsvEmit out, rec, count
+    Set ParseCsv = out
+End Function
+
+Private Sub CsvAddField(ByRef rec() As String, ByRef count As Long, ByRef field As String)
+    If count > UBound(rec) Then ReDim Preserve rec(0 To 2 * count + 1)
+    rec(count) = field
+    count = count + 1
+    field = ""
+End Sub
+
+Private Sub CsvEmit(ByVal out As Collection, ByRef rec() As String, ByRef count As Long)
+    Dim one() As String, i As Long
+    ReDim one(0 To count - 1)
+    For i = 0 To count - 1
+        one(i) = rec(i)
+    Next i
+    out.Add one
+    count = 0
+End Sub
+
+Private Function CsvDelimiter(ByVal text As String) As String
+    ' The comma unless the semicolon or the tab is more frequent on the first line (outside quotes).
+    Dim i As Long, ch As String, inQ As Boolean, commas As Long, semis As Long, tabs As Long
+    For i = 1 To Len(text)
+        ch = Mid$(text, i, 1)
+        If ch = """" Then
+            inQ = Not inQ
+        ElseIf Not inQ Then
+            If ch = vbCr Or ch = vbLf Then Exit For
+            If ch = "," Then commas = commas + 1
+            If ch = ";" Then semis = semis + 1
+            If ch = vbTab Then tabs = tabs + 1
+        End If
+    Next i
+    CsvDelimiter = ","
+    If semis > commas And semis >= tabs Then Cov "PRM38": CsvDelimiter = ";"
+    If tabs > commas And tabs > semis Then Cov "PRM39": CsvDelimiter = vbTab
+End Function
+
+Public Function RovoCsvRead(ByVal wb As Object, ByVal text As String) As Object
+    ' The CSV as a Dictionary: items = Collection of Array(sheet, row, column, value), unknown = how many values Rovo could not
+    ' give (UNKNOWN, empty, or the token that the user types), problems = Collection of texts. Only the sheets of the prompt are
+    ' accepted (Config and the sheets of RovoPromptSpec); anything else is a problem, never written.
+    Cov "PRM40"
+    Dim res As Object, items As New Collection, problems As New Collection, recs As Collection, rec As Variant
+    Dim cSheet As Long, cRow As Long, cCol As Long, cVal As Long, allowed As Object, line As Long, sh As String, r As Long
+    Dim v As String, col As String, spec As Variant
+    Set res = CreateObject("Scripting.Dictionary")
+    Set res("items") = items: Set res("problems") = problems: res("unknown") = 0
+    Set recs = ParseCsv(text)
+    If recs.Count = 0 Then Cov "PRM41": problems.Add "The file has no line.": Set RovoCsvRead = res: Exit Function
+    cSheet = CsvColumn(recs(1), "Sheet"): cRow = CsvColumn(recs(1), "Row"): cCol = CsvColumn(recs(1), "Column"): cVal = CsvColumn(recs(1), "Value")
+    If cSheet < 0 Or cRow < 0 Or cCol < 0 Or cVal < 0 Then
+        Cov "PRM42"
+        problems.Add "The first line must name the columns Sheet, Row, Column and Value (it holds: " & Join(recs(1), ", ") & ")."
+        Set RovoCsvRead = res: Exit Function
+    End If
+    Set allowed = CreateObject("Scripting.Dictionary")
+    allowed("config") = True
+    For Each spec In ReadTable(wb.Worksheets(SHEET_ROVO_SPEC))
+        If LCase$(CStr(spec("Part") & "")) = "sheet" Then allowed(LCase$(CStr(spec("Name") & ""))) = True
+    Next spec
+    For Each rec In recs
+        line = line + 1
+        If line > 1 Then
+            sh = TrimWhite(CsvAt(rec, cSheet)): col = TrimWhite(CsvAt(rec, cCol)): v = TrimWhite(CsvAt(rec, cVal))
+            If Len(sh) = 0 And Len(col) = 0 And Len(v) = 0 Then
+                ' a blank line of the table
+            ElseIf Not allowed.Exists(LCase$(sh)) Then
+                Cov "PRM43": problems.Add "Line " & line & ": the sheet '" & sh & "' is not one that this import fills."
+            ElseIf Len(col) = 0 Then
+                problems.Add "Line " & line & ": the column is empty."
+            Else
+                ImportItem items, problems, res, line, sh, TrimWhite(CsvAt(rec, cRow)), col, v
+            End If
+        End If
+    Next rec
+    Set RovoCsvRead = res
+End Function
+
+Private Sub ImportItem(ByVal items As Collection, ByVal problems As Collection, ByVal res As Object, ByVal line As Long, _
+                       ByVal sh As String, ByVal rowText As String, ByVal col As String, ByVal v As String)
+    Dim isConfig As Boolean, r As Long, noValue As Boolean
+    isConfig = (StrComp(sh, "Config", vbTextCompare) = 0)
+    noValue = (Len(v) = 0 Or StrComp(v, "UNKNOWN", vbTextCompare) = 0 Or StrComp(Left$(v, 12), "TO BE TYPED ", vbTextCompare) = 0)
+    If noValue Then Cov "PRM44": res("unknown") = res("unknown") + 1: v = ""
+    If isConfig Then
+        If Not noValue Then items.Add Array("Config", 0, col, v)
+        Exit Sub
+    End If
+    If Not IsNumeric(rowText) Or Len(rowText) = 0 Then
+        Cov "PRM45": problems.Add "Line " & line & ": Row must be a number for the sheet " & sh & " (got '" & rowText & "')."
+        Exit Sub
+    End If
+    r = CLng(Val(rowText))
+    If r < 1 Then problems.Add "Line " & line & ": Row must be 1 or more.": Exit Sub
+    items.Add Array(sh, r, col, v)
+End Sub
+
+Private Function CsvColumn(ByVal rec As Variant, ByVal name As String) As Long
+    Dim i As Long
+    CsvColumn = -1
+    For i = LBound(rec) To UBound(rec)
+        If StrComp(TrimWhite(CStr(rec(i))), name, vbTextCompare) = 0 Then CsvColumn = i: Exit Function
+    Next i
+End Function
+
+Private Function CsvAt(ByVal rec As Variant, ByVal i As Long) As String
+    If i <= UBound(rec) Then CsvAt = CStr(rec(i))
+End Function
+
+Private Function HeaderColumn(ByVal ws As Object, ByVal name As String) As Long
+    ' The column of a header of row 1 (0 when missing); the cells after the first empty header are not read.
+    Dim c As Long
+    For c = 1 To ws.Columns.Count
+        If Len(CStr(ws.Cells(1, c).Value & "")) = 0 Then Exit Function
+        If StrComp(CStr(ws.Cells(1, c).Value), name, vbTextCompare) = 0 Then HeaderColumn = c: Exit Function
+    Next c
+End Function
+
+Public Function RovoCsvApply(ByVal wb As Object, ByVal res As Object) As String
+    ' Writes the items into the parameter sheets and returns the summary for the status cell. Config: the Value of the parameter
+    ' named in Column (the other cells are not touched; a parameter that is not in Config is a problem). Any other sheet: all its
+    ' rows below the header are replaced by the rows of the CSV (the column Example is kept), cell by cell: a whole number is a
+    ' number, "-" is empty, the rest is text (a date stays ISO text, as in the sheets of the repository).
+    Cov "PRM46"
+    Dim item As Variant, ws As Object, counts As Object, cleared As Object, names As String, k As Variant, c As Long, r As Long
+    Dim cValue As Long, cParam As Long, last As Long, problems As Collection, summary As String, nProblems As Long, first As String
+    Set counts = CreateObject("Scripting.Dictionary"): Set cleared = CreateObject("Scripting.Dictionary")
+    Set problems = res("problems")
+    For Each item In res("items")
+        If Not SheetExists(wb, CStr(item(0))) Then
+            problems.Add "The sheet " & item(0) & " is not in the workbook."
+        Else
+            Set ws = wb.Worksheets(CStr(item(0)))
+            If StrComp(CStr(item(0)), "Config", vbTextCompare) = 0 Then
+                cParam = HeaderColumn(ws, "Parameter"): cValue = HeaderColumn(ws, "Value")
+                r = FindRow(ws, cParam, CStr(item(2)))
+                If r = 0 Or cValue = 0 Then
+                    problems.Add "Config has no parameter " & item(2) & "."
+                Else
+                    ws.Cells(r, cValue).Value = SafeCell(CStr(item(3)))
+                    counts("Config") = Val(counts("Config") & "") + 1
+                End If
+            Else
+                If Not cleared.Exists(ws.Name) Then ClearTableBody ws: cleared(ws.Name) = 0
+                c = HeaderColumn(ws, CStr(item(2)))
+                If c = 0 Then
+                    Cov "PRM47": problems.Add "The sheet " & ws.Name & " has no column " & item(2) & "."
+                Else
+                    ws.Cells(CLng(item(1)) + 1, c).Value = CsvCell(CStr(item(3)))
+                    If CLng(item(1)) > cleared(ws.Name) Then cleared(ws.Name) = CLng(item(1))
+                End If
+            End If
+        End If
+    Next item
+    For Each k In cleared.Keys
+        names = names & IIf(Len(names) > 0, "; ", "") & k & " " & cleared(k) & " row(s)"
+    Next k
+    summary = "Rovo CSV loaded: "
+    If counts.Exists("Config") Then summary = summary & "Config " & counts("Config") & " value(s)"
+    If Len(names) > 0 Then summary = summary & IIf(counts.Exists("Config"), "; ", "") & names
+    If counts.Count = 0 And Len(names) = 0 Then summary = summary & "nothing to load"
+    summary = summary & ". " & res("unknown") & " value(s) UNKNOWN (left empty or unchanged)."
+    nProblems = problems.Count
+    If nProblems > 0 Then
+        Cov "PRM48"
+        first = CStr(problems(1))
+        summary = summary & " " & nProblems & " problem(s), first: " & first
+    End If
+    RovoCsvApply = summary
+End Function
+
+Private Function FindRow(ByVal ws As Object, ByVal col As Long, ByVal name As String) As Long
+    Dim r As Long, last As Long
+    If col = 0 Then Exit Function
+    last = ws.Cells(ws.Rows.Count, col).End(-4162).Row
+    For r = 2 To last
+        If StrComp(TrimWhite(CStr(ws.Cells(r, col).Value & "")), name, vbTextCompare) = 0 Then FindRow = r: Exit Function
+    Next r
+End Function
+
+Private Sub ClearTableBody(ByVal ws As Object)
+    ' Every row below the header, in the columns of the table (the column Example, a note for the user, stays).
+    Dim c As Long, last As Long, head As String
+    last = ws.UsedRange.Row + ws.UsedRange.Rows.Count - 1
+    If last < 2 Then Exit Sub
+    For c = 1 To ws.Columns.Count
+        head = CStr(ws.Cells(1, c).Value & "")
+        If Len(head) = 0 Then Exit For
+        If head <> "Example" Then ws.Range(ws.Cells(2, c), ws.Cells(last, c)).ClearContents
+    Next c
+End Sub
+
+Private Function CsvCell(ByVal v As String) As Variant
+    ' "-" is none (as in params\*.md), digits only is a whole number, the rest is text.
+    Dim i As Long, digits As Boolean
+    If v = "-" Or Len(v) = 0 Then CsvCell = Empty: Exit Function
+    digits = (Len(v) < 10)
+    For i = 1 To Len(v)
+        If Mid$(v, i, 1) < "0" Or Mid$(v, i, 1) > "9" Then digits = False: Exit For
+    Next i
+    If digits Then CsvCell = CLng(v) Else CsvCell = SafeCell(v)
+End Function
+
+Public Function RovoCsvText(ByVal path As String) As String
+    ' The text of the file, UTF-8 (a BOM is dropped).
+    Cov "PRM49"
+    Dim f As Integer, bytes() As Byte, size As Long
+    If Len(Dir$(path)) = 0 Then Err.Raise vbObjectError + 631, "RovoCsvText", "The file " & path & " does not exist."
+    f = FreeFile
+    Open path For Binary Access Read As #f
+    size = LOF(f)
+    If size > 0 Then
+        ReDim bytes(0 To size - 1)
+        Get #f, , bytes
+    End If
+    Close #f
+    If size > 0 Then RovoCsvText = Utf8Decode(bytes)
+End Function
+
+Public Function ImportRovoCsv(ByVal wb As Object, ByVal path As String) As String
+    ' The answer of Rovo (CSV) into the parameter sheets; returns the summary. Nothing is sent anywhere: the file is read here.
+    ImportRovoCsv = RovoCsvApply(wb, RovoCsvRead(wb, RovoCsvText(path)))
+End Function
+
 Public Function IsYes(ByVal text As String) As Boolean
     ' The sheet is read in a French Excel: Yes / Oui / True / Vrai / 1 mean yes.
     Cov "PRM17"

@@ -16,6 +16,7 @@ STATUS_CELL = "A3"
 BAR_CELL, CANCEL_CELL = "J3", "M1"            # the progress bar (rectangles pbBack, pbFill) and the button Cancel
 CONFIG_CELL = "O1"                            # the button that reads the Jira configuration into proposal sheets
 ROVO_CELL = "R1"                              # the button that writes the prompt for Rovo
+ROVO_LOAD_CELL = "R3"                         # the button that loads the CSV answered by Rovo
 
 XL_COLUMN_CLUSTERED, XL_LINE_MARKERS, XL_COLUMN_STACKED_100, XL_LINE = 51, 65, 53, 4
 
@@ -41,6 +42,7 @@ EXTRACT_CAPTION = "Extract from Jira and compute"     # the captions of the Dash
 CANCEL_CAPTION = "Cancel"
 CONFIG_CAPTION = "Read the Jira configuration"
 ROVO_CAPTION = "Prompt for Rovo"
+ROVO_LOAD_CAPTION = "Load Rovo CSV"
 STEPS_CELL = "T1"           # the first steps (manual.first_steps): beside the charts; a rebuild clears only A4:R400
 
 CHARTS = (
