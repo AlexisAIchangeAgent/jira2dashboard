@@ -439,8 +439,7 @@ Describe "release.ps1" {
         Reset-Sandbox
         New-Venv
         $global:Dirty = ""; $global:Origin = "abc123"; $global:Tag = ""; $global:FetchExit = 0
-        $global:GhAuthExit = 0; $global:GhCreateExit = 0; $global:BuildExit = 0; $global:ArchiveExit = 0
-        $global:ZipNames = "README.md", "scripts/run.ps1", "scripts/setup.ps1", "src/jira2dashboard/build_workbook.py", "scripts/release.ps1"
+        $global:GhAuthExit = 0; $global:GhCreateExit = 0; $global:BuildExit = 0
         Set-Fake "python" {
             if ($args -contains "jira2dashboard.build_workbook") {
                 New-Item -ItemType Directory -Force "out\release" | Out-Null
@@ -455,19 +454,6 @@ Describe "release.ps1" {
             elseif ($line -eq "rev-parse origin/main") { $global:Origin }
             elseif ($line -like "fetch*") { $global:LASTEXITCODE = $global:FetchExit }
             elseif ($line -like "ls-remote*") { $global:Tag }
-            elseif ($line -like "archive*") {
-                $global:LASTEXITCODE = $global:ArchiveExit
-                if ($global:ArchiveExit -eq 0) {
-                    $zip = $args[[array]::IndexOf($args, "-o") + 1]
-                    $prefix = ($args | Where-Object { $_ -like "--prefix=*" }) -replace "^--prefix=", ""
-                    Add-Type -AssemblyName System.IO.Compression.FileSystem
-                    $archive = [IO.Compression.ZipFile]::Open($zip, "Create")
-                    foreach ($entry in $global:ZipNames) {
-                        $writer = New-Object IO.StreamWriter ($archive.CreateEntry($prefix + $entry).Open()); $writer.Write("x"); $writer.Dispose()
-                    }
-                    $archive.Dispose()
-                }
-            }
         }
         Set-Fake "gh" {
             if ($args[0] -eq "auth") { "Logged in"; $global:LASTEXITCODE = $global:GhAuthExit }
@@ -490,18 +476,20 @@ Describe "release.ps1" {
         $r.Code | Should Be 1
         $r.Out | Should Match "J2D-SCR-011 - the working tree has changes"
     }
-    It "dry run: builds the workbook and the zip, writes the notes with the hashes, publishes nothing" {
+    It "dry run: builds the workbook, writes the notes with the hashes, makes no zip, publishes nothing" {
         $r = Invoke-Script "release.ps1" -Named @{ Version = "v1.0.0" }
         $r.Code | Should Be 0
         $r.Out | Should Match "dry run done"
         $dist = Join-Path $global:Base "out\release\v1.0.0"
         Test-Path (Join-Path $dist "jira2dashboard.xlsm") | Should Be $true
-        Test-Path (Join-Path $dist "jira2dashboard-v1.0.0.zip") | Should Be $true
+        @(Get-ChildItem $dist -Filter "*.zip").Count | Should Be 0
+        @(Calls | Where-Object { $_ -like "git archive*" }).Count | Should Be 0
         $notes = Get-Content (Join-Path $dist "notes.md") -Raw
         $notes | Should Match "jira2dashboard v1.0.0 \(commit abc123\)"
         (Calls) -contains "python -m jira2dashboard.build_workbook --version v1.0.0" | Should Be $true     # the version goes into the workbook
         $notes | Should Match "SHA256:\s+- jira2dashboard.xlsm: [0-9a-f]{64}"
         $notes | Should Match "MD5 .*\s+- jira2dashboard.xlsm: [0-9a-f]{32} \(\d+ bytes\)"
+        $notes | Should Not Match "\.zip"
         @(Calls | Where-Object { $_ -like "gh *" }).Count | Should Be 0
     }
     It "stops when the build of the workbook fails" {
@@ -510,27 +498,13 @@ Describe "release.ps1" {
         $r.Code | Should Be 1
         $r.Out | Should Match "the build of the workbook failed"
     }
-    It "stops when git archive fails" {
-        $global:ArchiveExit = 1
-        (Invoke-Script "release.ps1" -Named @{ Version = "v1.0.0" }).Out | Should Match "git archive failed"
-    }
-    It "refuses a zip that holds a file that must stay out" {
-        $global:ZipNames += "CLAUDE.md"
-        $r = Invoke-Script "release.ps1" -Named @{ Version = "v1.0.0" }
-        $r.Code | Should Be 1
-        $r.Out | Should Match "the zip holds files it must leave out: .*CLAUDE.md"
-    }
-    It "refuses a zip that misses a file of the code" {
-        $global:ZipNames = "README.md", "scripts/run.ps1"
-        (Invoke-Script "release.ps1" -Named @{ Version = "v1.0.0" }).Out | Should Match "the zip misses scripts/setup.ps1"
-    }
-    It "-Publish creates the release on HEAD with the workbook, the zip and the notes" {
+    It "-Publish creates the release on HEAD with the workbook and the notes, no zip" {
         $r = Invoke-Script "release.ps1" -Named @{ Version = "v1.0.0"; Publish = $true }
         $r.Code | Should Be 0
         $r.Out | Should Match "published v1.0.0"
         $create = @(Calls | Where-Object { $_ -like "gh release create*" })
         $create.Count | Should Be 1
-        $create[0] | Should Match "gh release create v1.0.0 .*jira2dashboard.xlsm .*jira2dashboard-v1.0.0.zip --target abc123 --title jira2dashboard v1.0.0 --notes-file .*notes.md"
+        $create[0] | Should Match "gh release create v1.0.0 .*jira2dashboard.xlsm --target abc123 --title jira2dashboard v1.0.0 --notes-file .*notes.md"
     }
     It "-Publish needs gh logged in" {
         $global:GhAuthExit = 1

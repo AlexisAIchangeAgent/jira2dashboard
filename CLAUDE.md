@@ -38,7 +38,7 @@ powershell -ExecutionPolicy Bypass -File scripts\setup.ps1        # create .venv
 .\scripts\stop-mock.ps1           # kill the fake Jira that start-mock.ps1 / manual-test.ps1 started
 .\scripts\scenario.ps1            # unattended scenario: fake Jira, filled copy, Python extraction, checks, clean-up (-Excel: + test-excel)
 .\scripts\run.ps1 test-scripts    # Pester 3.4 tests of scripts\*.ps1 (tests\ps), in process, with fakes; fails under 93 % command coverage
-.\scripts\release.ps1 -Version v1.0.0 [-Publish]   # zip of HEAD + built workbook in out\release; -Publish = GitHub release
+.\scripts\release.ps1 -Version v1.0.0 [-Publish]   # built workbook in out\release (no zip of the code); -Publish = GitHub release
 ```
 
 Every `scripts\*.ps1` has a double-click launcher `scripts\<name>.cmd` (shared helper `_launch.cmd`: `-ExecutionPolicy Bypass`
@@ -47,7 +47,8 @@ one: copy `stop-mock.cmd` and change its `set` lines. `.cmd` files are ASCII wit
 `<>|&^%!` (cmd would take them for operators); `tests/unit/test_cmd_launchers.py` pins all this. From Git Bash call them with
 `MSYS_NO_PATHCONV=1 cmd.exe /c .\scripts\x.cmd`: otherwise `/c` becomes a path and an interactive cmd opens.
 
-The release zip leaves out the `export-ignore` paths of `.gitattributes` (CLAUDE.md, `archive/`,
+A release holds the workbook only (AL, 2026-11-12: no zip of the code); the "Source code" archives that GitHub adds to every
+release (they cannot be removed) leave out the `export-ignore` paths of `.gitattributes` (CLAUDE.md, `archive/`,
 `.claude/`, `.venv/`); `tests/unit/test_release_contents.py` pins the list. `-Publish` is outward-facing: ask AL first.
 Releases: the version is `vX.Y.Z` only (`v0.0.0-dryrun` is refused) and the number is AL's choice. The dry run
 (`release.ps1 -Version v0.0.0`) needs a clean tree, builds with Excel and leaves `out\release\<version>`: delete it afterwards.

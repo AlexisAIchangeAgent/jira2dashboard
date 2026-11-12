@@ -1,8 +1,8 @@
-"""What the code zip of a release holds (scripts/release.ps1 builds it with `git archive`).
+"""What the "Source code" archives of a release hold, and what release.ps1 ships (the workbook only, no zip).
 
 `.gitattributes` marks the files for Claude, the old code and the local folders `export-ignore`: `git archive` leaves
-them out, and so do the "Source code" archives GitHub adds to every release. The rest of the repo must stay in, so
-that the client can build the workbook from the zip.
+them out, and so do the "Source code" archives GitHub adds to every release (the only code a release holds). The rest
+of the repo must stay in, so that the client can build the workbook from them.
 """
 import subprocess
 
@@ -24,12 +24,12 @@ def export_ignored(path: str) -> bool:
 
 
 @pytest.mark.parametrize("path", LEFT_OUT)
-def test_the_release_zip_leaves_out(path):
+def test_the_source_archives_leave_out(path):
     assert export_ignored(path)
 
 
 @pytest.mark.parametrize("path", KEPT)
-def test_the_release_zip_keeps(path):
+def test_the_source_archives_keep(path):
     assert not export_ignored(path)
 
 
@@ -39,10 +39,15 @@ def release_notes_template() -> str:
 
 
 @pytest.mark.parametrize("algorithm", ("SHA256", "MD5"))
-def test_the_release_script_hashes_both_files(algorithm):
+def test_the_release_script_hashes_the_workbook(algorithm):
     script = (REPO_ROOT / "scripts" / "release.ps1").read_text(encoding="utf-8")
-    for file in ("$zip", "$xlsm"):
-        assert f"Get-FileHash {file} -Algorithm {algorithm}" in script
+    assert f"Get-FileHash $xlsm -Algorithm {algorithm}" in script
+
+
+def test_the_release_ships_the_workbook_only_no_zip_of_the_code():
+    script = (REPO_ROOT / "scripts" / "release.ps1").read_text(encoding="utf-8")
+    assert "gh release create $Version $xlsm --target" in script
+    assert "git archive" not in script.split("#>", 1)[1] and "$zip" not in script
 
 
 def test_every_release_ships_the_workbook_under_the_same_name_and_the_notes_say_why():
@@ -56,5 +61,5 @@ def test_every_release_ships_the_workbook_under_the_same_name_and_the_notes_say_
 
 def test_the_release_notes_give_the_md5_and_the_size_for_allow_lists():
     notes = release_notes_template()
-    assert "MD5" in notes and "$xlsmMd5" in notes and "$zipMd5" in notes
+    assert "MD5" in notes and "$xlsmMd5" in notes and ".zip" not in notes
     assert "$xlsmSize" in notes

@@ -1,12 +1,12 @@
 ---
 name: release
-description: Publish a release of jira2dashboard (zip of the code + built workbook, GitHub release) with every rule of CLAUDE.md, stopping to ask AL before the outward-facing -Publish.
+description: Publish a release of jira2dashboard (the built workbook, GitHub release) with every rule of CLAUDE.md, stopping to ask AL before the outward-facing -Publish.
 disable-model-invocation: true
 ---
 
 # Release
 
-A release is outward-facing: it publishes the code and the workbook on GitHub. AL chooses the number and says yes to the
+A release is outward-facing: it publishes the workbook on GitHub (GitHub adds its "Source code" archives). AL chooses the number and says yes to the
 publication itself. Talk to AL in French, short simple sentences.
 
 ## Checklist (in order, stop at the first red step)
@@ -18,8 +18,7 @@ publication itself. Talk to AL in French, short simple sentences.
 3. **Full pass** (skill `/full-pass`): coverage, vba-tests, test-excel, test-network, build. A known Excel crash is
    rerun, not ignored.
 4. **Dry run:** `powershell -NoProfile -ExecutionPolicy Bypass -File scripts/release.ps1 -Version v0.0.0`
-   (log `scripts\logs\release.log`). Check in `out\release\v0.0.0`: the zip leaves out the `export-ignore` paths
-   (`CLAUDE.md`, `archive/`, `.claude/`, `.venv/`), `notes.md` gives the MD5 and SHA256, and the workbook holds the
+   (log `scripts\logs\release.log`). Check in `out\release\v0.0.0`: no zip, `notes.md` gives the MD5 and SHA256 of the workbook, and the workbook holds the
    version (hidden name `J2D_Version`: `unzip -p <xlsm> xl/workbook.xml | grep J2D_Version` shows `v0.0.0 commit ...`).
    Then delete `out\release\v0.0.0`.
 5. **Ask AL** with the number, the commit and what the dry run showed. Publish only on a clear yes for this number.
@@ -33,4 +32,4 @@ publication itself. Talk to AL in French, short simple sentences.
 
 - publish without AL's yes for this exact number, or reuse a number already tagged;
 - write the vendor or product name of the endpoint protection in the notes (say EPDR or "endpoint protection");
-- put a client value (BaseUrl, Email, ApiToken, proxy, Filter, iterations) in the workbook or the zip: they stay empty.
+- put a client value (BaseUrl, Email, ApiToken, proxy, Filter, iterations) in the workbook: they stay empty.

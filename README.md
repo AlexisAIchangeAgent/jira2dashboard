@@ -123,7 +123,7 @@ answered.
 | `scripts/` | PowerShell entry points and their `.cmd` launchers (section [6](#6-scripts-and-commands)); `logs/` holds the log of the last run of each |
 | `docs/`, `rovo/` | Domain references (frozen); Rovo agents and Confluence template |
 | `pyproject.toml`, `requirements.txt` | pytest and coverage settings; the one list of dependencies (pywin32, test tools) |
-| `CLAUDE.md`, `.claude/`, `archive/` | Notes and settings for Claude Code, old probe scripts; left out of the release zip |
+| `CLAUDE.md`, `.claude/`, `archive/` | Notes and settings for Claude Code, old probe scripts; left out of GitHub's "Source code" archives |
 | `out/release/`, `out/manual_test/` | Delivered files; manual-test copy. Never cleaned. |
 | `out/inter/` | Everything else. Emptied by `build`. |
 
@@ -148,7 +148,7 @@ directly, without `cmd /c` or `2>&1`.
 | `stop-mock.ps1` | Stops the fake Jira these scripts started, nothing else | `-Port` |
 | `manual-test.ps1` | Writes `out\manual_test\jira2dashboard4manualtest.xlsm`, starts the fake Jira, opens the copy | `-Workbook`, `-Port`, `-Python` |
 | `scenario.ps1` | Plays the whole scenario unattended (fake Jira, filled copy, Python extraction, checks, clean-up); a table of the steps with status and time; `-Excel` adds the macros | `-Workbook`, `-Port`, `-Excel`, `-KeepMock` |
-| `release.ps1` | Builds a release in `out\release\<version>`; `notes.md` has the SHA-256 and MD5 of both files | `-Version`, `-Publish` |
+| `release.ps1` | Builds a release in `out\release\<version>`; `notes.md` has the SHA-256 and MD5 of the workbook; no zip of the code | `-Version`, `-Publish` |
 
 **Double-click launchers.** Every `scripts\*.ps1` has a `.cmd` of the same name (`setup.cmd`, `run.cmd`,
 `start-mock.cmd`...): double-click it, or run it from a console. It runs the script with `-ExecutionPolicy Bypass` for
@@ -269,6 +269,7 @@ A figure that cannot be computed shows "not computable", never 0. Each data chec
 .\scripts\release.ps1 -Version v1.0.0 -Publish   # GitHub release and tag (public)
 ```
 
-Needs a clean tree (and a pushed commit for `-Publish`). The package holds the code zip, the workbook and
-`notes.md` with the SHA256 and MD5. The zip leaves out the `export-ignore` paths (`CLAUDE.md`, `archive/`,
+Needs a clean tree (and a pushed commit for `-Publish`). The package holds the workbook and
+`notes.md` with its SHA256 and MD5; the release has the workbook only, and GitHub adds its "Source code" archives,
+which leave out the `export-ignore` paths (`CLAUDE.md`, `archive/`,
 `.claude/`, `.venv/`), pinned by `tests/unit/test_release_contents.py`.
