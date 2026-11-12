@@ -34,6 +34,10 @@ powershell -ExecutionPolicy Bypass -File scripts\setup.ps1        # .venv with p
 .\scripts\run.ps1 extract --workbook C:\Data\jira2dashboard.xlsm   # no VBA: Jira -> jira2dashboard.xlsx
 ```
 
+`bootstrap.ps1` stops at the first step that fails and ends with the table of the steps, the files it made
+(`out\release\jira2dashboard.xlsm`, and `out\manual_test\jira2dashboard.xlsx` from the fake Jira) and the MD5 of the
+workbook; its log is `scripts\logs\bootstrap.log`.
+
 In the copy: **Enable Content**, **Read the Jira configuration**, then **Extract from Jira and compute**. Stop the
 fake Jira with `.\scripts\stop-mock.ps1`. Excel may crash after the last search page
 (a known defect): save your other work first, or try `manual-test.ps1 -Python`.
@@ -43,7 +47,7 @@ fake Jira with `.\scripts\stop-mock.ps1`. Excel may crash after the last search 
 
 | Deliverable | What it is | Made by |
 |---|---|---|
-| `jira2dashboard.xlsm` | The workbook to deliver. Needs Excel only. | `run.ps1 build` |
+| `jira2dashboard.xlsm` | The workbook to deliver. Needs Excel only. Also the one file of each GitHub release. | `run.ps1 build` |
 | `jira2dashboard.xlsx` | Fallback when macros cannot run: values and SVG charts. | `run.ps1 extract` |
 | `rovo/*.md` | Rovo Studio agents that read the published figures. | Written by hand |
 
@@ -133,6 +137,9 @@ answered.
 - **Developer:** Windows 11, PowerShell 5.1, Python 3.14 (`py`), Excel 365 with **Trust access to the VBA project
   object model** (File > Options > Trust Center > Macro Settings).
 - **User:** Excel 365 or 2021 with macros. Python 3.14 + pywin32 only to build there or to use `run.ps1 extract`.
+- **Endpoint protection:** it may undo what an Excel started by a script writes (`build` leaves no file, `mock-workbook`
+  leaves an empty copy: `J2D-SYS-012` or `J2D-SYS-013`). `run.ps1 check-machine` tests it. Ask for an allow-list on the
+  folder of the repository, or use the workbook of a release: no build is needed to use it.
 
 ## 6. Scripts and commands
 
