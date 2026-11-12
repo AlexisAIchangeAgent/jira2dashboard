@@ -103,8 +103,9 @@ python.log). `tests/unit/test_claude_hooks.py` and `test_claude_skills.py` test 
   (`modParams`). Status names, team names and extract columns must not appear as literals in VBA (a guard test enforces it).
   `Config` columns: Parameter | Value | Example | Mandatory | Description (formulas read A and B; the rest by header). An empty Mandatory=True value
   stops the buttons before any call to Jira (`modParams.RequireMandatory`, error 608).
-- **Dashboard and Charts.** A final status is `Title | Name: value | ...`: `A3` (name `dashStatus`) shows the title and
-  `A4:B23` one row per field (`modText.StatusParts`, `modActions.ShowProgress`; `ProgressSnapshot` rebuilds the line from the
+- **Dashboard and Charts.** Top left, one under the other (AL's order): the progress bar `A2`, the buttons Read the Jira
+  configuration `A3`, Extract `A5`, Cancel `A7` (cells in `dashboard_spec`); the Rovo buttons stay at `R1`/`R3`. A final
+  status is `Title | Name: value | ...`: `A10` (name `dashStatus`) shows the title and `A11:B30` one row per field (`modText.StatusParts`, `modActions.ShowProgress`; `ProgressSnapshot` rebuilds the line from the
   cells for the tests). The 8 charts, their notes and the team selector `B2` (name `dashTeam`) are on the sheet `Charts`, made
   at build after the Dashboard (`CHARTS_SHEET` of `modFlowBuild`/`modActions` = `dashboard_spec.CHARTS_SHEET`, a test pins it).
 - **User manual.** `src/jira2dashboard/manual.py` (pure text) is written by `flow/sheets.write_manual` at the delivery

@@ -93,12 +93,12 @@ def write_dashboard_frame(wb, dash, button_macro: str | None = None) -> None:
     wb.Names.Add(D.SELECTOR, f"={D.CHARTS_SHEET}!" + charts.Range(D.SELECTOR_CELL).Address)
     dash.Activate()
     if button_macro:
-        R.add_macro_button(dash, "J1", D.EXTRACT_CAPTION, button_macro, 190, 26)
-        R.add_macro_button(dash, D.CANCEL_CELL, D.CANCEL_CAPTION, CANCEL_MACRO, 80, 26)
-        R.add_macro_button(dash, D.CONFIG_CELL, D.CONFIG_CAPTION, CONFIG_MACRO, 170, 26)
+        R.add_progress_bar(dash, D.BAR_CELL, D.BUTTON_WIDTH, D.BAR_HEIGHT)
+        R.add_macro_button(dash, D.CONFIG_CELL, D.CONFIG_CAPTION, CONFIG_MACRO, D.BUTTON_WIDTH, D.BUTTON_HEIGHT)
+        R.add_macro_button(dash, D.EXTRACT_CELL, D.EXTRACT_CAPTION, button_macro, D.BUTTON_WIDTH, D.BUTTON_HEIGHT)
+        R.add_macro_button(dash, D.CANCEL_CELL, D.CANCEL_CAPTION, CANCEL_MACRO, D.BUTTON_WIDTH, D.BUTTON_HEIGHT)
         R.add_macro_button(dash, D.ROVO_CELL, D.ROVO_CAPTION, ROVO_MACRO, 105, 26)
         R.add_macro_button(dash, D.ROVO_LOAD_CELL, D.ROVO_LOAD_CAPTION, ROVO_LOAD_MACRO, 105, 18)
-        R.add_progress_bar(dash, D.BAR_CELL, 190, 14)
 
 
 def write_manual(wb, dash, mandatory: tuple[str, ...]) -> None:

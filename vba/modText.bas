@@ -271,7 +271,7 @@ End Function
 
 Public Function StatusParts(ByVal text As String) As Collection
     ' "Title | Name: value | Name: value" -> Array("", "Title"), Array("Name", "value"), ...: the status of the Dashboard as
-    ' its headline (cell A3) and one row per field under it. A field is cut at its first ": " (a value may hold more); a part
+    ' its headline (the cell dashStatus) and one row per field under it. A field is cut at its first ": " (a value may hold more); a part
     ' without ": " is a row with no name. A text without " | " is the headline alone (the progress of a run).
     Dim out As New Collection, parts() As String, i As Long, p As Long
     Cov "TXT29"

@@ -13,10 +13,15 @@ CHARTS_SHEET = "Charts"                       # the sheet of the charts and of t
 SELECTOR = "dashTeam"                         # name of the cell that picks the team of the Distribution chart
 SELECTOR_CELL = "B2"                          # on the sheet Charts
 STATUS = "dashStatus"                          # name of the cell where the extraction tells what it does (its headline)
-STATUS_CELL = "A3"
-STATUS_ROWS = 20                              # rows of fields under it (A4:B23): name in A, value in B (modActions.ShowProgress)
-BAR_CELL, CANCEL_CELL = "J3", "M1"            # the progress bar (rectangles pbBack, pbFill) and the button Cancel
-CONFIG_CELL = "O1"                            # the button that reads the Jira configuration into proposal sheets
+# Top left, one under the other (AL's order): the progress bar, Read the Jira configuration, Extract from Jira and compute,
+# Cancel; then the status, so that no text of the status runs under a button.
+BAR_CELL = "A2"                               # the progress bar (rectangles pbBack, pbFill)
+CONFIG_CELL = "A3"                            # the button that reads the Jira configuration into proposal sheets
+EXTRACT_CELL = "A5"                           # the button Extract from Jira and compute
+CANCEL_CELL = "A7"                            # the button Cancel
+STATUS_CELL = "A10"
+STATUS_ROWS = 20                              # rows of fields under it (A11:A30): name in A, value in B (modActions.ShowProgress)
+BUTTON_WIDTH, BUTTON_HEIGHT, BAR_HEIGHT = 190, 26, 14
 ROVO_CELL = "R1"                              # the button that writes the prompt for Rovo
 ROVO_LOAD_CELL = "R3"                         # the button that loads the CSV answered by Rovo
 

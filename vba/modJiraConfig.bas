@@ -59,7 +59,7 @@ Public Function ReadJiraConfiguration(ByVal cfg As Object, ByVal keys As Collect
                    fieldRows, sumRows, metaRows, usageRows
     LogEnd "proposal sheets"
     Application.StatusBar = False
-    ' "Title | Name: value | ...": the Dashboard shows the title in A3 and one row per field under it.
+    ' "Title | Name: value | ...": the Dashboard shows the title in its status cell and one row per field under it.
     summary = "Jira configuration read | Projects: " & projects.Count & " | Workflows: " & seen.Count & _
               " | Fields: " & fieldRows.Count & _
               " | Review: the sheets JiraIssueTypes, JiraStatuses, JiraWorkflows, JiraTransitions and JiraFields, then copy " & _

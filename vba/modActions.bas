@@ -17,7 +17,7 @@ Private mBusy As Boolean
 Private mCancel As Boolean
 Private mExtracting As Boolean              ' True while Jira is read (extraction job or configuration): Cancel works
 Private mNextSlice As Date
-Private Const STATUS_ROWS As Long = 20            ' rows of fields under the status cell A3 (A4:B23 of the Dashboard)
+Private Const STATUS_ROWS As Long = 20            ' rows of fields under the status cell (dashboard_spec.STATUS_ROWS)
 Private Const CHARTS_SHEET As String = "Charts"    ' the sheet of the charts (flow/dashboard_spec.CHARTS_SHEET)
 Private mNextProc As String                ' the string given to OnTime: Schedule:=False needs the same one
 
@@ -256,7 +256,7 @@ End Sub
 
 Public Function ProgressSnapshot() As String
     ' "fraction|status text" as the Dashboard shows them (one call for the tests that watch the bar from outside): the text is
-    ' read back from the cells, the headline (A3) then each row under it as " | Name: value".
+    ' read back from the cells, the headline (the cell dashStatus) then each row under it as " | Name: value".
     Dim shapes As Object, cell As Object, text As String, i As Long, name As String, value As String
     On Error Resume Next
     Set shapes = ThisWorkbook.Worksheets("Dashboard").Shapes
@@ -322,7 +322,7 @@ Private Sub ShowProgress(ByVal fraction As Double, ByVal text As String)
     Set cell = ThisWorkbook.Names("dashStatus").RefersToRange
     Set parts = StatusParts(text)
     cell.Value = SafeCell(CStr(parts(1)(1)))
-    ' The rows are touched only when there are fields to write or rows to clear: during a run each slice writes A3 only
+    ' The rows are touched only when there are fields to write or rows to clear: during a run each slice writes the headline only
     ' (more writes per slice made the known crash of the extraction come back, 1 run in 3).
     If parts.Count > 1 Or Len(CStr(cell.Offset(1, 0).Value)) > 0 Or Len(CStr(cell.Offset(1, 1).Value)) > 0 Then
         cell.Offset(1, 0).Resize(STATUS_ROWS, 2).ClearContents

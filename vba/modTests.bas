@@ -665,7 +665,7 @@ Public Sub T_StepsSheet()
 End Sub
 
 Public Sub T_StatusParts()
-    ' The status of the Dashboard: "Title | Name: value | ..." gives the headline (A3) and one row per field under it.
+    ' The status of the Dashboard: "Title | Name: value | ..." gives the headline (the cell dashStatus) and one row per field.
     Dim parts As Collection
     Set parts = StatusParts("Stopped | Code: J2D-CFG-002 | Message: Fill these values: FeatureTypes | Log: C:\x\run.log")
     Check "status", "the title, then one row per field", "count", 4, parts.Count
