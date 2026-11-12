@@ -98,6 +98,8 @@ def test_the_vba_names_the_same_sheet_of_charts_and_the_same_status_rows():
     for module in ("modFlowBuild", "modActions"):
         assert f'Private Const CHARTS_SHEET As String = "{d.CHARTS_SHEET}"' in sources[module], module
     assert f"Private Const STATUS_ROWS As Long = {d.STATUS_ROWS}" in sources["modActions"]
+    assert f"Private Const BAND_MARKER As Long = {d.BAND_MARKER}" in sources["modFlowBuild"]
+    assert "s.MarkerStyle = BAND_MARKER" in sources["modFlowBuild"]
 
 
 def test_the_feature_predictability_point_is_a_gap_without_a_planned_feature_or_a_pi():

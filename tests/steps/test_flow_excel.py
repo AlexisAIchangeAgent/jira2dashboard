@@ -692,6 +692,7 @@ def _series(world):
             for offset, expected in ((len(names) + 1, 0.8), (len(names) + 2, 1.0)):
                 assert set(chart.SeriesCollection(offset).Values) == {expected}, (spec.name, offset)
                 assert chart.SeriesCollection(offset).Name == D.BAND_NAMES[offset - len(names) - 1]
+                assert chart.SeriesCollection(offset).MarkerStyle == D.BAND_MARKER, (spec.name, offset)  # one PI: no line
         assert chart.HasTitle and chart.ChartTitle.Text == spec.title
     note = dash.Cells(*(lambda a: (a[0] + D.ROWS_PER_CHART, a[1]))(D.chart_anchor([c.name for c in D.CHARTS].index("flow_predictability")))).Value2
     assert "not computable" in note and "PI objectives" in note, note

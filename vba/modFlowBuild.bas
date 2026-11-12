@@ -12,6 +12,7 @@ Private Const XL_YES As Long = 1
 Private Const XL_CALC_MANUAL As Long = -4135
 Private Const XL_CALC_AUTOMATIC As Long = -4105
 Private Const CHARTS_SHEET As String = "Charts"      ' the sheet of the charts, made at build (flow/dashboard_spec.CHARTS_SHEET)
+Private Const BAND_MARKER As Long = -4115             ' xlMarkerStyleDash, a long bar (flow/dashboard_spec.BAND_MARKER)
 
 Public Function SheetExists(ByVal wb As Object, ByVal name As String) As Boolean
     Cov "FLB01"
@@ -616,9 +617,13 @@ Private Sub BuildChart(ByVal dash As Object, ByVal data As Object, ByVal row As 
             s.Name = "=ChartData!" & data.Cells(top + 1, 2 + count + j).Address
             s.Values = data.Range(data.Cells(first, 2 + count + j), data.Cells(last, 2 + count + j))
             s.XValues = data.Range(data.Cells(first, 1), data.Cells(last, 1))
-            s.ChartType = 4                                  ' xlLine, no markers
+            s.ChartType = 65                                 ' xlLineMarkers: a line needs two points, one PI shows only its markers
             s.Format.Line.DashStyle = 4                      ' msoLineDash
             s.Format.Line.ForeColor.RGB = RGB(128, 128, 128)
+            s.MarkerStyle = BAND_MARKER                      ' after the line format, which would recolour the markers
+            s.MarkerSize = 12
+            s.MarkerForegroundColor = RGB(128, 128, 128)
+            s.MarkerBackgroundColor = RGB(128, 128, 128)
         Next j
     End If
     ch.HasTitle = True

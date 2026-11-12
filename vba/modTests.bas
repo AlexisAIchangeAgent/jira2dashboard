@@ -1188,6 +1188,9 @@ Public Sub T_FlowBuild()
     Check "flowbuild", "the iteration axis of a chart lists the iterations in order", "P1, P2", "P1|P2", AxisEnds(dash.ChartObjects("velocity").Chart, False)
     Check "flowbuild", "Feature Predictability: one series, ART, and the 80-100 % band", "ART", "3|ART", _
           dash.ChartObjects("feature_predictability").Chart.SeriesCollection.Count & "|" & dash.ChartObjects("feature_predictability").Chart.SeriesCollection(1).Name
+    Check "flowbuild", "the band lines carry markers (long bars): one PI shows no line, only its points", "xlLineMarkers, xlMarkerStyleDash", "65|-4115|65|-4115", _
+          dash.ChartObjects("feature_predictability").Chart.SeriesCollection(2).ChartType & "|" & dash.ChartObjects("feature_predictability").Chart.SeriesCollection(2).MarkerStyle & "|" & _
+          dash.ChartObjects("flow_predictability").Chart.SeriesCollection(teams + 2).ChartType & "|" & dash.ChartObjects("flow_predictability").Chart.SeriesCollection(teams + 2).MarkerStyle
     Check "flowbuild", "without a PI in the sheet PIs the PI axis has one row, a gap", "no PI", "(no PI in the sheet PIs)|(no PI in the sheet PIs)", _
           AxisEnds(dash.ChartObjects("feature_predictability").Chart, False)
     Check "flowbuild", "PIMetrics: one row, not computable, without a PI", "no PI", "1|0|not computable", _

@@ -34,6 +34,7 @@ ITERATION_AXIS, DAY_AXIS, PI_AXIS = "iteration", "day", "pi"   # one point per i
 #                                                                 DailyLoad) or per PI (rows of the sheet PIs)
 NO_PI = "(no PI in the sheet PIs)"                             # the one row of a PI chart while the sheet PIs is empty
 BAND_NAMES = ("Target band low", "Target band high")
+BAND_MARKER = -4115         # xlMarkerStyleDash: a band line has a long bar on each point, so one PI still shows it (AL)
 
 
 @dataclass(frozen=True)

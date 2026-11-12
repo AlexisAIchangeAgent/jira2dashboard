@@ -264,7 +264,7 @@ then `mermaid.parse`), and check every `](#anchor)` link against the headings.
   before creating the table); a structured reference to a column whose name contains `_` is refused; compare dates with a
   half-second margin; a blank result is `""`, never `0`.
 - Mind the COM traps (section 7 of the deleted handoff, see above): positional arguments only, `put_en_us` for number formats,
-  leading apostrophe on text written to cells (`as_cell` / `SafeCell`), read `.Value2`, activate a chart's sheet before export.
+  leading apostrophe on text written to cells (`as_cell` / `SafeCell`), read `.Value2`, activate a chart's sheet and its ChartObject before export (else an empty PNG).
 - **Git.** Repo `AlexisAIchangeAgent/jira2dashboard` (public), branch `main`. `.gitattributes` disables line-ending
   conversion (`* -text`, `*.bas text eol=lf`) so the tracked MD5 hold; Excel binaries (`*.xlsm`, `out/`) are ignored.
   Commit messages end with the `Co-Authored-By` line of the model in use (e.g. `Claude Opus 5.5 <noreply@anthropic.com>`). If SSH push is refused, push over
