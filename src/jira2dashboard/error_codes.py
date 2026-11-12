@@ -79,7 +79,7 @@ TABLE: tuple[ErrorCode, ...] = (
     ErrorCode("J2D-FLOW-003", 706, "A raw column differs from the expected one", "The sheet Issues or StatusIntervals was edited", "Run the extraction again", "A screenshot of the header row"),
     ErrorCode("J2D-FLOW-004", 707, "Excel refused a formula", "A column name or a Config value breaks a formula", "Read the table and column in the message", "The message and the Excel version"),
     ErrorCode("J2D-FLOW-005", 708, "Excel is too old", "The workbook needs LET, XLOOKUP and FILTER (Excel 365 or 2021)", "Use Excel 365 or 2021", "File > Account > About Excel"),
-    ErrorCode("J2D-FLOW-006", 709, "The sheet Issues has no column Type", "The sheet was edited", "Run the extraction again", "A screenshot of the header row"),
+    ErrorCode("J2D-FLOW-006", 709, "The sheet Issues has no column Type or PI", "The sheet was edited", "Run the extraction again", "A screenshot of the header row"),
     # --- ROVO ---------------------------------------------------------------------------------------------------------------
     ErrorCode("J2D-ROVO-001", 630, "The Rovo prompt spec is empty", "The sheet RovoPromptSpec was cleared", "Use a fresh copy of the delivered workbook", "The workbook version"),
     ErrorCode("J2D-ROVO-002", 631, "The Rovo CSV file does not exist", "A wrong path or a file removed", "Click Load settings CSV again and choose the file in the dialog", "The folder content (names only)"),

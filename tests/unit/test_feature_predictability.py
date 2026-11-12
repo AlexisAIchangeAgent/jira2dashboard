@@ -43,10 +43,34 @@ def test_each_pi_gives_its_features_done_before_its_end_over_its_features_planne
     ]
 
 
-def test_without_any_pi_in_the_sheet_there_is_nothing_to_show():
+def test_a_pi_that_features_carry_but_the_sheet_lacks_is_shown_after_them_not_computable():
+    """AL (2026-11-12): a PI missing from the sheet PIs has no end date, so its ratio is not computable, but the RTE sees it.
+    By year, then number; a malformed PI (DC17, DC29), another type, or a PI the sheet holds add no row."""
+    issues = cases() + [
+        feature("F-7", "PI#01-2027", FEATURE_FLOW),
+        feature("F-8", "PI#04-2026", FEATURE_FLOW + [("10-10", "Terminé")]),         # done, but no end date to compare with
+        feature("F-9", "PI#04-2026", FEATURE_FLOW[:2]),
+        feature("F-10", "PI 4", FEATURE_FLOW),                                       # malformed: DC29, not a PI
+        feature("F-11", "pi#05-2026", FEATURE_FLOW),                                 # PI# in capitals only, as DC17
+        feature("F-12", "PI#02-2026", FEATURE_FLOW),                                 # in the sheet: counted there
+        feature("S-2", "PI#06-2026", FEATURE_FLOW, "Story"),                         # not a Feature type
+    ]
+    items = [item_flow(issue, FLOW_AS_OF, Rules.from_params()) for issue in issues]
+    rows = feature_predictability(issues, items, SETTINGS)
+    assert [p.pi for p in rows[:3]] == list(SETTINGS.pis) and rows[1].planned == 2
+    assert rows[3:] == [PIPredictability("PI#04-2026", planned=2, done=None, ratio=NOT_COMPUTABLE),
+                        PIPredictability("PI#01-2027", planned=1, done=None, ratio=NOT_COMPUTABLE)]
+
+
+def test_without_any_pi_in_the_sheet_the_pis_of_the_features_are_listed():
     issues = cases()
     items = [item_flow(issue, FLOW_AS_OF, Rules.from_params()) for issue in issues]
-    assert feature_predictability(issues, items, CheckSettings(feature_types=frozenset({"Feature"}))) == []
+    no_sheet = CheckSettings(feature_types=frozenset({"Feature"}))
+    assert feature_predictability(issues, items, no_sheet) == [
+        PIPredictability("PI#01-2026", planned=4, done=None, ratio=NOT_COMPUTABLE),
+        PIPredictability("PI#02-2026", planned=1, done=None, ratio=NOT_COMPUTABLE)]
+    no_pi = [dataclasses.replace(issue, pi=None) for issue in issues]
+    assert feature_predictability(no_pi, items, no_sheet) == []                 # nothing to show: the row NO_PI
 
 
 def test_pimetrics_rows_are_the_table_of_the_workbook_one_row_per_pi_or_the_row_no_pi():
@@ -56,7 +80,9 @@ def test_pimetrics_rows_are_the_table_of_the_workbook_one_row_per_pi_or_the_row_
     from jira2dashboard.standalone import results as R
     start, end = SETTINGS.pis["PI#01-2026"]
     s = SimpleNamespace(checks=SETTINGS)
-    found = SimpleNamespace(predictability=[PIPredictability("PI#01-2026", 4, 1, 0.25)])
+    found = SimpleNamespace(predictability=[PIPredictability("PI#01-2026", 4, 1, 0.25),
+                                            PIPredictability("PI#04-2026", 2, None, NOT_COMPUTABLE)])     # not in the sheet
     rows = R.pimetrics_rows(found, s)
-    assert rows == [("PI#01-2026", start, end, 4, 1, 0.25)] and len(rows[0]) == len(F.TABLES["PIMetrics"])
+    assert rows == [("PI#01-2026", start, end, 4, 1, 0.25), ("PI#04-2026", None, None, 2, None, NOT_COMPUTABLE)]
+    assert len(rows[0]) == len(F.TABLES["PIMetrics"])
     assert R.pimetrics_rows(SimpleNamespace(predictability=[]), s) == [(D.NO_PI, None, None, 0, None, NOT_COMPUTABLE)]

@@ -1088,16 +1088,25 @@ Public Sub T_ExtractCheckFields()
     Check "extract", "no sprint field: no sprint", "AAA-1", "|0", wsI.Range("P2").Value & "|" & wsI.Range("S2").Value
 End Sub
 
-Private Sub FlowRaw(ByVal withStory As Boolean)
+Private Sub FlowRaw(ByVal withStory As Boolean, Optional ByVal featurePis As Variant, Optional ByVal storyPi As Variant)
     ' Raw sheets as the extraction writes them: a Program feature, and (optionally) a team story with two intervals.
-    Dim issues As New Collection, ivs As New Collection, t0 As Date
+    ' featurePis: one more feature (TTT-2, TTT-3...) per PI field value given; storyPi: the PI field of the story.
+    Dim issues As New Collection, ivs As New Collection, t0 As Date, i As Long
     t0 = DateSerial(2026, 10, 1)
+    If IsMissing(storyPi) Then storyPi = Empty
     issues.Add Array("TTT-1", "10", "TTT", "Feature", "Feature", t0, "Nouveau", Empty, "new", Empty, Empty, Empty, Empty, Empty, _
                      Empty, Empty, Empty, Empty, 0, Empty, Empty, 0)
     ivs.Add Array("TTT-1", "Feature", 1, "Nouveau", "Backlog", t0, Empty, 4, True, "1", "")
+    If Not IsMissing(featurePis) Then
+        For i = 0 To UBound(featurePis)
+            issues.Add Array("TTT-" & (i + 2), CStr(20 + i), "TTT", "Feature", "Feature", t0, "Nouveau", Empty, "new", Empty, Empty, _
+                             Empty, featurePis(i), Empty, Empty, Empty, Empty, Empty, 0, Empty, Empty, 0)
+            ivs.Add Array("TTT-" & (i + 2), "Feature", 1, "Nouveau", "Backlog", t0, Empty, 4, True, CStr(20 + i), "")
+        Next i
+    End If
     If withStory Then
         issues.Add Array("AAA-1", "11", "AAA", "Story", "Enabler", t0, "En analyse", "TTT-1", "indeterminate", Empty, Empty, Empty, _
-                         Empty, Empty, Empty, Empty, Empty, Empty, 0, Empty, Empty, 0)
+                         storyPi, Empty, Empty, Empty, Empty, Empty, 0, Empty, Empty, 0)
         ivs.Add Array("AAA-1", "Team", 1, "Nouveau", "Backlog", t0, t0 + 1, 1, False, "1", "")
         ivs.Add Array("AAA-1", "Team", 2, "En analyse", "Active", t0 + 1, Empty, 3, True, "2", "")
     End If
@@ -1227,6 +1236,16 @@ Public Sub T_FlowBuild()
           "2|" & CLng(DateSerial(2026, 10, 15)) & "|PI#02-2026|" & CLng(DateSerial(2026, 12, 1)), _
           TableRows("PIMetrics") & "|" & wb.Worksheets("PIMetrics").Range("C2").Value2 & "|" & wb.Worksheets("PIMetrics").Range("A3").Value & _
           "|" & wb.Worksheets("PIMetrics").Range("C3").Value2
+    ' Features in PIs that the sheet PIs lacks (AL, 2026-11-12): after the sheet's, by year then number, not computable; a PI
+    ' of the sheet, a malformed one (DC29) and the PI of a story add no row
+    FlowRaw True, Array("PI#01-2027", "PI#04-2026", "PI#04-2026", "PI#02-2026", "PI 4", "pi#05-2026"), "PI#06-2026"
+    BuildFlowSheetsIn wb
+    Check "flowbuild", "PIMetrics: the PIs of Features missing from the sheet PIs come after it, in order, not computable", _
+          "PI#04-2026 (2 features), PI#01-2027", "4|PI#04-2026|2||not computable|PI#01-2027|PI#01-2026|PI#01-2027", _
+          TableRows("PIMetrics") & "|" & wb.Worksheets("PIMetrics").Range("A4").Value & "|" & wb.Worksheets("PIMetrics").Range("D4").Value & _
+          "|" & wb.Worksheets("PIMetrics").Range("C4").Value & "|" & wb.Worksheets("PIMetrics").Range("F4").Value & "|" & _
+          wb.Worksheets("PIMetrics").Range("A5").Value & "|" & AxisEnds(dash.ChartObjects("feature_predictability").Chart, False)
+    FlowRaw False
     wb.Worksheets("PIs").Range("A2:C3").ClearContents
     ' Excel left in manual mode by the user: the build gives the mode back and still ends with every figure calculated
     ' (guard only: removing CalculateFull for this case changed nothing observable, entering a formula calculates it)

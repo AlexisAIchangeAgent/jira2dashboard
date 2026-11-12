@@ -21,7 +21,7 @@ from jira2dashboard.flow.itemflow import item_flow
 from jira2dashboard.flow.load import daily_load
 from jira2dashboard.flow.metrics import BUCKETS, feature_predictability, team_iteration_metrics
 from jira2dashboard.flow.model import NOT_COMPUTABLE, Change, Rules
-from jira2dashboard.mockjira.anomalies import PI, PI_WINDOW, with_anomalies
+from jira2dashboard.mockjira.anomalies import with_anomalies
 from jira2dashboard.mockjira.flow_adapter import to_flow_issues
 from jira2dashboard.mockjira.generator import generate
 from jira2dashboard.mockjira.server import MOCK_EMAIL, MOCK_TOKEN, MockJira
@@ -168,7 +168,7 @@ def reference(world):
         dataset = world["dataset"]
         as_of, rules = dataset.as_of, Rules.from_params()
         issues = [to_second(i) for i in to_flow_issues(dataset)]
-        settings = dataclasses.replace(CheckSettings.from_params(), pis={PI: PI_WINDOW},
+        settings = dataclasses.replace(CheckSettings.from_params(), pis={p.name: (p.start, p.end) for p in M.PIS},
                                        fields={name: getattr(dataset.fields, attr) for name, attr in M.FIELD_IDS.items()})
         items = [item_flow(i, as_of, rules) for i in issues]
         projects = [row for s in load_all() if s.name == "Projects" for row in s.rows]

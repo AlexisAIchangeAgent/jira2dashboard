@@ -71,8 +71,8 @@ def test_the_iterations_last_14_days_follow_each_other_from_the_first_issue_and_
     assert [p.name for p in iterations] == [f"I{n}" for n in range(1, len(iterations) + 1)]
 
 
-def test_the_pis_sheet_gets_the_pi_of_the_known_anomalies():
-    assert [(p.name, p.start, p.end) for p in M.PIS] == [(PI, *PI_WINDOW)]
+def test_the_pis_sheet_gets_the_pi_of_the_known_anomalies_then_the_other_pi_of_the_generator():
+    assert [(p.name, p.start, p.end) for p in M.PIS] == [(PI, *PI_WINDOW), ("PI#02-2026", *PI_WINDOW)]
 
 
 def test_the_copy_is_jira2dashboard4manualtest_in_out_manual_test_which_clean_never_empties(tmp_path):

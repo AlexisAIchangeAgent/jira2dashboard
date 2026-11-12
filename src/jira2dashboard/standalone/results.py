@@ -96,10 +96,11 @@ def _figure(value):
 
 
 def pimetrics_rows(results: Results, s: RunSettings) -> list[tuple]:
-    """The rows of PIMetrics as the workbook computes them: one per PI of the sheet PIs, or the one row NO_PI."""
+    """The rows of PIMetrics as the workbook computes them: one per PI of the sheet PIs, then one per PI of a Feature that
+    the sheet lacks (no dates), or the one row NO_PI."""
     if not results.predictability:
         return [(D.NO_PI, None, None, 0, None, NOT_COMPUTABLE)]
-    return [(p.pi, *s.checks.pis[p.pi], p.planned, p.done, p.ratio) for p in results.predictability]
+    return [(p.pi, *s.checks.pis.get(p.pi, (None, None)), p.planned, p.done, p.ratio) for p in results.predictability]
 
 
 def metrics_rows(results: Results, s: RunSettings) -> list[tuple]:

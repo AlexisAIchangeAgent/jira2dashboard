@@ -3,7 +3,7 @@ Predictability per PI (the variant of Flow Predictability that AL chose)."""
 import datetime as dt
 from dataclasses import dataclass
 
-from jira2dashboard.flow.checks import CheckSettings
+from jira2dashboard.flow.checks import CheckSettings, valid_pi
 from jira2dashboard.flow.itemflow import ItemFlow
 from jira2dashboard.flow.load import ONE_DAY, in_process_at, snapshot_days
 from jira2dashboard.flow.model import NOT_COMPUTABLE, UNMAPPED, WORK_TYPES, FlowIssue, Iteration
@@ -90,19 +90,33 @@ class PIPredictability:
     """Feature Predictability of one PI, for the ART: the Features done before the end of the PI over those planned in it."""
     pi: str
     planned: int                           # Features whose PI field is this PI, whatever their status
-    done: int                              # among them, done (DoneUtc) before the end of the PI
-    ratio: float | str                     # done / planned; NOT_COMPUTABLE when nothing is planned
+    done: int | None                       # among them, done (DoneUtc) before the end of the PI; None: no end date
+    ratio: float | str                     # done / planned; NOT_COMPUTABLE when nothing is planned or the end is unknown
+
+
+def _pi_order(pi: str) -> tuple[str, str]:
+    return pi[6:], pi[3:5]                 # PI#XX-YYYY: by year, then number
 
 
 def feature_predictability(issues: list[FlowIssue], items: list[ItemFlow], settings: CheckSettings) -> list[PIPredictability]:
     """The variant of Flow Predictability chosen by AL (2026-11-12): Flow Predictability itself needs the business value of the
     PI objectives, which Jira does not hold (docs section 2.2). One row per PI of the sheet PIs, in its order. Planned = a
     Feature (type in FeatureTypes) whose PI field is that PI; a cancelled one stays planned, not done. Done = its DoneUtc is
-    before the end of the PI (the end is excluded, as for an iteration): a Feature done later is not done for that PI."""
+    before the end of the PI (the end is excluded, as for an iteration): a Feature done later is not done for that PI.
+    Then one row per PI that Features carry but the sheet lacks (AL, 2026-11-12), by year then number: without an end date
+    it is not computable, but the RTE sees it. Only a valid PI (PI#XX-YYYY) counts: a malformed one is for DC17 and DC29."""
     done_at = {item.key: item.done for item in items}
+    features = [i for i in issues if i.type in settings.feature_types]
+
+    def planned_in(pi: str) -> list[str]:
+        return [i.key for i in features if (i.pi or "").strip() == pi]
+
     out = []
     for pi, (_start, end) in settings.pis.items():
-        planned = [i.key for i in issues if i.type in settings.feature_types and (i.pi or "").strip() == pi]
+        planned = planned_in(pi)
         done = [key for key in planned if done_at.get(key) is not None and done_at[key] < end]
         out.append(PIPredictability(pi, len(planned), len(done), len(done) / len(planned) if planned else NOT_COMPUTABLE))
+    in_sheet = {pi.upper() for pi in settings.pis}           # MATCH and COUNTIFS of the workbook ignore the case
+    missing = {i.pi for i in features if valid_pi(i.pi) and i.pi.upper() not in in_sheet}
+    out += [PIPredictability(pi, len(planned_in(pi)), None, NOT_COMPUTABLE) for pi in sorted(missing, key=_pi_order)]
     return out

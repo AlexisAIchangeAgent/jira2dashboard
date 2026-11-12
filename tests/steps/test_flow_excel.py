@@ -478,8 +478,10 @@ def _feature_predictability(world):
     table = table_dicts(world["wb"], "PIMetrics")
     assert [row["PI"] for row in table] == [p.pi for p in expected], table
     for p, row in zip(expected, table):
-        assert (row["FeaturesPlanned"], row["FeaturesDone"]) == (p.planned, p.done), (p, row)
-        assert same_point(row["FeaturePredictability"], p.ratio), (p, row)
+        assert (row["FeaturesPlanned"], row["FeaturesDone"]) == (p.planned, "" if p.done is None else p.done), (p, row)
+        ratio = row["FeaturePredictability"]
+        assert ratio == p.ratio if p.ratio == NOT_COMPUTABLE else same_point(ratio, p.ratio), (p, row)
+    assert [p.pi for p in expected if p.done is None] == ["PI#02-2026"]    # carried by Features, missing from the sheet PIs
     names, labels, rows = chart_blocks(world["wb"], world)["feature_predictability"]
     assert names == ["ART"] and labels == [p.pi for p in expected], (names, labels)
     for p, row in zip(expected, rows):
@@ -558,12 +560,9 @@ REFERENCE_FIELD = {"Velocity": "velocity", "FlowTimeMedian": "flow_time_median",
 
 
 def pi_names(wb) -> list[str]:
-    """The PIs of the sheet PIs (first column, from row 2), or the one row NO_PI, as modFlowBuild.PiNames."""
-    ws, names, row = wb.Worksheets("PIs"), [], 2
-    while ws.Cells(row, 1).Value not in (None, ""):
-        names.append(str(ws.Cells(row, 1).Value).strip())
-        row += 1
-    return names or [D.NO_PI]
+    """The keys of the table PIMetrics (modFlowBuild.PiNames: the sheet PIs, then the PIs of Features it lacks, or NO_PI),
+    which are also the rows of the PI block of ChartData; the step of Feature Predictability checks them."""
+    return [row["PI"] for row in table_dicts(wb, "PIMetrics")]
 
 
 def chart_blocks(wb, world):

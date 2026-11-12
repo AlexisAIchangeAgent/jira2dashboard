@@ -97,7 +97,9 @@ python.log). `tests/unit/test_claude_hooks.py` and `test_claude_skills.py` test 
 - **Feature Predictability (AL's decision, 2026-11-12).** A variant of Flow Predictability, whose SAFe definition (business
   value of the PI objectives, `docs/` section 2.2) stays as a chart, not computable. Per PI of the sheet `PIs`, for the ART:
   the Features (`FeatureTypes`) done before the end of the PI (`DoneUtc` < `End`) over the Features planned in it (PI field
-  = the PI); a cancelled Feature stays planned, not done; nothing planned = a gap. Reference `flow/metrics.feature_predictability`,
+  = the PI); a cancelled Feature stays planned, not done; nothing planned = a gap. Then the valid PIs (`PI#XX-YYYY`) that
+  Features carry but `PIs` lacks, by year then number, not computable (no end date) so the RTE sees them (AL, 2026-11-12;
+  `modFlowBuild.FeaturePis`). The manual-test copy declares both PIs of the generator. Reference `flow/metrics.feature_predictability`,
   table `PIMetrics` (one row per PI, `formulas.PIMETRICS_COLUMNS`; keys `modFlowBuild.PiNames`), chart point
   `dashboard_spec.pi_point` (a lookup in that table; axis `pi`), SVG in `charts_svg`; the data-check scenario compares the
   table and the chart with the reference, the standalone scenario its sheet `PIMetrics`.

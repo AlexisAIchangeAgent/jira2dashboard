@@ -15,6 +15,7 @@ from jira2dashboard.params.model import ParamSheet, load_all
 
 AS_OF = dt.datetime(2026, 11, 3, 18, 0)       # the reference date of the generated data (Config AsOf)
 SINCE = dt.datetime(2026, 6, 1)               # the first issue is created after this date
+PIS = ("PI#01-2026", "PI#02-2026")             # the PI field of an issue: one of them, or none
 DEFAULT_PROJECTS = ("PRG", "TA", "TB")      # the first project is the Program (features), the others are teams
 AUTHORS = (("Ann Martin", "acc-ann"), ("Bob Durand", "acc-bob"), ("Chloe Petit", "acc-chloe"),
            ("Dan Roux", "acc-dan"), ("Eva Blanc", "acc-eva"))
@@ -96,7 +97,7 @@ def _new_issue(rng, key, issue_id, project, type_, work_type, workflow_name, wf,
         labels=tuple(rng.sample(("api", "ui", "data", "ops"), rng.randint(0, 2))),
         story_points=rng.choice((1, 2, 3, 5, 8)) if type_ in ("Story", "Task") else None,
         business_value=rng.randint(1, 100) if type_ == "Feature" else None,
-        pi=rng.choice(("PI#01-2026", "PI#02-2026", None)),
+        pi=rng.choice(PIS + (None,)),
         due=None)
 
 

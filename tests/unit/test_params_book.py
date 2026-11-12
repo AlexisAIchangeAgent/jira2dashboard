@@ -39,7 +39,7 @@ def test_the_sheets_come_back_in_the_form_of_the_md_files(tmp_path):
     assert (config["BaseUrl"], config["Email"], config["ApiToken"], config["AsOf"]) == (
         URL, MOCK_EMAIL, MOCK_TOKEN, "2026-11-03 18:00")
     assert named(sheets, "Iterations").rows[0] == ("I1", "2026-06-01", "2026-06-15")       # dates typed in Excel: serials
-    assert named(sheets, "PIs").rows == (("PI#01-2026", "2026-06-01", "2026-12-31"),)
+    assert named(sheets, "PIs").rows == (("PI#01-2026", "2026-06-01", "2026-12-31"), ("PI#02-2026", "2026-06-01", "2026-12-31"))
     md = {s.name: s for s in load_all()}
     for name in ("Projects", "Workflows", "Transitions"):
         assert named(sheets, name).rows == md[name].rows, name

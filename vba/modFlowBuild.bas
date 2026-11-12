@@ -282,7 +282,7 @@ Private Sub BuildAll(ByVal wb As Object, ByVal spec As Object, ByVal teams As Co
     LogBegin "flow sheets: keys"
     Set wsF = AddSheet(wb, "ItemFlow"): Set wsD = AddSheet(wb, "DailyLoad"): Set wsM = AddSheet(wb, "Metrics")
     Set wsC = AddSheet(wb, "DataChecks"): Set wsR = AddSheet(wb, "FillRates"): Set wsP = AddSheet(wb, "PIMetrics")
-    Set pis = PiNames(wb.Worksheets("PIs"), SettingOf(spec, "Dashboard", "NoPI"))
+    Set pis = PiNames(wb, SettingOf(spec, "Dashboard", "NoPI"))
     WriteDailyKeys wsD, iterations, teams
     WriteMetricKeys wsM, iterations, teams
     WritePiKeys wsP, pis
@@ -382,8 +382,8 @@ Private Sub WriteDailyKeys(ByVal ws As Object, ByVal iterations As Collection, B
 End Sub
 
 Private Sub WritePiKeys(ByVal ws As Object, ByVal pis As Collection)
-    ' PI, one row per PI of the sheet PIs (or the one row noPi of PiNames): the dates and the figures are the formulas of the
-    ' table PIMetrics (flow/formulas.PIMETRICS_COLUMNS).
+    ' PI, one row per PI of PiNames (the sheet PIs, then the PIs of Features it lacks, or the one row noPi): the dates and the
+    ' figures are the formulas of the table PIMetrics (flow/formulas.PIMETRICS_COLUMNS).
     Cov "FLB40"
     Dim r As Long, data() As Variant
     ReDim data(1 To pis.Count, 1 To 1)
@@ -428,23 +428,32 @@ End Function
 Private Function IssueTypes(ByVal wsIssues As Object) As Collection
     ' The distinct values of the column Type of the sheet Issues, in order of appearance.
     Cov "FLB32"
-    Dim out As New Collection, seen As Object, col As Long, last As Long, data As Variant, r As Long
+    Dim out As New Collection, seen As Object, last As Long, data As Variant, r As Long
     Set seen = CreateObject("Scripting.Dictionary")
     Set IssueTypes = out
     last = UsedRows(wsIssues)
     If last < 1 Then Exit Function
-    For col = 1 To 20
-        If CStr(wsIssues.Cells(1, col).Value) = "Type" Then Exit For
-    Next col
-    If col > 20 Then Err.Raise vbObjectError + 709, "IssueTypes", "The sheet Issues has no column Type: run the extraction again."
-    If last = 1 Then                                 ' a one-cell range does not come back as an array
-        AddType out, seen, CStr(wsIssues.Cells(2, col).Value & "")
-        Exit Function
-    End If
-    data = wsIssues.Range(wsIssues.Cells(2, col), wsIssues.Cells(last + 1, col)).Value
+    data = IssueColumn(wsIssues, "Type", last)
     For r = 1 To last
         AddType out, seen, CStr(data(r, 1) & "")
     Next r
+End Function
+
+Private Function IssueColumn(ByVal wsIssues As Object, ByVal header As String, ByVal last As Long) As Variant
+    ' Rows 2 to last + 1 of the column of the sheet Issues whose header (row 1) is header, always as an array
+    ' (1 To last, 1 To 1): a one-cell range does not come back as an array.
+    Dim col As Long, lastCol As Long, one(1 To 1, 1 To 1) As Variant
+    lastCol = wsIssues.Cells(1, wsIssues.Columns.Count).End(-4159).Column      ' -4159 = xlToLeft
+    For col = 1 To lastCol
+        If CStr(wsIssues.Cells(1, col).Value) = header Then Exit For
+    Next col
+    If col > lastCol Then Err.Raise vbObjectError + 709, "IssueColumn", "The sheet Issues has no column " & header & ": run the extraction again."
+    If last = 1 Then
+        one(1, 1) = wsIssues.Cells(2, col).Value
+        IssueColumn = one
+    Else
+        IssueColumn = wsIssues.Range(wsIssues.Cells(2, col), wsIssues.Cells(last + 1, col)).Value
+    End If
 End Function
 
 Private Sub AddType(ByVal out As Collection, ByVal seen As Object, ByVal v As String)
@@ -496,19 +505,78 @@ Private Sub BuildCharts(ByVal wb As Object, ByVal spec As Object, ByVal teams As
     Next row
 End Sub
 
-Private Function PiNames(ByVal ws As Object, ByVal noPi As String) As Collection
-    ' The PIs of the sheet PIs (first column, from row 2), for the axis of the Feature Predictability chart; noPi alone when
-    ' the sheet has none, so that the chart still has a row (a gap). They are the keys of the table PIMetrics too. The dates
-    ' are not read here: the table looks them up itself, and a PI it cannot read is not computable, never an error of the build.
-    Dim out As New Collection, last As Long, r As Long, v As String
+Private Function PiNames(ByVal wb As Object, ByVal noPi As String) As Collection
+    ' The PIs of the sheet PIs (first column, from row 2), in its order, then those that Features carry but the sheet lacks
+    ' (FeaturePis); noPi alone when there is none, so that the chart still has a row (a gap). They are the keys of the table
+    ' PIMetrics and the axis of the Feature Predictability chart. The dates are not read here: the table looks them up itself,
+    ' and a PI it cannot read is not computable, never an error of the build. Reference: flow/metrics.feature_predictability.
+    Dim out As New Collection, seen As Object, ws As Object, last As Long, r As Long, v As String
     Cov "FLB37"
+    Set seen = CreateObject("Scripting.Dictionary")
+    Set ws = wb.Worksheets("PIs")
     last = ws.Cells(ws.Rows.Count, 1).End(-4162).Row     ' -4162 = xlUp
     For r = 2 To last
         v = Trim$(CStr(ws.Cells(r, 1).Value & ""))
-        If Len(v) > 0 Then out.Add v
+        If Len(v) > 0 Then
+            out.Add v
+            seen(UCase$(v)) = True                       ' MATCH and COUNTIFS of the table ignore the case
+        End If
     Next r
+    FeaturePis out, seen, wb
     If out.Count = 0 Then Cov "FLB38": out.Add noPi
     Set PiNames = out
+End Function
+
+Private Sub FeaturePis(ByVal out As Collection, ByVal seen As Object, ByVal wb As Object)
+    ' Adds to out the PIs of the Features (type in FeatureTypes, case-sensitive like IsFeature) of the sheet Issues that the
+    ' sheet PIs lacks (AL, 2026-11-12), by year then number: without dates they are not computable, but the RTE sees them.
+    ' Only a valid PI (PI#XX-YYYY) counts: a malformed one is for DC17 and DC29.
+    Dim wsI As Object, last As Long, types As Variant, pis As Variant, features As Object, extra As New Collection
+    Dim r As Long, j As Long, v As String, t As Variant
+    Set wsI = wb.Worksheets("Issues")
+    last = UsedRows(wsI)
+    If last < 1 Then Exit Sub
+    Set features = CreateObject("Scripting.Dictionary")              ' binary compare: case-sensitive, as FIND in IsFeature
+    For Each t In Split(ConfigValue(wb.Worksheets("Config"), "FeatureTypes"), ",")
+        If Len(TrimWhite(CStr(t))) > 0 Then features(TrimWhite(CStr(t))) = True
+    Next t
+    types = IssueColumn(wsI, "Type", last)
+    pis = IssueColumn(wsI, "PI", last)
+    For r = 1 To last
+        v = CStr(pis(r, 1) & "")
+        If IsPiName(v) Then
+            If features.Exists(CStr(types(r, 1) & "")) And Not seen.Exists(UCase$(v)) Then
+                Cov "FLB41"
+                seen(UCase$(v)) = True
+                For j = 1 To extra.Count
+                    If PiOrder(v) < PiOrder(CStr(extra(j))) Then Exit For
+                Next j
+                If j > extra.Count Then
+                    extra.Add v
+                Else
+                    Cov "FLB42"                                      ' before a later PI already found
+                    extra.Add v, , j
+                End If
+            End If
+        End If
+    Next r
+    For j = 1 To extra.Count
+        out.Add extra(j)
+    Next j
+End Sub
+
+Private Function IsPiName(ByVal v As String) As Boolean
+    ' PI#XX-YYYY, XX and YYYY digits, PI# in capitals: the format of DC17 and DC29 (flow/checks.valid_pi).
+    Dim k As Variant
+    If Len(v) <> 10 Or Left$(v, 3) <> "PI#" Or Mid$(v, 6, 1) <> "-" Then Exit Function
+    For Each k In Array(4, 5, 7, 8, 9, 10)
+        If InStr(1, "0123456789", Mid$(v, k, 1), vbBinaryCompare) = 0 Then Exit Function
+    Next k
+    IsPiName = True
+End Function
+
+Private Function PiOrder(ByVal v As String) As String
+    PiOrder = Right$(v, 4) & Mid$(v, 4, 2)                             ' PI#XX-YYYY: by year, then number
 End Function
 
 Private Sub WriteSelectorList(ByVal wb As Object, ByVal dash As Object, ByVal data As Object, ByVal spec As Object, _

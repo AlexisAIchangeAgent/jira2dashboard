@@ -2,7 +2,7 @@
 
 The copy, out\\manual_test\\jira2dashboard4manualtest.xlsm, gets what a client would type: in Config the address,
 account, reference date and custom field ids of the fake Jira of `run.ps1 mock-jira`; 14-day iterations in Iterations;
-the PI of the known anomalies in PIs. The workbook given is never changed: the one to deliver keeps its client values
+the two PIs of the fake data in PIs. The workbook given is never changed: the one to deliver keeps its client values
 empty. out\\manual_test is never emptied by clean, build or vba-tests; the copy is rewritten at each run.
 Next to it, rovo_mock_jira.csv: the same configuration as Rovo would answer it (the CSV of the button Load settings CSV), to
 try that button by hand. The connection (address, account, token, proxy) is not in it: the button never loads it.
@@ -21,6 +21,7 @@ from jira2dashboard.flow.model import Iteration
 from jira2dashboard.mockjira.anomalies import PI, PI_WINDOW
 from jira2dashboard.mockjira.dataset import FieldIds
 from jira2dashboard.mockjira.generator import AS_OF, SINCE
+from jira2dashboard.mockjira.generator import PIS as GENERATED_PIS
 from jira2dashboard.mockjira.server import MOCK_EMAIL, MOCK_TOKEN
 from jira2dashboard.params.model import load_all
 from jira2dashboard.paths import MANUAL_TEST_DIR, RELEASE_DIR
@@ -33,7 +34,9 @@ CSV_NOTE = "configuration of the fake Jira (run.ps1 mock-jira)"
 FIELD_IDS = {"StoryPointsField": "story_points", "BusinessValueField": "business_value", "PIField": "pi",
              "TeamField": "team", "SprintField": "sprint", "TargetStartField": "target_start",
              "TargetEndField": "target_end"}          # Config parameter of a data check -> attribute of FieldIds
-PIS = [Iteration(PI, *PI_WINDOW)]
+# the PI of the anomalies, then the other PI the generator draws (AL, 2026-11-12: two bars on Feature Predictability). It
+# draws either PI over the same sprints, so both get the window of the anomalies: DC18 judges them alike.
+PIS = [Iteration(PI, *PI_WINDOW)] + [Iteration(name, *PI_WINDOW) for name in GENERATED_PIS if name != PI]
 ROWS = "A2:C200"                                      # the rows of Iterations and PIs that the copy rewrites
 
 
@@ -59,7 +62,7 @@ def iterations(first: dt.datetime = SINCE, as_of: dt.datetime = AS_OF, days: int
 
 def params_book(url: str, values: dict[str, str] | None = None) -> list[Sheet]:
     """The parameter sheets of params/*.md filled for the fake Jira at `url`, as sheets of an xlsx (no Excel): Config
-    with config_values (and `values` over them), the iterations in Iterations and the PI of the anomalies in PIs, as
+    with config_values (and `values` over them), the iterations in Iterations and PIS in PIs, as
     dates. What the Python extraction reads from a filled workbook."""
     filled = config_values(url) | (values or {})
     out = []

@@ -161,9 +161,9 @@ METRICS_COLUMNS = (
     for b in BUCKETS
 ) + (("FlowPredictability", f"={_NC}"),)
 
-# --- the table PIMetrics: Feature Predictability per PI of the sheet PIs (AL's variant, 2026-11-12) ------------
-# The key PI comes from the sheet PIs (modFlowBuild.PiNames); its dates are looked up there: a PI whose date is not a date
-# gives "" and its figures are not computable. Planned = a Feature (IsFeature) whose PI field is the PI, whatever its status
+# --- the table PIMetrics: Feature Predictability per PI (AL's variant, 2026-11-12) -----------------------------
+# The key PI comes from the sheet PIs, then from the Features whose PI the sheet lacks (modFlowBuild.PiNames); its dates
+# are looked up in the sheet: a PI missing there or whose date is not a date gives "" and its figures are not computable. Planned = a Feature (IsFeature) whose PI field is the PI, whatever its status
 # (a cancelled one stays planned); done = DoneUtc before the end of the PI (excluded, half a second of margin).
 PIMETRICS_KEYS = ("PI",)
 
