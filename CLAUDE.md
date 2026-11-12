@@ -22,6 +22,7 @@ Always go through `scripts\run.ps1` (PowerShell 5.1, no venv activation needed);
 ```powershell
 powershell -ExecutionPolicy Bypass -File scripts\setup.ps1        # create .venv (py -3.14) and install requirements.txt (pywin32 + test tools)
 .\scripts\activate.ps1            # optional: activate .venv in this console (run.ps1 needs none)
+.\scripts\bootstrap.ps1         # all in one: setup, check-machine, test, build the .xlsm, the .xlsx (scenario); -Full adds vba-tests + test-excel; log bootstrap.log
 .\scripts\run.ps1 test            # fast unit + Gherkin tests, no Excel (the inner loop)
 .\scripts\run.ps1 coverage        # same + coverage of the pure code; fails under 93 %
 .\scripts\run.ps1 test-excel      # scenarios that drive Excel (marker `excel`, no network)

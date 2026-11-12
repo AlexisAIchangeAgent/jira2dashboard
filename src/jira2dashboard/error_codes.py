@@ -11,7 +11,7 @@ A code reads `J2D-<AREA>-<NNN>`. It is never reused and never renumbered: a code
 | FLOW | building the tables, the formulas and the charts |
 | ROVO | the Rovo prompt and the Rovo CSV |
 | SYS  | Excel and the run itself (cancel, a run already going), the machine (`diagnose`, `check-machine`) |
-| SCR  | the scripts of `scripts\\` (setup, run, release, manual-test, start-mock, scenario) |
+| SCR  | the scripts of `scripts\\` (setup, run, release, manual-test, start-mock, scenario, bootstrap) |
 | VBA  | an error of VBA or Excel that this tool does not know: `J2D-VBA-<its number>` (hexadecimal when negative) |
 | GEN  | an error raised by this tool that has no code yet: `J2D-GEN-<its number>` (a gap to fill in this table) |
 
@@ -89,6 +89,7 @@ TABLE: tuple[ErrorCode, ...] = (
     ErrorCode("J2D-SYS-002", 611, "An extraction is already running", "A second click or a second macro during a run", "Wait for the run to end or cancel it", "None"),
     ErrorCode("J2D-SYS-010", None, "The results file is open in another program", "The .xlsx of the Python extraction is open in Excel", "Close the file and run again", "None"),
     ErrorCode("J2D-SYS-011", None, "The workbook cannot be read", "The path is wrong, or the file is not an .xlsx/.xlsm workbook, or is damaged", "Check the --workbook path; open the file in Excel", "The file size and where it came from"),
+    ErrorCode("J2D-SYS-012", None, "The workbook is gone right after Excel saved it", "An endpoint protection quarantined or deleted the new .xlsm (a file with macros that Excel has just written); `run.ps1 build` then fails when Excel opens it", "Look for jira2dashboard.xlsm in the quarantine or the log of the endpoint protection; ask for an allow-list on the folder out\release; or use the workbook of a release (no build needed)", "The line with this code, the path in it, the name of the endpoint protection and what its log says about the file"),
     ErrorCode("J2D-SYS-020", None, "diagnose: no workbook found", "No .xlsm next to the scripts and none given", "Build one (scripts\\run.ps1 build) or give one with --workbook", "None"),
     ErrorCode("J2D-SYS-021", None, "The workbook has the Mark of the Web", "The file came from the Internet or a mail: Office opens it in Protected View and blocks the macros", "Right-click > Properties > Unblock, or put it in a Trusted Location", "The ZoneId in the report"),
     ErrorCode("J2D-SYS-022", None, "The workbook is not in a Trusted Location of Excel", "Excel asks to enable macros for a file outside its trusted folders", "Put the file in a Trusted Location", "The number of trusted locations in the report"),
@@ -129,6 +130,8 @@ SCRIPT_ROWS = (
     ("J2D-SCR-041", "scenario: the workbook given does not exist", "A wrong -Workbook path", "Check the path", "The path"),
     ("J2D-SCR-042", "scenario: the extraction wrote no .xlsx", "The Python extraction failed silently", "Read python.log", "python.log"),
     ("J2D-SCR-043", "scenario: the .xlsx is empty", "The extraction stopped while writing", "Read python.log", "python.log"),
+    ("J2D-SCR-050", "bootstrap: a step failed", "See the step marked FAILED in the summary", "Read bootstrap.log from the line of the failed step", "bootstrap.log"),
+    ("J2D-SCR-051", "bootstrap: the workbook is missing after the build", "An endpoint protection removed the new .xlsm (see J2D-SYS-012)", "Look in the quarantine of the endpoint protection, ask for an allow-list on out\release", "bootstrap.log"),
 )
 
 TABLE = TABLE + tuple(ErrorCode(code, None, meaning, cause, check, support) for code, meaning, cause, check, support in SCRIPT_ROWS)

@@ -113,7 +113,7 @@ Describe "help of every script" {
     BeforeEach { Reset-Sandbox }
     AfterEach { Restore-Sandbox }
 
-    foreach ($script in "run", "setup", "release", "start-mock", "stop-mock", "manual-test", "scenario") {
+    foreach ($script in "run", "setup", "release", "start-mock", "stop-mock", "manual-test", "scenario", "bootstrap") {
         foreach ($flag in "-Help", "--help") {
             It "$script.ps1 $flag shows its help and runs nothing" {
                 $r = if ($flag -eq "-Help" -and $script -ne "run") { Invoke-Script "$script.ps1" -Named @{ Help = $true } } else { Invoke-Script "$script.ps1" -Positional @($flag) }
@@ -127,7 +127,7 @@ Describe "help of every script" {
             $r.Out | Should Match "(?i)USE CASES"
         }
     }
-    foreach ($script in "setup", "release", "start-mock", "stop-mock", "manual-test", "scenario") {
+    foreach ($script in "setup", "release", "start-mock", "stop-mock", "manual-test", "scenario", "bootstrap") {
         It "$script.ps1 refuses an unknown argument with exit code 2" {
             $r = Invoke-Script "$script.ps1" -Positional @("--nonsense")
             $r.Code | Should Be 2
@@ -748,6 +748,85 @@ Describe "scenario.ps1" {
         Test-Path (Log-File "scenario") | Should Be $true
         Block-Logs
         (Invoke-Script "scenario.ps1").Code | Should Be 0
+    }
+}
+
+# --- bootstrap.ps1 ------------------------------------------------------------------------------------------------------
+
+Describe "bootstrap.ps1" {
+    BeforeEach {
+        Reset-Sandbox
+        $global:SetupExit = 0; $global:RunExit = @{}; $global:ScenarioExit = 0; $global:WriteXlsm = $true
+        # the scripts it runs are replaced by functions named like their full path: this test is about bootstrap itself
+        Set-Fake "setup" { $global:LASTEXITCODE = $global:SetupExit } -name (Join-Path $global:Scripts "setup.ps1")
+        Set-Fake "scenario" { $global:LASTEXITCODE = $global:ScenarioExit } -name (Join-Path $global:Scripts "scenario.ps1")
+        Set-Fake "run" {
+            if ($args[0] -eq "build" -and $global:WriteXlsm) { New-Item -ItemType Directory -Force "out\release" | Out-Null; Set-Content "out\release\jira2dashboard.xlsm" "wb" }
+            $global:LASTEXITCODE = if ($global:RunExit.ContainsKey($args[0])) { $global:RunExit[$args[0]] } else { 0 }
+        } -name (Join-Path $global:Scripts "run.ps1")
+    }
+    AfterEach { Restore-Sandbox }
+
+    It "installs, checks the machine, tests, builds, checks the xlsm and makes the xlsx, in this order" {
+        $r = Invoke-Script "bootstrap.ps1"
+        "$($r.Code)|$($r.Out)" | Should Match "^0\|"
+        (Calls | ForEach-Object { ($_ -split " ")[0..1] -join " " }) -join "," | Should Be "setup,run check-machine,run test,run build,scenario -Port"
+        (Calls)[-1] | Should Be "scenario -Port 8099"
+        $r.Out | Should Match "bootstrap: step 1: install"
+        ($r.Out -replace "\s+", " ") | Should Match "bootstrap: summary 1 install.* ok .* 6 build the .xlsx.* ok"
+        $r.Out | Should Match "MD5 of jira2dashboard.xlsm: [0-9a-f]{32}"
+        $r.Out | Should Match "all steps passed"
+    }
+    It "-Proxy goes to setup and -Port to the scenario" {
+        $r = Invoke-Script "bootstrap.ps1" -Named @{ Proxy = "http://proxy.example:8080"; Port = 8100 }
+        "$($r.Code)|$($r.Out)" | Should Match "^0\|"
+        (Calls)[0] | Should Be "setup -Proxy http://proxy.example:8080"
+        (Calls)[-1] | Should Be "scenario -Port 8100"
+    }
+    It "-SkipTests runs no test, -Full adds the VBA tests and the Excel scenarios" {
+        Invoke-Script "bootstrap.ps1" -Named @{ SkipTests = $true } | Out-Null
+        (Calls) -contains "run test" | Should Be $false
+        $global:FakeCalls.Clear()
+        Invoke-Script "bootstrap.ps1" -Named @{ Full = $true } | Out-Null
+        (Calls | ForEach-Object { ($_ -split " ")[0..1] -join " " }) -join "," | Should Be "setup,run check-machine,run test,run vba-tests,run test-excel,run build,scenario -Port"
+    }
+    It "stops at the first failed step, skips the next ones and says where the log is" {
+        $global:RunExit["check-machine"] = 1
+        $r = Invoke-Script "bootstrap.ps1"
+        "$($r.Code)|$($r.Out)" | Should Match "^1\|"
+        $r.Out | Should Match "step 2: FAILED \(exit code 1\)"
+        $r.Out | Should Match "skipped \(an earlier step failed\)"
+        (Calls) -contains "run build" | Should Be $false
+        $r.Out | Should Match "bootstrap: J2D-SCR-050 - FAILED. Log: "
+    }
+    It "fails when the install fails" {
+        $global:SetupExit = 1
+        $r = Invoke-Script "bootstrap.ps1"
+        "$($r.Code)|$($r.Out)" | Should Match "^1\|"
+        (Calls) -contains "run check-machine" | Should Be $false
+    }
+    It "fails when a test fails, and does not build" {
+        $global:RunExit["test"] = 1
+        "$((Invoke-Script 'bootstrap.ps1').Code)" | Should Be "1"
+        (Calls) -contains "run build" | Should Be $false
+    }
+    It "fails when the xlsm is missing after the build (an endpoint protection removed it)" {
+        $global:WriteXlsm = $false
+        $r = Invoke-Script "bootstrap.ps1"
+        "$($r.Code)" | Should Be "1"
+        ($r.Out -replace "\s+", " ") | Should Match "FAILED \(J2D-SCR-051 - .*jira2dashboard.xlsm is missing after the build.*J2D-SYS-012"
+        (Calls) -contains "scenario -Port 8099" | Should Be $false
+    }
+    It "fails when the xlsx step fails" {
+        $global:ScenarioExit = 1
+        "$((Invoke-Script 'bootstrap.ps1').Code)" | Should Be "1"
+    }
+    It "writes its log, and goes on when the log cannot be written" {
+        Invoke-Script "bootstrap.ps1" | Out-Null
+        Stop-Transcript | Out-Null
+        Test-Path (Log-File "bootstrap") | Should Be $true
+        Block-Logs
+        (Invoke-Script "bootstrap.ps1").Code | Should Be 0
     }
 }
 

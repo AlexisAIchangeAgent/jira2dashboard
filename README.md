@@ -23,6 +23,7 @@ Excel formulas compute every figure. No server, no Python at run time, and the d
 On a developer machine that meets the [requirements](#5-requirements), in PowerShell, from the repository folder:
 
 ```powershell
+powershell -ExecutionPolicy Bypass -File scripts\bootstrap.ps1    # all of the below in one go (-Full: Excel tests too)
 powershell -ExecutionPolicy Bypass -File scripts\setup.ps1        # .venv with pywin32 and the test tools
 .\scripts\run.ps1 check-machine                                   # 22 checks, all OK
 .\scripts\run.ps1 test                                            # fast tests, under a minute
@@ -141,6 +142,7 @@ directly, without `cmd /c` or `2>&1`.
 
 | Script | What it does | Options |
 |---|---|---|
+| `bootstrap.ps1` | Everything in one go: `setup.ps1`, `check-machine`, the fast tests, `build` (.xlsm), then the .xlsx through `scenario.ps1`; table of the steps, files made and MD5 of the .xlsm; log `scripts\logs\bootstrap.log` | `-Proxy`, `-Port`, `-Full`, `-SkipTests` |
 | `setup.ps1` | Creates `.venv`, installs `requirements.txt` (pywin32 and the test tools) | `-Proxy` |
 | `activate.ps1` | Optional: activates `.venv` in the console (dot-source it) | none |
 | `run.ps1` | Runs a command (table below) | `<command> [options]` |
