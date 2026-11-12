@@ -47,6 +47,8 @@ for that run only, waits for a key only on a double-click or with `J2D_PAUSE=1`,
 one: copy `stop-mock.cmd` and change its `set` lines. `.cmd` files are ASCII with CRLF and their description line has no
 `<>|&^%!` (cmd would take them for operators); `tests/unit/test_cmd_launchers.py` pins all this. From Git Bash call them with
 `MSYS_NO_PATHCONV=1 cmd.exe /c .\scripts\x.cmd`: otherwise `/c` becomes a path and an interactive cmd opens.
+A new `.ps1` also needs: its name in the two lists of "help of every script" and a `Describe` in `tests/ps/Scripts.Tests.ps1` (the
+scripts it runs are faked by functions named like their full path), its `J2D-SCR-nnn` rows in `error_codes.py`, a row in the README table.
 
 A release holds the workbook only (AL, 2026-11-12: no zip of the code); the "Source code" archives that GitHub adds to every
 release (they cannot be removed) leave out the `export-ignore` paths of `.gitattributes` (CLAUDE.md, `archive/`,
@@ -307,7 +309,9 @@ then `mermaid.parse`), and check every `](#anchor)` link against the headings.
   run it, not a Bash heredoc (a heredoc turned `tests\\features` into a form feed in a Markdown file).
   Pattern: `assert s.count(old) == 1` before each replace, write with `newline="\n"`, run with `.venv/Scripts/python.exe`.
 - In those `.py` edit scripts, VBA text with `""` ends a `"""` string early and `"\vba-tests.log"` holds a `\v`:
-  use `r'''...'''` and run `python -m py_compile` on the script first.
+  use `r'''...'''` and run `python -m py_compile` on the script first. `\r`, `\b`, `\t`, `\v` in `out\release`, `\bootstrap`...
+  become control characters without a warning: raw strings, then `grep -cP '[\x00-\x08\x0b-\x1f]' file` must give 0. Create the
+  script with the Write tool, not a Bash heredoc (one ended at end-of-file and applied nothing).
 - While `test-excel` / `vba-tests` run in the background, do not edit `src/` or `vba/`: each Excel module builds its
   workbook from `vba/*.bas` when it starts, and the child processes import `src`.
 - Pester fakes of python are functions: a line they write to stderr lands in the transcript as a decorated error record,
@@ -322,6 +326,10 @@ then `mermaid.parse`), and check every `](#anchor)` link against the headings.
   MainWindowTitle`), never an older one. Mutation proof of a VBA test: copy the module to `$TEMP`, mutate it with a Python
   script (`assert count == 1`), run, restore with `cp` in the same command. A new check that reads Excel objects must not
   raise (a raise opens that dialog): wrap it like `AxisEnds` in `modTests.bas`.
+- **Excel's writes undone (a machine with an endpoint protection):** `build` prints `built ...` then Excel cannot open the file, or
+  `mock-workbook` leaves the copy empty (`J2D-SYS-012` / `J2D-SYS-013`, then `J2D-CFG-002` in the scenario), while a workbook saved by
+  hand stays and the macros of a downloaded release run. `run.ps1 check-machine` tests it (`save: ...`, 3 s after the write). Fix: an
+  allow-list on the repository folder for `python.exe` and `EXCEL.EXE`; or use the workbook of a release, no build needed.
 - **Excel hygiene (AL's rule):** after every Excel run, even a green one, `tasklist | grep -c EXCEL` must be back to what it was;
   stop only the Excel your run started (start time; title "Microsoft Visual Basic" when hung), never an older one.
 - The Excel that `manual-test.ps1` opens is AL's: leave it open; when AL says done, check `tasklist`, then `stop-mock.ps1 -Port 8099`.
