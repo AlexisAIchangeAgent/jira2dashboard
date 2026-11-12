@@ -19,15 +19,6 @@ from jira2dashboard.params.write import write_params
 from jira2dashboard.testbench import run_vba_tests as rvt
 
 DELIVERY_NAME = "jira2dashboard.xlsm"
-MISSING_CODE = "J2D-SYS-012"          # error_codes.TABLE: the workbook is gone after Excel saved it
-
-
-def missing_message(target: Path, when: str) -> str:
-    """What to read when the workbook that Excel has just saved is not there any more (an endpoint protection that
-    quarantines a new file with macros is the usual cause; the build itself raised no error)."""
-    return (f"{MISSING_CODE} - {target} is gone {when}. Excel saved it, so something removed it: most likely an endpoint "
-            f"protection that quarantines a new file with macros. Look in its quarantine or its log for {target.name}, and ask "
-            f"for an allow-list on the folder {target.parent}. Without that, use the workbook of a release: no build is needed.")
 
 
 def target_for(name: str) -> Path:
@@ -98,7 +89,7 @@ def main(argv: list[str] | None = None) -> int:
     clean.main()                                                       # no intermediates left from older runs
     build_delivery(target, args.version)
     if not target.exists():
-        print(missing_message(target, "right after Excel saved it"))
+        print(R.missing_message(target, "right after Excel saved it"))
         return 1
     print(f"built {target}")
     try:
@@ -106,7 +97,7 @@ def main(argv: list[str] | None = None) -> int:
     except RuntimeError:
         if target.exists():
             raise
-        print(missing_message(target, "when Excel opened it to compile the VBA"))
+        print(R.missing_message(target, "when Excel opened it to compile the VBA"))
         return 1
     print("compile:", result)
     return 0 if result == "COMPILED_OK" else 1

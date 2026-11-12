@@ -12,6 +12,7 @@ import datetime as dt
 import io
 import shutil
 import sys
+import time
 from pathlib import Path
 
 from jira2dashboard import rovo_prompt as RP
@@ -25,6 +26,7 @@ from jira2dashboard.mockjira.generator import PIS as GENERATED_PIS
 from jira2dashboard.mockjira.server import MOCK_EMAIL, MOCK_TOKEN
 from jira2dashboard.params.model import load_all
 from jira2dashboard.paths import MANUAL_TEST_DIR, RELEASE_DIR
+from jira2dashboard.standalone.params_book import read_params
 from jira2dashboard.standalone.xlsx_write import Sheet, write_xlsx
 
 COPY_NAME = "jira2dashboard4manualtest.xlsm"
@@ -135,6 +137,15 @@ def fill_copy(path: Path, url: str) -> None:
         del wb, app                                                   # release every COM proxy before Excel quits
 
 
+SETTLE_S = 3        # seconds to wait before reading the copy back: a protection that undoes a write does it a moment later
+
+
+def holds_the_fill(path: Path, url: str) -> bool:
+    """Does the saved copy hold the address that fill_copy wrote? Read as a file (no Excel), as the extraction reads it."""
+    config = next(sheet for sheet in read_params(path) if sheet.name == "Config")
+    return {row[0]: row[1] for row in config.rows}.get("BaseUrl") == url
+
+
 EXAMPLES = """
 examples:
   scripts\\run.ps1 mock-workbook                                 the copy of out\\release\\jira2dashboard.xlsm
@@ -162,7 +173,12 @@ def main(argv: list[str] | None = None) -> int:
     except PermissionError:
         print(f"mock-workbook: close {COPY.name} first (it is still open in Excel)")
         return 1
-    fill_copy(COPY, base_url(args.port))
+    url = base_url(args.port)
+    fill_copy(COPY, url)
+    time.sleep(SETTLE_S)
+    if not holds_the_fill(COPY, url):
+        print(f"mock-workbook: {com.lost_message(COPY, 'the address of the fake Jira in the sheet Config')}")
+        return 1
     print(f"mock-workbook: {COPY}")
     (COPY.parent / CSV_NAME).write_bytes(rovo_csv(args.port).encode("utf-8"))
     print(f"mock-workbook: {COPY.parent / CSV_NAME} (to try Load settings CSV; type the connection by hand)")

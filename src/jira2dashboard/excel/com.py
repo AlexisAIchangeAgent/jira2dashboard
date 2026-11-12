@@ -374,6 +374,26 @@ def save_as_xlsm(wb, path: Path, overwrite: bool = False) -> Path:
     wb.SaveAs(str(target), XL_OPEN_XML_WORKBOOK_MACRO_ENABLED)
     return target
 
+
+MISSING_CODE = "J2D-SYS-012"          # error_codes.TABLE: the file is gone after Excel saved it
+LOST_CODE = "J2D-SYS-013"             # error_codes.TABLE: what Excel wrote to a file was undone
+
+
+def missing_message(target: Path, when: str) -> str:
+    """What to read when a workbook that Excel has just saved is not there any more (an endpoint protection that removes
+    what an Excel started by a script writes is the usual cause; Excel itself raised no error)."""
+    return (f"{MISSING_CODE} - {target} is gone {when}. Excel saved it, so something removed it: most likely an endpoint "
+            f"protection that removes what an Excel started by a script writes. Run scripts\\run.ps1 check-machine (it tests "
+            f"this), look in the quarantine or the log of the endpoint protection for {target.name}, and ask for an "
+            f"allow-list on the folder {target.parent}. Without that, use the workbook of a release: no build is needed.")
+
+
+def lost_message(target: Path, what: str) -> str:
+    """What to read when the file Excel saved does not hold what Excel wrote (the write was undone)."""
+    return (f"{LOST_CODE} - {target} does not hold {what}, which Excel wrote and saved. Something undid the write: most likely "
+            f"an endpoint protection that cancels what an Excel started by a script writes. Run scripts\\run.ps1 "
+            f"check-machine (it tests this) and ask for an allow-list on the folder {target.parent}.")
+
 def open_without_macros(app, path: Path):
     """Open a workbook with all macros disabled (for checks)."""
     app.AutomationSecurity = MSO_AUTOMATION_SECURITY_FORCE_DISABLE

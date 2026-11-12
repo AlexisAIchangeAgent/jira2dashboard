@@ -15,7 +15,7 @@ Commands:
   test-excel     the scenarios that drive Excel (marker excel, no network)
   test-network   the Excel scenarios that need the network (marker network)
   vba-tests      build, compile and run the VBA test suite (--offline, --bisect, --out name.xlsm)
-  check-machine  22 checks of this machine: Excel, access to the VBA project, compile, macro of the workbook...
+  check-machine  24 checks of this machine: Excel, access to the VBA project, what Excel writes stays, compile, macro of the workbook...
   diagnose       a report to paste into a ticket when the macros are blocked (hashes, origin, Office, security products)
   mock-jira      the fake Jira on http://127.0.0.1:8099 (--anomalies, --issues, --port...)
   mock-workbook  a copy of a workbook with Config, Iterations and PIs filled for the fake Jira
@@ -58,7 +58,7 @@ $commands = [ordered]@{
     "test-excel"    = "the scenarios that drive Excel (marker excel, no network)"
     "test-network"  = "the Excel scenarios that need the network (marker network)"
     "vba-tests"     = "build, compile and run the VBA test suite (--offline, --bisect, --out name.xlsm)"
-    "check-machine" = "22 checks of this machine: Excel, access to the VBA project, compile, macro of the workbook..."
+    "check-machine" = "24 checks of this machine: Excel, access to the VBA project, what Excel writes stays, compile, macro of the workbook..."
     "diagnose"      = "a report to paste into a ticket when the macros are blocked (hashes, origin, Office, security products)"
     "mock-jira"     = "the fake Jira on http://127.0.0.1:8099 (--anomalies, --issues, --port...)"
     "mock-workbook" = "a copy of a workbook with Config, Iterations and PIs filled for the fake Jira"

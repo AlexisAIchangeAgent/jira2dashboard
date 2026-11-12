@@ -25,7 +25,7 @@ On a developer machine that meets the [requirements](#5-requirements), in PowerS
 ```powershell
 powershell -ExecutionPolicy Bypass -File scripts\bootstrap.ps1    # all of the below in one go (-Full: Excel tests too)
 powershell -ExecutionPolicy Bypass -File scripts\setup.ps1        # .venv with pywin32 and the test tools
-.\scripts\run.ps1 check-machine                                   # 22 checks, all OK
+.\scripts\run.ps1 check-machine                                   # 24 checks, all OK
 .\scripts\run.ps1 test                                            # fast tests, under a minute
 .\scripts\run.ps1 build                                           # out\release\jira2dashboard.xlsm
 .\scripts\manual-test.ps1                                         # fake Jira + filled copy in a new Excel
@@ -167,7 +167,7 @@ publishes); `activate.cmd` opens a console with `.venv` activated. `_launch.cmd`
 | `test-network` | Excel scenarios that also need the network | pytest arguments |
 | `test-scripts` | Pester tests of `scripts\*.ps1` and their coverage; fails under 93 % | `-Filter`, `-Minimum` |
 | `vba-tests` | Builds, compiles and runs the VBA tests | `--offline`, `--bisect`, `--out` |
-| `check-machine` | 22 checks: Python, Excel, VBA project access, compile, macro of the built workbook | `--workbook` |
+| `check-machine` | 24 checks: Python, Excel, VBA project access, what Excel writes stays on disk, compile, macro of the built workbook | `--workbook` |
 | `diagnose` | Report to paste into a ticket when the macros are blocked | `--workbook` |
 | `mock-jira` | The fake Jira on `http://127.0.0.1:8099` | `--anomalies`, `--issues`, `--port` |
 | `mock-workbook` | Writes the manual-test copy | `--workbook`, `--port` |

@@ -99,3 +99,41 @@ def test_a_copy_still_open_in_excel_is_named_not_a_raw_error(tmp_path, capsys, m
     monkeypatch.setattr(M.shutil, "copyfile", locked)
     assert M.main(["--workbook", str(source)]) == 1
     assert f"close {M.COPY_NAME} first" in capsys.readouterr().out
+
+
+# --- Excel's writes undone (an endpoint protection), seen on another machine: the copy stayed empty ------------------------
+
+def prepare_main(tmp_path, monkeypatch, written):
+    """`main` with a source, a copy in tmp_path and a fill_copy that leaves `written` (the Config values it saves)."""
+    from jira2dashboard.standalone.xlsx_write import write_xlsx
+    source = tmp_path / "jira2dashboard.xlsm"
+    source.write_bytes(b"x")
+    monkeypatch.setattr(M, "COPY", tmp_path / "out" / M.COPY_NAME)
+    monkeypatch.setattr(M, "SETTLE_S", 0)
+    monkeypatch.setattr(M, "fill_copy", lambda path, url: write_xlsx(path, M.params_book(url, written)))
+    return source
+
+
+def test_a_copy_that_holds_the_fill_is_accepted(tmp_path, monkeypatch, capsys):
+    source = prepare_main(tmp_path, monkeypatch, None)
+    assert M.main(["--workbook", str(source)]) == 0
+    assert f"mock-workbook: {M.COPY}" in capsys.readouterr().out
+
+
+def test_a_copy_that_does_not_hold_the_fill_is_named_with_its_code_not_left_for_the_extraction(tmp_path, monkeypatch, capsys):
+    source = prepare_main(tmp_path, monkeypatch, {"BaseUrl": ""})
+    assert M.main(["--workbook", str(source)]) == 1
+    out = capsys.readouterr().out
+    assert "J2D-SYS-013" in out and "endpoint protection" in out and "check-machine" in out
+    assert not (M.COPY.parent / M.CSV_NAME).exists()
+
+
+def test_the_messages_of_the_com_layer_carry_codes_of_the_table():
+    from jira2dashboard import error_codes
+    from jira2dashboard.excel import com
+    from pathlib import Path
+    codes = {row.code for row in error_codes.TABLE}
+    assert {com.MISSING_CODE, com.LOST_CODE} <= codes
+    target = Path("C:/x/out/release/jira2dashboard.xlsm")
+    assert com.MISSING_CODE in com.missing_message(target, "after the save") and "jira2dashboard.xlsm" in com.missing_message(target, "x")
+    assert com.LOST_CODE in com.lost_message(target, "the change")

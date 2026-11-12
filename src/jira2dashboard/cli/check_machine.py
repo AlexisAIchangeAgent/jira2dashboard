@@ -1,7 +1,7 @@
 """Check this machine for jira2dashboard: run every function of excel/com.py against the real Excel.
 
-22 checks, each reported OK or KO with its reason: Python and pywin32, Excel starts and quits, a workbook is created,
-filled and saved as .xlsm, access to the VBA project (Trust Center), a module is added and compiled, a macro runs, a
+24 checks, each reported OK or KO with its reason: Python and pywin32, Excel starts and quits, a workbook is created,
+filled and saved as .xlsm and still there seconds later (an endpoint protection can undo it), access to the VBA project (Trust Center), a module is added and compiled, a macro runs, a
 child process compiles and runs a workbook, the clean-up of a hung Excel. Its files go to out\\inter. Exit code 0 when
 every check passes, 1 otherwise. Run it first on a new machine.
 """
@@ -9,6 +9,7 @@ import datetime as dt
 import logging
 import subprocess
 import sys
+import time
 import traceback
 from pathlib import Path
 
@@ -251,6 +252,44 @@ def vba_steps(wb, ws, ctx):
     s_button()
 
 
+SETTLE_S = 3        # seconds to wait before looking again: an endpoint protection undoes a write a moment later
+
+
+def persistence_checks(app):
+    """Does what an Excel started by a script writes stay on the disk? (build, mock-workbook and the scenario depend on it)"""
+    path = OUT / "persist.xlsm"
+
+    @step("save: a file made by Excel is still there a few seconds later")
+    def s_kept():
+        wb = R.new_workbook(app)
+        wb.Worksheets(1).Range("A1").Value = "first"
+        R.save_as_xlsm(wb, path, overwrite=True)
+        wb.Close(False)
+        time.sleep(SETTLE_S)
+        assert path.exists(), R.missing_message(path, f"{SETTLE_S} s after Excel saved it")
+        return f"{path.name} present after {SETTLE_S} s ({path.stat().st_size} bytes)"
+    kept = s_kept()
+
+    @step("save: a change made by Excel to an existing file is kept")
+    def s_change():
+        wb = R.open_without_macros(app, path)
+        wb.Worksheets(1).Range("B1").Value = "second"
+        wb.Save()
+        wb.Close(False)
+        time.sleep(SETTLE_S)
+        wb = R.open_without_macros(app, path)
+        try:
+            back = wb.Worksheets(1).Range("B1").Value
+        finally:
+            wb.Close(False)
+        assert back == "second", R.lost_message(path, "the change in B1")
+        return f"B1 reads {back!r} after {SETTLE_S} s"
+    if kept:
+        s_change()
+    else:
+        skip("save: a change made by Excel to an existing file is kept", "the file is not there")
+
+
 def reopen_checks(app, path: Path):
     @step("reopen: open_without_macros, read code back")
     def s_reopen():
@@ -311,6 +350,7 @@ def main(argv: list[str] | None = None) -> int:
             path = build_and_check(app, trusted)
             if path and trusted:
                 reopen_checks(app, path)
+            persistence_checks(app)
             macro_check(app, args.workbook or diag.default_workbook())
     except Exception as err:  # noqa: BLE001
         RESULTS.append(("FAIL", "excel_session", describe(err)))
