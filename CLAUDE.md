@@ -287,7 +287,8 @@ then `mermaid.parse`), and check every `](#anchor)` link against the headings.
   the quickest repro. It predates the 2026-11-04 review. Read section 8b of the deleted handoff (see above) before chasing it.
   Since 2026-11-05 the event log names `ntdll.dll`, code `0xc0000028` or `0xc00000ff` (a failed stack unwind), offset
   `0x1d3df`; it also hits `BEGIN flow sheets: charts` of a second build in the same Excel (scenario "second calcul": 1 in 5
-  at 61507d1 on 2026-11-12, `T_FlowBuild` alone 0 in 10). A crash there is this defect, not the chart code.
+  at 61507d1 on 2026-11-12, `T_FlowBuild` alone 0 in 10). Measured as this defect then; still run the A/B above before
+  dismissing a new crash there.
 - **Git Bash rewrites `/switch` arguments** of Windows programs into paths (`/update` -> `C:/.../Git/update`, also
   `wevtutil /q:`): prefix the command with `MSYS_NO_PATHCONV=1`.
 - The PowerShell tool is slow here (CIM / event-log queries time out): use Bash `tasklist` for processes.

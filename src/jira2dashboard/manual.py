@@ -87,7 +87,7 @@ def manual(mandatory: tuple[str, ...]) -> list[tuple[str, str]]:
             f"Excel stays usable. At the end, {STATUS_CELL} gives the result and the rows under it its details, one per line "
             "(name in column A, value in column B).",
             f'"{CANCEL_CAPTION}" stops it before the raw sheets are written: the previous results stay.',
-            "At the end the sheets ItemFlow, DailyLoad, Metrics, ChartData and the charts are rebuilt to the size of "
+            "At the end the sheets ItemFlow, DailyLoad, Metrics, PIMetrics, ChartData and the charts are rebuilt to the size of "
             "the new data. Run it as often as needed.",
             "The charts are in the sheet Charts, right of the Dashboard. Its cell B2: the team of the Flow Distribution chart.",
             "Feature Predictability, per PI of the sheet PIs: the Features done before the end of the PI over the Features "
