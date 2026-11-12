@@ -175,7 +175,7 @@ Describe "run.ps1" {
     }
     It "asks for setup.ps1 when there is no .venv" {
         $r = Invoke-Script "run.ps1" -Positional @("test")
-        $r.Error | Should Match "J2D-SCR-003 - No .venv: run scripts.setup.ps1 -Dev first"
+        $r.Error | Should Match "J2D-SCR-003 - No .venv: run scripts.setup.ps1 first"
     }
 
     $commands = [ordered]@{
@@ -266,11 +266,6 @@ Describe "setup.ps1" {
         $r.Out | Should Match "Setup OK \(requirements.txt\)"
         (Calls) | Should Be @("py -3.14 -m venv .venv", "python -m pip install --upgrade pip",
                               "python -m pip install -r requirements.txt", "python -c import win32com.client, pythoncom; print('pywin32 import OK')")
-    }
-    It "-Dev installs requirements-dev.txt" {
-        Fake-Py
-        (Invoke-Script "setup.ps1" -Named @{ Dev = $true }).Out | Should Match "Setup OK \(requirements-dev.txt\)"
-        (Calls) -contains "python -m pip install -r requirements-dev.txt" | Should Be $true
     }
     It "-Proxy goes to both pip calls" {
         Fake-Py

@@ -23,7 +23,7 @@ Excel formulas compute every figure. No server, no Python at run time, and the d
 On a developer machine that meets the [requirements](#5-requirements), in PowerShell, from the repository folder:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File scripts\setup.ps1 -Dev   # .venv with pywin32 and the test tools
+powershell -ExecutionPolicy Bypass -File scripts\setup.ps1        # .venv with pywin32 and the test tools
 .\scripts\run.ps1 check-machine                                   # 22 checks, all OK
 .\scripts\run.ps1 test                                            # fast tests, under a minute
 .\scripts\run.ps1 build                                           # out\release\jira2dashboard.xlsm
@@ -122,7 +122,7 @@ answered.
 | `tests/` | `unit/` (no Excel), `features/` + `steps/` (Gherkin), `integration/`, `ps/` (Pester tests of the scripts) |
 | `scripts/` | PowerShell entry points and their `.cmd` launchers (section [6](#6-scripts-and-commands)); `logs/` holds the log of the last run of each |
 | `docs/`, `rovo/` | Domain references (frozen); Rovo agents and Confluence template |
-| `pyproject.toml`, `requirements*.txt` | pytest and coverage settings; runtime and development dependencies |
+| `pyproject.toml`, `requirements.txt` | pytest and coverage settings; the one list of dependencies (pywin32, test tools) |
 | `CLAUDE.md`, `.claude/`, `archive/` | Notes and settings for Claude Code, old probe scripts; left out of the release zip |
 | `out/release/`, `out/manual_test/` | Delivered files; manual-test copy. Never cleaned. |
 | `out/inter/` | Everything else. Emptied by `build`. |
@@ -141,7 +141,7 @@ directly, without `cmd /c` or `2>&1`.
 
 | Script | What it does | Options |
 |---|---|---|
-| `setup.ps1` | Creates `.venv`, installs pywin32 (plus test tools with `-Dev`) | `-Dev`, `-Proxy` |
+| `setup.ps1` | Creates `.venv`, installs `requirements.txt` (pywin32 and the test tools) | `-Proxy` |
 | `activate.ps1` | Optional: activates `.venv` in the console (dot-source it) | none |
 | `run.ps1` | Runs a command (table below) | `<command> [options]` |
 | `start-mock.ps1` | Starts the fake Jira (`mock@example.com` / `mock-token`), prints the `python.exe` that serves it | `-Port`, `-Issues`, `-Hidden` |
@@ -181,7 +181,7 @@ publishes); `activate.cmd` opens a console with `.venv` activated. `_launch.cmd`
 flowchart TD
     subgraph setup ["First time"]
         direction LR
-        s1["setup.ps1 -Dev"] --> s2["run.ps1 check-machine"] --> s3["run.ps1 build"] --> s4["manual-test.ps1"]
+        s1["setup.ps1"] --> s2["run.ps1 check-machine"] --> s3["run.ps1 build"] --> s4["manual-test.ps1"]
     end
     subgraph change ["Each change"]
         direction LR

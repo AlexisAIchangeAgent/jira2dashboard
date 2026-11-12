@@ -7,7 +7,7 @@ Runs a command of jira2dashboard with the Python of .venv (tests, build of the w
 
 No venv activation is needed: the script uses .venv\Scripts\python.exe and sets PYTHONPATH to src. The arguments
 after the command reach Python (or pytest) untouched, so ".\scripts\run.ps1 <command> --help" shows the options of
-that command. Create .venv first with scripts\setup.ps1 (-Dev for the test tools).
+that command. Create .venv first with scripts\setup.ps1.
 
 Commands:
   test           fast unit and Gherkin tests, no Excel (pytest arguments allowed)
@@ -25,7 +25,7 @@ Commands:
   test-scripts   Pester tests of scripts\*.ps1 and their coverage; fails under 93 % (-Filter, -Minimum)
 
 USE CASES
-  First time on a machine            powershell -ExecutionPolicy Bypass -File scripts\setup.ps1 -Dev
+  First time on a machine            powershell -ExecutionPolicy Bypass -File scripts\setup.ps1
   While you code                     .\scripts\run.ps1 test            (fast, no Excel); one test: .\scripts\run.ps1 test tests/unit/test_x.py::test_name
   Before a commit                    .\scripts\run.ps1 coverage ; vba-tests ; test-excel ; test-network ; test-scripts ; build
   Check the scripts of this folder   .\scripts\run.ps1 test-scripts        (Pester, coverage of the .ps1 under 93 % fails)
@@ -91,7 +91,7 @@ if ($args.Count -gt 1) { $rest = $args[1..($args.Count - 1)] }
 $ErrorActionPreference = "Stop"
 $root = Split-Path -Parent $PSScriptRoot
 $python = Join-Path $root ".venv\Scripts\python.exe"
-if (-not (Test-Path $python)) { throw "J2D-SCR-003 - No .venv: run scripts\setup.ps1 -Dev first." }
+if (-not (Test-Path $python)) { throw "J2D-SCR-003 - No .venv: run scripts\setup.ps1 first." }
 Set-Location $root
 # Log of this run (last run of each command): scripts\logs\run_<command>.log, so that the fake Jira that start-mock.ps1
 # runs in its own window (run.ps1 mock-jira) does not write over the log of a test run. A log failure never stops the script.

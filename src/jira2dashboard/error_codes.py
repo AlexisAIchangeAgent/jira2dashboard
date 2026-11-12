@@ -106,7 +106,7 @@ TABLE: tuple[ErrorCode, ...] = (
 SCRIPT_ROWS = (
     ("J2D-SCR-001", "A script got an argument it does not know", "A typo in an option", "Run the script with --help", "The command line"),
     ("J2D-SCR-002", "run.ps1: unknown command", "A typo in the command", "Run .\\scripts\\run.ps1 --help for the list", "The command line"),
-    ("J2D-SCR-003", "No .venv", "setup.ps1 was not run on this machine", "Run scripts\\setup.ps1 (-Dev for the tests)", "None"),
+    ("J2D-SCR-003", "No .venv", "setup.ps1 was not run on this machine", "Run scripts\\setup.ps1", "None"),
     ("J2D-SCR-004", "setup: the virtual environment was not created", "Python 3.14 is not installed or not found by py", "Install Python 3.14 (py -3.14 --version)", "The output of py -0"),
     ("J2D-SCR-005", "setup: pip could not upgrade itself", "No access to the package index (proxy)", "Run setup.ps1 -Proxy http://proxy:port", "setup.log"),
     ("J2D-SCR-006", "setup: pip could not install the requirements", "No access to the package index, or a wheel is missing", "Run setup.ps1 -Proxy http://proxy:port", "setup.log"),
