@@ -1000,6 +1000,13 @@ def _rovo_no_value(world):
     assert "127.0.0.1" not in text
 
 
+@then("la feuille RovoPrompt ne cite aucun code de contrôle de données, seulement leur titre")
+def _rovo_no_dc_code(world):
+    text = "\n".join(rovo_lines(world))
+    assert not re.search(r"\bDC\d\d", text), re.findall(r"\bDC\d\d", text)       # Rovo knows no DC code: the title tells the check
+    assert "Story or task without parent" in text
+
+
 @then("l'état du tableau de bord dit combien de lignes sont sélectionnées pour Rovo")
 def _rovo_status(world):
     assert world["status"].startswith(f"Rovo prompt | Lines: {len(rovo_lines(world))}, selected in the sheet RovoPrompt"), world["status"]
@@ -1059,6 +1066,11 @@ def _rovo_mock_iterations(world):
 def as_day(value) -> str:
     """A cell of a date column: the text the CSV wrote (yyyy-mm-dd), or a date Excel made of it."""
     return value.strftime("%Y-%m-%d") if hasattr(value, "strftime") else str(value)[:10]
+
+
+@then("le chargement ne signale aucun problème")
+def _rovo_no_problem(world):
+    assert "Problems" not in world["summary"], world["summary"]       # the CSV of the prompt (no connection line) loads clean
 
 
 @when("je charge ce CSV avec le bouton Load settings CSV")

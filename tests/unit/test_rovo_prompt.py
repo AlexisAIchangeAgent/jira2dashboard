@@ -38,5 +38,42 @@ def test_the_connection_parameters_are_kept_out_of_the_load_and_exist_in_config(
 
 def test_the_prompt_never_asks_for_or_carries_a_secret():
     text = "\n".join(text for _part, _name, text in RP.spec_rows())
-    assert "TO BE TYPED BY THE USER" in text and "Never write an API token" in text
+    assert "Never write an API token" in text
     assert "http" not in text.lower() and "@" not in text         # no address and no e-mail: only names and meanings
+
+
+# --- what Rovo is told: titles of the checks (it knows no DC code), and a CSV that Load settings CSV loads without problems ----
+
+def config_rows():
+    from jira2dashboard.params.model import load_all
+    sheet = next(s for s in load_all() if s.name == "Config")
+    return [dict(zip(sheet.header, row)) for row in sheet.rows]
+
+
+def test_rovo_is_given_the_title_of_a_data_check_never_its_code():
+    import re
+
+    from jira2dashboard.flow.checks import CHECKS
+    titles = {c.title for c in CHECKS}
+    for row in config_rows():
+        text = f"{row.get('Description') or ''} {row.get('Example') or ''}"
+        assert not re.search(r"\bDC\d\d", text), row["Parameter"]            # the lines of Config go to Rovo as they are
+        if "data check" in text:
+            quoted = re.findall(r'"([^"]+)"', text)
+            assert quoted and set(quoted) <= titles, (row["Parameter"], set(quoted) - titles)
+    assert not re.search(r"\bDC\d\d", "\n".join(t for _p, _n, t in RP.spec_rows()))
+    assert "Story or task without parent" in next(r["Description"] for r in config_rows() if r["Parameter"] == "ParentRequiredTypes")
+
+
+def test_the_workflow_rules_name_the_two_workflows_the_workbook_accepts():
+    from jira2dashboard.params.model import WORKFLOWS
+    for name in ("Workflows", "Transitions"):
+        assert all(workflow in RP.SHEET_RULES[name] for workflow in WORKFLOWS), name
+    assert "exactly one of each" in RP.SHEET_RULES["Workflows"]
+    assert "same Workflow" in RP.SHEET_RULES["Transitions"]
+
+
+def test_rovo_is_told_to_leave_the_connection_parameters_out_so_the_csv_loads_without_a_problem():
+    text = "\n".join(text for part, _name, text in RP.spec_rows() if part == RP.TEXT)
+    assert "do not write a line for them" in text and "except the connection parameters" in text
+    assert "for information" not in text

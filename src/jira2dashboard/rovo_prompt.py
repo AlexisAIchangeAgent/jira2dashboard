@@ -26,10 +26,10 @@ INTRO = (
     f"- Answer only from what you can see in Jira. When you cannot see a value, write {UNKNOWN} in Value and say in Note what "
     "I must check.",
     "- Never invent a field id, a status name or a date.",
-    "- Never write an API token or a password: for ApiToken write TO BE TYPED BY THE USER.",
+    "- Never write an API token or a password.",
     "- This text holds no value of my workbook: only the names and the meaning of what to fill.",
-    "- The connection parameters (" + ", ".join(PROTECTED) + ") are typed by hand: give your value for information, the workbook "
-    "does not load them from your answer.",
+    "- The connection parameters (" + ", ".join(PROTECTED) + ") are typed by hand in the workbook, which never loads them from "
+    "your answer: do not write a line for them.",
     "",
 )
 CONFIG_TITLE = ("SHEET Config - one line per parameter: name, mandatory or optional, meaning, and an example of the form "
@@ -43,13 +43,16 @@ SHEET_RULES = {
                   "Start = first day (yyyy-mm-dd, included). End = the day the next iteration starts (yyyy-mm-dd, excluded).",
     "PIs": "One row per Program Increment (the long cycle that holds several iterations). PI = the value of the PI field of "
            "Jira, of the form PI#01-2026. Start and End as for the iterations.",
-    "Workflows": "One row per status of each workflow used by the issue types of the projects above (say in Note which issue "
-                 "types use the workflow). Order = position in the normal flow (1 = first status, - when none). Category = "
-                 "Backlog, Active (work in progress), Wait (waiting), Done, Removed (cancelled) or Unclassified. IsStart = 1 "
-                 "for the status where the work starts, IsEnd = 1 for the final status, IsFree = 1 for a status reachable "
-                 "from any status; 0 otherwise.",
-    "Transitions": "One row per allowed move between two statuses of a workflow. Workflow, From, To, and Type = forward, "
-                   "back, back to backlog or exit.",
+    "Workflows": "One row per status of each workflow. Workflow = Team for the statuses used by the issue types of the Team "
+                 "projects (stories, tasks, sub-tasks), Feature for the statuses used by the features of the Program project: "
+                 "only these two values (say in Note which Jira workflow and issue types the status comes from). Status = the "
+                 "status name exactly as in Jira. Order = position in the normal flow (1 = first status, - when none). "
+                 "Category = Backlog, Active (work in progress), Wait (waiting), Done, Removed (cancelled) or Unclassified. "
+                 "IsStart = 1 for the status where the work starts and IsEnd = 1 for the final status: exactly one of each "
+                 "per Workflow. IsFree = 1 for a status reachable from any status; 0 otherwise.",
+    "Transitions": "One row per allowed move between two statuses. Workflow = Team or Feature, as in the sheet Workflows. "
+                   "From and To = status names listed for that same Workflow in the sheet Workflows. Type = forward, back, "
+                   "back to backlog or exit.",
 }
 FORMAT = (
     "",
@@ -61,8 +64,8 @@ FORMAT = (
     "- Column: the parameter name for Config; the column name for the other sheets.",
     "- Value: what to type in the cell.",
     "- Note: where you found it in Jira, or what I must check. Keep it short.",
-    "Give one line for every parameter of Config, even when the Value is " + UNKNOWN + ", and one line for every cell of the "
-    "other sheets. No text outside the table.",
+    "Give one line for every parameter of Config except the connection parameters, even when the Value is " + UNKNOWN + ", and "
+    "one line for every cell of the other sheets. No text outside the table.",
 )
 
 

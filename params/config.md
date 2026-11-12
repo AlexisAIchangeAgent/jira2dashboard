@@ -28,18 +28,18 @@ empty here, and **`ApiToken` must stay empty** (a test refuses a token in this f
 | AsOf |  | 2026-11-03 18:00 | True | UTC date and time of the extraction, for example 2026-11-03 18:00. Open statuses run up to it. Required to extract: the macro stops with a message if it is empty |
 | TimeoutSeconds | 60 | 60 | False | Connect, send and receive time limit of one request, in seconds |
 | MaxRetries | 4 | 4 | False | Retries after a 429 or a server error (5xx), so 5 attempts at most |
-| ParentRequiredTypes | Story,Task | Story,Task | False | Issue types of the team projects that must have a parent (data check DC01), separated by commas |
-| FeatureTypes | Feature | Feature | True | Issue types that are features (data checks DC02, DC13, DC17-DC21, DC24, DC26), separated by commas |
-| SubTaskTypes | Sub-task | Sub-task | False | Issue types that are sub-tasks (data checks DC03, DC12), separated by commas |
-| PointsRequiredTypes | Story | Story | False | Issue types that must have story points in an active or future sprint (data check DC11), separated by commas |
-| StoryPointsField |  | customfield_10016 | False | Id of the story points field, for example customfield_10016 (data checks DC11, DC12). Empty = those checks are not computable |
-| BusinessValueField |  | customfield_10301 | False | Id of the Business Value field (data check DC21). Empty = not computable |
-| PIField |  | customfield_10300 | False | Id of the PI field holding PI#XX-YYYY (data checks DC17, DC18, DC29). Empty = not computable |
-| TeamField |  | customfield_10400 | False | Id of the Team field (data checks DC13, DC14). Empty = not computable |
-| SprintField |  | customfield_10020 | False | Id of the Sprint field (data checks DC11, DC15, DC16, DC18, DC22, DC23). Empty = not computable |
-| TargetStartField |  | customfield_10401 | False | Id of the Target start date field (data checks DC19, DC20). Empty = not computable |
-| TargetEndField |  | customfield_10402 | False | Id of the Target end date field (data checks DC19, DC20). Empty = not computable |
-| BlocksLinkType | Blocks | Blocks | True | Name of the issue link type that means blocks (data checks DC22, DC23) |
-| FillRateThreshold | 90 | 90 | True | Minimum percentage of filled values per field, team and issue type (data check DC25) |
+| ParentRequiredTypes | Story,Task | Story,Task | False | Issue types of the team projects that must have a parent (data check "Story or task without parent"), separated by commas |
+| FeatureTypes | Feature | Feature | True | Issue types that are features (data checks "Parent is not a feature (wrong level)"; "No Team value"; "Feature without PI value"; "Feature PI inconsistent with its stories' sprints"; "Feature without fixed dates (Target start / Target end)"; "Target end before Target start, or child dates outside parent dates"; "Business value on a feature"; "Feature without children"; "Missing fix version on features"), separated by commas |
+| SubTaskTypes | Sub-task | Sub-task | False | Issue types that are sub-tasks (data checks "Sub-tasks of a team have parents of different types"; "Story points on sub-tasks"), separated by commas |
+| PointsRequiredTypes | Story | Story | False | Issue types that must have story points in an active or future sprint (data check "Story without story points in an active or future sprint"), separated by commas |
+| StoryPointsField |  | customfield_10016 | False | Id of the story points field, for example customfield_10016 (data checks "Story without story points in an active or future sprint"; "Story points on sub-tasks"). Empty = those checks are not computable |
+| BusinessValueField |  | customfield_10301 | False | Id of the Business Value field (data check "Business value on a feature"). Empty = not computable |
+| PIField |  | customfield_10300 | False | Id of the PI field holding PI#XX-YYYY (data checks "Feature without PI value"; "Feature PI inconsistent with its stories' sprints"; "PI field not empty but not in the format PI#XX-YYYY"). Empty = not computable |
+| TeamField |  | customfield_10400 | False | Id of the Team field (data checks "No Team value"; "Team value does not match the team project"). Empty = not computable |
+| SprintField |  | customfield_10020 | False | Id of the Sprint field (data checks "Story without story points in an active or future sprint"; "In progress without sprint"; "Carried over 2+ sprints"; "Feature PI inconsistent with its stories' sprints"; "Dependency risk: blocker ends after the blocked item starts"; "Cross-team dependency without both items planned"). Empty = not computable |
+| TargetStartField |  | customfield_10401 | False | Id of the Target start date field (data checks "Feature without fixed dates (Target start / Target end)"; "Target end before Target start, or child dates outside parent dates"). Empty = not computable |
+| TargetEndField |  | customfield_10402 | False | Id of the Target end date field (data checks "Feature without fixed dates (Target start / Target end)"; "Target end before Target start, or child dates outside parent dates"). Empty = not computable |
+| BlocksLinkType | Blocks | Blocks | True | Name of the issue link type that means blocks (data checks "Dependency risk: blocker ends after the blocked item starts"; "Cross-team dependency without both items planned") |
+| FillRateThreshold | 90 | 90 | True | Minimum percentage of filled values per field, team and issue type (data check "Field fill rate below threshold") |
 | LogLevel | Steps | Steps | False | Detail of the local log of the runs (the folder logs next to the workbook): Steps = each step (BEGIN/END), Errors = only the start, the end and the errors |
 | OpenLogOnError | Yes | Yes | False | After an error of a button, open the local log in Notepad (Yes or No). The status of the Dashboard names the log file in both cases |

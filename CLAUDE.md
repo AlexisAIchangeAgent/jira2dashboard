@@ -168,6 +168,9 @@ python.log). `tests/unit/test_claude_hooks.py` and `test_claude_skills.py` test 
   `RovoPromptSpec` (Part | Name | Text); `modParams.WriteRovoPrompt` (button `modActions.BtnRovoPrompt`, cell `A3`) turns it into the
   sheet `RovoPrompt`: Config read live (name, mandatory, meaning, example, never the Value), each sheet with its header, and the CSV
   format asked of Rovo (Sheet, Row, Column, Value, Note). No clipboard call (the VBA creates only two COM objects): the lines are selected.
+  Rovo knows no data-check code: the Config descriptions (`params/config.md`, copied into the prompt as they are) name a check by its
+  exact title ("Story or task without parent"), never DC01 (`tests/unit/test_rovo_prompt.py` pins it). The prompt tells Rovo to leave the
+  connection parameters out and to write Workflow = Team or Feature, so the CSV it answers loads without a Problem.
   The button Load settings CSV (`BtnLoadRovoCsv`, cell `A5`: a dialog at each click, opened in the folder of the workbook, the CSV in any folder; `ImportRovoCsvFile(path)` is its work without the dialogs) reads Rovo's CSV
   (`modParams.ParseCsv`, `RovoCsvRead`, `RovoCsvApply`: comma, semicolon or tab, UTF-8 with or without BOM): Config gets the Value
   of each parameter named, every other sheet of the file has all its rows replaced; UNKNOWN, empty and the token placeholder are

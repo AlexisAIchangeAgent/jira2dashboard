@@ -14,6 +14,7 @@ Fonctionnalité: Le bouton « Prompt for Rovo » prépare le texte à donner à 
     Et la feuille RovoPrompt nomme chaque feuille à remplir avec ses colonnes
     Et la feuille RovoPrompt demande une réponse en CSV avec les colonnes Sheet, Row, Column, Value et Note
     Et la feuille RovoPrompt ne contient aucune valeur saisie dans la feuille Config
+    Et la feuille RovoPrompt ne cite aucun code de contrôle de données, seulement leur titre
     Et l'état du tableau de bord dit combien de lignes sont sélectionnées pour Rovo
     Et le journal local décrit le run du bouton "Prompt for Rovo", avec ses paramètres et le temps de son étape
 
@@ -37,3 +38,4 @@ Fonctionnalité: Le bouton « Prompt for Rovo » prépare le texte à donner à 
     Quand je charge ce CSV avec le bouton Load settings CSV
     Alors la feuille Config a reçu la date de référence et les champs du faux Jira, et aucun paramètre de connexion
     Et les feuilles Iterations et PIs ont les itérations et le PI du faux Jira
+    Et le chargement ne signale aucun problème
