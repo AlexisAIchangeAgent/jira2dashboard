@@ -116,12 +116,14 @@ answered.
 | `src/jira2dashboard/standalone/` | Python extraction without VBA |
 | `src/jira2dashboard/mockjira/` | The fake Jira |
 | `src/jira2dashboard/excel/`, `testbench/`, `cli/` | COM layer, VBA test runner, `check-machine` |
-| `src/jira2dashboard/*.py` | `build_workbook`, `clean`, `mock_workbook`, `manual`, `paths` |
+| `src/jira2dashboard/*.py` | `build_workbook`, `clean`, `diagnose`, `error_codes`, `manual`, `mock_workbook`, `paths`, `rovo_prompt`, `version` |
 | `vba/` | 16 modules; 13 delivered (`modTests`, `modButtons`, `modBackground` are test only) |
 | `params/` | Parameter tables (section [8](#8-configuration)) |
-| `tests/` | `unit/` (no Excel), `features/` + `steps/` (Gherkin), `integration/` |
-| `scripts/` | PowerShell entry points (section [6](#6-scripts-and-commands)) |
+| `tests/` | `unit/` (no Excel), `features/` + `steps/` (Gherkin), `integration/`, `ps/` (Pester tests of the scripts) |
+| `scripts/` | PowerShell entry points and their `.cmd` launchers (section [6](#6-scripts-and-commands)); `logs/` holds the log of the last run of each |
 | `docs/`, `rovo/` | Domain references (frozen); Rovo agents and Confluence template |
+| `pyproject.toml`, `requirements*.txt` | pytest and coverage settings; runtime and development dependencies |
+| `CLAUDE.md`, `.claude/`, `archive/` | Notes and settings for Claude Code, old probe scripts; left out of the release zip |
 | `out/release/`, `out/manual_test/` | Delivered files; manual-test copy. Never cleaned. |
 | `out/inter/` | Everything else. Emptied by `build`. |
 
@@ -161,6 +163,7 @@ publishes); `activate.cmd` opens a console with `.venv` activated. `_launch.cmd`
 | `coverage` | `test` plus coverage; fails under 93 % | pytest arguments |
 | `test-excel` | Scenarios that drive Excel | pytest arguments |
 | `test-network` | Excel scenarios that also need the network | pytest arguments |
+| `test-scripts` | Pester tests of `scripts\*.ps1` and their coverage; fails under 93 % | `-Filter`, `-Minimum` |
 | `vba-tests` | Builds, compiles and runs the VBA tests | `--offline`, `--bisect`, `--out` |
 | `check-machine` | 22 checks: Python, Excel, VBA project access, compile, macro of the built workbook | `--workbook` |
 | `diagnose` | Report to paste into a ticket when the macros are blocked | `--workbook` |
@@ -267,5 +270,5 @@ A figure that cannot be computed shows "not computable", never 0. Each data chec
 ```
 
 Needs a clean tree (and a pushed commit for `-Publish`). The package holds the code zip, the workbook and
-`notes.md` with SHA256. The zip leaves out the `export-ignore` paths (`CLAUDE.md`, `archive/`,
+`notes.md` with the SHA256 and MD5. The zip leaves out the `export-ignore` paths (`CLAUDE.md`, `archive/`,
 `.claude/`, `.venv/`), pinned by `tests/unit/test_release_contents.py`.
