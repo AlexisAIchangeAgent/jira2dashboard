@@ -42,7 +42,7 @@ restore.
 ## 3. Counts and docs (the count 29 is written in several places)
 
 `grep -rnE "DC01.DC[0-9]+|[0-9]+ (data )?checks|DC[0-9]{2}" --include=*.md --include=*.py . | grep -v archive` and
-update every count and range: `README.md` (section 11, the area table), `src/jira2dashboard/manual.py` (sheet
+update every count and range: `README.md` (section 10, the area table), `src/jira2dashboard/manual.py` (sheet
 Manual), `claude-code-handoff.md`, `rovo/` (the check coverage of `rovo/rovo-guide.md` section 3 is the reference:
 ask AL how the new check is covered by Rovo: exact, partial, to test or workbook only), `params/config.md` if a
 parameter description names the checks. Never edit `docs/`.

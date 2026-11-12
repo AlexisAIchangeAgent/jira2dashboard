@@ -14,12 +14,9 @@ Excel formulas compute every figure. No server, no Python at run time, and the d
 6. [Scripts and commands](#6-scripts-and-commands)
 7. [Workflows](#7-workflows)
 8. [Configuration](#8-configuration)
-9. [Using the workbook](#9-using-the-workbook)
-10. [Python extraction without VBA](#10-python-extraction-without-vba)
-11. [Metrics and data checks](#11-metrics-and-data-checks)
-12. [Logs and debugging](#12-logs-and-debugging)
-13. [Testing](#13-testing)
-14. [Release](#14-release)
+9. [Python extraction without VBA](#9-python-extraction-without-vba)
+10. [Metrics and data checks](#10-metrics-and-data-checks)
+11. [Release](#11-release)
 
 ## 1. Quick start
 
@@ -38,8 +35,8 @@ powershell -ExecutionPolicy Bypass -File scripts\setup.ps1 -Dev   # .venv with p
 
 In the copy: **Enable Content**, **Read the Jira configuration**, then **Extract from Jira and compute**. Stop the
 fake Jira with `.\scripts\stop-mock.ps1`. Excel may crash after the last search page
-([known defect](#symptoms)): save your other work first, or try `manual-test.ps1 -Python`.
-`run.ps1 extract` reads the parameter sheets of a saved workbook ([section 10](#10-python-extraction-without-vba)).
+(a known defect): save your other work first, or try `manual-test.ps1 -Python`.
+`run.ps1 extract` reads the parameter sheets of a saved workbook ([section 9](#9-python-extraction-without-vba)).
 
 ## 2. Overview
 
@@ -201,21 +198,6 @@ flowchart TD
     pass --> release
 ```
 
-**User**
-
-```mermaid
-flowchart TD
-    d{"What is delivered?"}
-    d -->|"the .xlsm"| u1["Unblock the file, Enable Content"]
-    d -->|"the code"| k1["setup.ps1"] --> k2["run.ps1 check-machine"] --> k3["run.ps1 build"] --> u1
-    u1 --> u2["Fill Config, Projects, Iterations"]
-    u2 --> u3["Read the Jira configuration"]
-    u3 --> u4["Extract from Jira and compute"]
-    u4 -->|"done"| u5["Dashboard, Metrics, DataChecks"]
-    u4 -->|"macros fail"| p1["Save the workbook, then run.ps1 extract"]
-    p1 --> p2["jira2dashboard.xlsx"]
-```
-
 ## 8. Configuration
 
 Parameters are workbook sheets. Their sources are the files of `params/`, which also describe columns and rules.
@@ -236,24 +218,7 @@ Parameters are workbook sheets. Their sources are the files of `params/`, which 
   `ProxyWindowsAuth` = `Yes` sends the Windows session to the proxy.
 - A test refuses an API token in `params/config.md`.
 
-## 9. Using the workbook
-
-The `Dashboard` (from cell `T1`) and the sheet `Manual` repeat these steps.
-
-1. **Unblock** a downloaded file (right-click > Properties > Unblock), open it, **Enable Content**.
-2. Fill `Config` (every Mandatory value), `Projects` and `Iterations`.
-3. **Read the Jira configuration**: writes the proposal sheets `Jira*`. Copy what fits into `Workflows`,
-   `Transitions` and the `...Field` rows of `Config`.
-4. **Extract from Jira and compute**. **Cancel** keeps the previous results. Run it as often as needed.
-5. Read the charts (`B2` picks the team of Flow Distribution), `Metrics` and `DataChecks`.
-
-**Same file, same place.** Keep the name `jira2dashboard.xlsm` (not `jira2dashboard (1).xlsm`) and one folder on every
-machine, and replace the file in place for a new version: an allow-list of the endpoint protection on that path or name
-then keeps working, a rule on the hash does not (it changes with every build). `run.ps1 diagnose` flags another name.
-
-**Empty `ApiToken` before sharing the workbook**: it is stored in clear text.
-
-## 10. Python extraction without VBA
+## 9. Python extraction without VBA
 
 When the macros cannot run, Python does their work:
 
@@ -268,7 +233,7 @@ When the macros cannot run, Python does their work:
 - On failure nothing is written. Differences from the workbook: no `Metrics` row for a team without items;
   `DailyLoad` stops at `AsOf`.
 
-## 11. Metrics and data checks
+## 10. Metrics and data checks
 
 Definitions: [`docs/safe-flow-metrics-and-data-checks.md`](docs/safe-flow-metrics-and-data-checks.md). Metrics are
 per iteration and per team; Program features count under "ART".
@@ -294,78 +259,7 @@ A figure that cannot be computed shows "not computable", never 0. Each data chec
 | Dates, business value, fix versions | DC19–DC21, DC26 |
 | Dependencies, fill rates | DC22, DC23; DC25 |
 
-## 12. Logs and debugging
-
-| Name | Path | Purpose |
-|---|---|---|
-| VBA log | `logs\jira2dashboard.log` next to the workbook (`%LOCALAPPDATA%\jira2dashboard\logs` if that folder cannot be written) | `RUN` (with the version of the workbook); `PARAM` (the inputs: each Config row, the connection, the proxy and the filter as `(set)`/`(empty)`, rows per parameter sheet); `BEGIN`/`END` per step, `END ... \| 0.235 s`; `RETRY` (a call to Jira tried again: status, attempt, wait); `ERROR <code>`; `RUN end ok \| 12.345 s` or `RUN end stopped <code> \| ...` |
-| Python log | `logs\python.log` next to the workbook | `RUN` (with the version of the workbook read), `PARAM` (every Config value, never the token), steps with their time, failed Jira calls, tracebacks |
-| Workbook version | Hidden name `J2D_Version` of the workbook (`src/jira2dashboard/version.py`) | `v1.0.0 commit 1a2b3c4, built 2026-11-11 19:40` (`release.ps1` gives the version; `build` alone writes the commit and the date) |
-| Script logs | `scripts\logs\<script>.log`; `scripts\logs\run_<command>.log` for `run.ps1` (last run of each) | Transcript of the script, with the output of Python (pytest results, tracebacks) |
-| Status cell | `Dashboard!A14`, its fields in `A15:B34` | Current step; at the end the result (`Done`, `Stopped`...) and one row per field (`Code`, `Message`, `Log`...) |
-| Support code | `J2D-<AREA>-<NNN>`: first word of every `ERROR` line (VBA and Python logs), column `Error code` of the sheet `Steps`, status of the Dashboard | What the client reads to the support; `src/jira2dashboard/error_codes.py` (and the sheet `ErrorCodes`) gives cause, check, what to ask. Never renumbered; `python -m jira2dashboard.error_codes` prints the table |
-| Unfinished run | `HKCU\Software\VB and VBA Program Settings\jira2dashboard` | Next run logs "previous run did not end" |
-| VBA test log | `logs\vba-tests.log` next to the test workbook (`out\inter\logs`) | VBA tests only: `TEST <name>` before each test, `TEST <name> done \| <time>` after (after a crash, the last `TEST` line names the test) |
-| Excel test logs | `out\inter\logs\excel-test_<test>.log` | One per Excel test (`test-excel`, `test-network`): result and time, its lines of each log of `out\inter\logs`, its `python.log` (`tests/conftest.py`, `testbench/keep_log.py`). `clean`, `build` and `vba-tests` keep `out\inter\logs` |
-| Fake Jira pid | `%TEMP%\jira2dashboard\mock-jira-<port>.pid` | What `stop-mock.ps1` may stop |
-| Test outputs | `out\inter\` | Test workbooks, chart PNGs, `.coverage` |
-| Event log | Event Viewer > Application, event 1000 | Faulting module of an Excel crash |
-
-Both logs rotate at 1 MB and stay local. They never hold the token; the Python log holds the JQL, Jira's messages
-and every other Config value in clear (`PARAM` lines: e-mail, address of Jira, proxy): **reread a log before sharing
-it**. The VBA log shows every Config value but the connection, the proxy and the filter. `diagnose` quotes the end
-of the VBA log without its `PARAM` lines.
-
-| Error | Cause |
-|---|---|
-| 600 | No project in `Projects` |
-| 601 | Search did not end after 2000 pages |
-| 602 | HTTP error after retries (401 account or token, 407 proxy), or `BaseUrl` not https |
-| 603 | `Filter` contains `ORDER BY` |
-| 604 | `AsOf` empty or not a date |
-| 505, 606 | Jira sends the same page again |
-| 607 | Not JSON: usually a proxy or login page |
-| 608 | Mandatory `Config` values empty |
-| 610, 611 | Cancelled; an extraction is already running |
-| 620, 621 | Read the Jira configuration: no project, or no end |
-| 701–709 | Building the result sheets: `Iterations`, missing sheet or column, Excel too old |
-
-### Symptoms
-
-- **Extraction fails:** read `A14` and the rows under it, then the `ERROR` line of the VBA log.
-- **Excel crashes right after `END search page N`:** known defect (`0xC0000005` in the VBA engine). Run again in a
-  fresh Excel, or use `run.ps1 extract`.
-- **Excel hangs:** a VBA error dialog is open; close it. Never kill an Excel the scripts did not start.
-- **Proxy:** see the `END proxy` line of the Python log; set `ProxyServer` to `host:port` or `DIRECT`.
-- **VBA does not compile:** `run.ps1 vba-tests --bisect`. **Machine not ready:** `run.ps1 check-machine`.
-- **Flaky Excel test:** `J2D_ONE_EXCEL=1` (one Excel per module); a fix needs 5 green runs in a row.
-- **Macros blocked by the endpoint protection:** `run.ps1 diagnose`, then attach the report to the ticket (hashes,
-  Mark of the Web, Office macro policies, security products, VBA log tail; it never opens the workbook nor reads
-  `python.log`). Ask for an allow-list on the file name and folder ([section 9](#9-using-the-workbook)): the MD5 changes
-  with every build (`release.ps1` writes it in `notes.md`). `start-mock.ps1` prints the `python.exe` to allow for the
-  fake Jira. The delivered VBA
-  creates only two COM objects, `WinHttp.WinHttpRequest.5.1` and `Scripting.Dictionary` (UTF-8 and Base64 are plain
-  VBA; a test guards it). To tell Office from the endpoint protection, `run.ps1 check-machine` opens the built
-  workbook with Office's own macro security relaxed and runs a read-only macro: if it runs, look at Office (Mark of the
-  Web, Trusted Location, policies: the check says which); if it does not, something outside Office stops the macros.
-
-## 13. Testing
-
-BDD outside (Gherkin in `tests/features/`, French keywords), TDD inside (`tests/unit/`). A new test must fail when
-the code is broken on purpose.
-
-| Level | Run with | Excel |
-|---|---|---|
-| Unit and pure scenarios | `test`, `coverage` (≥ 93 %) | no |
-| Excel scenarios (`excel` marker) | `test-excel` | yes |
-| Excel + network (`network` marker) | `test-network` | yes |
-| VBA tests `T_`, `N_` (100 % of `Cov` markers) | `vba-tests` | yes |
-
-`flow_excel.feature` compares the workbook with the Python reference cell by cell (Flow Load modes A and B);
-`standalone.feature` does the same for the Python extraction. The fake Jira (`mockjira/`) serves search, changelogs,
-configuration calls, faults and a proxy; `--anomalies` adds the cases the data checks must find.
-
-## 14. Release
+## 11. Release
 
 ```powershell
 .\scripts\release.ps1 -Version v1.0.0            # dry run in out\release\v1.0.0
