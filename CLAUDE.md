@@ -21,6 +21,7 @@ Always go through `scripts\run.ps1` (PowerShell 5.1, no venv activation needed);
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File scripts\setup.ps1 -Dev   # create .venv (py -3.14) and install
+.\scripts\activate.ps1            # optional: activate .venv in this console (run.ps1 needs none)
 .\scripts\run.ps1 test            # fast unit + Gherkin tests, no Excel (the inner loop)
 .\scripts\run.ps1 coverage        # same + coverage of the pure code; fails under 93 %
 .\scripts\run.ps1 test-excel      # scenarios that drive Excel (marker `excel`, no network)
@@ -29,6 +30,7 @@ powershell -ExecutionPolicy Bypass -File scripts\setup.ps1 -Dev   # create .venv
 .\scripts\run.ps1 check-machine   # 22 checks of the machine (Excel, VBA trust, macro of the workbook)
 .\scripts\run.ps1 diagnose        # paste-ready report when the macros are blocked (hashes, Mark of the Web, Office, security products)
 .\scripts\run.ps1 mock-jira       # fake Jira on http://127.0.0.1:8099 (--anomalies: with the known data anomalies)
+.\scripts\run.ps1 mock-workbook   # the filled copy out\manual_test\jira2dashboard4manualtest.xlsm and its Rovo CSV (--port, --workbook)
 .\scripts\run.ps1 build           # delivery workbook out\release\jira2dashboard.xlsm (--out name.xlsm: to out\inter)
 .\scripts\run.ps1 clean           # empty out\inter except the test caches and the logs (build and vba-tests do it first)
 .\scripts\run.ps1 extract         # Python path without VBA: Jira -> jira2dashboard.xlsx (values + SVG charts)
@@ -357,4 +359,4 @@ about 0.3 s each, 25 changelog chunks about 0.3 s each, ItemFlow formulas 1.9 s.
 before starting (the 2026-11-07 figures above predate it).
 Also pending, offered to AL: when the macro loses its state (Esc then End during a long step), the Dashboard stays on its
 last status and Cancel does nothing; `AbortExtraction` and a slice that finds `mBusy` False could write a log line and
-"Stopped" in `A3`.
+"Stopped" in `A14` (`dashStatus`).
