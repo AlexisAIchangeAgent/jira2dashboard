@@ -1145,7 +1145,7 @@ End Function
 Private Function PiRows() As Variant
     Dim rows(1 To 2, 1 To 3) As Variant
     rows(1, 1) = "PI#01-2026": rows(1, 2) = DateSerial(2026, 9, 1): rows(1, 3) = DateSerial(2026, 10, 15)
-    rows(2, 1) = "PI#02-2026": rows(2, 2) = DateSerial(2026, 10, 15): rows(2, 3) = DateSerial(2026, 12, 1)
+    rows(2, 1) = "PI#02-2026": rows(2, 2) = "'2026-10-15": rows(2, 3) = "'2026-12-01"   ' text, as Load settings CSV writes it
     PiRows = rows
 End Function
 
@@ -1220,8 +1220,10 @@ Public Sub T_FlowBuild()
     Check "flowbuild", "a known team stays selected", "AAA", "AAA", dash.Range("B2").Value
     Check "flowbuild", "the PI axis lists the PIs of the sheet PIs in order", "two PIs", "PI#01-2026|PI#02-2026", _
           AxisEnds(dash.ChartObjects("feature_predictability").Chart, False)
-    Check "flowbuild", "PIMetrics: one row per PI, its dates looked up in the sheet PIs", "two PIs", "2|PI#02-2026|" & CLng(DateSerial(2026, 12, 1)), _
-          TableRows("PIMetrics") & "|" & wb.Worksheets("PIMetrics").Range("A3").Value & "|" & CLng(wb.Worksheets("PIMetrics").Range("C3").Value)
+    Check "flowbuild", "PIMetrics: one row per PI, its dates looked up in the sheet PIs, a date or an ISO text", "two PIs", _
+          "2|" & CLng(DateSerial(2026, 10, 15)) & "|PI#02-2026|" & CLng(DateSerial(2026, 12, 1)), _
+          TableRows("PIMetrics") & "|" & wb.Worksheets("PIMetrics").Range("C2").Value2 & "|" & wb.Worksheets("PIMetrics").Range("A3").Value & _
+          "|" & wb.Worksheets("PIMetrics").Range("C3").Value2
     wb.Worksheets("PIs").Range("A2:C3").ClearContents
     ' Excel left in manual mode by the user: the build gives the mode back and still ends with every figure calculated
     ' (guard only: removing CalculateFull for this case changed nothing observable, entering a formula calculates it)

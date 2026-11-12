@@ -169,7 +169,8 @@ PIMETRICS_KEYS = ("PI",)
 
 
 def _pi_date(column: str) -> str:
-    return f'=IFERROR(LET(v,INDEX(PIs!${column}:${column},MATCH([@PI],PIs!$A:$A,0)),IF(ISNUMBER(v),IF(v>0,v,""),"")),"")'
+    # a date typed in Excel is a number; Load settings CSV writes an ISO text ('2026-12-01): DATEVALUE reads it, as DC18
+    return f'=IFERROR(LET(v,INDEX(PIs!${column}:${column},MATCH([@PI],PIs!$A:$A,0)),IF(ISNUMBER(v),IF(v>0,v,""),DATEVALUE(v))),"")'
 
 
 PIMETRICS_COLUMNS = (
