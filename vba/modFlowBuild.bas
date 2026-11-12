@@ -63,7 +63,7 @@ Private Sub DeleteDerived(ByVal wb As Object)
     alerts = Application.DisplayAlerts
     Application.DisplayAlerts = False
     On Error GoTo Restore
-    For Each nm In Array("ChartData", "ItemFlow", "DailyLoad", "Metrics", "DataChecks", "FillRates", "Controls")
+    For Each nm In Array("ChartData", "ItemFlow", "DailyLoad", "Metrics", "PIMetrics", "DataChecks", "FillRates", "Controls")
         If SheetExists(wb, CStr(nm)) Then wb.Worksheets(CStr(nm)).Delete
     Next nm
 Restore:
@@ -266,6 +266,7 @@ Private Sub BuildAll(ByVal wb As Object, ByVal spec As Object, ByVal teams As Co
     Cov "FLB16"
     Dim wsI As Object, wsS As Object, wsF As Object, wsD As Object, wsM As Object, wsC As Object, wsL As Object, wsR As Object
     Dim loI As Object, loS As Object, loF As Object, loD As Object, loM As Object, loC As Object, loL As Object, loR As Object
+    Dim wsP As Object, loP As Object, pis As Collection
     LogBegin "flow sheets: prepare"
     DeleteDerived wb
     Set wsI = wb.Worksheets("Issues"): Set wsS = wb.Worksheets("StatusIntervals")
@@ -279,9 +280,11 @@ Private Sub BuildAll(ByVal wb As Object, ByVal spec As Object, ByVal teams As Co
     LogEnd "flow sheets: prepare"
     LogBegin "flow sheets: keys"
     Set wsF = AddSheet(wb, "ItemFlow"): Set wsD = AddSheet(wb, "DailyLoad"): Set wsM = AddSheet(wb, "Metrics")
-    Set wsC = AddSheet(wb, "DataChecks"): Set wsR = AddSheet(wb, "FillRates")
+    Set wsC = AddSheet(wb, "DataChecks"): Set wsR = AddSheet(wb, "FillRates"): Set wsP = AddSheet(wb, "PIMetrics")
+    Set pis = PiNames(wb.Worksheets("PIs"), SettingOf(spec, "Dashboard", "NoPI"))
     WriteDailyKeys wsD, iterations, teams
     WriteMetricKeys wsM, iterations, teams
+    WritePiKeys wsP, pis
     checks = WriteCheckKeys(wsC, wb.Worksheets("ChecksSpec"))
     fills = WriteFillKeys(wsR, spec("FillFields"), wb, teams)
     LogEnd "flow sheets: keys"
@@ -295,6 +298,7 @@ Private Sub BuildAll(ByVal wb As Object, ByVal spec As Object, ByVal teams As Co
     Set loC = CreateTable(wsC, "DataChecks", spec("DataChecks"), checks)
     Set loL = CreateTable(wsL, "IssueLinks", spec("IssueLinks"), UsedRows(wsL))
     Set loR = CreateTable(wsR, "FillRates", spec("FillRates"), fills)
+    Set loP = CreateTable(wsP, "PIMetrics", spec("PIMetrics"), pis.Count)
     LogEnd "flow sheets: tables"
     LogBegin "flow sheets: formulas StatusIntervals"
     FillFormulas loS, spec("StatusIntervals")
@@ -317,10 +321,15 @@ Private Sub BuildAll(ByVal wb As Object, ByVal spec As Object, ByVal teams As Co
     LogBegin "flow sheets: formulas Metrics"
     FillFormulas loM, spec("Metrics")
     LogEnd "flow sheets: formulas Metrics"
+    LogBegin "flow sheets: formulas PIMetrics"
+    FillFormulas loP, spec("PIMetrics")
+    LogEnd "flow sheets: formulas PIMetrics"
     wsD.Columns(1).NumberFormat = "yyyy-mm-dd"
     wsM.Range(wsM.Columns(2), wsM.Columns(3)).NumberFormat = "yyyy-mm-dd"
+    wsP.Range(wsP.Columns(2), wsP.Columns(3)).NumberFormat = "yyyy-mm-dd"
+    wsP.Columns(6).NumberFormat = "0%"
     LogBegin "flow sheets: charts"
-    BuildCharts wb, spec, teams, iterations
+    BuildCharts wb, spec, teams, iterations, pis
     LogEnd "flow sheets: charts"
 End Sub
 
@@ -369,6 +378,18 @@ Private Sub WriteDailyKeys(ByVal ws As Object, ByVal iterations As Collection, B
         Next t
     Next d
     ws.Range(ws.Cells(2, 1), ws.Cells(n + 1, 2)).Value = data
+End Sub
+
+Private Sub WritePiKeys(ByVal ws As Object, ByVal pis As Collection)
+    ' PI, one row per PI of the sheet PIs (or the one row noPi of PiNames): the dates and the figures are the formulas of the
+    ' table PIMetrics (flow/formulas.PIMETRICS_COLUMNS).
+    Cov "FLB40"
+    Dim r As Long, data() As Variant
+    ReDim data(1 To pis.Count, 1 To 1)
+    For r = 1 To pis.Count
+        data(r, 1) = AsText(CStr(pis(r)))
+    Next r
+    ws.Range(ws.Cells(2, 1), ws.Cells(pis.Count + 1, 1)).Value = data
 End Sub
 
 Private Sub WriteMetricKeys(ByVal ws As Object, ByVal iterations As Collection, ByVal teams As Collection)
@@ -460,17 +481,34 @@ End Function
 
 ' --- the dashboard: ChartData (one block of formulas per chart) and the charts -----------------------------------
 
-Private Sub BuildCharts(ByVal wb As Object, ByVal spec As Object, ByVal teams As Collection, ByVal iterations As Collection)
+Private Sub BuildCharts(ByVal wb As Object, ByVal spec As Object, ByVal teams As Collection, ByVal iterations As Collection, _
+                        ByVal pis As Collection)
     Cov "FLB21"
-    Dim data As Object, dash As Object, row As Variant, index As Long
+    Dim data As Object, dash As Object, row As Variant, index As Long, stride As Long
     Set dash = wb.Worksheets(CHARTS_SHEET)               ' a sheet of their own: on the Dashboard they hid its cells
     Set data = AddSheet(wb, "ChartData")
+    stride = IIf(pis.Count > iterations.Count, pis.Count, iterations.Count)     ' a block: one row per iteration or PI
     WriteSelectorList wb, dash, data, spec, teams
     For Each row In ReadTable(wb.Worksheets("ChartSpec"))
-        BuildChart dash, data, row, 1 + index * (iterations.Count + 4), teams, iterations
+        BuildChart dash, data, row, 1 + index * (stride + 4), teams, iterations, pis
         index = index + 1
     Next row
 End Sub
+
+Private Function PiNames(ByVal ws As Object, ByVal noPi As String) As Collection
+    ' The PIs of the sheet PIs (first column, from row 2), for the axis of the Feature Predictability chart; noPi alone when
+    ' the sheet has none, so that the chart still has a row (a gap). They are the keys of the table PIMetrics too. The dates
+    ' are not read here: the table looks them up itself, and a PI it cannot read is not computable, never an error of the build.
+    Dim out As New Collection, last As Long, r As Long, v As String
+    Cov "FLB37"
+    last = ws.Cells(ws.Rows.Count, 1).End(-4162).Row     ' -4162 = xlUp
+    For r = 2 To last
+        v = Trim$(CStr(ws.Cells(r, 1).Value & ""))
+        If Len(v) > 0 Then out.Add v
+    Next r
+    If out.Count = 0 Then Cov "FLB38": out.Add noPi
+    Set PiNames = out
+End Function
 
 Private Sub WriteSelectorList(ByVal wb As Object, ByVal dash As Object, ByVal data As Object, ByVal spec As Object, _
                               ByVal teams As Collection)
@@ -494,11 +532,12 @@ Private Sub WriteSelectorList(ByVal wb As Object, ByVal dash As Object, ByVal da
 End Sub
 
 Private Sub BuildChart(ByVal dash As Object, ByVal data As Object, ByVal row As Variant, ByVal top As Long, _
-                       ByVal teams As Collection, ByVal iterations As Collection)
+                       ByVal teams As Collection, ByVal iterations As Collection, ByVal pis As Collection)
     Cov "FLB24"
     Dim names() As String, count As Long, i As Long, j As Long, first As Long, last As Long, point As String
     Dim area As Object, shape As Object, ch As Object, s As Object, rng As Object
     Dim rowsCount As Long, firstDay As Double, p As Variant, band() As String, isDay As Boolean, axis() As Variant
+    Dim isPi As Boolean
     If Len(CStr(row("SeriesNames"))) > 0 Then
         names = Split(CStr(row("SeriesNames")), ",")
     Else
@@ -506,9 +545,11 @@ Private Sub BuildChart(ByVal dash As Object, ByVal data As Object, ByVal row As 
         For i = 1 To teams.Count: names(i - 1) = teams(i): Next i
     End If
     count = UBound(names) + 1
-    isDay = (CStr(row("Axis")) = "day")                      ' one row per day (daily curve) or per iteration
+    isDay = (CStr(row("Axis")) = "day")                      ' one row per day (daily curve), per PI or per iteration
+    isPi = (CStr(row("Axis")) = "pi")
     rowsCount = iterations.Count
     If isDay Then rowsCount = DaysOf(iterations)
+    If isPi Then rowsCount = pis.Count
     first = top + 2: last = first + rowsCount - 1
     ReDim axis(1 To rowsCount, 1 To 1)
     data.Cells(top, 1).Value = CStr(row("Title"))
@@ -525,6 +566,13 @@ Private Sub BuildChart(ByVal dash As Object, ByVal data As Object, ByVal row As 
         Next i
         data.Range(data.Cells(first, 1), data.Cells(last, 1)).Value = axis
         data.Range(data.Cells(first, 1), data.Cells(last, 1)).NumberFormat = "yyyy-mm-dd"
+    ElseIf isPi Then
+        Cov "FLB39"
+        data.Cells(top + 1, 1).Value = "PI"
+        For i = 1 To rowsCount
+            axis(i, 1) = AsText(CStr(pis(i)))
+        Next i
+        data.Range(data.Cells(first, 1), data.Cells(last, 1)).Value = axis
     Else
         data.Cells(top + 1, 1).Value = "Iteration-label"
         For i = 1 To rowsCount

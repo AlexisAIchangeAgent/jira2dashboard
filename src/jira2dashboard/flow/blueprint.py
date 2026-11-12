@@ -38,11 +38,13 @@ def formula_rows() -> list[tuple[str, str, str]]:
     rows += [("DataChecks", key, "") for key in C.DATACHECKS_KEYS]
     rows += [("DataChecks", name, text) for name, text in C.DATACHECKS_COLUMNS]
     rows += [("Metrics", key, "") for key in F.METRICS_KEYS]
+    rows += [("PIMetrics", key, "") for key in F.PIMETRICS_KEYS]
+    rows += [("PIMetrics", name, text) for name, text in F.PIMETRICS_COLUMNS]
     rows += [("Metrics", name, text) for name, text in F.METRICS_COLUMNS]
     rows += [("Controls", CONTROL_NAMES[0], F.AS_OF_CELL), ("Controls", CONTROL_NAMES[1], F.MODE_CELL),
              ("Controls", CONTROL_NAMES[2], F.TRANSITIONS_LAST_CELL), ("Controls", CONTROL_NAMES[3], F.PIS_LAST_CELL)]
     rows += [("Dashboard", "ProgramTeam", ART), ("Dashboard", "AllTeams", D.ALL_TEAMS),
-             ("Dashboard", "SelectorCell", D.SELECTOR_CELL)]
+             ("Dashboard", "SelectorCell", D.SELECTOR_CELL), ("Dashboard", "NoPI", D.NO_PI)]
     return rows
 
 
@@ -58,6 +60,9 @@ def chart_rows() -> list[tuple]:
         if spec.axis == D.DAY_AXIS:
             point = D.day_point("{iteration}", "{name}")                # {iteration} is the day here
             series = ""
+        elif spec.axis == D.PI_AXIS:
+            point = D.pi_point("{iteration}")                           # {iteration} is the PI here; one series, ART
+            series = ",".join(D.series_names(spec))
         elif spec.series == D.TEAMS:
             point = D.team_point(spec.column, "{iteration}", "{name}")
             series = ""

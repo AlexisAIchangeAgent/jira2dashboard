@@ -13,7 +13,7 @@ Fonctionnalité: Extraction Python sans VBA
     Quand je lance l'extraction Python
     Alors elle se termine avec le code 0
     Et la feuille Issues a une ligne par ticket du faux Jira
-    Et les feuilles Metrics, DailyLoad, ItemFlow, FillRates et DataChecks reproduisent la référence Python
+    Et les feuilles Metrics, PIMetrics, DailyLoad, ItemFlow, FillRates et DataChecks reproduisent la référence Python
     Et chaque anomalie connue est trouvée par les contrôles qui lui correspondent et seulement par eux
     Et la feuille Charts a les 8 graphiques du Dashboard en SVG
     Et la feuille Config des résultats masque le token
@@ -53,5 +53,5 @@ Fonctionnalité: Extraction Python sans VBA
     Soit la copie d'essai manuel du classeur à livrer, remplie par Excel pour ce faux Jira
     Quand je lance l'extraction Python sur cette copie
     Alors elle se termine avec le code 0
-    Et les feuilles Metrics, DailyLoad, ItemFlow, FillRates et DataChecks reproduisent la référence Python
+    Et les feuilles Metrics, PIMetrics, DailyLoad, ItemFlow, FillRates et DataChecks reproduisent la référence Python
     Et Excel ouvre le fichier de résultats et ses 8 graphiques sont des images SVG

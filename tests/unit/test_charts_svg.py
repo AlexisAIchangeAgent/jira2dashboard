@@ -4,6 +4,7 @@ from xml.etree import ElementTree
 
 import pytest
 
+from jira2dashboard.flow.metrics import PIPredictability
 from jira2dashboard.flow import dashboard_spec as D
 from jira2dashboard.flow.metrics import BUCKETS, TeamIterationMetrics
 from jira2dashboard.flow.model import NOT_COMPUTABLE
@@ -80,8 +81,12 @@ def test_the_eight_charts_of_the_dashboard():
     rows = [metrics(p, t, v, median=2.5) for p in iterations for t, v in zip(teams, (2, 0))]
     days = [dt.datetime(2026, 10, 1) + dt.timedelta(days=n) for n in range(5)]
     loads = {"ART": {d: 1 for d in days[:3]}, "Alpha": {d: 0 for d in days[:3]}}
-    pictures = C.chart_pictures(rows, teams, iterations, loads, days, "ART")
+    pictures = C.chart_pictures(rows, teams, iterations, loads, days, "ART",
+                                [PIPredictability("PI#01-2026", 4, 1, 0.25), PIPredictability("PI#02-2026", 0, 0, NOT_COMPUTABLE)])
     assert [p.name for p in pictures] == [spec.name for spec in D.CHARTS]
+    feature = next(p for p in pictures if p.name == "feature_predictability")
+    assert "PI#01-2026" in texts(feature.svg) and "PI#02-2026" in texts(feature.svg)        # one bar per PI, a gap for PI 2
+    assert C.chart_pictures(rows, teams, iterations, loads, days, "ART")[-2].name == "feature_predictability"
     for picture in pictures:
         ElementTree.fromstring(picture.svg)
     by_name = {p.name: p for p in pictures}

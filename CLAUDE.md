@@ -94,6 +94,13 @@ python.log). `tests/unit/test_claude_hooks.py` and `test_claude_skills.py` test 
   (Table|Column|Formula; empty Formula = a values column), `ChartSpec` and `ChecksSpec`. After each extraction VBA
   `modFlowBuild.BuildFlowSheetsIn` rebuilds all tables, formulas and charts from those sheets, sized to the new data.
   Add a metric or check by editing the plan, not VBA.
+- **Feature Predictability (AL's decision, 2026-11-12).** A variant of Flow Predictability, whose SAFe definition (business
+  value of the PI objectives, `docs/` section 2.2) stays as a chart, not computable. Per PI of the sheet `PIs`, for the ART:
+  the Features (`FeatureTypes`) done before the end of the PI (`DoneUtc` < `End`) over the Features planned in it (PI field
+  = the PI); a cancelled Feature stays planned, not done; nothing planned = a gap. Reference `flow/metrics.feature_predictability`,
+  table `PIMetrics` (one row per PI, `formulas.PIMETRICS_COLUMNS`; keys `modFlowBuild.PiNames`), chart point
+  `dashboard_spec.pi_point` (a lookup in that table; axis `pi`), SVG in `charts_svg`; the data-check scenario compares the
+  table and the chart with the reference, the standalone scenario its sheet `PIMetrics`.
 - **Python reference as oracle.** `flow/` (`intervals.py`, `itemflow.py`, `load.py`, `metrics.py`, `checks.py`) is a pure
   Python implementation of the same metrics and data checks. The scenarios in `tests/features/flow_excel.feature` run the
   real delivered workbook against the fake Jira and compare Excel with this reference **cell by cell** (Flow Load modes A
@@ -106,7 +113,7 @@ python.log). `tests/unit/test_claude_hooks.py` and `test_claude_skills.py` test 
 - **Dashboard and Charts.** Top left, one under the other (AL's order): the progress bar `A2`, the buttons Prompt for Rovo
   `A3`, Load settings CSV `A5`, Read the Jira configuration `A7`, Extract `A9`, Cancel `A11` (cells in `dashboard_spec`). A
   final status is `Title | Name: value | ...`: `A14` (name `dashStatus`) shows the title and `A15:B34` one row per field (`modText.StatusParts`, `modActions.ShowProgress`; `ProgressSnapshot` rebuilds the line from the
-  cells for the tests). The 8 charts, their notes and the team selector `B2` (name `dashTeam`) are on the sheet `Charts`, made
+  cells for the tests). The 9 charts, their notes and the team selector `B2` (name `dashTeam`) are on the sheet `Charts`, made
   at build after the Dashboard (`CHARTS_SHEET` of `modFlowBuild`/`modActions` = `dashboard_spec.CHARTS_SHEET`, a test pins it).
 - **User manual.** `src/jira2dashboard/manual.py` (pure text) is written by `flow/sheets.write_manual` at the delivery
   build: the first steps on the Dashboard from T1, and the sheet `Manual`. Update it when a button, sheet or step changes.
@@ -122,7 +129,7 @@ python.log). `tests/unit/test_claude_hooks.py` and `test_claude_skills.py` test 
   WinHTTP COM object (`http_winhttp`: same proxy, Windows auth and retry rules as `modHttp`; body read from
   ResponseBody as UTF-8; injectable sleep) after `proxy.py` (ctypes port of `modProxy`), maps the JSON like
   `modExtract`/`modFlow` (`mapping`, oracle: `test_mapping` against `flow_adapter`), computes with `flow/`
-  (`results`, same column names as `formulas.TABLES`), draws the 8 charts as SVG (`charts_svg`) and writes values +
+  (`results`, same column names as `formulas.TABLES`), draws the 9 charts as SVG (`charts_svg`) and writes values +
   pictures with zipfile (`xlsx_write`: SVG with a blank PNG fallback, Excel 365 shows msoGraphic). Keep it in step
   with the VBA when an extraction rule changes. Its log (`logs\python.log` next to the workbook, as the VBA log) is complete on
   purpose (AL's choice): status, call, Jira's message, tracebacks; never the token nor the Authorization header
@@ -278,6 +285,9 @@ then `mermaid.parse`), and check every `](#anchor)` link against the headings.
   extraction, always right after the last search page (`END search page 30: 150 issues` in the local log). The button
   scenario alone crashed 7 times out of 10 on 2026-11-05 (`test-excel tests/steps/test_flow_excel.py -k bouton`): that is
   the quickest repro. It predates the 2026-11-04 review. Read section 8b of the deleted handoff (see above) before chasing it.
+  Since 2026-11-05 the event log names `ntdll.dll`, code `0xc0000028` or `0xc00000ff` (a failed stack unwind), offset
+  `0x1d3df`; it also hits `BEGIN flow sheets: charts` of a second build in the same Excel (scenario "second calcul": 1 in 5
+  at 61507d1 on 2026-11-12, `T_FlowBuild` alone 0 in 10). A crash there is this defect, not the chart code.
 - **Git Bash rewrites `/switch` arguments** of Windows programs into paths (`/update` -> `C:/.../Git/update`, also
   `wevtutil /q:`): prefix the command with `MSYS_NO_PATHCONV=1`.
 - The PowerShell tool is slow here (CIM / event-log queries time out): use Bash `tasklist` for processes.

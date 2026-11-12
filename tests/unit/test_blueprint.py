@@ -39,16 +39,19 @@ def test_one_chart_row_per_chart_with_the_tokens_the_vba_replaces():
     assert [r[0] for r in rows] == [c.name for c in D.CHARTS]
     for name, title, kind, axis, series, point, note, row, column, height, width, day_or_iteration, band in rows:
         assert "{iteration}" in point and "{range}" in note
-        assert ("{series}" in point) == bool(series) and ("{name}" in point) == (not series), name
+        if day_or_iteration == D.PI_AXIS:                    # one fixed series (ART), its point names neither
+            assert series == "ART" and "{series}" not in point and "{name}" not in point, name
+        else:
+            assert ("{series}" in point) == bool(series) and ("{name}" in point) == (not series), name
         assert kind in (D.XL_COLUMN_CLUSTERED, D.XL_LINE_MARKERS, D.XL_COLUMN_STACKED_100, D.XL_LINE)
-        assert day_or_iteration in (D.ITERATION_AXIS, D.DAY_AXIS)
+        assert day_or_iteration in (D.ITERATION_AXIS, D.DAY_AXIS, D.PI_AXIS)
         assert row >= 4 and column >= 1 and height > 0 and width > 0
     assert len(B.CHARTS_HEADER) == len(rows[0])
 
 
 def test_the_dashboard_settings_are_in_the_plan():
     settings = {c: f for t, c, f in B.formula_rows() if t == "Dashboard"}
-    assert settings == {"ProgramTeam": "ART", "AllTeams": D.ALL_TEAMS, "SelectorCell": D.SELECTOR_CELL}
+    assert settings == {"ProgramTeam": "ART", "AllTeams": D.ALL_TEAMS, "SelectorCell": D.SELECTOR_CELL, "NoPI": D.NO_PI}
 
 
 def test_teams_are_art_then_the_team_projects_each_once():

@@ -161,6 +161,27 @@ METRICS_COLUMNS = (
     for b in BUCKETS
 ) + (("FlowPredictability", f"={_NC}"),)
 
+# --- the table PIMetrics: Feature Predictability per PI of the sheet PIs (AL's variant, 2026-11-12) ------------
+# The key PI comes from the sheet PIs (modFlowBuild.PiNames); its dates are looked up there: a PI whose date is not a date
+# gives "" and its figures are not computable. Planned = a Feature (IsFeature) whose PI field is the PI, whatever its status
+# (a cancelled one stays planned); done = DoneUtc before the end of the PI (excluded, half a second of margin).
+PIMETRICS_KEYS = ("PI",)
+
+
+def _pi_date(column: str) -> str:
+    return f'=IFERROR(LET(v,INDEX(PIs!${column}:${column},MATCH([@PI],PIs!$A:$A,0)),IF(ISNUMBER(v),IF(v>0,v,""),"")),"")'
+
+
+PIMETRICS_COLUMNS = (
+    ("Start", _pi_date("B")),
+    ("End", _pi_date("C")),
+    ("FeaturesPlanned", "=COUNTIFS(ItemFlow[IsFeature],1,ItemFlow[PI],[@PI])"),
+    ("FeaturesDone", f'=IF(ISNUMBER([@End]),COUNTIFS(ItemFlow[IsFeature],1,ItemFlow[PI],[@PI],'
+                     f'ItemFlow[DoneUtc],"<"&([@End]-{HALF})),"")'),
+    ("FeaturePredictability", f"=IF(OR([@FeaturesPlanned]=0,NOT(ISNUMBER([@FeaturesDone]))),{_NC},"
+                              "[@FeaturesDone]/[@FeaturesPlanned])"),
+)
+
 # --- control cells of the Metrics sheet: the as-of date and the Flow Load mode, read from Config ------------
 
 CONFIG_VALUE = 'INDEX(Config!$B:$B,MATCH("{name}",Config!$A:$A,0))'
@@ -180,4 +201,5 @@ TABLES = {
     "FillRates": C.FILL_KEYS + tuple(name for name, _ in C.FILL_COLUMNS),
     "DataChecks": C.DATACHECKS_KEYS + tuple(name for name, _ in C.DATACHECKS_COLUMNS),
     "Metrics": METRICS_KEYS + tuple(name for name, _ in METRICS_COLUMNS),
+    "PIMetrics": PIMETRICS_KEYS + tuple(name for name, _ in PIMETRICS_COLUMNS),
 }

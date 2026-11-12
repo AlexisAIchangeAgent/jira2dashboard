@@ -5,7 +5,7 @@
 2. Finds the proxy (ProxyServer, or the Windows settings when it is empty), then reads Jira with WinHTTP, as the VBA
    does: the search of the projects (and Filter), page after page, then the changelogs.
 3. Computes the data and the results with the Python reference: Issues, StatusIntervals, IssueLinks, ItemFlow,
-   DailyLoad, Metrics, FillRates, DataChecks, and the 8 charts of the Dashboard as SVG pictures.
+   DailyLoad, Metrics, PIMetrics, FillRates, DataChecks, and the 9 charts of the workbook as SVG pictures.
 4. Writes them as values (no formula, no VBA) in jira2dashboard.xlsx, next to the workbook read (or --out), with the
    sheets Run (what was done) and Errors (the warnings of the run) and the parameters used (ApiToken masked).
 Nothing is written when Jira fails or a parameter is missing: the previous file stays as it was.
@@ -200,7 +200,7 @@ def run(args, formatter: Scrubbed, collected: Collected, sleep=time.sleep, detec
     results = R.compute(extract.flow, settings)
     first, end = settings.iterations[0].start, settings.iterations[-1].end
     pictures = chart_pictures(results.metrics, results.teams, [p.name for p in settings.iterations], results.loads,
-                              R.days_of(first, end), args.team)
+                              R.days_of(first, end), args.team, results.predictability)
     log.info("END results: %d items, %d metrics rows, %d charts%s", len(results.items), len(results.metrics),
              len(pictures), took(step))
     run_rows = [
@@ -219,6 +219,7 @@ def run(args, formatter: Scrubbed, collected: Collected, sleep=time.sleep, detec
         Sheet("Charts", rows=[("The charts of the run, drawn by Python (SVG pictures: Excel 365 shows them).",)],
               pictures=pictures, pictures_per_row=D.CHARTS_PER_ROW),
         Sheet("Metrics", R.METRICS, R.metrics_rows(results, settings)),
+        Sheet("PIMetrics", R.PI_METRICS, R.pimetrics_rows(results, settings)),
         Sheet("DataChecks", R.DATA_CHECKS, R.data_check_rows(results.flags, results.fill, settings.checks)),
         Sheet("FillRates", R.FILL_RATES, R.fillrates_rows(results.fill)),
         Sheet("ItemFlow", R.ITEMFLOW, R.itemflow_rows(results, extract.rows, extract.flow, settings.projects)),

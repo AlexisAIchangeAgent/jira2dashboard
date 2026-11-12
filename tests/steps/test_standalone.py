@@ -19,7 +19,7 @@ from jira2dashboard.flow.blueprint import team_names
 from jira2dashboard.flow.checks import PER_ISSUE, CheckSettings, Moves, fill_rates, run_checks
 from jira2dashboard.flow.itemflow import item_flow
 from jira2dashboard.flow.load import daily_load
-from jira2dashboard.flow.metrics import BUCKETS, team_iteration_metrics
+from jira2dashboard.flow.metrics import BUCKETS, feature_predictability, team_iteration_metrics
 from jira2dashboard.flow.model import NOT_COMPUTABLE, Change, Rules
 from jira2dashboard.mockjira.anomalies import PI, PI_WINDOW, with_anomalies
 from jira2dashboard.mockjira.flow_adapter import to_flow_issues
@@ -198,7 +198,7 @@ def _issues(world):
     assert sorted(r["Key"] for r in sheets(world)["Issues"]) == sorted(i.key for i in world["dataset"].issues)
 
 
-@then("les feuilles Metrics, DailyLoad, ItemFlow, FillRates et DataChecks reproduisent la référence Python")
+@then("les feuilles Metrics, PIMetrics, DailyLoad, ItemFlow, FillRates et DataChecks reproduisent la référence Python")
 def _results(world):
     ref, got = reference(world), sheets(world)
     as_of, items, wrong = ref["as_of"], ref["items"], []
@@ -236,6 +236,11 @@ def _results(world):
     expected_checks = [tuple(None if v == "" else v for v in row)
                        for row in R.data_check_rows(ref["flags"], ref["fill"], ref["settings"])]
     assert [tuple(r.values()) for r in got["DataChecks"]] == expected_checks
+    pis = feature_predictability(ref["issues"], items, ref["settings"])
+    assert [r["PI"] for r in got["PIMetrics"]] == [p.pi for p in pis] and any(p.planned for p in pis)
+    for p, row in zip(pis, got["PIMetrics"]):
+        wrong += [("PIMetrics", p.pi, c, row[c], v) for c, v in (("FeaturesPlanned", p.planned), ("FeaturesDone", p.done),
+                                                                   ("FeaturePredictability", p.ratio)) if not same(row[c], v)]
     assert wrong == [], wrong[:8]
     assert any(r["Velocity"] for r in got["Metrics"]) and any(r["Load"] for r in got["DailyLoad"])
 

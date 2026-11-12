@@ -45,7 +45,7 @@ Then for each PI, create a child page titled `Flow metrics <PI>`, with these sec
 | Id | Title | Severity | Items | Result |
 |---|---|---|---|---|
 
-**Charts:** the 8 charts of the `Dashboard` sheet as images. Set the team picker to "All teams" first. Put each chart
+**Charts:** the 9 charts of the `Charts` sheet as images. Set the team picker to "All teams" first. Put each chart
 under its title, as in the workbook:
 1. Velocity - items done per iteration
 2. Flow Time - median, in days
@@ -54,7 +54,8 @@ under its title, as in the workbook:
 5. Flow Efficiency - active time / (active + wait)
 6. Flow Distribution - items done by work type (team of the selector)
 7. Flow Predictability
-8. Flow Load - items in process at the end of each day
+8. Feature Predictability - features done by the end of the PI / features planned
+9. Flow Load - items in process at the end of each day
 
 Under each image, copy the note the workbook shows under the chart ("N of M points are not computable ...").
 
@@ -76,7 +77,7 @@ the RTE".
    values as Excel shows them (Verify in UI).
 4. **Table B:** do the same with Iteration-label, Team and the five `DistDone` columns.
 5. **Table C:** in the sheet `DataChecks`, copy the columns Id, Title, Severity, Items and Result.
-6. **Charts:** for each chart of the `Dashboard` sheet, use Home > Copy > Copy as Picture, then paste it into the
+6. **Charts:** for each chart of the `Charts` sheet, use Home > Copy > Copy as Picture, then paste it into the
    page. In a French Excel the menu is Accueil > Copier > Copier comme image.
 7. Run test 1 of `rovo_train_steering.md` section 6 (page read) once on the first page. Run it again if the size
    of the tables changes a lot.

@@ -10,7 +10,8 @@ METRICS_COLUMNS = set(f.TABLES["Metrics"])
 
 def test_one_chart_per_flow_metric():
     assert [c.name for c in d.CHARTS] == ["velocity", "flow_time", "flow_time_p85", "flow_load", "flow_efficiency",
-                                           "flow_distribution", "flow_predictability", "flow_load_daily"]
+                                           "flow_distribution", "flow_predictability", "feature_predictability",
+                                           "flow_load_daily"]
     assert len({c.name for c in d.CHARTS}) == len(d.CHARTS)
 
 
@@ -18,6 +19,9 @@ def test_every_chart_draws_a_column_of_the_metrics_table():
     for chart in d.CHARTS:
         if chart.axis == d.DAY_AXIS:
             assert chart.column is None and {"Date", "Team", "Load"} <= set(f.TABLES["DailyLoad"])
+        elif chart.axis == d.PI_AXIS:
+            assert chart.column is None and d.series_names(chart) == ("ART",)
+            assert {"IsFeature", "PI", "DoneUtc"} <= set(f.TABLES["ItemFlow"]) and "FeaturePredictability" in f.TABLES["PIMetrics"]
         elif chart.series == d.TEAMS:
             assert chart.column in METRICS_COLUMNS, chart.name
         else:
@@ -27,12 +31,12 @@ def test_every_chart_draws_a_column_of_the_metrics_table():
 
 def test_formulas_only_use_existing_columns_and_are_balanced():
     texts = [d.team_point(c.column, "$A6", "B$5") for c in d.CHARTS if c.column]
-    texts += [d.bucket_point(b, "$A6") for b in f.BUCKETS] + [d.day_point("$A6", "B$5")]
+    texts += [d.bucket_point(b, "$A6") for b in f.BUCKETS] + [d.day_point("$A6", "B$5"), d.pi_point("$A6")]
     texts.append(d.note_formula("ChartData!$B$6:$J$16", "a reason"))
     for text in texts:
         assert text.startswith("=") and text.count("(") == text.count(")") and text.count('"') % 2 == 0
-        for column in re.findall(r"Metrics\[(\w+)\]", text):
-            assert column in METRICS_COLUMNS, column
+        for table, column in re.findall(r"\b(\w+)\[(\w+)\]", text):
+            assert column in f.TABLES[table], (table, column)
 
 
 def test_not_computable_becomes_a_gap_not_a_zero():
@@ -75,15 +79,15 @@ def test_charts_on_the_dashboard_do_not_overlap():
 
 def test_the_daily_curve_is_last_and_has_a_gap_for_days_without_snapshot():
     daily = d.CHARTS[-1]
-    assert daily.axis == d.DAY_AXIS and all(c.axis == d.ITERATION_AXIS for c in d.CHARTS[:-1])      # its block is the longest
+    assert daily.axis == d.DAY_AXIS and all(c.axis != d.DAY_AXIS for c in d.CHARTS[:-1])      # its block is the longest
     text = d.day_point("$A6", "B$5")
     assert "NA()" in text and "DailyLoad[Load]" in text and text.count("(") == text.count(")")
 
 
 def test_the_predictability_band_is_a_proposal_text_the_vba_can_read():
-    spec = next(c for c in d.CHARTS if c.name == "flow_predictability")
-    assert spec.band == (0.8, 1.0) and d.band_text(spec) == "0.8;1.0"
-    assert all(d.band_text(c) == "" for c in d.CHARTS if c is not spec)
+    banded = [c for c in d.CHARTS if c.name in ("flow_predictability", "feature_predictability")]
+    assert all(c.band == (0.8, 1.0) and d.band_text(c) == "0.8;1.0" for c in banded)
+    assert all(d.band_text(c) == "" for c in d.CHARTS if c not in banded)
 
 
 def test_the_vba_names_the_same_sheet_of_charts_and_the_same_status_rows():
@@ -94,3 +98,13 @@ def test_the_vba_names_the_same_sheet_of_charts_and_the_same_status_rows():
     for module in ("modFlowBuild", "modActions"):
         assert f'Private Const CHARTS_SHEET As String = "{d.CHARTS_SHEET}"' in sources[module], module
     assert f"Private Const STATUS_ROWS As Long = {d.STATUS_ROWS}" in sources["modActions"]
+
+
+def test_the_feature_predictability_point_is_a_gap_without_a_planned_feature_or_a_pi():
+    """AL's variant (2026-11-12): done before the end of the PI / planned (the PI field); #N/A when nothing is planned."""
+    text = d.pi_point("$A6")
+    assert "XLOOKUP($A6,PIMetrics[PI],PIMetrics[FeaturePredictability]" in text and "NA()" in text
+    assert {"PI", "FeaturePredictability"} <= set(f.TABLES["PIMetrics"])
+    planned, done, ratio = (dict(f.PIMETRICS_COLUMNS)[c] for c in ("FeaturesPlanned", "FeaturesDone", "FeaturePredictability"))
+    assert planned == "=COUNTIFS(ItemFlow[IsFeature],1,ItemFlow[PI],[@PI])"
+    assert 'ItemFlow[DoneUtc],"<"&([@End]-' in done and '"not computable"' in ratio

@@ -7,6 +7,8 @@ blueprint.py writes this description into the sheet ChartSpec; modFlowBuild.bas 
 from dataclasses import dataclass
 
 from jira2dashboard.flow.formulas import BUCKETS
+from jira2dashboard.flow.model import ART
+from jira2dashboard.flow.refs import HALF
 
 ALL_TEAMS = "All teams"
 CHARTS_SHEET = "Charts"                       # the sheet of the charts and of the team selector, right of the Dashboard
@@ -27,8 +29,10 @@ BUTTON_WIDTH, BUTTON_HEIGHT, BAR_HEIGHT = 190, 26, 14
 
 XL_COLUMN_CLUSTERED, XL_LINE_MARKERS, XL_COLUMN_STACKED_100, XL_LINE = 51, 65, 53, 4
 
-TEAMS, BUCKET_SERIES = "team", "bucket"
-ITERATION_AXIS, DAY_AXIS = "iteration", "day"          # one point per iteration (table Metrics) or per day (table DailyLoad)
+TEAMS, BUCKET_SERIES, ART_SERIES = "team", "bucket", "art"     # one series per team, per work type, or ART alone
+ITERATION_AXIS, DAY_AXIS, PI_AXIS = "iteration", "day", "pi"   # one point per iteration (table Metrics), per day (table
+#                                                                 DailyLoad) or per PI (rows of the sheet PIs)
+NO_PI = "(no PI in the sheet PIs)"                             # the one row of a PI chart while the sheet PIs is empty
 BAND_NAMES = ("Target band low", "Target band high")
 
 
@@ -63,6 +67,10 @@ CHARTS = (
               XL_COLUMN_STACKED_100, "0%", series=BUCKET_SERIES),
     ChartSpec("flow_predictability", "Flow Predictability", "FlowPredictability", XL_LINE_MARKERS, "0%",
               reason="it needs the PI objectives, which are not in Jira", band=(0.8, 1.0)),
+    # AL's variant (2026-11-12): the Features done before the end of the PI over the Features planned in it (flow/metrics.py)
+    ChartSpec("feature_predictability", "Feature Predictability - features done by the end of the PI / features planned",
+              None, XL_COLUMN_CLUSTERED, "0%", series=ART_SERIES, axis=PI_AXIS, band=(0.8, 1.0),
+              reason="no feature planned in the PI, or the PI is not in the sheet PIs"),
     ChartSpec("flow_load_daily", "Flow Load - items in process at the end of each day", None, XL_LINE, axis=DAY_AXIS,
               reason="the day is after the as-of date"),          # last: its block has one row per day, not per iteration
 )
@@ -72,9 +80,10 @@ CHART_SPACING = 20                              # rows between two charts (chart
 CHARTS_PER_ROW = 2
 
 
-def block_top(index: int, iterations: int) -> int:
-    """First row of the block of chart `index` in ChartData: title, series names, then one row per iteration."""
-    return 1 + index * (iterations + 4)
+def block_top(index: int, rows: int) -> int:
+    """First row of the block of chart `index` in ChartData: title, series names, then one row per iteration or PI. `rows` is
+    the larger of the two counts (at least 1 PI row), as in modFlowBuild.BuildCharts; the daily curve, last, is longer."""
+    return 1 + index * (rows + 4)
 
 
 def chart_anchor(index: int) -> tuple[int, int]:
@@ -93,6 +102,13 @@ def day_point(day_cell: str, team_cell: str) -> str:
     COUNTIFS and SUMIFS, not an array lookup: one point per day and team would scan the whole table each time."""
     keys = f"DailyLoad[Date],{day_cell},DailyLoad[Team],{team_cell}"
     return f'=IF(COUNTIFS({keys},DailyLoad[Load],">=0")=0,NA(),SUMIFS(DailyLoad[Load],{keys}))'
+
+
+def pi_point(pi_cell: str) -> str:
+    """One point of the Feature Predictability chart (ART): the FeaturePredictability of the PI of the row in the table
+    PIMetrics (formulas.PIMETRICS_COLUMNS), or #N/A when it is not computable (no Feature planned in the PI)."""
+    return (f'=LET(v,XLOOKUP({pi_cell},PIMetrics[PI],PIMetrics[FeaturePredictability],""),'
+            "IF(ISNUMBER(v),v,NA()))")
 
 
 def band_text(spec: ChartSpec) -> str:
@@ -119,4 +135,6 @@ def note_formula(data_range: str, reason: str) -> str:
 
 def series_names(spec: ChartSpec) -> tuple[str, ...] | None:
     """The fixed series names (None when they are the teams, which come from the sheet Projects)."""
+    if spec.series == ART_SERIES:
+        return (ART,)
     return BUCKETS if spec.series == BUCKET_SERIES else None

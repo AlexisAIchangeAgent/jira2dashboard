@@ -9,7 +9,7 @@ import math
 from xml.sax.saxutils import escape
 
 from jira2dashboard.flow import dashboard_spec as D
-from jira2dashboard.flow.metrics import BUCKETS, TeamIterationMetrics
+from jira2dashboard.flow.metrics import BUCKETS, PIPredictability, TeamIterationMetrics
 from jira2dashboard.flow.model import NOT_COMPUTABLE
 from jira2dashboard.standalone.xlsx_write import Picture
 
@@ -159,8 +159,9 @@ def distribution(metrics: list[TeamIterationMetrics], iterations: list[str], tea
 
 def chart_pictures(metrics: list[TeamIterationMetrics], teams: list[str], iterations: list[str],
                    loads: dict[str, dict[dt.datetime, int]], days: list[dt.datetime],
-                   team: str = D.ALL_TEAMS) -> list[Picture]:
-    """The 8 charts, in the order of dashboard_spec.CHARTS."""
+                   team: str = D.ALL_TEAMS, predictability: list[PIPredictability] = ()) -> list[Picture]:
+    """The charts of dashboard_spec.CHARTS, in its order. `predictability`: Feature Predictability per PI (one row, a gap,
+    when there is no PI, as in the workbook)."""
     by_key = {(m.iteration, m.team): m for m in metrics}
     attribute = {"Velocity": "velocity", "FlowTimeMedian": "flow_time_median", "FlowTimeP85": "flow_time_p85",
                  "FlowLoadAverage": "flow_load_average", "FlowEfficiency": "flow_efficiency",
@@ -171,6 +172,9 @@ def chart_pictures(metrics: list[TeamIterationMetrics], teams: list[str], iterat
         if spec.axis == D.DAY_AXIS:
             categories = [f"{d:%m-%d}" for d in days]
             series = {t: [loads[t].get(d) for d in days] for t in teams}
+        elif spec.axis == D.PI_AXIS:
+            categories = [p.pi for p in predictability] or [D.NO_PI]
+            series = {name: [_number(p.ratio) for p in predictability] or [None] for name in D.series_names(spec)}
         elif spec.series == D.BUCKET_SERIES:
             categories = iterations
             series = distribution(metrics, iterations, team)

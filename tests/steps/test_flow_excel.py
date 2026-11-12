@@ -20,7 +20,7 @@ from jira2dashboard.flow import blueprint, sheets
 from jira2dashboard.flow import dashboard_spec as D
 from jira2dashboard.flow.itemflow import item_flow
 from jira2dashboard.flow.load import daily_load
-from jira2dashboard.flow.metrics import BUCKETS, flow_metrics
+from jira2dashboard.flow.metrics import BUCKETS, feature_predictability, flow_metrics
 from jira2dashboard.flow.model import NOT_COMPUTABLE, Rules
 from jira2dashboard.flow.checks import CHECKS, IDS, PER_ISSUE, CheckSettings, Moves, fill_rates, run_checks
 from jira2dashboard.mockjira.anomalies import PI, PI_WINDOW, with_anomalies
@@ -469,6 +469,24 @@ def excel_flags(world):
     return {row["Key"]: {c for c in PER_ISSUE if row[c] == 1} for row in table_dicts(world["wb"], "ItemFlow")}
 
 
+@then("la table PIMetrics et le graphique Feature Predictability donnent pour chaque PI les Features faites avant sa fin "
+      "sur les Features planifiées")
+def _feature_predictability(world):
+    """AL's variant of Flow Predictability (2026-11-12): the table PIMetrics and ChartData against
+    flow/metrics.feature_predictability."""
+    expected = feature_predictability(to_flow_issues(world["dataset"]), world["items"], world["settings"])
+    table = table_dicts(world["wb"], "PIMetrics")
+    assert [row["PI"] for row in table] == [p.pi for p in expected], table
+    for p, row in zip(expected, table):
+        assert (row["FeaturesPlanned"], row["FeaturesDone"]) == (p.planned, p.done), (p, row)
+        assert same_point(row["FeaturePredictability"], p.ratio), (p, row)
+    names, labels, rows = chart_blocks(world["wb"], world)["feature_predictability"]
+    assert names == ["ART"] and labels == [p.pi for p in expected], (names, labels)
+    for p, row in zip(expected, rows):
+        assert same_point(row[0], NA if p.ratio == NOT_COMPUTABLE else p.ratio), (p, row)
+    assert any(p.planned > 0 for p in expected), expected                   # the PI of the anomalies holds Features
+
+
 @then("la table DataChecks et les colonnes DC de ItemFlow reproduisent les contrôles de la référence Python")
 def _data_checks(world):
     expected, settings = expected_flags(world), world["settings"]
@@ -539,15 +557,25 @@ REFERENCE_FIELD = {"Velocity": "velocity", "FlowTimeMedian": "flow_time_median",
                    "FlowEfficiency": "flow_efficiency", "FlowPredictability": "flow_predictability"}
 
 
+def pi_names(wb) -> list[str]:
+    """The PIs of the sheet PIs (first column, from row 2), or the one row NO_PI, as modFlowBuild.PiNames."""
+    ws, names, row = wb.Worksheets("PIs"), [], 2
+    while ws.Cells(row, 1).Value not in (None, ""):
+        names.append(str(ws.Cells(row, 1).Value).strip())
+        row += 1
+    return names or [D.NO_PI]
+
+
 def chart_blocks(wb, world):
-    """{chart name: (series names, row keys, rows of points)} read from the sheet ChartData. A row is an iteration, or a day
-    for the daily curve; the series of a band are not in the names (they are checked on their own)."""
-    ws, iterations = wb.Worksheets("ChartData"), len(world["iterations"])
+    """{chart name: (series names, row keys, rows of points)} read from the sheet ChartData. A row is an iteration, a PI, or
+    a day for the daily curve; the series of a band are not in the names (they are checked on their own)."""
+    ws, iterations, pis = wb.Worksheets("ChartData"), len(world["iterations"]), pi_names(wb)
     days = (world["iterations"][-1].end - world["iterations"][0].start).days
+    stride = max(iterations, len(pis))                       # a block: one row per iteration or PI (modFlowBuild.BuildCharts)
     blocks = {}
     for index, spec in enumerate(D.CHARTS):
-        n = days if spec.axis == D.DAY_AXIS else iterations
-        top, count = D.block_top(index, iterations), len(D.series_names(spec) or team_names())
+        n = days if spec.axis == D.DAY_AXIS else len(pis) if spec.axis == D.PI_AXIS else iterations
+        top, count = D.block_top(index, stride), len(D.series_names(spec) or team_names())
         grid = ws.Range(ws.Cells(top + 1, 1), ws.Cells(top + 1 + n, 1 + count + (2 if spec.band else 0))).Value2
         blocks[spec.name] = ([grid[0][c] for c in range(1, count + 1)], [grid[r][0] for r in range(1, n + 1)],
                              [list(grid[r][1:count + 1]) for r in range(1, n + 1)])
@@ -570,7 +598,7 @@ def _sizes(world):
     assert size["StatusIntervals"] == sum(len(item.intervals) for item in world["items"])
     assert size["DailyLoad"] == (iterations[-1].end - iterations[0].start).days * len(teams)
     assert size["Metrics"] == len(iterations) * len(teams)
-    assert wb.Worksheets(D.CHARTS_SHEET).ChartObjects().Count == len(D.CHARTS) == 8
+    assert wb.Worksheets(D.CHARTS_SHEET).ChartObjects().Count == len(D.CHARTS) == 9
     assert wb.Worksheets("Dashboard").ChartObjects().Count == 0                  # nothing hides the Dashboard
     names = [sheet.Name for sheet in wb.Worksheets]
     assert len(names) == len(set(names)), names

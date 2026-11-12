@@ -84,10 +84,10 @@ RUN  user machine, Excel + VBA
         |  3. rebuild         modFlowBuild, from the plan sheets
         v
   Controls, ItemFlow, DailyLoad, Metrics,                   computed sheets (formulas)
-  FillRates, DataChecks, ChartData
+  PIMetrics, FillRates, DataChecks, ChartData
         |
         v
-  Dashboard: buttons, status cell A14 and its rows; Charts: 8 charts
+  Dashboard: buttons, status cell A14 and its rows; Charts: 9 charts
 
 
 FALLBACK  Python, no VBA
@@ -101,10 +101,10 @@ answered.
 
 | Sheets | Content | Written by |
 |---|---|---|
-| `Dashboard`, `Manual`, `Charts` | Progress bar and buttons stacked in `A2:A12`, status `A14` and one row per field under it; user manual; the 8 charts and their team `B2` | build |
+| `Dashboard`, `Manual`, `Charts` | Progress bar and buttons stacked in `A2:A12`, status `A14` and one row per field under it; user manual; the 9 charts and their team `B2` | build |
 | `Config`, `Projects`, `Iterations`, `PIs`, `Workflows`, `Transitions`, `FieldMapping` | Parameters | build, then user |
 | `Issues`, `StatusIntervals`, `IssueLinks` | Raw data (values) | VBA |
-| `Controls`, `ItemFlow`, `DailyLoad`, `Metrics`, `FillRates`, `DataChecks`, `ChartData` | Results (formulas) | VBA |
+| `Controls`, `ItemFlow`, `DailyLoad`, `Metrics`, `PIMetrics`, `FillRates`, `DataChecks`, `ChartData` | Results (formulas) | VBA |
 | `FlowFormulas`, `ChartSpec`, `ChecksSpec` | The plan. Do not edit. | build |
 | `JiraIssueTypes`, `JiraStatuses`, `JiraWorkflows`, `JiraTransitions`, `JiraFields` | Proposals read from Jira (workflows and moves end with the column Project) | VBA |
 | `RovoPromptSpec`, `RovoPrompt` | The text behind the button Prompt for Rovo, and the prompt it writes (a CSV answer is asked: Sheet, Row, Column, Value, Note); the button Load settings CSV loads that answer into Config and the parameter sheets | Python (spec), VBA |
@@ -263,7 +263,7 @@ When the macros cannot run, Python does their work:
 
 - It reads the parameter sheets of the **saved** workbook, then Jira, with the same proxy, retries and error numbers
   as the macros.
-- It writes values only: `Run`, `Charts` (8 SVG charts), `Metrics`, `DataChecks`, `FillRates`, `ItemFlow`,
+- It writes values only: `Run`, `Charts` (9 SVG charts), `Metrics`, `PIMetrics`, `DataChecks`, `FillRates`, `ItemFlow`,
   `DailyLoad`, `Issues`, `StatusIntervals`, `IssueLinks`, `Errors`, and the parameters with `ApiToken` masked.
 - On failure nothing is written. Differences from the workbook: no `Metrics` row for a team without items;
   `DailyLoad` stops at `AsOf`.

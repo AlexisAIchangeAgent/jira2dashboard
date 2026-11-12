@@ -37,6 +37,7 @@ Fonctionnalité: Le classeur livré extrait Jira et calcule les mêmes chiffres 
     Et la table FillRates reproduit les taux de remplissage de la référence Python
     Et la table DataChecks et les colonnes DC de ItemFlow reproduisent les contrôles de la référence Python
     Et chaque anomalie connue est trouvée par les contrôles qui lui correspondent et seulement par eux
+    Et la table PIMetrics et le graphique Feature Predictability donnent pour chaque PI les Features faites avant sa fin sur les Features planifiées
 
   @excel
   Scénario: Un contrôle dont le champ Jira n'est pas configuré est « not computable » et ne signale personne

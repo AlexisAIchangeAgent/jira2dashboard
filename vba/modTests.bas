@@ -1142,6 +1142,13 @@ Private Function TableRows(ByVal sheetName As String) As Long
     TableRows = ThisWorkbook.Worksheets(sheetName).ListObjects(sheetName).ListRows.Count
 End Function
 
+Private Function PiRows() As Variant
+    Dim rows(1 To 2, 1 To 3) As Variant
+    rows(1, 1) = "PI#01-2026": rows(1, 2) = DateSerial(2026, 9, 1): rows(1, 3) = DateSerial(2026, 10, 15)
+    rows(2, 1) = "PI#02-2026": rows(2, 2) = DateSerial(2026, 10, 15): rows(2, 3) = DateSerial(2026, 12, 1)
+    PiRows = rows
+End Function
+
 Public Sub T_FlowBuild()
     ' The flow sheets and the dashboard are built from the plan sheets (FlowFormulas, ChartSpec), and rebuilt to the size
     ' of newer data: nothing of a bigger earlier run stays. Iteration dates come as a date, as text or as a number.
@@ -1166,7 +1173,7 @@ Public Sub T_FlowBuild()
     Check "flowbuild", "Issues and StatusIntervals become tables", "2 + 3 rows", "2|3", TableRows("Issues") & "|" & TableRows("StatusIntervals")
     Check "flowbuild", "DailyLoad: one row per day and team", "28 days x 9", 28 * teams, TableRows("DailyLoad")
     Check "flowbuild", "Metrics: one row per iteration and team", "2 iterations x 9", 2 * teams, TableRows("Metrics")
-    Check "flowbuild", "eight charts, on the sheet Charts", "Charts", 8, dash.ChartObjects.Count
+    Check "flowbuild", "nine charts, on the sheet Charts", "Charts", 9, dash.ChartObjects.Count
     Check "flowbuild", "and none on the Dashboard", "Dashboard", 0, wb.Worksheets("Dashboard").ChartObjects.Count
     Check "flowbuild", "DataChecks: one row per check of ChecksSpec", "29 checks", 29, TableRows("DataChecks")
     Check "flowbuild", "DataChecks: the first check, and the check that needs a field is not computable", "DC01 / DC11", "DC01|OK|not computable", _
@@ -1179,6 +1186,12 @@ Public Sub T_FlowBuild()
     Check "flowbuild", "the daily Flow Load curve has one series per team and one point per day", "28 days", teams & "|" & 28, _
           dash.ChartObjects("flow_load_daily").Chart.SeriesCollection.Count & "|" & UBound(dash.ChartObjects("flow_load_daily").Chart.SeriesCollection(1).Values)
     Check "flowbuild", "the iteration axis of a chart lists the iterations in order", "P1, P2", "P1|P2", AxisEnds(dash.ChartObjects("velocity").Chart, False)
+    Check "flowbuild", "Feature Predictability: one series, ART, and the 80-100 % band", "ART", "3|ART", _
+          dash.ChartObjects("feature_predictability").Chart.SeriesCollection.Count & "|" & dash.ChartObjects("feature_predictability").Chart.SeriesCollection(1).Name
+    Check "flowbuild", "without a PI in the sheet PIs the PI axis has one row, a gap", "no PI", "(no PI in the sheet PIs)|(no PI in the sheet PIs)", _
+          AxisEnds(dash.ChartObjects("feature_predictability").Chart, False)
+    Check "flowbuild", "PIMetrics: one row, not computable, without a PI", "no PI", "1|0|not computable", _
+          TableRows("PIMetrics") & "|" & wb.Worksheets("PIMetrics").Range("D2").Value & "|" & wb.Worksheets("PIMetrics").Range("F2").Value
     Check "flowbuild", "the day axis starts on the first day, one row per day", "2026-10-01, 28 days", "46296|27", _
           AxisEnds(dash.ChartObjects("flow_load_daily").Chart, True)
     Check "flowbuild", "the formulas give the issue keys", "ItemFlow.Key", "TTT-1|AAA-1", _
@@ -1199,11 +1212,17 @@ Public Sub T_FlowBuild()
     Check "flowbuild", "smaller data: StatusIntervals", "1 interval", 1, TableRows("StatusIntervals")
     Check "flowbuild", "smaller data: FillRates follows the issue types", "3 x 9 x 1", 27, TableRows("FillRates")
     Check "flowbuild", "the sheets are the same", "count", sheetCount, wb.Worksheets.Count
-    Check "flowbuild", "still eight charts", "Charts", 8, dash.ChartObjects.Count
+    Check "flowbuild", "still nine charts", "Charts", 9, dash.ChartObjects.Count
     Check "flowbuild", "an unknown team in the selector goes back to All teams", "Nowhere", "All teams", dash.Range("B2").Value
     dash.Range("B2").Value = "AAA"
+    wb.Worksheets("PIs").Range("A2:C3").Value = PiRows()                 ' two PIs: the PI axis lists them in order
     BuildFlowSheetsIn wb
     Check "flowbuild", "a known team stays selected", "AAA", "AAA", dash.Range("B2").Value
+    Check "flowbuild", "the PI axis lists the PIs of the sheet PIs in order", "two PIs", "PI#01-2026|PI#02-2026", _
+          AxisEnds(dash.ChartObjects("feature_predictability").Chart, False)
+    Check "flowbuild", "PIMetrics: one row per PI, its dates looked up in the sheet PIs", "two PIs", "2|PI#02-2026|" & CLng(DateSerial(2026, 12, 1)), _
+          TableRows("PIMetrics") & "|" & wb.Worksheets("PIMetrics").Range("A3").Value & "|" & CLng(wb.Worksheets("PIMetrics").Range("C3").Value)
+    wb.Worksheets("PIs").Range("A2:C3").ClearContents
     ' Excel left in manual mode by the user: the build gives the mode back and still ends with every figure calculated
     ' (guard only: removing CalculateFull for this case changed nothing observable, entering a formula calculates it)
     Application.Calculation = -4135                               ' xlCalculationManual

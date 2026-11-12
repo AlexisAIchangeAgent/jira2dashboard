@@ -8,12 +8,14 @@ reads these too.
 import datetime as dt
 from dataclasses import dataclass
 
+from jira2dashboard.flow import dashboard_spec as D
 from jira2dashboard.flow import formulas as F
 from jira2dashboard.flow.blueprint import team_names
 from jira2dashboard.flow.checks import CHECKS, PER_ISSUE, FillRate, fill_rates, run_checks
 from jira2dashboard.flow.itemflow import ItemFlow, item_flow
 from jira2dashboard.flow.load import ONE_DAY, daily_load, snapshot_days
-from jira2dashboard.flow.metrics import BUCKETS, TeamIterationMetrics, team_iteration_metrics
+from jira2dashboard.flow.metrics import (BUCKETS, PIPredictability, TeamIterationMetrics, feature_predictability,
+                                         team_iteration_metrics)
 from jira2dashboard.flow.model import NOT_COMPUTABLE, UNMAPPED, WORK_TYPES, FlowIssue
 from jira2dashboard.standalone.params_book import RunSettings
 
@@ -24,6 +26,7 @@ ITEMFLOW = ("Key", "Project", "Type", "WorkType", "Role", "Workflow", "Team", "C
             "SprintEnd", "SprintCount", "TargetStart", "TargetEnd", "KeyChanges") + PER_ISSUE
 DAILY_LOAD = F.TABLES["DailyLoad"]
 METRICS = F.TABLES["Metrics"]
+PI_METRICS = F.TABLES["PIMetrics"]
 FILL_RATES = F.TABLES["FillRates"]
 DATA_CHECKS = F.TABLES["DataChecks"]
 _RAW = {name: n for n, name in enumerate(F.ISSUES)}
@@ -37,6 +40,7 @@ class Results:
     metrics: list[TeamIterationMetrics]          # every iteration x team
     loads: dict[str, dict[dt.datetime, int]]  # team -> day -> items in process at the end of the day
     fill: list[FillRate]
+    predictability: list[PIPredictability]   # Feature Predictability per PI of the sheet PIs (ART)
 
 
 def compute(issues: list[FlowIssue], s: RunSettings) -> Results:
@@ -47,7 +51,8 @@ def compute(issues: list[FlowIssue], s: RunSettings) -> Results:
     fill = fill_rates(issues, s.checks, sorted({i.team for i in issues}), sorted({i.type for i in issues}))
     return Results(items, flags, teams,
                    [team_iteration_metrics(items, team, iteration, s.mode, s.as_of) for iteration in s.iterations for team in teams],
-                   {team: daily_load(items, s.mode, team, first, end, s.as_of) for team in teams}, fill)
+                   {team: daily_load(items, s.mode, team, first, end, s.as_of) for team in teams}, fill,
+                   feature_predictability(issues, items, s.checks))
 
 
 def _bucket(work_type) -> str:
@@ -88,6 +93,13 @@ def dailyload_rows(results: Results, first: dt.datetime, end: dt.datetime) -> li
 
 def _figure(value):
     return NOT_COMPUTABLE if value == NOT_COMPUTABLE else value
+
+
+def pimetrics_rows(results: Results, s: RunSettings) -> list[tuple]:
+    """The rows of PIMetrics as the workbook computes them: one per PI of the sheet PIs, or the one row NO_PI."""
+    if not results.predictability:
+        return [(D.NO_PI, None, None, 0, None, NOT_COMPUTABLE)]
+    return [(p.pi, *s.checks.pis[p.pi], p.planned, p.done, p.ratio) for p in results.predictability]
 
 
 def metrics_rows(results: Results, s: RunSettings) -> list[tuple]:

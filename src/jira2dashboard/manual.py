@@ -90,11 +90,17 @@ def manual(mandatory: tuple[str, ...]) -> list[tuple[str, str]]:
             "At the end the sheets ItemFlow, DailyLoad, Metrics, ChartData and the charts are rebuilt to the size of "
             "the new data. Run it as often as needed.",
             "The charts are in the sheet Charts, right of the Dashboard. Its cell B2: the team of the Flow Distribution chart.",
+            "Feature Predictability, per PI of the sheet PIs: the Features done before the end of the PI over the Features "
+            "planned in it (their PI field). A cancelled Feature stays planned, not done. It needs FeatureTypes, the PI field "
+            "(PIField) and the sheet PIs. Flow Predictability, the SAFe measure on the business value of the PI objectives, "
+            "stays not computable: Jira does not hold the PI objectives.",
             'A status that starts with "Stopped" gives the error, with its code (J2D-...): read it to the support. The sheet ErrorCodes '
             'says what each code means and what to check. The local log tells more (below).',
         ]),
         ("Results", [
             'Metrics: one row per iteration and team. A figure that cannot be computed reads "not computable", never 0.',
+            "PIMetrics: one row per PI of the sheet PIs, with its dates, the Features planned in it, those done before its "
+            "end and Feature Predictability.",
             "DataChecks: the 29 data checks DC01-DC29, with Items and OK, KO or not computable. To see the work items, "
             "filter the table ItemFlow on its column DCxx = 1.",
             "Do not edit the sheets FlowFormulas, ChartSpec and ChecksSpec: they describe the formulas, the charts and "
