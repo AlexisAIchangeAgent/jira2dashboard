@@ -51,7 +51,7 @@ The release zip leaves out the `export-ignore` paths of `.gitattributes` (CLAUDE
 `.claude/`, `.venv/`); `tests/unit/test_release_contents.py` pins the list. `-Publish` is outward-facing: ask AL first.
 Releases: the version is `vX.Y.Z` only (`v0.0.0-dryrun` is refused) and the number is AL's choice. The dry run
 (`release.ps1 -Version v0.0.0`) needs a clean tree, builds with Excel and leaves `out\release\<version>`: delete it afterwards.
-`-Publish` also needs HEAD == origin/main and `gh` logged in. `v0.1.0` (2026-11-06), `v0.2.0` (2026-11-07, commit 878807e) and `v0.3.0` (2026-11-11, commit 31c9574) are published.
+`-Publish` also needs HEAD == origin/main and `gh` logged in. `v0.1.0` (2026-11-06), `v0.2.0` (2026-11-07, commit 878807e), `v0.3.0` (2026-11-11, commit 31c9574) and `v0.4.0` (2026-11-12, commit f0bbf32) are published.
 The release tags are on GitHub; a clone may hold only `v0.1.0` (`git fetch --tags`): `version.py` stamps the commit, never `git describe`.
 `diagnose` never opens the workbook, never reads `python.log` (JQL, Jira's messages) nor the Windows event log, and masks the home
 folder: keep it that way when adding a section. Allow-lists of an endpoint protection ask for the MD5 (`notes.md` has it) or, lasting longer, the path and name:
