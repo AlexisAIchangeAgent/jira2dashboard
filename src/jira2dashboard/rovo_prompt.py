@@ -11,7 +11,7 @@ SPEC_SHEET = "RovoPromptSpec"
 PROMPT_SHEET = "RovoPrompt"
 SPEC_HEADER = ("Part", "Name", "Text")
 TEXT, CONFIG, SHEET, KEEP = "text", "config", "sheet", "keep"
-# The parameters that say where the credentials go: the CSV can tell them to the user but the button Load Rovo CSV never writes
+# The parameters that say where the credentials go: the CSV can tell them to the user but the button Load settings CSV never writes
 # them (a CSV, made by Rovo from what it reads in Jira, must not be able to redirect the e-mail and the token to another host).
 PROTECTED = ("BaseUrl", "Email", "ApiToken", "ProxyServer", "ProxyBypass", "ProxyWindowsAuth")
 CSV_COLUMNS = ("Sheet", "Row", "Column", "Value", "Note")

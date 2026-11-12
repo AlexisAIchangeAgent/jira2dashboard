@@ -977,7 +977,7 @@ def _rovo_status(world):
     assert world["status"].startswith(f"Rovo prompt | Lines: {len(rovo_lines(world))}, selected in the sheet RovoPrompt"), world["status"]
 
 
-# --- rovo_prompt.feature: the button Load Rovo CSV -------------------------------------------------------------------------
+# --- rovo_prompt.feature: the button Load settings CSV -------------------------------------------------------------------------
 
 ROVO_CSV = (
     "\ufeffSheet,Row,Column,Value,Note\n"
@@ -1033,7 +1033,7 @@ def as_day(value) -> str:
     return value.strftime("%Y-%m-%d") if hasattr(value, "strftime") else str(value)[:10]
 
 
-@when("je charge ce CSV avec le bouton Load Rovo CSV")
+@when("je charge ce CSV avec le bouton Load settings CSV")
 def _rovo_load(world):
     wb = world["wb"]
     buttons = {shape.TextFrame.Characters().Text: (shape.OnAction, shape.TopLeftCell.Address)
@@ -1049,7 +1049,7 @@ def _rovo_load(world):
     world["summary"] = retry(lambda: app.Run(prefix + "ImportRovoCsvFile", str(world["csv"])))
 
 
-ROVO_STEPS = {"Prompt for Rovo": "prompt for Rovo", "Load Rovo CSV": "Rovo CSV"}
+ROVO_STEPS = {"Prompt for Rovo": "prompt for Rovo", "Load settings CSV": "settings CSV"}
 
 
 @then(parsers.parse('le journal local décrit le run du bouton "{how}", avec ses paramètres et le temps de son étape'))
@@ -1093,7 +1093,7 @@ def _rovo_others_kept(world):
 
 @then("l'état du tableau de bord résume ce qui est chargé et les valeurs inconnues")
 def _rovo_summary(world):
-    assert world["summary"].startswith("Rovo CSV loaded | Config: 1 value(s): FillRateThreshold | Projects: 2 row(s) | "
+    assert world["summary"].startswith("Settings CSV loaded | Config: 1 value(s): FillRateThreshold | Projects: 2 row(s) | "
                                        "Iterations: 1 row(s) | Empty values: 1 (not loaded) | UNKNOWN values: 2 (not loaded)"), world["summary"]
     assert " | Problems: 2, first: Line 3: BaseUrl says where the credentials go" in world["summary"], world["summary"]
 

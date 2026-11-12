@@ -565,7 +565,7 @@ Public Sub T_RovoCsv()
     Check "csv", "the old rows are gone", "row 4", True, IsEmpty(wsP.Range("A4").Value)
     Check "csv", "an ISO date stays text (the readers of the sheet parse it)", "Start", "2026-10-05", CStr(ThisWorkbook.Worksheets("Iterations").Range("B2").Value)
     Check "csv", "the summary says what was loaded", "summary", True, _
-          InStr(summary, "Rovo CSV loaded | Config: 1 value(s): FillRateThreshold | Projects: 2 row(s) | Iterations: 1 row(s) | Empty values: 1 (not loaded) | UNKNOWN values: 2 (not loaded)") = 1
+          InStr(summary, "Settings CSV loaded | Config: 1 value(s): FillRateThreshold | Projects: 2 row(s) | Iterations: 1 row(s) | Empty values: 1 (not loaded) | UNKNOWN values: 2 (not loaded)") = 1
     Check "csv", "and the first problem", "problems", True, InStr(summary, " | Problems: ") > 0 And InStr(summary, ", first: Line ") > 0
     For i = 1 To 3
         With ThisWorkbook.Worksheets(names(i - 1))

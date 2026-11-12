@@ -133,7 +133,7 @@ Public Sub BtnRovoPrompt()
     ws.Activate
     ws.Range(ws.Cells(1, 1), ws.Cells(n, 1)).Select
     ShowProgress -1, "Rovo prompt | Lines: " & n & ", selected in the sheet " & SHEET_ROVO & _
-                     " | Next: Ctrl+C, paste into Rovo, save its CSV answer, then click Load Rovo CSV and choose the file"
+                     " | Next: Ctrl+C, paste into Rovo, save its CSV answer, then click Load settings CSV and choose the file"
     LogRunEnd "ok"
     Exit Sub
 Failed:
@@ -150,7 +150,7 @@ Public Sub BtnLoadRovoCsv()
     Dim num As Long, desc As String, file As Variant, summary As String, folder As String
     If mBusy Then Beep: Exit Sub
     On Error GoTo Failed
-    LogRunStart "button Load Rovo CSV", LogLevelSetting()             ' every click is a run of the log, a cancel too
+    LogRunStart "button Load settings CSV", LogLevelSetting()         ' every click is a run of the log, a cancel too
     LogParameters ThisWorkbook                                       ' the values before the load
     folder = ThisWorkbook.Path
     If Len(folder) > 0 Then
@@ -160,7 +160,7 @@ Public Sub BtnLoadRovoCsv()
     End If
     file = Application.GetOpenFilename("CSV files (*.csv),*.csv", , "The CSV answered by Rovo")
     If VarType(file) = vbBoolean Then
-        ShowProgress -1, "Rovo CSV | Result: no file chosen, nothing loaded"
+        ShowProgress -1, "Settings CSV | Result: no file chosen, nothing loaded"
         LogRunEnd "cancelled: no file chosen"
         Exit Sub
     End If
@@ -168,8 +168,8 @@ Public Sub BtnLoadRovoCsv()
               "The Value of each parameter of Config that the file gives replaces the current one. For every other sheet " & _
               "in the file (Projects, Iterations, PIs, Workflows, Transitions) all the current rows are replaced by its rows. " & _
               "Save a copy of the workbook first if you want to keep the current values.", vbOKCancel + vbQuestion, _
-              "Load the CSV of Rovo") <> vbOK Then
-        ShowProgress -1, "Rovo CSV | Result: cancelled, nothing loaded"
+              "Load settings CSV") <> vbOK Then
+        ShowProgress -1, "Settings CSV | Result: cancelled, nothing loaded"
         LogRunEnd "cancelled: not confirmed"
         Exit Sub
     End If
@@ -185,19 +185,19 @@ Failed:
 End Sub
 
 Public Function ImportRovoCsvFile(ByVal path As String) As String
-    ' The work of BtnLoadRovoCsv without the dialogs (the tests and other macros use it): the step "Rovo CSV" of the run of
+    ' The work of BtnLoadRovoCsv without the dialogs (the tests and other macros use it): the step "settings CSV" of the run of
     ' the button. Called alone (no run in progress), it is a run of its own, as a button: its RUN line, the parameters before
     ' the load, the step and its time, RUN end. An error goes up to the caller. The summary is not logged: it quotes names
     ' read in the CSV.
     Dim summary As String, own As Boolean
     own = Not LogRunActive()
     If own Then
-        LogRunStart "button Load Rovo CSV", LogLevelSetting()
+        LogRunStart "button Load settings CSV", LogLevelSetting()
         LogParameters ThisWorkbook                                   ' the values before the load
     End If
-    LogBegin "Rovo CSV"
+    LogBegin "settings CSV"
     summary = ImportRovoCsv(ThisWorkbook, path)
-    LogEnd "Rovo CSV loaded"
+    LogEnd "settings CSV loaded"
     If own Then LogRunEnd "ok"
     ImportRovoCsvFile = summary
 End Function

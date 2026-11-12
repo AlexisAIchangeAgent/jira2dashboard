@@ -461,7 +461,7 @@ Public Function RovoCsvApply(ByVal wb As Object, ByVal res As Object) As String
         names = names & " | " & k & ": " & cleared(k) & " row(s)"
     Next k
     ' "Title | Name: value | ...": the Dashboard shows the title in its status cell and one row per field under it.
-    summary = "Rovo CSV loaded"
+    summary = "Settings CSV loaded"
     If counts.Exists("Config") Then summary = summary & " | Config: " & counts("Config") & " value(s): " & loaded & IIf(counts("Config") > 8, ", ...", "")
     summary = summary & names
     If counts.Count = 0 And Len(names) = 0 Then summary = summary & " | Result: nothing to load"

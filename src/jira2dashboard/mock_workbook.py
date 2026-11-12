@@ -4,7 +4,7 @@ The copy, out\\manual_test\\jira2dashboard4manualtest.xlsm, gets what a client w
 account, reference date and custom field ids of the fake Jira of `run.ps1 mock-jira`; 14-day iterations in Iterations;
 the PI of the known anomalies in PIs. The workbook given is never changed: the one to deliver keeps its client values
 empty. out\\manual_test is never emptied by clean, build or vba-tests; the copy is rewritten at each run.
-Next to it, rovo_mock_jira.csv: the same configuration as Rovo would answer it (the CSV of the button Load Rovo CSV), to
+Next to it, rovo_mock_jira.csv: the same configuration as Rovo would answer it (the CSV of the button Load settings CSV), to
 try that button by hand. The connection (address, account, token, proxy) is not in it: the button never loads it.
 """
 import csv
@@ -88,7 +88,7 @@ def csv_value(value) -> str:
 
 
 def rovo_csv(port: int = 8099) -> str:
-    """The answer Rovo would give for the fake Jira, in the CSV the button Load Rovo CSV reads (rovo_prompt.CSV_COLUMNS):
+    """The answer Rovo would give for the fake Jira, in the CSV the button Load settings CSV reads (rovo_prompt.CSV_COLUMNS):
     the Config values of config_values but the connection (rovo_prompt.PROTECTED, never loaded from a CSV), then every row
     of the sheets the prompt asks for (rovo_prompt.SHEET_RULES), with a BOM as Excel writes a UTF-8 CSV."""
     out = io.StringIO()
@@ -162,7 +162,7 @@ def main(argv: list[str] | None = None) -> int:
     fill_copy(COPY, base_url(args.port))
     print(f"mock-workbook: {COPY}")
     (COPY.parent / CSV_NAME).write_bytes(rovo_csv(args.port).encode("utf-8"))
-    print(f"mock-workbook: {COPY.parent / CSV_NAME} (to try Load Rovo CSV; type the connection by hand)")
+    print(f"mock-workbook: {COPY.parent / CSV_NAME} (to try Load settings CSV; type the connection by hand)")
     return 0
 
 

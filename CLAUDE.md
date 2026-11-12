@@ -103,9 +103,9 @@ python.log). `tests/unit/test_claude_hooks.py` and `test_claude_skills.py` test 
   (`modParams`). Status names, team names and extract columns must not appear as literals in VBA (a guard test enforces it).
   `Config` columns: Parameter | Value | Example | Mandatory | Description (formulas read A and B; the rest by header). An empty Mandatory=True value
   stops the buttons before any call to Jira (`modParams.RequireMandatory`, error 608).
-- **Dashboard and Charts.** Top left, one under the other (AL's order): the progress bar `A2`, the buttons Read the Jira
-  configuration `A3`, Extract `A5`, Cancel `A7` (cells in `dashboard_spec`); the Rovo buttons stay at `R1`/`R3`. A final
-  status is `Title | Name: value | ...`: `A10` (name `dashStatus`) shows the title and `A11:B30` one row per field (`modText.StatusParts`, `modActions.ShowProgress`; `ProgressSnapshot` rebuilds the line from the
+- **Dashboard and Charts.** Top left, one under the other (AL's order): the progress bar `A2`, the buttons Prompt for Rovo
+  `A3`, Load settings CSV `A5`, Read the Jira configuration `A7`, Extract `A9`, Cancel `A11` (cells in `dashboard_spec`). A
+  final status is `Title | Name: value | ...`: `A14` (name `dashStatus`) shows the title and `A15:B34` one row per field (`modText.StatusParts`, `modActions.ShowProgress`; `ProgressSnapshot` rebuilds the line from the
   cells for the tests). The 8 charts, their notes and the team selector `B2` (name `dashTeam`) are on the sheet `Charts`, made
   at build after the Dashboard (`CHARTS_SHEET` of `modFlowBuild`/`modActions` = `dashboard_spec.CHARTS_SHEET`, a test pins it).
 - **User manual.** `src/jira2dashboard/manual.py` (pure text) is written by `flow/sheets.write_manual` at the delivery
@@ -152,10 +152,10 @@ python.log). `tests/unit/test_claude_hooks.py` and `test_claude_skills.py` test 
   `JiraProjectWorkflows`, `JiraProjectFields` (createmeta, needs Create issues) and `JiraFieldUsage` (one page of issues per project). Its Rovo counterpart, to compare Jira with the workbook:
   `rovo/rovo_settings_analyser.md` (agent config, not code).
 - **Prompt for Rovo (button, VBA).** `src/jira2dashboard/rovo_prompt.py` (pure text) is written at build into the sheet
-  `RovoPromptSpec` (Part | Name | Text); `modParams.WriteRovoPrompt` (button `modActions.BtnRovoPrompt`, cell `R1`) turns it into the
+  `RovoPromptSpec` (Part | Name | Text); `modParams.WriteRovoPrompt` (button `modActions.BtnRovoPrompt`, cell `A3`) turns it into the
   sheet `RovoPrompt`: Config read live (name, mandatory, meaning, example, never the Value), each sheet with its header, and the CSV
   format asked of Rovo (Sheet, Row, Column, Value, Note). No clipboard call (the VBA creates only two COM objects): the lines are selected.
-  The button Load Rovo CSV (`BtnLoadRovoCsv`, cell `R3`: a dialog at each click, opened in the folder of the workbook, the CSV in any folder; `ImportRovoCsvFile(path)` is its work without the dialogs) reads Rovo's CSV
+  The button Load settings CSV (`BtnLoadRovoCsv`, cell `A5`: a dialog at each click, opened in the folder of the workbook, the CSV in any folder; `ImportRovoCsvFile(path)` is its work without the dialogs) reads Rovo's CSV
   (`modParams.ParseCsv`, `RovoCsvRead`, `RovoCsvApply`: comma, semicolon or tab, UTF-8 with or without BOM): Config gets the Value
   of each parameter named, every other sheet of the file has all its rows replaced; UNKNOWN, empty and the token placeholder are
   not loaded.

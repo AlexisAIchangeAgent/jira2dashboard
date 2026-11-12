@@ -82,7 +82,7 @@ TABLE: tuple[ErrorCode, ...] = (
     ErrorCode("J2D-FLOW-006", 709, "The sheet Issues has no column Type", "The sheet was edited", "Run the extraction again", "A screenshot of the header row"),
     # --- ROVO ---------------------------------------------------------------------------------------------------------------
     ErrorCode("J2D-ROVO-001", 630, "The Rovo prompt spec is empty", "The sheet RovoPromptSpec was cleared", "Use a fresh copy of the delivered workbook", "The workbook version"),
-    ErrorCode("J2D-ROVO-002", 631, "The Rovo CSV file does not exist", "A wrong path or a file removed", "Click Load Rovo CSV again and choose the file in the dialog", "The folder content (names only)"),
+    ErrorCode("J2D-ROVO-002", 631, "The Rovo CSV file does not exist", "A wrong path or a file removed", "Click Load settings CSV again and choose the file in the dialog", "The folder content (names only)"),
     ErrorCode("J2D-ROVO-003", 632, "Retired on 2026-11-11: the Rovo CSV had to be in the folder of the workbook", "A workbook built before that date", "Use a workbook built since: the CSV may be in any folder", "The version on the RUN line of the log"),
     # --- SYS ----------------------------------------------------------------------------------------------------------------
     ErrorCode("J2D-SYS-001", 610, "Cancelled by the user", "The Cancel button was pressed", "Nothing: the results of the previous run are kept", "None"),

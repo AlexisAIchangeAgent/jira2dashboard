@@ -94,11 +94,12 @@ def write_dashboard_frame(wb, dash, button_macro: str | None = None) -> None:
     dash.Activate()
     if button_macro:
         R.add_progress_bar(dash, D.BAR_CELL, D.BUTTON_WIDTH, D.BAR_HEIGHT)
-        R.add_macro_button(dash, D.CONFIG_CELL, D.CONFIG_CAPTION, CONFIG_MACRO, D.BUTTON_WIDTH, D.BUTTON_HEIGHT)
-        R.add_macro_button(dash, D.EXTRACT_CELL, D.EXTRACT_CAPTION, button_macro, D.BUTTON_WIDTH, D.BUTTON_HEIGHT)
-        R.add_macro_button(dash, D.CANCEL_CELL, D.CANCEL_CAPTION, CANCEL_MACRO, D.BUTTON_WIDTH, D.BUTTON_HEIGHT)
-        R.add_macro_button(dash, D.ROVO_CELL, D.ROVO_CAPTION, ROVO_MACRO, 105, 26)
-        R.add_macro_button(dash, D.ROVO_LOAD_CELL, D.ROVO_LOAD_CAPTION, ROVO_LOAD_MACRO, 105, 18)
+        for cell, caption, macro in ((D.ROVO_CELL, D.ROVO_CAPTION, ROVO_MACRO),
+                                     (D.ROVO_LOAD_CELL, D.ROVO_LOAD_CAPTION, ROVO_LOAD_MACRO),
+                                     (D.CONFIG_CELL, D.CONFIG_CAPTION, CONFIG_MACRO),
+                                     (D.EXTRACT_CELL, D.EXTRACT_CAPTION, button_macro),
+                                     (D.CANCEL_CELL, D.CANCEL_CAPTION, CANCEL_MACRO)):
+            R.add_macro_button(dash, cell, caption, macro, D.BUTTON_WIDTH, D.BUTTON_HEIGHT)
 
 
 def write_manual(wb, dash, mandatory: tuple[str, ...]) -> None:

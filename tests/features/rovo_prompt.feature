@@ -22,18 +22,18 @@ Fonctionnalité: Le bouton « Prompt for Rovo » prépare le texte à donner à 
     Soit un faux Jira avec 120 tickets générés avec les projets des paramètres
     Et le classeur à livrer dont la feuille Config pointe sur ce faux Jira avec FlowLoadMode "A"
     Et une réponse de Rovo en CSV qui donne FillRateThreshold, une adresse de connexion, deux projets, une itération, un jeton à saisir et une valeur inconnue
-    Quand je charge ce CSV avec le bouton Load Rovo CSV
+    Quand je charge ce CSV avec le bouton Load settings CSV
     Alors la feuille Config a reçu FillRateThreshold et aucun paramètre de connexion
     Et la feuille Projects contient les deux lignes du CSV et plus aucune autre
     Et la feuille Iterations contient la ligne du CSV et garde sa colonne Example
     Et les feuilles Workflows et Transitions n'ont pas changé
     Et l'état du tableau de bord résume ce qui est chargé et les valeurs inconnues
-    Et le journal local décrit le run du bouton "Load Rovo CSV", avec ses paramètres et le temps de son étape
+    Et le journal local décrit le run du bouton "Load settings CSV", avec ses paramètres et le temps de son étape
 
   @excel
   Scénario: Le CSV de configuration du faux Jira remplit le classeur livré comme la copie de manual-test, sauf la connexion
     Soit le classeur à livrer
     Et le CSV de configuration du faux Jira, dans un dossier à part
-    Quand je charge ce CSV avec le bouton Load Rovo CSV
+    Quand je charge ce CSV avec le bouton Load settings CSV
     Alors la feuille Config a reçu la date de référence et les champs du faux Jira, et aucun paramètre de connexion
     Et les feuilles Iterations et PIs ont les itérations et le PI du faux Jira
