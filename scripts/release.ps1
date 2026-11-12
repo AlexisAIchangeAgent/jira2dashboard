@@ -123,7 +123,7 @@ Files:
 - $name.zip: the code, to build the workbook yourself (Windows, Excel, Python 3.14):
   scripts\setup.ps1, then scripts\run.ps1 build.
 
-Setup and use: README.md, section "Livraison".
+Setup and use: README.md, sections "9. Using the workbook" and, to build it, "1. Quick start".
 
 SHA256:
 - jira2dashboard.xlsm: $xlsmHash
