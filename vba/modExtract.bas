@@ -296,11 +296,11 @@ Public Function ExtractJobStep() As Boolean
             Cov "MEX10"
             If mRows Is Nothing Then RowsInit
             RowsBatch
-            If mRowNext > mIssues.Count Then mPhase = 4
+            If mRowNext > mIssues.Count Then mPhase = 4: ReleasePages    ' the rows are built: the parsed pages are not read again
         Case 4                                                       ' the intervals of one workflow (Feature, then Team)
             Cov "MEX11"
             IntervalsStep
-            If mWfNext > 1 Then mPhase = 5
+            If mWfNext > 1 Then mPhase = 5: Set mChanges = Nothing: Set mMoved = Nothing
         Case 5                                                       ' the only step that writes: clear, then the three sheets
             Cov "MEX12"
             WriteRawSheets
@@ -352,8 +352,15 @@ Private Sub RowsInit()
     Set mChanges = StatusChangesFromChangelog(mRaw, mIdToKey)
     Set mMoved = KeyChangeCounts(mRaw, mIdToKey)
     LogEnd "raw sheets: status changes: " & mChanges.Count
+    Set mRaw = New Collection                                          ' every changelog item of Jira: the status changes above are all we keep
     mIds = RowFieldIds(mSettings)
     mBlocksType = Setting(mSettings, "BlocksLinkType")
+End Sub
+
+Private Sub ReleasePages()
+    ' The memory of a long run is what a 32-bit Excel runs out of ("Out of memory", error 7, at the write of the sheets): free what
+    ' the next steps do not read. The count of issues is the only thing the label of phase 3 asked of them.
+    Set mIssues = New Collection: Set mKeys = Nothing: Set mIdToKey = Nothing: Set mNames = Nothing
 End Sub
 
 Private Sub RowsBatch()
@@ -421,8 +428,10 @@ Private Sub WriteRawSheetsCore()
     WriteTable mWsIssues, Array("Key", "Id", "Project", "Type", "WorkType", "CreatedUtc", "Status", "Parent", "StatusCategory", _
                                 "ResolvedUtc", "FixVersions", "StoryPoints", "PI", "BV", "TeamValue", "SprintState", _
                                 "SprintStart", "SprintEnd", "SprintCount", "TargetStart", "TargetEnd", "KeyChanges"), mRows
+    Set mRows = Nothing                                               ' each table is freed once written: the next copy needs the room
     WriteTable mWsIntervals, Array("Key", "Workflow", "Seq", "Status", "Category", "EnteredUtc", "LeftUtc", _
                                    "DurationDays", "IsOpen", "ChangeId", "Check"), mIntervals
+    Set mIntervals = Nothing
     If Not mWsLinks Is Nothing Then WriteTable mWsLinks, Array("Blocker", "Blocked"), mLinks
     LogEnd "raw sheets: write"
 End Sub
