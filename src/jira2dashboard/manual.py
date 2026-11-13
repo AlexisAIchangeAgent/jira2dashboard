@@ -5,8 +5,8 @@ parameters come from their sources, so the manual follows the code. The sheets a
 (`Config_from_user`): the suffix says where the data of a sheet comes from (sheet_names.py).
 """
 from jira2dashboard import sheet_names as S
-from jira2dashboard.flow.dashboard_spec import (CANCEL_CAPTION, CONFIG_CAPTION, EXTRACT_CAPTION, ROVO_CAPTION,
-                                                ROVO_LOAD_CAPTION, STATUS_CELL)
+from jira2dashboard.flow.dashboard_spec import (CANCEL_CAPTION, CONFIG_CAPTION, EXTRACT_CAPTION, PROPOSE_CAPTION,
+                                                ROVO_CAPTION, ROVO_LOAD_CAPTION, STATUS_CELL)
 from jira2dashboard.params.model import TYPED_AT_CLIENT
 
 MANUAL_SHEET = "Manual"
@@ -30,8 +30,8 @@ def first_steps() -> list[str]:
         f"2. Sheet {PROJECTS}: the Jira projects, and which one is the Program. Sheet {ITERATIONS}: the iterations. "
         f'"{ROVO_CAPTION}" prepares a prompt for Rovo that lists the values to find, '
         f'"{ROVO_LOAD_CAPTION}" loads its answer (CSV).',
-        f'3. Click "{CONFIG_CAPTION}". Read the proposal sheets {PROPOSAL_SHEETS}.',
-        f"4. Copy what fits into the sheets {WORKFLOWS} and {TRANSITIONS}, and the field ids into the ...Field rows of {CONFIG}.",
+        f'3. Click "{PROPOSE_CAPTION}" (or "{CONFIG_CAPTION}" to only read). Read the proposal sheets {PROPOSAL_SHEETS}.',
+        f"4. Check the yellow cells it wrote in the sheets {WORKFLOWS}, {TRANSITIONS} and {CONFIG}, then type what is left.",
         f'5. Click "{EXTRACT_CAPTION}" and wait for the bar to reach the end. "{CANCEL_CAPTION}" stops it.',
         f"6. Read the charts in the sheet {CHARTS}, the figures in the sheet {METRICS} and the data checks in the sheet {DATACHECKS}.",
         LEGEND,
@@ -82,6 +82,16 @@ def manual(mandatory: tuple[str, ...]) -> list[tuple[str, str]]:
             f"{PROPOSAL_SHEETS}. It never changes the parameter sheets.",
             "Decide by hand: Order, IsStart, IsEnd, Active or Wait, Removed instead of Done, and the Type of a "
             f"transition. Then copy into {WORKFLOWS} and {TRANSITIONS}, and the field ids into the ...Field rows of {CONFIG}.",
+        ]),
+        (f'Button "{PROPOSE_CAPTION}"', [
+            f'It does what "{CONFIG_CAPTION}" does, then copies what fits of the proposal sheets into the sheets {WORKFLOWS}, '
+            f"{TRANSITIONS} and {CONFIG}: the statuses and moves the sheets lack, and the ids of the fields that Jira names once "
+            "(Sprint, Team, Story Points, Target start and end, PI, Business Value).",
+            "It writes only into EMPTY cells: what you typed is never changed. Every cell it writes is yellow, the first cell of a "
+            "row has the note 'To confirm': check it, then clear the colour if you like. Order, IsStart, IsEnd, Active or Wait, "
+            "Removed instead of Done and the Type of a move stay yours to type.",
+            f"IsUserProjectAdmin in {CONFIG}: True (default) = you administer the Jira projects, the full workflows are read. "
+            "False = only the statuses and their categories are read (the right to browse is enough), without the moves.",
         ]),
         (f'Button "{ROVO_CAPTION}"', [
             f"It writes the sheet {S.of('RovoPrompt')}: a prompt that asks Rovo for every value to type in this workbook (the connection, "

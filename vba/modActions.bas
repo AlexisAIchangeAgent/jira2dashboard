@@ -88,19 +88,32 @@ Public Sub BtnCancelExtraction()
 End Sub
 
 Public Sub BtnReadJiraConfiguration()
+    RunJiraConfiguration False
+End Sub
+
+Public Sub BtnProposeValues()
+    RunJiraConfiguration True
+End Sub
+
+Private Sub RunJiraConfiguration(ByVal propose As Boolean)
     ' Reads the configuration of Jira (read-only) into the proposal sheets JiraIssueTypes, JiraStatuses, JiraWorkflows,
     ' JiraTransitions and JiraFields (modJiraConfig). One go, about two calls per project: no slices. Cancel works during
     ' a wait for Jira; the proposal sheets are written only at the end, so a cancel or an error leaves them as they were.
-    Dim num As Long, desc As String, summary As String
+    Dim num As Long, desc As String, summary As String, withWorkflows As Boolean
     If mBusy Then Beep: Exit Sub
     On Error GoTo Failed
     mBusy = True: mCancel = False: mExtracting = True: gHttpCancel = False
     Randomize                                                       ' the retry jitter must differ from one run to the next
-    LogRunStart "button Read the Jira configuration", LogLevelSetting()
+    LogRunStart IIf(propose, "button Propose values from Jira", "button Read the Jira configuration"), LogLevelSetting()
     LogParameters ThisWorkbook                                      ' the inputs of the run (no value of the client)
     ShowProgress 0, "Reading the Jira configuration..."
     RequireMandatory ThisWorkbook.Worksheets(SheetName("Config")), "BaseUrl,Email,ApiToken"      ' only the connection is needed here
-    summary = ReadJiraConfiguration(JiraConfigFromWorkbook(), ProjectKeys(ThisWorkbook.Worksheets(SheetName("Projects"))), ThisWorkbook)
+    withWorkflows = IsYes(ConfigValue(ThisWorkbook.Worksheets(SheetName("Config")), "IsUserProjectAdmin", "True"))
+    If propose Then
+        summary = ProposeValues(JiraConfigFromWorkbook(), ProjectKeys(ThisWorkbook.Worksheets(SheetName("Projects"))), ThisWorkbook, withWorkflows)
+    Else
+        summary = ReadJiraConfiguration(JiraConfigFromWorkbook(), ProjectKeys(ThisWorkbook.Worksheets(SheetName("Projects"))), ThisWorkbook, withWorkflows)
+    End If
     LogRunEnd "ok"
     mExtracting = False
     EndRun summary, 1
@@ -113,7 +126,7 @@ Failed:
         EndRun "Cancelled | Proposal sheets: kept as they were", 0
         Exit Sub
     End If
-    LogError "BtnReadJiraConfiguration", num, desc
+    LogError IIf(propose, "BtnProposeValues", "BtnReadJiraConfiguration"), num, desc
     LogRunEnd "stopped"
     EndRunStopped num, desc
 End Sub

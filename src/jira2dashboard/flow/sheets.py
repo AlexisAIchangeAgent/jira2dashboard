@@ -40,6 +40,7 @@ def error_cells(wb) -> dict[str, int]:
 
 CANCEL_MACRO = "modActions.BtnCancelExtraction"
 CONFIG_MACRO = "modActions.BtnReadJiraConfiguration"
+PROPOSE_MACRO = "modActions.BtnProposeValues"
 ROVO_MACRO = "modActions.BtnRovoPrompt"
 ROVO_LOAD_MACRO = "modActions.BtnLoadRovoCsv"
 
@@ -98,6 +99,7 @@ def write_dashboard_frame(wb, dash, button_macro: str | None = None) -> None:
         for cell, caption, macro in ((D.ROVO_CELL, D.ROVO_CAPTION, ROVO_MACRO),
                                      (D.ROVO_LOAD_CELL, D.ROVO_LOAD_CAPTION, ROVO_LOAD_MACRO),
                                      (D.CONFIG_CELL, D.CONFIG_CAPTION, CONFIG_MACRO),
+                                     (D.PROPOSE_CELL, D.PROPOSE_CAPTION, PROPOSE_MACRO),
                                      (D.EXTRACT_CELL, D.EXTRACT_CAPTION, button_macro),
                                      (D.CANCEL_CELL, D.CANCEL_CAPTION, CANCEL_MACRO)):
             R.add_macro_button(dash, cell, caption, macro, D.BUTTON_WIDTH, D.BUTTON_HEIGHT)

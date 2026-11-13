@@ -89,7 +89,7 @@ RUN  user machine, Excel + VBA
   PIMetrics, FillRates, DataChecks, ChartData
         |
         v
-  Dashboard: buttons, status cell A14 and its rows; Charts: 9 charts
+  Dashboard: buttons, status cell A16 and its rows; Charts: 9 charts
 
 
 FALLBACK  Python, no VBA
@@ -107,7 +107,7 @@ Excel tables keep the logical names (`Config`, `Issues[Key]`); `sheet_names.py` 
 
 | Sheets | Content | Written by |
 |---|---|---|
-| `Dashboard_from_excel`, `Manual_from_excel`, `Charts_from_excel` | Progress bar and buttons stacked in `A2:A12`, status `A14` and one row per field under it; user manual; the 9 charts and their team `B2` | build |
+| `Dashboard_from_excel`, `Manual_from_excel`, `Charts_from_excel` | Progress bar and buttons stacked in `A2:A14`, status `A16` and one row per field under it; user manual; the 9 charts and their team `B2` | build |
 | `ErrorCodes_from_excel`, `Steps_from_excel` | The support codes (what each means and what to check); the steps of the last run | build, VBA |
 | `Config_from_user`, `Projects_from_user`, `Iterations_from_user`, `PIs_from_user`, `Workflows_from_user`, `Transitions_from_user`, `FieldMapping_from_user` | Parameters | build, then user |
 | `Issues_from_Jira`, `StatusIntervals_from_Jira`, `IssueLinks_from_Jira` | Raw data (values) | VBA |

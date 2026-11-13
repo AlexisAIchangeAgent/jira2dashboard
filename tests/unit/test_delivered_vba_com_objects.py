@@ -22,7 +22,7 @@ def com_objects(sources: dict[str, str]) -> dict[str, set[str]]:
 
 def test_the_delivered_modules_create_only_the_http_request_and_the_dictionary():
     sources = rvt.module_sources(MODULES)
-    assert len(sources) == len(MODULES) == 13
+    assert len(sources) == len(MODULES) == 14
     extra = {name: ids - ALLOWED for name, ids in com_objects(sources).items() if ids - ALLOWED}
     assert not extra, f"COM objects an endpoint protection may block: {extra}"
 

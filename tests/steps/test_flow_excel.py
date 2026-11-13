@@ -1239,3 +1239,112 @@ def _mandatory_named(world, names):
 @then("le faux Jira n'a reçu aucune requête")
 def _no_request(world):
     assert world["jira"].requests == []
+
+
+# --- jira_config.feature: the button Propose values from Jira -------------------------------------------------------
+
+YELLOW = 255 + 242 * 256 + 204 * 65536          # RGB(255, 242, 204): the colour of a cell proposed from Jira, to confirm
+TO_CONFIRM = "To confirm: proposed from Jira"
+
+
+def last_row(ws) -> int:
+    return ws.Cells(ws.Rows.Count, 1).End(-4162).Row            # -4162 = xlUp
+
+
+def find_row(ws, *values) -> int:
+    """The row whose first cells are `values` (0 when there is none)."""
+    for row in range(2, last_row(ws) + 1):
+        if tuple(ws.Cells(row, c).Value for c in range(1, len(values) + 1)) == values:
+            return row
+    return 0
+
+
+@given("les feuilles Workflows et Transitions ont perdu leur dernière ligne et la feuille Config n'a plus l'identifiant du champ Story Points")
+def _parameters_lost_a_row(world):
+    wb, lost = world["wb"], {}
+    for name, columns in (("Workflows", (1, 3)), ("Transitions", (1, 2, 3))):
+        ws = wb.Worksheets(S.of(name))
+        last = last_row(ws)
+        lost[name] = tuple(ws.Cells(last, c).Value for c in columns)
+        ws.Rows(last).Delete()
+    ws = wb.Worksheets(S.of("Config"))
+    ws.Cells(find_row(ws, "StoryPointsField"), 2).ClearContents()
+    world["lost"] = lost
+
+
+@given(parsers.parse('IsUserProjectAdmin vaut "{value}" dans la feuille Config'))
+def _is_admin(world, value):
+    set_config(world["wb"], "IsUserProjectAdmin", value)
+
+
+@when("je clique sur le bouton Propose values from Jira")
+def _propose_values(world):
+    wb = world["wb"]
+    world["params_before"] = {name: wb.Worksheets(S.of(name)).UsedRange.Value for name in PARAMETER_SHEETS}
+    world["log_from"] = log_file(world).stat().st_size if log_file(world).exists() else 0
+    buttons = {shape.TextFrame.Characters().Text: (shape.OnAction, shape.TopLeftCell.Address)
+               for shape in wb.Worksheets(S.of("Dashboard")).Shapes if shape.Type == MSO_FORM_CONTROL}
+    on_action, cell = buttons[D.PROPOSE_CAPTION]                               # the button the user clicks is there
+    assert on_action.endswith(sheets.PROPOSE_MACRO), on_action
+    assert cell.replace("$", "") == D.PROPOSE_CELL, cell
+    macro(world, on_action.rpartition(".")[2])                                 # and runs what its OnAction names
+    world["status"] = macro(world, "ProgressSnapshot").partition("|")[2]
+
+
+@then("l'état du tableau de bord dit que des valeurs sont proposées")
+def _values_proposed(world):
+    status = world["status"]
+    assert status.startswith(f"Values proposed from Jira | Projects: {len(project_keys())} | Workflows: 2 | "), status
+    for name in ("Workflows", "Transitions", "Config"):
+        found = re.search(rf"{S.of(name)}: (\d+) proposed", status)
+        assert found and int(found.group(1)) >= 1, (name, status)
+
+
+@then("le statut et le passage perdus sont revenus en jaune avec la note « To confirm »")
+def _lost_rows_back(world):
+    wb = world["wb"]
+    ws = wb.Worksheets(S.of("Workflows"))
+    row = next(r for r in range(2, last_row(ws) + 1) if (ws.Cells(r, 1).Value, ws.Cells(r, 3).Value) == world["lost"]["Workflows"])
+    assert ws.Cells(row, 3).Interior.Color == YELLOW and ws.Cells(row, 3).Comment.Text() == TO_CONFIRM
+    assert all(ws.Cells(row, c).Value is None for c in (2, 5, 6)), "Order, IsStart and IsEnd stay a human choice"
+    ws = wb.Worksheets(S.of("Transitions"))
+    row = find_row(ws, *world["lost"]["Transitions"])
+    assert row and ws.Cells(row, 2).Interior.Color == YELLOW and ws.Cells(row, 2).Comment.Text() == TO_CONFIRM
+    assert ws.Cells(row, 4).Value is None, "the Type of a move stays a human choice"
+
+
+@then("l'identifiant du champ Story Points est revenu en jaune")
+def _story_points_back(world):
+    ws = world["wb"].Worksheets(S.of("Config"))
+    row = find_row(ws, "StoryPointsField")
+    assert ws.Cells(row, 2).Value == world["dataset"].fields.story_points
+    assert ws.Cells(row, 2).Interior.Color == YELLOW and ws.Cells(row, 2).Comment.Text() == TO_CONFIRM
+
+
+@then("aucune cellule saisie n'a changé")
+def _typed_cells_kept(world):
+    wb = world["wb"]
+    for name in PARAMETER_SHEETS:
+        before, after = world["params_before"][name], wb.Worksheets(S.of(name)).UsedRange.Value
+        for r, row in enumerate(before):
+            for c, value in enumerate(row):
+                assert value is None or after[r][c] == value, (name, r + 1, c + 1, value, after[r][c])
+
+
+@then("l'état du tableau de bord dit que les workflows n'ont pas été lus faute d'être administrateur")
+def _not_read_not_admin(world):
+    assert " | Workflows not read: IsUserProjectAdmin is False" in world["status"], world["status"]
+
+
+@then("le faux Jira n'a reçu aucun appel à l'aperçu des workflows")
+def _no_preview(world):
+    assert not [r for r in world["jira"].requests if r.path.endswith("/workflows/preview")]
+
+
+@then("le statut perdu est revenu en jaune mais pas le passage")
+def _status_back_not_the_move(world):
+    wb = world["wb"]
+    ws = wb.Worksheets(S.of("Workflows"))
+    row = next(r for r in range(2, last_row(ws) + 1) if (ws.Cells(r, 1).Value, ws.Cells(r, 3).Value) == world["lost"]["Workflows"])
+    assert ws.Cells(row, 3).Interior.Color == YELLOW
+    assert find_row(wb.Worksheets(S.of("Transitions")), *world["lost"]["Transitions"]) == 0

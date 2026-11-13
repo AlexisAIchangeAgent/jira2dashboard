@@ -50,7 +50,7 @@ Private Function TestNames() As Variant
     TestNames = Array("T_JsonNested", "T_JsonEscapes", "T_JsonEmpty", "T_JsonErrors", "T_JsonRoundTrip", _
         "T_JsonLarge", "T_Base64Auth", "T_UrlEncode", "T_Utf8RoundTrip", "T_JiraDates", "T_FieldToCell", _
         "T_SafeCell", "T_ProjectsJql", "T_SearchUrl", "T_SearchPagination", "T_Retry429", _
-        "T_HttpNetworkAndCancel", "T_RetryExhausted", "T_ChangelogChunks", "T_IssueRows", "T_WriteTable", "T_StatusIntervals", "T_IntervalsUnreadableDate", "T_StatusChangesUnreadableDate", "T_DateShape", "T_SkippedDatesWarning", "T_SheetName", _
+        "T_HttpNetworkAndCancel", "T_RetryExhausted", "T_ChangelogChunks", "T_IssueRows", "T_WriteTable", "T_StatusIntervals", "T_IntervalsUnreadableDate", "T_StatusChangesUnreadableDate", "T_DateShape", "T_SkippedDatesWarning", "T_SheetName", "T_ProposeFromSheets", "T_ProposeKindOf", "T_ProposeValuesNotAdmin", _
         "T_StatusChanges", "T_RetryDelay", "T_SafeAccess", "T_FilesUtf8", "T_StringifyBadObject", _
         "T_TooManyPages", "T_BackgroundExport", "T_TextNotConverted", "T_ParamsTables", "T_ParamsOnWorkbook", _
         "T_TrimWhite", "T_ConfigSheet", "T_MandatoryConfig", "T_ProxyDetect", "T_ProxyScript", "T_ProjectsSheet", "T_ParseMoment", "T_ExtractFlowData", "T_ExtractJob", "T_ExtractCheckFields", "T_FlowBuild", "T_BaseUrlHttps", "T_Log", "T_LogInputsAndTimes", "T_StatusParts", "T_ErrorCodes", "T_LogHintAndOpen", "T_StepsSheet", "T_RovoPrompt", "T_RovoCsv", _
@@ -1858,6 +1858,141 @@ Public Sub T_SkippedDatesWarning()
           text Like "####-##-## ##:##:##.### WARN J2D-DATA-003 | 3 status changes ignored: their date cannot be read | created: String:9999999999999 x 3" & vbCrLf
     gLogPath = saved
     Kill file
+End Sub
+
+' ================= Propose values from Jira =================
+
+Private Sub PutRows(ByVal wb As Object, ByVal logicalName As String, ByVal rows As Variant)
+    ' A sheet of wb (named like the real one) from rows: Array(Array(header...), Array(row...), ...); "" is an empty cell.
+    Dim ws As Object, r As Long, c As Long
+    Set ws = wb.Worksheets.Add(, wb.Worksheets(wb.Worksheets.Count))
+    ws.Name = SheetName(logicalName)
+    For r = 0 To UBound(rows)
+        For c = 0 To UBound(rows(r))
+            If Len(CStr(rows(r)(c))) > 0 Then ws.Cells(r + 1, c + 1).Value = rows(r)(c)
+        Next c
+    Next r
+End Sub
+
+Private Function ProposalBook() As Object
+    ' A scratch workbook with the parameter sheets (what the person has typed) and the proposal sheets (what Jira gave).
+    Dim wb As Object
+    Set wb = Workbooks.Add
+    PutRows wb, "Projects", Array(Array("Project", "Role", "Team"), Array("PRG", "Program", "ART"), Array("TA", "Team", "Team A"), _
+                                  Array("TB", "Team", "Team B"))
+    PutRows wb, "Workflows", Array(Array("Workflow", "Order", "Status", "Category", "IsStart", "IsEnd", "IsFree"), _
+                                   Array("Team", 1, "Open", "Backlog", 1, 0, 0), Array("Team", 2, "Doing", "", 0, 0, 0))
+    PutRows wb, "Transitions", Array(Array("Workflow", "From", "To", "Type"), Array("Team", "Open", "Doing", "forward"))
+    PutRows wb, "Config", Array(Array("Parameter", "Value", "Example", "Mandatory", "Description"), Array("SprintField", "", "x", "False", ""), _
+                                Array("TeamField", "customfield_9", "x", "False", ""), Array("StoryPointsField", "", "x", "False", ""), _
+                                Array("PIField", "", "x", "False", ""), Array("BusinessValueField", "", "x", "False", ""), _
+                                Array("TargetStartField", "", "x", "False", ""))
+    PutRows wb, "JiraWorkflows", Array(Array("Workflow", "Order", "Status", "Category", "IsStart", "IsEnd", "IsFree", "JiraCategory", "Project"), _
+                                       Array("WF-A", 1, "Open", "Backlog", "", "", 0, "TODO", "PRG, TA"), _
+                                       Array("WF-A", "", "Doing", "", "", "", 0, "IN_PROGRESS", "PRG, TA"), _
+                                       Array("WF-A", "", "Closed", "Done", "", "", 0, "DONE", "PRG, TA"), _
+                                       Array("WF-F", "", "Draft", "Backlog", "", "", 1, "TODO", "PRG"))
+    PutRows wb, "JiraStatuses", Array(Array("Project", "IssueType", "Status", "JiraCategory"), Array("TB", "Story", "Triage", "new"), _
+                                      Array("TB", "Story", "Open", "new"))
+    PutRows wb, "JiraTransitions", Array(Array("Workflow", "From", "To", "Type", "JiraTransition", "TransitionId", "Scope", "Project"), _
+                                         Array("WF-A", "Open", "Doing", "", "Start", "11", "DIRECTED", "PRG, TA"), _
+                                         Array("WF-A", "Doing", "Closed", "", "Close", "12", "DIRECTED", "PRG, TA"), _
+                                         Array("WF-F", "Draft", "Ready", "", "Go", "13", "DIRECTED", "PRG"))
+    PutRows wb, "JiraFields", Array(Array("Id", "Name", "Custom", "SchemaType", "SchemaDetail"), _
+                                    Array("customfield_1", "Sprint", "Yes", "array", "com.pyxis.greenhopper.jira:gh-sprint"), _
+                                    Array("customfield_2", "Team", "Yes", "team", "com.atlassian.teams:rm-teams-custom-field-team"), _
+                                    Array("customfield_3", "Story Points", "Yes", "number", ""), _
+                                    Array("customfield_4", "PI", "Yes", "option", ""), _
+                                    Array("customfield_5", "Business Value", "Yes", "number", ""), _
+                                    Array("customfield_6", "business value", "Yes", "number", ""))
+    Application.DisplayAlerts = False
+    wb.Worksheets(1).Delete
+    Application.DisplayAlerts = True
+    Set ProposalBook = wb
+End Function
+
+Public Sub T_ProposeFromSheets()
+    ' Only EMPTY cells get a proposal, each one yellow, the first of a row with a note; what was typed is never changed.
+    Dim wb As Object, wsW As Object, wsT As Object, wsC As Object, summary As String, again As String, yellow As Long
+    yellow = RGB(255, 242, 204)
+    Set wb = ProposalBook()
+    summary = ProposeFromSheets(wb)
+    Set wsW = wb.Worksheets(SheetName("Workflows")): Set wsT = wb.Worksheets(SheetName("Transitions")): Set wsC = wb.Worksheets(SheetName("Config"))
+    Check "propose", "the summary names the three sheets with their counts", "3, 2, 3", True, _
+          InStr(summary, " | Workflows_from_user: 3 proposed | Transitions_from_user: 2 proposed | Config_from_user: 3 proposed") > 0
+    Check "propose", "a status the sheet has is left as typed", "Open", "Team|1|Open|Backlog|1|0|0", RowText(wsW, 2, 7)
+    Check "propose", "a status of a workflow shared with a Team project is Team, Done is the category", "Closed", "Team||Closed|Done|||0", RowText(wsW, 4, 7)
+    Check "propose", "a workflow only the Program uses is Feature, IsFree comes from Jira", "Draft", "Feature||Draft|Backlog|||1", RowText(wsW, 5, 7)
+    Check "propose", "a status of JiraStatuses no workflow gave: its category (new -> Backlog)", "Triage", "Team||Triage|Backlog|||", RowText(wsW, 6, 7)
+    Check "propose", "Order, IsStart and IsEnd stay a human choice", "Closed", "||", CStr(wsW.Cells(4, 2).Value & "") & "|" & CStr(wsW.Cells(4, 5).Value & "") & "|" & CStr(wsW.Cells(4, 6).Value & "")
+    Check "propose", "a proposed cell is yellow", "Status of Closed", yellow, wsW.Cells(4, 3).Interior.Color
+    Check "propose", "the first cell of a row has the note", "Status of Closed", "To confirm: proposed from Jira", wsW.Cells(4, 3).Comment.Text
+    Check "propose", "a typed cell stays plain", "Status of Open", True, wsW.Cells(2, 3).Interior.ColorIndex = -4142
+    Check "propose", "a move the sheet lacks is added without a Type", "Doing -> Closed", "Team|Doing|Closed|", RowText(wsT, 3, 4)
+    Check "propose", "a move of the Program workflow is Feature", "Draft -> Ready", "Feature|Draft|Ready|", RowText(wsT, 4, 4)
+    Check "propose", "a move the sheet has is not added twice", "rows", 4, LastRow(wsT)
+    Check "propose", "an empty field id gets the one field that fits (by its custom type)", "SprintField", "customfield_1", CStr(wsC.Cells(2, 2).Value)
+    Check "propose", "a typed field id is never changed", "TeamField", "customfield_9", CStr(wsC.Cells(3, 2).Value)
+    Check "propose", "by the name when the custom type says nothing", "StoryPointsField", "customfield_3", CStr(wsC.Cells(4, 2).Value)
+    Check "propose", "the PI field by its name", "PIField", "customfield_4", CStr(wsC.Cells(5, 2).Value)
+    Check "propose", "two fields fit: nothing, the person chooses", "BusinessValueField", "", CStr(wsC.Cells(6, 2).Value & "")
+    Check "propose", "no field fits: nothing", "TargetStartField", "", CStr(wsC.Cells(7, 2).Value & "")
+    Check "propose", "a proposed id is yellow with a note", "SprintField", yellow & "|To confirm: proposed from Jira", wsC.Cells(2, 2).Interior.Color & "|" & wsC.Cells(2, 2).Comment.Text
+    again = ProposeFromSheets(wb)
+    Check "propose", "a second run adds nothing", "nothing new", True, InStr(again, " | Proposed: nothing new") = 1
+    Check "propose", "and writes no row twice", "rows", 6, LastRow(wsW)
+    Application.DisplayAlerts = False
+    wb.Close False
+    Application.DisplayAlerts = True
+End Sub
+
+Public Sub T_ProposeKindOf()
+    ' Feature only when every project that uses the Jira workflow is the Program; an unknown project makes it Team.
+    Dim roleOf As Object
+    Set roleOf = CreateObject("Scripting.Dictionary")
+    roleOf("PRG") = "Program": roleOf("TA") = "Team"
+    Check "propose", "the Program alone", "PRG", "Feature", KindOf("PRG", roleOf)
+    Check "propose", "the Program and a team", "PRG, TA", "Team", KindOf("PRG, TA", roleOf)
+    Check "propose", "a team", "TA", "Team", KindOf("TA", roleOf)
+    Check "propose", "a project the sheet does not know", "ZZ", "Team", KindOf("ZZ", roleOf)
+    Check "propose", "no project", "", "Team", KindOf("", roleOf)
+    Check "propose", "the case of the key does not matter", "prg", "Feature", KindOf(" prg ", roleOf)
+End Sub
+
+Public Sub T_ProposeValuesNotAdmin()
+    ' IsUserProjectAdmin = False: no call to workflows/preview (it needs the project administrator right); the statuses of
+    ' each issue type still become proposals, and the status says why the workflows were not read.
+    Dim cfg As Object, keys As New Collection, base As String, wb As Object, summary As String, e As Variant, previews As Long
+    Dim wsW As Object
+    Set cfg = TestConfig(): base = cfg("BaseUrl")
+    keys.Add "TB"
+    Set wb = ProposalBook()
+    FakeReset
+    FakeAdd "GET", ProjectSearchUrl(base, keys, 1, 0), 200, J("{'isLast':true,'values':[{'id':'10102','key':'TB','style':'classic'," & _
+        "'issueTypes':[{'id':'10002','name':'Story','subtask':false,'hierarchyLevel':0}]}]}")
+    FakeAdd "GET", StatusesUrl(base, "TB"), 200, J("[{'id':'1','name':'Story','subtask':false,'statuses':[" & _
+        "{'id':'5','name':'Doing','statusCategory':{'key':'indeterminate','name':'In progress'}}," & _
+        "{'id':'6','name':'Shipped','statusCategory':{'key':'done','name':'Done'}}]}]")
+    FakeAdd "GET", CreateMetaUrl(base, "TB", "10002", 0), 403, J("{'errorMessages':['no permission']}")
+    FakeAdd "GET", JiraSearchUrl(base, ProjectsJql(ColOf("TB")), "", JIRA_PAGE_SIZE, "*all", "names"), 200, J("{'isLast':true,'names':{},'issues':[]}")
+    FakeAdd "GET", base & "/rest/api/3/field", 200, J("[{'id':'customfield_7','name':'Sprint','custom':true,'schema':{'type':'array'," & _
+        "'custom':'com.pyxis.greenhopper.jira:gh-sprint'}}]")
+    summary = ProposeValues(cfg, keys, wb, False)
+    For Each e In gHttpLog
+        If InStr(e(1), "/workflows/preview") > 0 Then previews = previews + 1
+    Next e
+    Check "propose", "no call to workflows/preview", "previews", 0, previews
+    Check "propose", "the status starts with its title and keeps the counts of the reading", "title", True, _
+          InStr(summary, "Values proposed from Jira | Projects: 1 | Workflows: 0 | Fields: 1 | ") = 1
+    Check "propose", "the status says why the workflows were not read", "IsUserProjectAdmin", True, _
+          InStr(summary, " | Workflows not read: IsUserProjectAdmin is False") > 0
+    Set wsW = wb.Worksheets(SheetName("Workflows"))
+    Check "propose", "the statuses of the issue types are proposed: Done as Done", "Shipped", "Team||Shipped|Done|||", RowText(wsW, 4, 7)
+    Check "propose", "an In progress status the sheet has keeps its empty category", "Doing", "Team|2|Doing||0|0|0", RowText(wsW, 3, 7)
+    Check "propose", "the Sprint field is proposed too", "SprintField", "customfield_7", CStr(wb.Worksheets(SheetName("Config")).Cells(2, 2).Value)
+    Application.DisplayAlerts = False
+    wb.Close False
+    Application.DisplayAlerts = True
 End Sub
 
 Public Sub T_RetryDelay()

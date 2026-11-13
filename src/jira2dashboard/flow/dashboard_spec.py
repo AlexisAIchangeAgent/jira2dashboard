@@ -16,15 +16,17 @@ SELECTOR = "dashTeam"                         # name of the cell that picks the 
 SELECTOR_CELL = "B2"                          # on the sheet Charts
 STATUS = "dashStatus"                          # name of the cell where the extraction tells what it does (its headline)
 # Top left, one under the other (AL's order): the progress bar, Prompt for Rovo, Load settings CSV, Read the Jira
-# configuration, Extract from Jira and compute, Cancel; then the status, so that no text of the status runs under a button.
+# configuration, Propose values from Jira, Extract from Jira and compute, Cancel; then the status, so that no text of the
+# status runs under a button.
 BAR_CELL = "A2"                               # the progress bar (rectangles pbBack, pbFill)
 ROVO_CELL = "A3"                              # the button that writes the prompt for Rovo
 ROVO_LOAD_CELL = "A5"                         # the button that loads the settings CSV (the answer of Rovo)
 CONFIG_CELL = "A7"                            # the button that reads the Jira configuration into proposal sheets
-EXTRACT_CELL = "A9"                           # the button Extract from Jira and compute
-CANCEL_CELL = "A11"                           # the button Cancel
-STATUS_CELL = "A14"
-STATUS_ROWS = 20                              # rows of fields under it (A15:A34): name in A, value in B (modActions.ShowProgress)
+PROPOSE_CELL = "A9"                           # the button that proposes values in the parameter sheets (empty cells only)
+EXTRACT_CELL = "A11"                          # the button Extract from Jira and compute
+CANCEL_CELL = "A13"                           # the button Cancel
+STATUS_CELL = "A16"
+STATUS_ROWS = 20                              # rows of fields under it (A17:A36): name in A, value in B (modActions.ShowProgress)
 BUTTON_WIDTH, BUTTON_HEIGHT, BAR_HEIGHT = 190, 26, 14
 
 XL_COLUMN_CLUSTERED, XL_LINE_MARKERS, XL_COLUMN_STACKED_100, XL_LINE = 51, 65, 53, 4
@@ -53,6 +55,7 @@ class ChartSpec:
 EXTRACT_CAPTION = "Extract from Jira and compute"     # the captions of the Dashboard buttons (flow/sheets.py)
 CANCEL_CAPTION = "Cancel"
 CONFIG_CAPTION = "Read the Jira configuration"
+PROPOSE_CAPTION = "Propose values from Jira"
 ROVO_CAPTION = "Prompt for Rovo"
 ROVO_LOAD_CAPTION = "Load settings CSV"
 STEPS_CELL = "T1"           # the first steps (manual.first_steps), right of the status rows

@@ -41,7 +41,7 @@ class ParamSheet:
 
 
 CONFIG_PARAMETERS = ("BaseUrl", "Email", "ApiToken", "Filter", "WorkTypeField", "ProxyServer", "ProxyBypass",
-                     "ProxyWindowsAuth", "FlowLoadMode", "AsOf", "TimeoutSeconds", "MaxRetries", "ParentRequiredTypes",
+                     "ProxyWindowsAuth", "IsUserProjectAdmin", "FlowLoadMode", "AsOf", "TimeoutSeconds", "MaxRetries", "ParentRequiredTypes",
                      "FeatureTypes", "SubTaskTypes", "PointsRequiredTypes", "StoryPointsField", "BusinessValueField",
                      "PIField", "TeamField", "SprintField", "TargetStartField", "TargetEndField", "BlocksLinkType",
                      "FillRateThreshold", "LogLevel", "OpenLogOnError")

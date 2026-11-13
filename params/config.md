@@ -24,6 +24,7 @@ empty here, and **`ApiToken` must stay empty** (a test refuses a token in this f
 | ProxyServer |  | proxy.company.com:8080, or DIRECT | False | Proxy as host:port or http://host:port. Empty = the proxy of the Windows settings, found as the browser finds it (automatic detection WPAD, proxy script PAC, then the fixed proxy). DIRECT = no proxy |
 | ProxyBypass |  | *.company.local;<local> | False | Hosts that skip the proxy, for example *.client.local;<local>. Empty with an empty ProxyServer = the list of the Windows settings |
 | ProxyWindowsAuth | Yes | Yes | False | Yes = answer the proxy's Windows authentication with the Windows session. No = never send it |
+| IsUserProjectAdmin | True | True | False | True = you are an administrator of the Jira projects: the button Propose values from Jira reads the full workflows (statuses, transitions, initial status). False = it reads only the statuses and their categories (the right to browse the projects is enough). Anything but True, Yes or 1 counts as False |
 | FlowLoadMode | A | A | True | A = a ticket counts from its first start until it is done or removed, except while in a Backlog status. B = only from its last start (after the last return to backlog) |
 | AsOf |  | 2026-11-03 18:00 | True | UTC date and time of the extraction, for example 2026-11-03 18:00. Open statuses run up to it. Required to extract: the macro stops with a message if it is empty |
 | TimeoutSeconds | 60 | 60 | False | Connect, send and receive time limit of one request, in seconds |

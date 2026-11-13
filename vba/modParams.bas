@@ -407,7 +407,7 @@ Private Function CsvAt(ByVal rec As Variant, ByVal i As Long) As String
     If i <= UBound(rec) Then CsvAt = CStr(rec(i))
 End Function
 
-Private Function HeaderColumn(ByVal ws As Object, ByVal name As String) As Long
+Public Function HeaderColumn(ByVal ws As Object, ByVal name As String) As Long
     ' The column of a header of row 1 (0 when missing); the cells after the first empty header are not read.
     Dim c As Long
     For c = 1 To ws.Columns.Count
@@ -475,7 +475,7 @@ Public Function RovoCsvApply(ByVal wb As Object, ByVal res As Object) As String
     RovoCsvApply = summary
 End Function
 
-Private Function FindRow(ByVal ws As Object, ByVal col As Long, ByVal name As String) As Long
+Public Function FindRow(ByVal ws As Object, ByVal col As Long, ByVal name As String) As Long
     Dim r As Long, last As Long
     If col = 0 Then Exit Function
     last = ws.Cells(ws.Rows.Count, col).End(-4162).Row

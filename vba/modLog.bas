@@ -38,7 +38,7 @@ Private mRunOn As Boolean                           ' a run started and did not 
 ' The parameters of Config whose value the log shows: all but the connection (BaseUrl, Email, ApiToken), the proxy
 ' (ProxyServer, ProxyBypass) and the Filter (JQL), which read (set) or (empty); a parameter not in the list reads so too.
 ' tests/unit/test_vba_log_guard.py compares this list with params.model.CONFIG_PARAMETERS.
-Private Const SHOWN_PARAMETERS As String = ",WorkTypeField,ProxyWindowsAuth,FlowLoadMode,AsOf,TimeoutSeconds,MaxRetries," & _
+Private Const SHOWN_PARAMETERS As String = ",WorkTypeField,ProxyWindowsAuth,IsUserProjectAdmin,FlowLoadMode,AsOf,TimeoutSeconds,MaxRetries," & _
     "ParentRequiredTypes,FeatureTypes,SubTaskTypes,PointsRequiredTypes,StoryPointsField,BusinessValueField,PIField," & _
     "TeamField,SprintField,TargetStartField,TargetEndField,BlocksLinkType,FillRateThreshold,LogLevel,OpenLogOnError,"
 Private Const PARAMETER_SHEETS As String = "Projects,Workflows,Transitions,FieldMapping,Iterations,PIs"

@@ -20,13 +20,14 @@ Private Const TYPES_PER_PREVIEW As Long = 25         ' API limit of workflows/pr
 Private Const MAX_PAGES As Long = 100
 Private Const FIELDS_PER_PAGE As Long = 100          ' createmeta page size
 
-Public Function ReadJiraConfiguration(ByVal cfg As Object, ByVal keys As Collection, ByVal wb As Object) As String
+Public Function ReadJiraConfiguration(ByVal cfg As Object, ByVal keys As Collection, ByVal wb As Object, _
+                                      Optional ByVal withWorkflows As Boolean = True) As String
     ' Writes the five proposal sheets of wb and returns the summary for the status cell.
     Cov "JCF01"
     Dim projects As Collection, project As Variant, n As Long, denied As Long, workflowOf As Object, seen As Object
     Dim typeRows As New Collection, statusRows As New Collection, flowRows As New Collection, moveRows As New Collection
     Dim fieldRows As New Collection, key As String, summary As String, projectsOf As Object, noMeta As Long
-    Dim metaRows As New Collection, usageRows As New Collection, sumRows As New Collection
+    Dim metaRows As New Collection, usageRows As New Collection, sumRows As New Collection, skipped As Long
     If keys.Count = 0 Then
         Cov "JCF02"
         Err.Raise vbObjectError + 620, "ReadJiraConfiguration", "Sheet Projects has no project: type the keys of the Jira projects first."
@@ -42,7 +43,11 @@ Public Function ReadJiraConfiguration(ByVal cfg As Object, ByVal keys As Collect
         Application.StatusBar = "Reading the Jira configuration: project " & n & " of " & projects.Count
         LogBegin "configuration of project " & n & " of " & projects.Count
         Set workflowOf = CreateObject("Scripting.Dictionary")
-        If Not ReadWorkflows(cfg, project, workflowOf, seen, flowRows, moveRows) Then denied = denied + 1
+        If withWorkflows Then
+            If Not ReadWorkflows(cfg, project, workflowOf, seen, flowRows, moveRows) Then denied = denied + 1
+        Else
+            Cov "JCF35": skipped = skipped + 1                     ' IsUserProjectAdmin = False: no call to workflows/preview
+        End If
         AddProjectOf key, workflowOf, projectsOf
         AddIssueTypeRows project, workflowOf, typeRows
         AddStatusRows key, JiraJson(cfg, "GET", StatusesUrl(cfg("BaseUrl"), key), "", "project statuses"), statusRows
@@ -73,6 +78,11 @@ Public Function ReadJiraConfiguration(ByVal cfg As Object, ByVal keys As Collect
         Cov "JCF04"
         summary = summary & " | Workflows not read: " & denied & " project(s), ask for the project permission View " & _
                   "(read-only) workflow; JiraStatuses still shows the statuses of each issue type"
+    End If
+    If skipped > 0 Then
+        Cov "JCF36"
+        summary = summary & " | Workflows not read: IsUserProjectAdmin is False (they need the project administrator right); " & _
+                  SheetName("JiraStatuses") & " still shows the statuses of each issue type"
     End If
     If noMeta > 0 Then
         Cov "JCF34"

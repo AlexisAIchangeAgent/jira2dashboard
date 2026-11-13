@@ -128,8 +128,8 @@ python.log). `tests/unit/test_claude_hooks.py` and `test_claude_skills.py` test 
   `Config` columns: Parameter | Value | Example | Mandatory | Description (formulas read A and B; the rest by header). An empty Mandatory=True value
   stops the buttons before any call to Jira (`modParams.RequireMandatory`, error 608).
 - **Dashboard and Charts.** Top left, one under the other (AL's order): the progress bar `A2`, the buttons Prompt for Rovo
-  `A3`, Load settings CSV `A5`, Read the Jira configuration `A7`, Extract `A9`, Cancel `A11` (cells in `dashboard_spec`). A
-  final status is `Title | Name: value | ...`: `A14` (name `dashStatus`) shows the title and `A15:B34` one row per field (`modText.StatusParts`, `modActions.ShowProgress`; `ProgressSnapshot` rebuilds the line from the
+  `A3`, Load settings CSV `A5`, Read the Jira configuration `A7`, Propose values from Jira `A9`, Extract `A11`, Cancel `A13` (cells in `dashboard_spec`). A
+  final status is `Title | Name: value | ...`: `A16` (name `dashStatus`) shows the title and `A17:B36` one row per field (`modText.StatusParts`, `modActions.ShowProgress`; `ProgressSnapshot` rebuilds the line from the
   cells for the tests). The 9 charts, their notes and the team selector `B2` (name `dashTeam`) are on the sheet `Charts`, made
   at build after the Dashboard (`CHARTS_SHEET` of `modFlowBuild`/`modActions` = `dashboard_spec.CHARTS_SHEET`, a test pins it).
 - **User manual.** `src/jira2dashboard/manual.py` (pure text) is written by `flow/sheets.write_manual` at the delivery
@@ -172,6 +172,13 @@ python.log). `tests/unit/test_claude_hooks.py` and `test_claude_skills.py` test 
   `python.log`. `clean` keeps `out\inter\logs`, so a build does not delete them. `run.ps1` writes `scripts\logs\run_<command>.log` (one per command:
   the fake Jira of `start-mock` runs `run.ps1 mock-jira` in its own process) and sends the output of Python through PowerShell (`2>&1 | Show-Line`,
   UTF-8 console meanwhile), or the transcript would hold no result of pytest.
+- **Propose values from Jira (button, VBA, AL 2026-11-13).** `modPropose` (`BtnProposeValues`, cell `A9`) runs `ReadJiraConfiguration` and then copies what fits
+  of the proposal sheets (`_from_Jira`) into the parameter sheets (`_from_user`), **only into empty cells**: a status or move that `Workflows` / `Transitions` lack
+  (Workflow = Feature when only the Program project uses the Jira workflow, else Team; Category only what Jira gives for sure; never Order, IsStart, IsEnd,
+  Active/Wait, the Type of a move), the `...Field` ids of `Config` that Jira names once (by the custom type, else by the name; two candidates = nothing).
+  Every cell written is yellow (`RGB(255, 242, 204)`), the first of a row has the note "To confirm: proposed from Jira". `Config.IsUserProjectAdmin` (True by
+  default, False = no call to `workflows/preview`, which needs the project administrator right: the statuses of `JiraStatuses` are proposed instead, no moves).
+  A new proposal rule goes in `modPropose` with its case in `T_ProposeFromSheets`. Not yet: sprints -> Iterations, PI names, the link type, the teams.
 - **Jira configuration (VBA).** `modJiraConfig` (button Read the Jira configuration, `BtnReadJiraConfiguration`) reads
   projects, issue types, statuses, workflows (`workflows/preview`) and fields into proposal sheets `Jira*`; it never writes
   the parameter sheets (calls and mapping: the header of `modJiraConfig.bas`). Besides the five first sheets it writes
@@ -383,4 +390,4 @@ about 0.3 s each, 25 changelog chunks about 0.3 s each, ItemFlow formulas 1.9 s.
 before starting (the 2026-11-07 figures above predate it).
 Also pending, offered to AL: when the macro loses its state (Esc then End during a long step), the Dashboard stays on its
 last status and Cancel does nothing; `AbortExtraction` and a slice that finds `mBusy` False could write a log line and
-"Stopped" in `A14` (`dashStatus`).
+"Stopped" in `A16` (`dashStatus`).

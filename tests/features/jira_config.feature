@@ -35,3 +35,25 @@ Fonctionnalité: Le bouton « Read the Jira configuration » propose les paramè
     Et la feuille JiraStatuses donne les statuts de chaque type de ticket avec leur catégorie Jira
     Et la feuille JiraFields liste les champs du faux Jira avec leur identifiant
     Et les feuilles JiraWorkflows et JiraTransitions n'ont que leurs en-têtes
+
+  @excel
+  Scénario: Le bouton « Propose values from Jira » remplit les cellules vides des feuilles à saisir et les marque à confirmer
+    Soit un faux Jira avec 120 tickets générés avec les projets des paramètres
+    Et le classeur à livrer dont la feuille Config pointe sur ce faux Jira avec FlowLoadMode "A"
+    Et les feuilles Workflows et Transitions ont perdu leur dernière ligne et la feuille Config n'a plus l'identifiant du champ Story Points
+    Quand je clique sur le bouton Propose values from Jira
+    Alors l'état du tableau de bord dit que des valeurs sont proposées
+    Et le statut et le passage perdus sont revenus en jaune avec la note « To confirm »
+    Et l'identifiant du champ Story Points est revenu en jaune
+    Et aucune cellule saisie n'a changé
+
+  @excel
+  Scénario: Avec IsUserProjectAdmin à False, le bouton ne lit pas les workflows et propose les statuts
+    Soit un faux Jira avec 120 tickets générés avec les projets des paramètres
+    Et le classeur à livrer dont la feuille Config pointe sur ce faux Jira avec FlowLoadMode "A"
+    Et les feuilles Workflows et Transitions ont perdu leur dernière ligne et la feuille Config n'a plus l'identifiant du champ Story Points
+    Et IsUserProjectAdmin vaut "False" dans la feuille Config
+    Quand je clique sur le bouton Propose values from Jira
+    Alors l'état du tableau de bord dit que les workflows n'ont pas été lus faute d'être administrateur
+    Et le faux Jira n'a reçu aucun appel à l'aperçu des workflows
+    Et le statut perdu est revenu en jaune mais pas le passage
