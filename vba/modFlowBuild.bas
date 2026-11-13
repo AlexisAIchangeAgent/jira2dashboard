@@ -329,9 +329,7 @@ Private Sub BuildAll(ByVal wb As Object, ByVal spec As Object, ByVal teams As Co
     wsM.Range(wsM.Columns(2), wsM.Columns(3)).NumberFormat = "yyyy-mm-dd"
     wsP.Range(wsP.Columns(2), wsP.Columns(3)).NumberFormat = "yyyy-mm-dd"
     wsP.Columns(6).NumberFormat = "0%"
-    LogBegin "flow sheets: charts"
-    BuildCharts wb, spec, teams, iterations, pis
-    LogEnd "flow sheets: charts"
+    BuildCharts wb, spec, teams, iterations, pis                       ' its steps: "flow sheets: charts: ..." (one per chart)
 End Sub
 
 Private Sub BuildControls(ByVal wb As Object, ByVal spec As Object)
@@ -498,7 +496,9 @@ Private Sub BuildCharts(ByVal wb As Object, ByVal spec As Object, ByVal teams As
     Set dash = wb.Worksheets(CHARTS_SHEET)               ' a sheet of their own: on the Dashboard they hid its cells
     Set data = AddSheet(wb, "ChartData")
     stride = IIf(pis.Count > iterations.Count, pis.Count, iterations.Count)     ' a block: one row per iteration or PI
+    LogBegin "flow sheets: charts: selector | " & teams.Count & " teams, " & iterations.Count & " iterations, " & pis.Count & " PIs"
     WriteSelectorList wb, dash, data, spec, teams
+    LogEnd "flow sheets: charts: selector"
     For Each row In ReadTable(wb.Worksheets("ChartSpec"))
         BuildChart dash, data, row, 1 + index * (stride + 4), teams, iterations, pis
         index = index + 1
@@ -606,7 +606,9 @@ Private Sub BuildChart(ByVal dash As Object, ByVal data As Object, ByVal row As 
     Dim names() As String, count As Long, i As Long, j As Long, first As Long, last As Long, point As String
     Dim area As Object, shape As Object, ch As Object, s As Object, rng As Object
     Dim rowsCount As Long, firstDay As Double, p As Variant, band() As String, isDay As Boolean, axis() As Variant
-    Dim isPi As Boolean
+    Dim isPi As Boolean, stage As String, num As Long, desc As String
+    On Error GoTo Failed                                     ' only to say where: the error goes on, and the step stays open in the log
+    stage = "plan"
     If Len(CStr(row("SeriesNames"))) > 0 Then
         names = Split(CStr(row("SeriesNames")), ",")
     Else
@@ -620,6 +622,8 @@ Private Sub BuildChart(ByVal dash As Object, ByVal data As Object, ByVal row As 
     If isDay Then rowsCount = DaysOf(iterations)
     If isPi Then rowsCount = pis.Count
     first = top + 2: last = first + rowsCount - 1
+    LogBegin "flow sheets: charts: " & CStr(row("Name")) & " | " & rowsCount & " rows, " & count & " series"
+    stage = "axis"
     ReDim axis(1 To rowsCount, 1 To 1)
     data.Cells(top, 1).Value = CStr(row("Title"))
     data.Cells(top, 1).Font.Bold = True
@@ -652,6 +656,7 @@ Private Sub BuildChart(ByVal dash As Object, ByVal data As Object, ByVal row As 
     For j = 1 To count
         data.Cells(top + 1, 1 + j).Value = AsText(names(j - 1))
     Next j
+    stage = "point formulas"
     point = Replace(CStr(row("PointFormula")), "{iteration}", "$A" & first)
     If InStr(point, "{series}") > 0 Then
         Cov "FLB25"                                          ' one formula per series: the name is part of the text
@@ -661,6 +666,7 @@ Private Sub BuildChart(ByVal dash As Object, ByVal data As Object, ByVal row As 
     Else
         data.Range(data.Cells(first, 2), data.Cells(last, 1 + count)).Formula2 = Replace(point, "{name}", "B$" & (top + 1))
     End If
+    stage = "chart object"
     Set area = dash.Range(dash.Cells(CLng(row("AnchorRow")), CLng(row("AnchorColumn"))), _
                           dash.Cells(CLng(row("AnchorRow")) + CLng(row("Rows")) - 1, CLng(row("AnchorColumn")) + CLng(row("Columns")) - 1))
     Set shape = dash.Shapes.AddChart2(-1, CLng(row("ChartType")), area.Left, area.Top, area.Width, area.Height, True)
@@ -669,6 +675,7 @@ Private Sub BuildChart(ByVal dash As Object, ByVal data As Object, ByVal row As 
     Do While ch.SeriesCollection.Count > 0
         ch.SeriesCollection(1).Delete
     Loop
+    stage = "series"
     For j = 1 To count
         Set s = ch.SeriesCollection.NewSeries
         s.Name = "=ChartData!" & data.Cells(top + 1, 1 + j).Address
@@ -677,6 +684,7 @@ Private Sub BuildChart(ByVal dash As Object, ByVal data As Object, ByVal row As 
     Next j
     If Len(CStr(row("Band"))) > 0 Then
         Cov "FLB34"                                          ' a target band: two constant series, dashed, after the data
+        stage = "band"
         band = Split(CStr(row("Band")), ";")
         For j = 0 To 1
             data.Cells(top + 1, 2 + count + j).Value = IIf(j = 0, "Target band low", "Target band high")
@@ -694,13 +702,23 @@ Private Sub BuildChart(ByVal dash As Object, ByVal data As Object, ByVal row As 
             s.MarkerBackgroundColor = RGB(128, 128, 128)
         Next j
     End If
+    stage = "title and legend"
     ch.HasTitle = True
     ch.ChartTitle.Text = CStr(row("Title"))
     ch.HasLegend = True
     ch.Legend.Position = -4107                               ' xlLegendPositionBottom
     ch.DisplayBlanksAs = 1                                   ' xlNotPlotted: a figure that is not computable is a gap, never 0
     If Len(CStr(row("AxisFormat"))) > 0 Then Cov "FLB26": ch.Axes(2).TickLabels.NumberFormat = CStr(row("AxisFormat"))
+    stage = "note"
     Set rng = data.Range(data.Cells(first, 2), data.Cells(last, 1 + count))
     dash.Cells(CLng(row("AnchorRow")) + CLng(row("Rows")), CLng(row("AnchorColumn"))).Formula2 = _
         Replace(CStr(row("NoteFormula")), "{range}", "ChartData!" & rng.Address)
+    LogEnd "flow sheets: charts: " & CStr(row("Name"))
+    Exit Sub
+Failed:
+    ' The error goes on as it came; the log gets where it stopped, and numbers only (no name, no value of Jira).
+    num = Err.Number: desc = Err.Description
+    LogLine "WARN", "chart " & CStr(row("Name")) & " stopped at: " & stage & " | " & rowsCount & " rows, " & count & " series, " & _
+            teams.Count & " teams, " & iterations.Count & " iterations, " & pis.Count & " PIs"
+    Err.Raise num, "BuildChart", desc
 End Sub
