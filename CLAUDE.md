@@ -56,8 +56,8 @@ release (they cannot be removed) leave out the `export-ignore` paths of `.gitatt
 `.claude/`, `.venv/`); `tests/unit/test_release_contents.py` pins the list. `-Publish` is outward-facing: ask AL first.
 Releases: the version is `vX.Y.Z` only (`v0.0.0-dryrun` is refused) and the number is AL's choice. The dry run
 (`release.ps1 -Version v0.0.0`) needs a clean tree, builds with Excel and leaves `out\release\<version>`: delete it afterwards.
-`-Publish` also needs HEAD == origin/main and `gh` logged in. Only `v0.5.0` (2026-11-13, commit e01327b) and `v0.5.1` (2026-11-13, commit d67e42f) exist on GitHub: AL removed the releases and the
-tags `v0.1.0` to `v0.4.0` (2026-11-13, they were 2026-11-06, 878807e, 31c9574, f0bbf32). Their numbers are never used again; the next one is above `v0.5.1`.
+`-Publish` also needs HEAD == origin/main and `gh` logged in. Only `v0.5.0` (2026-11-13, commit e01327b), `v0.5.1` (2026-11-13, commit d67e42f) and `v0.5.2` (2026-11-13, commit f541e99) exist on GitHub: AL removed the
+releases and the tags `v0.1.0` to `v0.4.0` (2026-11-13, they were 2026-11-06, 878807e, 31c9574, f0bbf32). Their numbers are never used again; the next one is above `v0.5.2`.
 A clone may keep old tags (`git fetch --tags`): `version.py` stamps the commit, never `git describe`.
 `diagnose` never opens the workbook, never reads `python.log` (JQL, Jira's messages) nor the Windows event log, and masks the home
 folder: keep it that way when adding a section. Allow-lists of an endpoint protection ask for the MD5 (`notes.md` has it) or, lasting longer, the path and name:
