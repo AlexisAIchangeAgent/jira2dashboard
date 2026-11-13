@@ -10,6 +10,7 @@ Private Const XL_CALC_MANUAL As Long = -4135                  ' xlCalculationMan
 Private mCfg As Object, mJql As String, mWorkType As String, mAsOf As Date, mClear As Boolean, mSettings As Object
 Private mWsProjects As Object, mWsWorkflows As Object, mWsIssues As Object, mWsIntervals As Object, mWsLinks As Object
 Private mWsChangelog As Object, mChangelog As Collection         ' the sheet Changelog and its rows (every changelog item)
+Private mUserFields As Object                                     ' the ids of the fields that hold a person (their changes keep no value)
 Private mIssues As Collection, mNames As Object, mToken As String, mPage As Long
 Private mKeys As Collection, mIdToKey As Object, mRaw As Collection, mNextChunk As Long
 Private mPhase As Long                  ' 0 no job, 1 search, 2 changelogs, 3 issue rows, 4 intervals, 5 write
@@ -262,7 +263,7 @@ Public Sub ExtractJobStart(ByVal cfg As Object, ByVal jql As String, ByVal workT
     Cov "MEX07"
     Set mCfg = cfg: mJql = jql: mWorkType = workTypeField: mAsOf = asOf: mClear = clearDerived: Set mSettings = settings
     Set mWsProjects = wsProjects: Set mWsWorkflows = wsWorkflows: Set mWsIssues = wsIssues
-    Set mWsIntervals = wsIntervals: Set mWsLinks = wsLinks: Set mWsChangelog = wsChangelog: Set mChangelog = Nothing
+    Set mWsIntervals = wsIntervals: Set mWsLinks = wsLinks: Set mWsChangelog = wsChangelog: Set mChangelog = Nothing: Set mUserFields = Nothing
     Set mIssues = New Collection: Set mNames = CreateObject("Scripting.Dictionary"): mToken = "": mPage = 0
     Set mKeys = Nothing: Set mIdToKey = Nothing: Set mRaw = New Collection: mNextChunk = 1
     Set mRows = Nothing: Set mLinks = Nothing: Set mChanges = Nothing: Set mMoved = Nothing: Set mIntervals = Nothing
@@ -291,6 +292,12 @@ Public Function ExtractJobStep() As Boolean
             End If
         Case 2                                                       ' one chunk of changelogs
             Cov "MEX08"
+            If mUserFields Is Nothing Then
+                Cov "MEX15"                                          ' once, before the changelogs: which fields hold a person
+                LogBegin "user fields"
+                Set mUserFields = UserFieldIds(mCfg)
+                LogEnd "user fields: " & mUserFields.Count
+            End If
             LogBegin "changelogs from issue " & mNextChunk & " of " & mKeys.Count
             If mNextChunk <= mKeys.Count Then mNextChunk = JiraChangelogChunk(mCfg, mKeys, mNextChunk, mRaw)
             LogEnd "changelogs: " & mRaw.Count & " items"
@@ -344,7 +351,7 @@ Public Sub ExtractJobAbort()
     mPhase = 0
     Set mIssues = Nothing: Set mKeys = Nothing: Set mRaw = Nothing: Set mIdToKey = Nothing: Set mNames = Nothing
     Set mRows = Nothing: Set mLinks = Nothing: Set mChanges = Nothing: Set mMoved = Nothing: Set mIntervals = Nothing
-    Set mCfg = Nothing: Set mSettings = Nothing: Set mChangelog = Nothing: Set mWsChangelog = Nothing
+    Set mCfg = Nothing: Set mSettings = Nothing: Set mChangelog = Nothing: Set mWsChangelog = Nothing: Set mUserFields = Nothing
     Set mWsProjects = Nothing: Set mWsWorkflows = Nothing: Set mWsIssues = Nothing: Set mWsIntervals = Nothing: Set mWsLinks = Nothing
 End Sub
 
@@ -357,7 +364,7 @@ Private Sub RowsInit()
     Set mMoved = KeyChangeCounts(mRaw, mIdToKey)
     LogEnd "raw sheets: status changes: " & mChanges.Count
     LogSkippedDates skipped, shapes                                    ' J2D-DATA-003, only when some were left out
-    Set mChangelog = ChangelogRows(mRaw, mIdToKey)                      ' the sheet Changelog: every item, texts cut
+    Set mChangelog = ChangelogRows(mRaw, mIdToKey, mUserFields)                      ' the sheet Changelog: every item, texts cut
     Set mRaw = New Collection                                          ' the parsed items are not read again: free them before the write
     mIds = RowFieldIds(mSettings)
     mBlocksType = Setting(mSettings, "BlocksLinkType")

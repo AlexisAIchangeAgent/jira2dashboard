@@ -125,6 +125,17 @@ class JiraClient:
         raise J.JiraError(601, f"Jira search did not end after {J.MAX_SEARCH_PAGES} pages: narrow the extraction "
                                "with the Filter of the Config sheet.")
 
+    def user_fields(self) -> frozenset:
+        """The ids of the fields that hold a person (schema type or items "user": assignee, reporter, a custom people picker):
+        the sheet Changelog keeps no value for them. A call that fails gives none (the fixed list still applies), never an error."""
+        try:
+            answer = self.call("GET", "/rest/api/3/field", "fields")
+        except J.JiraError as err:
+            log.warning("the fields could not be read (%s): only assignee, reporter and creator are hidden in the Changelog", err.code)
+            return frozenset()
+        return frozenset(f["id"] for f in answer if isinstance(f, dict) and f.get("id")
+                         and ((f.get("schema") or {}).get("type") == "user" or (f.get("schema") or {}).get("items") == "user"))
+
     def changelogs(self, keys: list[str]) -> list[dict]:
         """The changelog pages of the issues, 1000 keys a call."""
         pages = []

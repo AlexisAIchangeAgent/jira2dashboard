@@ -466,6 +466,23 @@ Private Function TryJiraPage(ByVal cfg As Object, ByVal url As String, ByRef pag
     TryJiraPage = True
 End Function
 
+Public Function UserFieldIds(ByVal cfg As Object) As Object
+    ' The ids of the fields that hold a person (schema.type or schema.items = user: assignee, reporter, a custom people picker): the
+    ' sheet Changelog keeps no value for them (a name is personal data). The call never stops the run: an answer that is not 200, or
+    ' not readable, gives none, and the fixed list of modFlow (assignee, reporter, creator) still applies.
+    Cov "JCF39"
+    Dim out As Object, resp As Object, f As Variant
+    Set out = CreateObject("Scripting.Dictionary")
+    Set UserFieldIds = out
+    Set resp = HttpRequest(cfg, "GET", cfg("BaseUrl") & "/rest/api/3/field")
+    If resp("Status") <> 200 Then Cov "JCF40": Exit Function
+    On Error Resume Next
+    For Each f In AsList(JsonParse(resp("Text")))
+        If CStr(JPath(f, "schema.type") & "") = "user" Or CStr(JPath(f, "schema.items") & "") = "user" Then out(CStr(JGet(f, "id") & "")) = True
+    Next f
+    On Error GoTo 0
+End Function
+
 Public Function ReadSprints(ByVal cfg As Object, ByVal keys As Collection, ByRef noBoard As Long) As Collection
     ' Id | Project | Board | Sprint | State | Start | End: the sprints of the scrum boards of the projects, each once (a sprint shared by
     ' two boards comes once). Start and End are what Jira says (ISO with an offset, empty for a future sprint without dates).

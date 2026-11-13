@@ -50,7 +50,7 @@ Private Function TestNames() As Variant
     TestNames = Array("T_JsonNested", "T_JsonEscapes", "T_JsonEmpty", "T_JsonErrors", "T_JsonRoundTrip", _
         "T_JsonLarge", "T_Base64Auth", "T_UrlEncode", "T_Utf8RoundTrip", "T_JiraDates", "T_FieldToCell", _
         "T_SafeCell", "T_ProjectsJql", "T_SearchUrl", "T_SearchPagination", "T_Retry429", _
-        "T_HttpNetworkAndCancel", "T_RetryExhausted", "T_ChangelogChunks", "T_IssueRows", "T_WriteTable", "T_StatusIntervals", "T_IntervalsUnreadableDate", "T_StatusChangesUnreadableDate", "T_ChangelogRows", "T_DateShape", "T_SkippedDatesWarning", "T_SheetName", "T_ProposeFromSheets", "T_ProposeIterations", "T_ReadSprints", "T_ProposeKindOf", "T_ProposeValuesNotAdmin", "T_HealthFields", _
+        "T_HttpNetworkAndCancel", "T_RetryExhausted", "T_ChangelogChunks", "T_IssueRows", "T_WriteTable", "T_StatusIntervals", "T_IntervalsUnreadableDate", "T_StatusChangesUnreadableDate", "T_ChangelogRows", "T_UserFieldIds", "T_DateShape", "T_SkippedDatesWarning", "T_SheetName", "T_ProposeFromSheets", "T_ProposeIterations", "T_ReadSprints", "T_ProposeKindOf", "T_ProposeValuesNotAdmin", "T_HealthFields", _
         "T_StatusChanges", "T_RetryDelay", "T_SafeAccess", "T_FilesUtf8", "T_StringifyBadObject", _
         "T_TooManyPages", "T_BackgroundExport", "T_TextNotConverted", "T_ParamsTables", "T_ParamsOnWorkbook", _
         "T_TrimWhite", "T_ConfigSheet", "T_MandatoryConfig", "T_ProxyDetect", "T_ProxyScript", "T_ProjectsSheet", "T_ParseMoment", "T_ExtractFlowData", "T_ExtractJob", "T_ExtractCheckFields", "T_FlowBuild", "T_BaseUrlHttps", "T_Log", "T_LogInputsAndTimes", "T_StatusParts", "T_ErrorCodes", "T_LogHintAndOpen", "T_StepsSheet", "T_RovoPrompt", "T_RovoCsv", _
@@ -1820,8 +1820,12 @@ Public Sub T_ChangelogRows()
     raw.Add Array("10", "h1", "2026-10-02T10:00:00.000+0200", "Ann", "a1", "status", "status", "jira", "1", "Nouveau", "3", "Pret")
     raw.Add Array("10", "h2", "1696000000000", "Ann", "a1", "description", "description", "jira", "", String$(300, "x"), "", "ok")
     raw.Add Array("11", "h3", "2026-10-03T10:00:00.000Z", "Bob", "b1", "assignee", "assignee", "jira", "acc-1", "Mary Martin", "acc-2", "Paul Durand")
-    Set out = ChangelogRows(raw, map)
-    Check "changelog", "one row per item", "3", 3, out.Count
+    raw.Add Array("10", "h4", "2026-10-04T10:00:00.000Z", "Ann", "a1", "customfield_10050", "Product owner", "custom", "acc-9", "Mary Martin", "acc-8", "Paul Durand")
+    raw.Add Array("10", "h5", "2026-10-05T10:00:00.000Z", "Ann", "a1", "description", "description", "jira", "", "Ask [~accountid:5b10ac8d82e05b22cc7d4ef5] and [~jdoe] now", "", "ok")
+    Dim users As Object
+    Set users = CreateObject("Scripting.Dictionary"): users("customfield_10050") = True
+    Set out = ChangelogRows(raw, map, users)
+    Check "changelog", "one row per item", "5", 5, out.Count
     Check "changelog", "the key of the issue, its id, the id of the change", "A-1|10|h1", "A-1|10|h1", out(1)(0) & "|" & out(1)(1) & "|" & out(1)(2)
     Check "changelog", "the date read, in UTC", "10:00+0200", DateSerial(2026, 10, 2) + TimeSerial(8, 0, 0), out(1)(3)
     Check "changelog", "the date as Jira sent it", "text", "2026-10-02T10:00:00.000+0200", out(1)(4)
@@ -1834,7 +1838,9 @@ Public Sub T_ChangelogRows()
             all = all & "|" & CStr(v)
         Next v
     Next r
-    Check "changelog", "no author and no person name anywhere", "none", True, InStr(all, "Ann") = 0 And InStr(all, "Bob") = 0 And InStr(all, "Martin") = 0 And InStr(all, "Durand") = 0
+    Check "changelog", "a custom field that Jira types as a user keeps no value either", "Product owner", "||||", out(4)(8) & "|" & out(4)(9) & "|" & out(4)(10) & "|" & out(4)(11) & "|"
+    Check "changelog", "the mentions of a person in a text become [user]", "5b10 and jdoe", "Ask [user] and [user] now", out(5)(9)
+    Check "changelog", "no author and no person name anywhere", "none", True, InStr(all, "Ann") = 0 And InStr(all, "Bob") = 0 And InStr(all, "Martin") = 0 And InStr(all, "Durand") = 0 And InStr(all, "5b10") = 0 And InStr(all, "jdoe") = 0
     Check "changelog", "the columns", "12", 12, UBound(ChangelogHeader()) + 1
 End Sub
 
@@ -2015,6 +2021,21 @@ Public Sub T_ProposeIterations()
     Application.DisplayAlerts = False
     wb.Close False
     Application.DisplayAlerts = True
+End Sub
+
+Public Sub T_UserFieldIds()
+    ' The fields that hold a person come from the schema Jira gives, not from a name: a single user, a list of users, a custom picker.
+    Dim cfg As Object, ids As Object, base As String
+    Set cfg = TestConfig(): base = cfg("BaseUrl")
+    FakeReset
+    FakeAdd "GET", base & "/rest/api/3/field", 200, J("[{'id':'assignee','schema':{'type':'user'}},{'id':'customfield_10050','schema':{'type':'user','custom':'x'}}," & _
+        "{'id':'customfield_10051','schema':{'type':'array','items':'user'}},{'id':'summary','schema':{'type':'string'}},{'id':'status'}]")
+    Set ids = UserFieldIds(cfg)
+    Check "userfields", "a user, a custom user and a list of users", "3", "assignee|customfield_10050|customfield_10051", _
+          Join(ids.Keys, "|")
+    FakeReset
+    FakeAdd "GET", base & "/rest/api/3/field", 403, J("{'errorMessages':['no permission']}")
+    Check "userfields", "a call that fails gives none, never an error", "403", 0, UserFieldIds(cfg).Count
 End Sub
 
 Public Sub T_ReadSprints()

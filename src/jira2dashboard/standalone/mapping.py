@@ -199,17 +199,25 @@ def unreadable_status_dates(items) -> tuple[int, str]:
     return sum(shapes.values()), "; ".join(f"{shape} x {count}" for shape, count in shapes.items())
 
 
+MENTION = re.compile(r"\[~[^\]]*\]")                     # "[~accountid:5b10...]" or the old "[~name]": a person
+
+
 def _cut(text):
-    return text if text is None or len(str(text)) <= CHANGELOG_TEXT_MAX else str(text)[:CHANGELOG_TEXT_MAX]
+    """A text of the changelog: the mentions of a person become [user], then it is cut at 255 characters."""
+    if text is None:
+        return None
+    text = MENTION.sub("[user]", str(text))
+    return text if len(text) <= CHANGELOG_TEXT_MAX else text[:CHANGELOG_TEXT_MAX]
 
 
-def changelog_rows(items, id_to_key: dict[str, str]) -> list[tuple]:
+def changelog_rows(items, id_to_key: dict[str, str], user_fields=frozenset()) -> list[tuple]:
     """The rows of the sheet Changelog (formulas.CHANGELOG_RAW), one per changelog item of every field (modFlow.ChangelogRows):
     the key of the issue, its id, the id of the change, the date read (None when it cannot be) and as Jira sent it, the field,
-    the old and new values. No author. A text is cut at 255 characters; a person field (assignee...) keeps no value."""
+    the old and new values. No author. A text is cut at 255 characters, its mentions of a person hidden; a person field (assignee,
+    reporter, creator, and every field of `user_fields`: the ids that Jira types as a user) keeps no value."""
     rows = []
     for issue_id, history, item in items:
-        person = item.get("fieldId") in CHANGELOG_PERSON_FIELDS
+        person = item.get("fieldId") in CHANGELOG_PERSON_FIELDS or item.get("fieldId") in user_fields
         created = history.get("created")
         rows.append((id_to_key.get(issue_id, issue_id), issue_id, history.get("id"), parse_jira_date(created),
                      None if created is None else str(created), item.get("fieldId"), item.get("field"), item.get("fieldtype"),
@@ -290,7 +298,7 @@ class Extract:
 
 
 def extracted(issues: list[dict], changelog_pages: list[dict], ids: FieldIds, projects: list[tuple[str, str, str]],
-              link_type: str) -> Extract:
+              link_type: str, user_fields=frozenset()) -> Extract:
     """The issues of the search pages with their changelogs. The Program issues come first, as the VBA writes them."""
     id_to_key = {str(i.get("id")): i.get("key") for i in issues}
     items = changelog_items(changelog_pages)
@@ -308,4 +316,4 @@ def extracted(issues: list[dict], changelog_pages: list[dict], ids: FieldIds, pr
         blocks = tuple(blocked_by.get(row[0], ()))
         flow.append(flow_issue(row, changes.get(row[0], []), projects, blocks,
                                versions_of(issue.get("fields") or {})))
-    return Extract(rows, flow, links, len(items), *unreadable_status_dates(items), changelog_rows(items, id_to_key))
+    return Extract(rows, flow, links, len(items), *unreadable_status_dates(items), changelog_rows(items, id_to_key, user_fields))

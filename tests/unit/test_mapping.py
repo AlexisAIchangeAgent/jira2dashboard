@@ -221,3 +221,17 @@ def test_the_changelog_columns_are_those_of_the_vba_header():
     text = (Path(__file__).resolve().parents[2] / "vba" / "modFlow.bas").read_text(encoding="ascii")
     body = text.split("Public Function ChangelogHeader() As Variant")[1].split("End Function")[0]
     assert tuple(re.findall(r'"(\w+)"', body)) == CHANGELOG_RAW
+
+
+def test_the_changelog_hides_every_field_jira_types_as_a_user_and_the_mentions_in_the_texts():
+    items = [("10", {"id": "h1", "created": "2026-10-02T12:00:00.000+0200"},
+              {"fieldId": "customfield_10050", "field": "Product owner", "fieldtype": "custom", "from": "acc-9", "fromString": "Mary Martin",
+               "to": "acc-8", "toString": "Paul Durand"}),
+             ("10", {"id": "h2", "created": "2026-10-03T12:00:00.000+0200"},
+              {"fieldId": "description", "field": "description", "fieldtype": "jira",
+               "fromString": "Ask [~accountid:5b10ac8d82e05b22cc7d4ef5] and [~jdoe] now", "toString": "ok"})]
+    rows = M.changelog_rows(items, {"10": "TA-1"}, frozenset({"customfield_10050"}))
+    assert rows[0][8:] == (None, None, None, None)                                      # a custom people picker: no value
+    assert rows[1][9] == "Ask [user] and [user] now"
+    assert not any(name in str(rows) for name in ("Martin", "Durand", "5b10", "jdoe"))
+    assert M.changelog_rows(items[:1], {"10": "TA-1"})[0][9] == "Mary Martin"          # without the list, only the fixed fields are hidden

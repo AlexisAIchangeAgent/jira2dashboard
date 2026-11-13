@@ -70,13 +70,27 @@ Public Function ChangelogHeader() As Variant
                             "FromString", "To", "ToString")
 End Function
 
+Private Function ScrubMentions(ByVal text As String) As String
+    ' "[~accountid:5b10...]" (and the old "[~name]") become "[user]": a mention is a person.
+    Dim a As Long, b As Long
+    ScrubMentions = text
+    a = InStr(ScrubMentions, "[~")
+    Do While a > 0
+        b = InStr(a, ScrubMentions, "]")
+        If b = 0 Then Exit Do
+        Cov "FLW17"
+        ScrubMentions = Left$(ScrubMentions, a - 1) & "[user]" & Mid$(ScrubMentions, b + 1)
+        a = InStr(a + 6, ScrubMentions, "[~")
+    Loop
+End Function
+
 Private Function CutText(ByVal value As Variant) As String
-    ' A text of the changelog, cut at 255 characters (a description can hold thousands).
-    CutText = CStr(value & "")
+    ' A text of the changelog: the mentions of a person hidden, then cut at 255 characters (a description can hold thousands).
+    CutText = ScrubMentions(CStr(value & ""))
     If Len(CutText) > CHANGELOG_TEXT_MAX Then Cov "FLW16": CutText = Left$(CutText, CHANGELOG_TEXT_MAX)
 End Function
 
-Public Function ChangelogRows(ByVal raw As Collection, ByVal idToKey As Object) As Collection
+Public Function ChangelogRows(ByVal raw As Collection, ByVal idToKey As Object, Optional ByVal userFields As Object = Nothing) As Collection
     ' One row per changelog item, whatever the field (python: mapping.changelog_rows): Key | IssueId | ChangeId | CreatedUtc (Empty when
     ' the date cannot be read) | CreatedText (as Jira sent it) | FieldId | Field | FieldType | From | FromString | To | ToString. No author.
     ' A text is cut at 255 characters; a person field (assignee, reporter, creator) keeps no value: a name is personal data.
@@ -86,6 +100,7 @@ Public Function ChangelogRows(ByVal raw As Collection, ByVal idToKey As Object) 
         key = CStr(r(0) & "")
         If idToKey.Exists(key) Then key = idToKey(key)
         person = (InStr(1, "," & CHANGELOG_PERSON_FIELDS & ",", "," & CStr(r(5) & "") & ",", vbBinaryCompare) > 0)
+        If Not person And Not userFields Is Nothing Then person = userFields.Exists(CStr(r(5) & ""))     ' a field Jira types as a user
         If person Then
             Cov "FLW15"
             out.Add Array(key, CStr(r(0) & ""), r(1), ParseJiraDate(r(2)), CStr(r(2) & ""), r(5), r(6), r(7), "", "", "", "")
