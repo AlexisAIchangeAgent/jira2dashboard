@@ -10,7 +10,7 @@ with native charts. Python (pywin32 + stdlib at runtime) **builds** the workbook
 works **without Python**: VBA reads Jira, builds the tables, formulas and charts.
 
 Platform: Windows 11, PowerShell 5.1, Python 3.14, Excel Microsoft 365 (French UI on the dev machine). Runtime = pywin32 +
-stdlib only; pytest, pytest-bdd and pytest-cov are in the same `requirements.txt` (one install, no `-Dev`). The repo is self-contained: child Excel processes import
+stdlib only; pytest, pytest-bdd and pytest-cov are in the same `requirements.txt` (one install, no `-Dev`; `pyproject.toml` has no `dev` group, and `pywin32`'s version is written in both files: change both). The repo is self-contained: child Excel processes import
 `jira2dashboard` through `PYTHONPATH=<repo>\src` (no `pip install`).
 
 Docs and code are in English. Conversation with the user (AL) is in French, short simple sentences.
@@ -23,6 +23,7 @@ Always go through `scripts\run.ps1` (PowerShell 5.1, no venv activation needed);
 powershell -ExecutionPolicy Bypass -File scripts\setup.ps1        # create .venv (py -3.14) and install requirements.txt (pywin32 + test tools)
 .\scripts\activate.ps1            # optional: activate .venv in this console (run.ps1 needs none)
 .\scripts\bootstrap.ps1         # all in one: setup, check-machine, test, build the .xlsm, the .xlsx (scenario); -Full adds vba-tests + test-excel; log bootstrap.log
+                                # not the full pass of a release: coverage, test-network and test-scripts stay to run apart
 .\scripts\run.ps1 test            # fast unit + Gherkin tests, no Excel (the inner loop)
 .\scripts\run.ps1 coverage        # same + coverage of the pure code; fails under 93 %
 .\scripts\run.ps1 test-excel      # scenarios that drive Excel (marker `excel`, no network)
