@@ -155,7 +155,9 @@ python.log). `tests/unit/test_claude_hooks.py` and `test_claude_skills.py` test 
 - **Changelog sheet (AL, 2026-11-13).** `Changelog_from_Jira`: one row per changelog item of the tickets read, every field (`modFlow.ChangelogRows`, python
   `mapping.changelog_rows`; columns `formulas.CHANGELOG_RAW` = `modFlow.ChangelogHeader`, a test compares them): Key, IssueId, ChangeId, CreatedUtc (the date read, empty
   when it cannot be) and CreatedText (as Jira sent it: the unreadable ones show), FieldId, Field, FieldType, From, FromString, To, ToString. **No author** (AL's choice),
-  texts cut at 255 characters (AL's choice), no value for `assignee`, `reporter`, `creator` (a name is personal data). Written last by `WriteRawSheetsCore`, cleared by
+  texts cut at 255 characters (AL's choice), no value for `assignee`, `reporter`, `creator` and every field whose schema type or items is `user` (one call to
+  `field` at the start of the changelogs: `modJiraConfig.UserFieldIds`, `JiraClient.user_fields`; a failed call gives none), `[~accountid:...]` becomes `[user]`
+  (a name is personal data; a name written in clear in a description stays: only leaving out the long texts removes it). Written last by `WriteRawSheetsCore`, cleared by
   `ClearFlowSheets`; the fake Jira only sends status changes and key moves, so its rows are `len(changes) + len(key_changes)`.
 - **Dates and times (audit of 2026-11-13).** All dates are UTC. `modText.ParseJiraDate` and `standalone/mapping.parse_jira_date` must agree (offsets, `Z`, a space for `T`,
   an epoch in ms is not a date); `modParams.ParseMoment` reads an hour as the sheet formula does (`H:MM`, not dropped); an Iterations date before 2000 is refused
@@ -197,7 +199,8 @@ python.log). `tests/unit/test_claude_hooks.py` and `test_claude_skills.py` test 
 - **After an extraction (modHealth, AL 2026-11-13).** `ExtractSlice` appends `HealthFields` to the final status, each field only when there is something to see:
   `Done outside the iterations: N of M` (no metric counts a ticket done outside every iteration: the usual cause of empty charts), `Without a team`,
   `Statuses not in Workflows` (their names), `Cells in error: Table.Column x n` (a formula that fails on real data; the charts' own #N/A are not read).
-  Numbers and status names only, never a value of a ticket; it never raises. The synchronous `ExtractAndCompute` (tests) does not write it.
+  Numbers and status names only, never a value of a ticket; it never raises. The synchronous `ExtractAndCompute` (tests) does not write it. The fake data holds tickets
+  done before the first iteration of the scenarios (9 of 26 on 2026-11-13): a "clean run" assertion checks the other three fields only.
 - **Jira configuration (VBA).** `modJiraConfig` (button Read the Jira configuration, `BtnReadJiraConfiguration`) reads
   projects, issue types, statuses, workflows (`workflows/preview`) and fields into proposal sheets `Jira*`; it never writes
   the parameter sheets (calls and mapping: the header of `modJiraConfig.bas`). Besides the five first sheets it writes
@@ -269,10 +272,13 @@ then `mermaid.parse`), and check every `](#anchor)` link against the headings.
 - **Coverage.** Pure Python >= 93 % (currently about 99 %), enforced by `run.ps1 coverage`. VBA branches carry
   `Cov "ID"` markers; `vba-tests` requires **100 % of markers hit** and the unit test
   `test_real_vba_modules_are_ascii_and_have_unique_markers` pins the marker count and ranges: update it when adding markers.
-  Trivial entry points (`modActions`, `modButtons`) carry none.
+  Trivial entry points (`modActions`, `modButtons`) carry none. A new `.bas` module or `Cov` marker changes numbers pinned in tests:
+  `test_run_vba_tests_pure` (modules, marker total, ranges of LOG/JCF/PRM/MEX/FLB), `test_child_env` (count of `*.bas`),
+  `test_delivered_vba_com_objects` (`len(MODULES)`), and the lists `build_workbook.MODULES` and `run_vba_tests.ORDER`.
 - **VBA conventions.** ASCII only, LF line endings, `Option Explicit`; offline tests `T_*` and fake-Jira tests `M_*` in
   `modTests.bas`; button macros are Public Subs without arguments. A `T_` test that writes dates into `TestScratch` ends with
-  `ws.Cells.Clear`: `ClearContents` keeps the number format, and the next test reads 0/1 as dates.
+  `ws.Cells.Clear`: `ClearContents` keeps the number format, and the next test reads 0/1 as dates. In a `T_` test never compare `CStr(Boolean)` or
+  `CStr(Double)` ("Vrai", "1,5" on the French PC): use `IIf(x, "yes", "no")` or an Integer.
 - **VBA traps.** A one-cell `Range.Value` is not an array; assigning an object to a Variant needs `Set` (error 450);
   `Application.OnTime` has a 1 s granularity; a COM call to an Excel that runs a macro is rejected (see `retry()` in
   `tests/steps/test_flow_excel.py`). `Empty - Date` is a negative DATE in VBA, and a `Range.Value = block` that holds one fails with
@@ -341,6 +347,10 @@ then `mermaid.parse`), and check every `](#anchor)` link against the headings.
   at 61507d1 on 2026-11-12, `T_FlowBuild` alone 0 in 10). Measured as this defect then; still run the A/B above before
   dismissing a new crash there. `vba-tests` loses Excel at `BEGIN flow sheets: charts` (T_FlowBuild) too: 4 runs in about 14 on
   2026-11-13, none tied to a change: rerun up to 3 times.
+- **Jira API documentation:** the Atlassian MCP is not connected (only its authenticate tools) and a real site is never authenticated (hard constraint). Read the
+  official OpenAPI schema with Context7 (`/openapi/dac-static_atlassian_cloud_jira_platform_swagger-v3_v3_json`, and Jira Software `.../swagger.v3.json`) or WebFetch of
+  `https://dac-static.atlassian.com/cloud/jira/platform/swagger-v3.v3.json`: the developer.atlassian.com pages need JavaScript.
+- A leftover Excel of a crashed run (title "Excel", started during the run) is stopped with PowerShell `Stop-Process -Id <pid>`: `taskkill /PID` is mangled by Git Bash.
 - **Long runs in the background:** `cmd &` inside a background call notifies at once, not at the end: wait with
   `until grep -qE "passed|failed" log; do sleep 15; done` in a background Bash. The harness kills background shells when the machine is low
   on memory: run the test groups one after the other, and rerun a killed one only when asked.
