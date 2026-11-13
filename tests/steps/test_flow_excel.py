@@ -19,6 +19,7 @@ from jira2dashboard.build_workbook import build_delivery
 from jira2dashboard.excel import com
 from jira2dashboard.flow import blueprint, sheets
 from jira2dashboard.flow import dashboard_spec as D
+from jira2dashboard.flow.formulas import CHANGELOG_RAW
 from jira2dashboard.flow.itemflow import item_flow
 from jira2dashboard.flow.load import daily_load
 from jira2dashboard.flow.metrics import BUCKETS, feature_predictability, flow_metrics
@@ -591,6 +592,17 @@ def team_names():
     return blueprint.team_names([tuple(row) for row in projects.rows])
 
 
+@then("la feuille Changelog a une ligne par changement du faux Jira, sans auteur")
+def _changelog_sheet(world):
+    ds, wb = world["dataset"], world["wb"]
+    rows = sheet_rows(wb, "Changelog")
+    assert len(rows) == sum(len(i.changes) + len(i.key_changes) for i in ds.issues), len(rows)
+    assert list(rows[0]) == list(CHANGELOG_RAW) and {r["FieldId"] for r in rows} <= {"status", "issuekey"}
+    assert all(r["CreatedUtc"] != "" and r["CreatedText"] != "" for r in rows)            # every date of the fake is read
+    authors = {c.author for i in ds.issues for c in i.changes if c.author}
+    assert authors and not any(a in str(rows) for a in authors)                         # no author anywhere
+
+
 @then("chaque feuille du classeur porte le suffixe de sa source")
 def _every_sheet_says_its_source(world):
     """_from_user = typed by the person, _from_Jira = read from Jira, _from_excel = calculated or drawn (sheet_names.py)."""
@@ -604,7 +616,7 @@ def _the_sheets_by_source(world):
     names = {sheet.Name for sheet in world["wb"].Worksheets}
     assert {S.of(n) for n in ("Config", "Projects", "Iterations", "PIs", "Workflows", "Transitions", "FieldMapping")} <= names
     assert {name for name in names if name.endswith(S.FROM_USER)} == {S.of(n) for n in S.USER}
-    assert {name for name in names if name.endswith(S.FROM_JIRA)} == {S.of(n) for n in ("Issues", "StatusIntervals", "IssueLinks")}
+    assert {name for name in names if name.endswith(S.FROM_JIRA)} == {S.of(n) for n in ("Issues", "StatusIntervals", "IssueLinks", "Changelog")}
     assert S.of("Dashboard") in names and S.of("Charts") in names and S.of("Manual") in names
 
 

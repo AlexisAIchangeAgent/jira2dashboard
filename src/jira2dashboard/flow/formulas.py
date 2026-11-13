@@ -23,6 +23,12 @@ WORK_TYPES = BUCKETS[:-1]
 ISSUES = ("Key", "Id", "Project", "Type", "WorkType", "CreatedUtc", "Status", "Parent", "StatusCategory", "ResolvedUtc",
           "FixVersions", "StoryPoints", "PI", "BV", "TeamValue", "SprintState", "SprintStart", "SprintEnd", "SprintCount",
           "TargetStart", "TargetEnd", "KeyChanges")
+# The sheet Changelog (raw, from Jira): one row per changelog item, every field. No author. A text (FromString, ToString) is cut at
+# CHANGELOG_TEXT_MAX characters; the person fields keep no value (a name is personal data). Same columns as modFlow.ChangelogHeader.
+CHANGELOG_RAW = ("Key", "IssueId", "ChangeId", "CreatedUtc", "CreatedText", "FieldId", "Field", "FieldType", "From", "FromString",
+                 "To", "ToString")
+CHANGELOG_TEXT_MAX = 255
+CHANGELOG_PERSON_FIELDS = ("assignee", "reporter", "creator")
 INTERVALS_RAW = ("Key", "Workflow", "Seq", "Status", "Category", "EnteredUtc", "LeftUtc", "DurationDays", "IsOpen",
                  "ChangeId", "Check")
 

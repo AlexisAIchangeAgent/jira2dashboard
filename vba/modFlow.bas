@@ -2,6 +2,9 @@ Option Explicit
 ' Status intervals: the traceable base for Flow Time, Flow Load and Flow Efficiency.
 ' One row per (issue, status visit): when it entered, when it left, how long, which change caused it.
 
+Private Const CHANGELOG_TEXT_MAX As Long = 255
+Private Const CHANGELOG_PERSON_FIELDS As String = "assignee,reporter,creator"
+
 Public Function StatusChangesFromChangelog(ByVal changelogRows As Collection, ByVal idToKey As Object, _
                                            Optional ByRef skipped As Long = 0, Optional ByRef shapes As String = "") As Collection
     ' Keeps fieldId = "status". Output rows: Array(issueKey, changeId, createdUtc, fromString, toString).
@@ -59,6 +62,38 @@ Public Function DateShape(ByVal value As Variant) As String
         End If
     Next i
     DateShape = TypeName(value) & ":" & out & tail
+End Function
+
+Public Function ChangelogHeader() As Variant
+    ' The columns of the sheet Changelog (python: formulas.CHANGELOG_RAW).
+    ChangelogHeader = Array("Key", "IssueId", "ChangeId", "CreatedUtc", "CreatedText", "FieldId", "Field", "FieldType", "From", _
+                            "FromString", "To", "ToString")
+End Function
+
+Private Function CutText(ByVal value As Variant) As String
+    ' A text of the changelog, cut at 255 characters (a description can hold thousands).
+    CutText = CStr(value & "")
+    If Len(CutText) > CHANGELOG_TEXT_MAX Then Cov "FLW16": CutText = Left$(CutText, CHANGELOG_TEXT_MAX)
+End Function
+
+Public Function ChangelogRows(ByVal raw As Collection, ByVal idToKey As Object) As Collection
+    ' One row per changelog item, whatever the field (python: mapping.changelog_rows): Key | IssueId | ChangeId | CreatedUtc (Empty when
+    ' the date cannot be read) | CreatedText (as Jira sent it) | FieldId | Field | FieldType | From | FromString | To | ToString. No author.
+    ' A text is cut at 255 characters; a person field (assignee, reporter, creator) keeps no value: a name is personal data.
+    Cov "FLW14"
+    Dim out As New Collection, r As Variant, key As String, person As Boolean
+    For Each r In raw
+        key = CStr(r(0) & "")
+        If idToKey.Exists(key) Then key = idToKey(key)
+        person = (InStr(1, "," & CHANGELOG_PERSON_FIELDS & ",", "," & CStr(r(5) & "") & ",", vbBinaryCompare) > 0)
+        If person Then
+            Cov "FLW15"
+            out.Add Array(key, CStr(r(0) & ""), r(1), ParseJiraDate(r(2)), CStr(r(2) & ""), r(5), r(6), r(7), "", "", "", "")
+        Else
+            out.Add Array(key, CStr(r(0) & ""), r(1), ParseJiraDate(r(2)), CStr(r(2) & ""), r(5), r(6), r(7), r(8), CutText(r(9)), r(10), CutText(r(11)))
+        End If
+    Next r
+    Set ChangelogRows = out
 End Function
 
 Public Sub LogSkippedDates(ByVal skipped As Long, ByVal shapes As String)

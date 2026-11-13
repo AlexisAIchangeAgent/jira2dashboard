@@ -8,7 +8,7 @@ import datetime as dt
 
 import pytest
 
-from jira2dashboard.flow.formulas import INTERVALS_RAW, ISSUES
+from jira2dashboard.flow.formulas import CHANGELOG_RAW, INTERVALS_RAW, ISSUES
 from jira2dashboard.flow.model import ART, Change, FlowIssue, Rules
 from jira2dashboard.mock_workbook import FIELD_IDS
 from jira2dashboard.mockjira import api
@@ -194,3 +194,30 @@ def test_the_extract_tells_how_many_status_changes_were_left_out():
     extract = M.extracted([], pages, M.FieldIds("", {}), [], "Blocks")                # no issue: only the changelog matters here
     assert (extract.unreadable_dates, extract.unreadable_shapes) == (1, "String:9999999999999 x 1")
     assert extract.changelog_items == 2
+
+
+# --- the sheet Changelog: every item, no author (modFlow.ChangelogRows) -------------------------------------------------------------
+
+def test_the_changelog_keeps_every_item_without_author_cuts_the_texts_and_keeps_no_person():
+    items = [("10", {"id": "h1", "created": "2026-10-02T12:00:00.000+0200"},
+              {"fieldId": "status", "field": "status", "fieldtype": "jira", "from": "1", "fromString": "Nouveau", "to": "3", "toString": "Pret"}),
+             ("10", {"id": "h2", "created": "1696000000000"},
+              {"fieldId": "description", "field": "description", "fieldtype": "jira", "fromString": "x" * 300, "toString": "ok"}),
+             ("11", {"id": "h3", "created": "2026-10-03T10:00:00.000Z", "author": {"displayName": "Ann"}},
+              {"fieldId": "assignee", "field": "assignee", "fieldtype": "jira", "from": "acc-1", "fromString": "Mary Martin",
+               "to": "acc-2", "toString": "Paul Durand"})]
+    rows = M.changelog_rows(items, {"10": "TA-1"})
+    assert rows[0] == ("TA-1", "10", "h1", dt.datetime(2026, 10, 2, 10), "2026-10-02T12:00:00.000+0200", "status", "status", "jira",
+                       "1", "Nouveau", "3", "Pret")
+    assert rows[1][3] is None and rows[1][4] == "1696000000000" and len(rows[1][9]) == 255      # not read, shown; cut
+    assert rows[2][0] == "11" and rows[2][8:] == (None, None, None, None)                       # an unknown id stays; a person keeps no value
+    assert all(len(row) == len(CHANGELOG_RAW) for row in rows)
+    assert not any(name in str(rows) for name in ("Ann", "Martin", "Durand"))
+
+
+def test_the_changelog_columns_are_those_of_the_vba_header():
+    import re
+    from pathlib import Path
+    text = (Path(__file__).resolve().parents[2] / "vba" / "modFlow.bas").read_text(encoding="ascii")
+    body = text.split("Public Function ChangelogHeader() As Variant")[1].split("End Function")[0]
+    assert tuple(re.findall(r'"(\w+)"', body)) == CHANGELOG_RAW

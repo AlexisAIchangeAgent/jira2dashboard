@@ -25,7 +25,7 @@ from pathlib import Path
 
 from jira2dashboard.cli.args import parser
 from jira2dashboard.flow import dashboard_spec as D
-from jira2dashboard.flow.formulas import INTERVALS_RAW, ISSUES
+from jira2dashboard.flow.formulas import CHANGELOG_RAW, INTERVALS_RAW, ISSUES
 from jira2dashboard.flow.model import UNCLASSIFIED
 from jira2dashboard.params.model import ParamsError
 from jira2dashboard.paths import RELEASE_DIR
@@ -202,7 +202,7 @@ def run(args, formatter: Scrubbed, collected: Collected, sleep=time.sleep, detec
         log.warning("statuses not in the sheet Workflows (category Unclassified, data check DC08): %s",
                     ", ".join(unknown))
     results = R.compute(extract.flow, settings)
-    first, end = settings.iterations[0].start, settings.iterations[-1].end
+    first, end = R.iteration_span(settings.iterations)
     pictures = chart_pictures(results.metrics, results.teams, [p.name for p in settings.iterations], results.loads,
                               R.days_of(first, end), args.team, results.predictability)
     log.info("END results: %d items, %d metrics rows, %d charts%s", len(results.items), len(results.metrics),
@@ -231,6 +231,7 @@ def run(args, formatter: Scrubbed, collected: Collected, sleep=time.sleep, detec
         Sheet(S.of("Issues"), ISSUES, extract.rows),
         Sheet(S.of("StatusIntervals"), INTERVALS_RAW, intervals),
         Sheet(S.of("IssueLinks"), ("Blocker", "Blocked"), extract.links),
+        Sheet(S.of("Changelog"), CHANGELOG_RAW, extract.changelog),
         Sheet(ERRORS_SHEET, ("TimeUtc", "Level", "Message"), collected.rows),
     ] + _masked(sheets)
     write_xlsx(out, sheets_out)

@@ -7,8 +7,8 @@ Option Explicit
 '                Team), the category Jira gives for sure (to do -> Backlog, done -> Done) and IsFree; never Order, IsStart,
 '                IsEnd, Active or Wait, Removed: those are human choices;
 '   Transitions  the moves the sheet lacks (Workflow, From, To; the Type is a human choice);
-'   Iterations   the iterations that the sprints of the scrum boards make (the sprints of the teams that start and end on
-'                the same days, +- 1 day, are one iteration; End = the day after the last day: the end is excluded), the ones
+'   Iterations   the iterations that the sprints of the scrum boards make (the sprints of the teams that start on the same
+'                day, +- 1 day, are one iteration; End = the day after the latest last day: the end is excluded), the ones
 '                the sheet lacks;
 '   Config       the ids of the fields that Jira names once (Sprint, Team, Story Points, Target start and end, PI, Business
 '                Value) where the Value is empty. Two candidates for one parameter: nothing proposed, the person chooses.
@@ -252,9 +252,10 @@ End Function
 
 Private Function ProposeIterations(ByVal wb As Object) As Long
     ' The sheet Iterations: one row per iteration that the sprints of JiraSprints make and that the sheet does not hold yet. The
-    ' sprints of several teams that start and end on the same days (+- 1 day) are one iteration: Start = the earliest start,
-    ' End = the day after the latest last day (the end is excluded), never later than the start of the next iteration (two
-    ' iterations must not hold the same day: a ticket done that day would count twice). Label: the name the sprints share,
+    ' sprints of several teams that start on the same day (+- 1 day) are one iteration, whatever their length: Start = the
+    ' earliest start, End = the day after the latest last day (the end is excluded), never later than the start of the next
+    ' iteration (two iterations must not hold the same day: a ticket done that day would count twice). A cluster that would
+    ' end before it starts is not proposed (the build refuses such a sheet: error 704). Label: the name the sprints share,
     ' else "Iteration <Start>".
     Cov "PRP16"
     Dim ws As Object, cLabel As Long, cStart As Long, cEnd As Long, last As Long, r As Long
@@ -281,14 +282,14 @@ Private Function ProposeIterations(ByVal wb As Object) As Long
     Next row
     If startS.Count = 0 Then Exit Function
     ReDim labelOf(1 To startS.Count): ReDim loOf(1 To startS.Count): ReDim hiOf(1 To startS.Count)
-    ' the clusters: the sprints that start and end within a day of the first one of the cluster
+    ' the clusters: the sprints that start within a day of the first one of the cluster
     i = 1
     Do While i <= startS.Count
         count = count + 1
         loOf(count) = startS(i): hiOf(count) = endS(i): labelOf(count) = names(i)
         k = i + 1
         Do While k <= startS.Count
-            If Abs(startS(k) - startS(i)) > 1 Or Abs(endS(k) - endS(i)) > 1 Then Exit Do
+            If Abs(startS(k) - startS(i)) > 1 Then Exit Do
             If endS(k) > hiOf(count) Then hiOf(count) = endS(k)
             If names(k) <> labelOf(count) Then labelOf(count) = ""
             k = k + 1
@@ -309,7 +310,9 @@ Private Function ProposeIterations(ByVal wb As Object) As Long
         labels(LCase$(TrimWhite(CStr(ws.Cells(r, cLabel).Value & "")))) = True
     Next r
     For n = 1 To count
-        If Not IterationHeld(ws, cStart, cEnd, last, loOf(n)) And Not labels.Exists(LCase$(labelOf(n))) Then
+        If hiOf(n) <= loOf(n) Then
+            Cov "PRP20"                                                    ' dates that make no iteration: not proposed
+        ElseIf Not IterationHeld(ws, cStart, cEnd, last, loOf(n)) And Not labels.Exists(LCase$(labelOf(n))) Then
             Cov "PRP17"
             last = last + 1
             labels(LCase$(labelOf(n))) = True

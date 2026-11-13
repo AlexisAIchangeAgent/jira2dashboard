@@ -152,6 +152,17 @@ python.log). `tests/unit/test_claude_hooks.py` and `test_claude_skills.py` test 
   with the VBA when an extraction rule changes. Its log (`logs\python.log` next to the workbook, as the VBA log) is complete on
   purpose (AL's choice): status, call, Jira's message, tracebacks; never the token nor the Authorization header
   (`Scrubbed` formatter; `test_extract_main` checks).
+- **Changelog sheet (AL, 2026-11-13).** `Changelog_from_Jira`: one row per changelog item of the tickets read, every field (`modFlow.ChangelogRows`, python
+  `mapping.changelog_rows`; columns `formulas.CHANGELOG_RAW` = `modFlow.ChangelogHeader`, a test compares them): Key, IssueId, ChangeId, CreatedUtc (the date read, empty
+  when it cannot be) and CreatedText (as Jira sent it: the unreadable ones show), FieldId, Field, FieldType, From, FromString, To, ToString. **No author** (AL's choice),
+  texts cut at 255 characters (AL's choice), no value for `assignee`, `reporter`, `creator` (a name is personal data). Written last by `WriteRawSheetsCore`, cleared by
+  `ClearFlowSheets`; the fake Jira only sends status changes and key moves, so its rows are `len(changes) + len(key_changes)`.
+- **Dates and times (audit of 2026-11-13).** All dates are UTC. `modText.ParseJiraDate` and `standalone/mapping.parse_jira_date` must agree (offsets, `Z`, a space for `T`,
+  an epoch in ms is not a date); `modParams.ParseMoment` reads an hour as the sheet formula does (`H:MM`, not dropped); an Iterations date before 2000 is refused
+  (error 701: a typo such as 1026 would write 365 000 days per team); two changes in one second are ordered by their id as a NUMBER (`model.change_order`), as the
+  VBA keeps Jira's order; the iterations span is the earliest start to the latest end (`results.iteration_span`). Known and left: the logs use local time (VBA and
+  python.log, unlabelled) while `Run` and `Errors` use UTC; an unreadable `created` crashes the Python path and gives a huge first duration in VBA (Jira always sends it);
+  the fake Jira always sends `+0200` (no DST mix); `ParseJiraDate` of `...T09:12-0500` (no seconds) reads the offset as 0.
 - **Support codes.** Every error shown or logged carries `J2D-<AREA>-<NNN>` (`CFG`, `JIRA`, `NET`, `DATA`, `FLOW`, `ROVO`, `SYS`, `VBA`, `GEN`):
   the table is `src/jira2dashboard/error_codes.py` (code, vba number, meaning, cause, check, what support asks), shown in the sheet
   `ErrorCodes`; `modLog.ErrorCode(number, description)` is the VBA rule (602 has two causes: BaseUrl check, HTTP status = `JIRA-<status>`,

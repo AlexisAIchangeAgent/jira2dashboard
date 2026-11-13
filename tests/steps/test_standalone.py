@@ -13,6 +13,7 @@ from pytest_bdd import given, parsers, scenarios, then, when
 
 from jira2dashboard import mock_workbook as M
 from jira2dashboard import sheet_names as S
+from jira2dashboard.flow.formulas import CHANGELOG_RAW
 from jira2dashboard.build_workbook import build_delivery
 from jira2dashboard.excel import com
 from jira2dashboard.flow import dashboard_spec as D
@@ -192,6 +193,17 @@ def same(got, wanted) -> bool:
     if isinstance(wanted, dt.datetime):
         return got is not None and abs(moment(got) - wanted) < dt.timedelta(seconds=0.5)
     return got is not None and abs(got - wanted) <= TOLERANCE * max(1.0, abs(wanted))
+
+
+@then("la feuille Changelog a une ligne par changement du faux Jira, sans auteur")
+def _changelog(world):
+    ds = world["dataset"]
+    rows = sheets(world)["Changelog"]
+    assert len(rows) == sum(len(i.changes) + len(i.key_changes) for i in ds.issues)       # one item per history of the fake
+    assert {r["FieldId"] for r in rows} <= {"status", "issuekey"} and all(r["CreatedText"] for r in rows)
+    assert list(rows[0]) == list(CHANGELOG_RAW)
+    authors = {c.author for i in ds.issues for c in i.changes if c.author}
+    assert authors and not any(a in str(rows) for a in authors)                         # no author anywhere
 
 
 @then("la feuille Issues a une ligne par ticket du faux Jira")

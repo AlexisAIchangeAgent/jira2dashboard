@@ -46,6 +46,13 @@ class Change:
     to_status: str
 
 
+def change_order(change: Change) -> tuple:
+    """The order of the changes of an issue: by date, and for two changes in the same second (the milliseconds are dropped) by
+    their id as a number (9 before 10: a text sort would put 10 first), which is the order Jira gave them in (the VBA keeps
+    it: modFlow.SortByDate is stable)."""
+    return (change.at, len(change.id), change.id)
+
+
 @dataclass(frozen=True)
 class FlowIssue:
     """What the metrics need to know about an issue (the extract plus its status changes)."""

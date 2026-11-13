@@ -13,6 +13,7 @@ Fonctionnalité: Extraction Python sans VBA
     Quand je lance l'extraction Python
     Alors elle se termine avec le code 0
     Et la feuille Issues a une ligne par ticket du faux Jira
+    Et la feuille Changelog a une ligne par changement du faux Jira, sans auteur
     Et les feuilles Metrics, PIMetrics, DailyLoad, ItemFlow, FillRates et DataChecks reproduisent la référence Python
     Et chaque anomalie connue est trouvée par les contrôles qui lui correspondent et seulement par eux
     Et la feuille Charts a les 8 graphiques du Dashboard en SVG

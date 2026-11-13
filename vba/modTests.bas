@@ -50,7 +50,7 @@ Private Function TestNames() As Variant
     TestNames = Array("T_JsonNested", "T_JsonEscapes", "T_JsonEmpty", "T_JsonErrors", "T_JsonRoundTrip", _
         "T_JsonLarge", "T_Base64Auth", "T_UrlEncode", "T_Utf8RoundTrip", "T_JiraDates", "T_FieldToCell", _
         "T_SafeCell", "T_ProjectsJql", "T_SearchUrl", "T_SearchPagination", "T_Retry429", _
-        "T_HttpNetworkAndCancel", "T_RetryExhausted", "T_ChangelogChunks", "T_IssueRows", "T_WriteTable", "T_StatusIntervals", "T_IntervalsUnreadableDate", "T_StatusChangesUnreadableDate", "T_DateShape", "T_SkippedDatesWarning", "T_SheetName", "T_ProposeFromSheets", "T_ProposeIterations", "T_ReadSprints", "T_ProposeKindOf", "T_ProposeValuesNotAdmin", "T_HealthFields", _
+        "T_HttpNetworkAndCancel", "T_RetryExhausted", "T_ChangelogChunks", "T_IssueRows", "T_WriteTable", "T_StatusIntervals", "T_IntervalsUnreadableDate", "T_StatusChangesUnreadableDate", "T_ChangelogRows", "T_DateShape", "T_SkippedDatesWarning", "T_SheetName", "T_ProposeFromSheets", "T_ProposeIterations", "T_ReadSprints", "T_ProposeKindOf", "T_ProposeValuesNotAdmin", "T_HealthFields", _
         "T_StatusChanges", "T_RetryDelay", "T_SafeAccess", "T_FilesUtf8", "T_StringifyBadObject", _
         "T_TooManyPages", "T_BackgroundExport", "T_TextNotConverted", "T_ParamsTables", "T_ParamsOnWorkbook", _
         "T_TrimWhite", "T_ConfigSheet", "T_MandatoryConfig", "T_ProxyDetect", "T_ProxyScript", "T_ProjectsSheet", "T_ParseMoment", "T_ExtractFlowData", "T_ExtractJob", "T_ExtractCheckFields", "T_FlowBuild", "T_BaseUrlHttps", "T_Log", "T_LogInputsAndTimes", "T_StatusParts", "T_ErrorCodes", "T_LogHintAndOpen", "T_StepsSheet", "T_RovoPrompt", "T_RovoCsv", _
@@ -871,6 +871,10 @@ Public Sub T_ParseMoment()
     Check "asof", "a day that does not exist", "2026-13-45", True, IsEmpty(ParseMoment("2026-13-45"))
     Check "asof", "letters in the numbers", "20x6-11-03", True, IsEmpty(ParseMoment("20x6-11-03"))
     Check "asof", "empty", "", True, IsEmpty(ParseMoment(""))
+    Check "asof", "an hour on one digit is read, as the sheet reads it (it was dropped)", "2026-11-03 8:00", CDbl(DateSerial(2026, 11, 3)) + 8 / 24, CDbl(ParseMoment("2026-11-03 8:00"))
+    Check "asof", "a UTC suffix after the seconds is ignored, as the sheet ignores it", "...:00Z", CDbl(DateSerial(2026, 11, 3) + TimeSerial(18, 0, 0)), CDbl(ParseMoment("2026-11-03T18:00:00Z"))
+    Check "asof", "an hour without minutes is no time", "2026-11-03 18", True, IsEmpty(ParseMoment("2026-11-03 18"))
+    Check "asof", "a time that does not exist", "25:00", True, IsEmpty(ParseMoment("2026-11-03 25:00")) And IsEmpty(ParseMoment("2026-11-03 18:60"))
     Dim ws As Object, raised As Boolean
     Set ws = ThisWorkbook.Worksheets("TestScratch")
     ConfigRows ws, Array("AsOf", "2026-11-03 18:00")
@@ -969,7 +973,7 @@ Public Sub T_ExtractJob()
     ' The extraction as a job: one step per page of the search, per chunk of changelogs, per batch of issue rows, per workflow
     ' of intervals, and one that writes. The bar of the Dashboard moves with the fraction, and a job that is dropped before
     ' its last step writes nothing.
-    Dim cfg As Object, wsI As Object, wsV As Object, jql As String, ts As String, fields As String
+    Dim cfg As Object, wsI As Object, wsV As Object, jql As String, ts As String, fields As String, wsC As Object
     Dim steps As Long, last As Double, increasing As Boolean, f As Double, first As String, page1 As String, page2 As String
     Set cfg = TestConfig()
     Set wsI = ThisWorkbook.Worksheets("TestScratch")
@@ -1017,7 +1021,9 @@ Public Sub T_ExtractJob()
     FakeAdd "POST", cfg("BaseUrl") & "/rest/api/3/changelog/bulkfetch", 200, J("{'issueChangeLogs':[]}")
     wsI.Cells.ClearContents
     gRowBatch = 1
-    ExtractJobStart cfg, jql, "", DateSerial(2026, 10, 5), ThisWorkbook.Worksheets(SheetName("Projects")), ThisWorkbook.Worksheets(SheetName("Workflows")), wsI, wsV
+    Set wsC = ThisWorkbook.Worksheets("TestScratch3")
+    wsC.Cells.Clear
+    ExtractJobStart cfg, jql, "", DateSerial(2026, 10, 5), ThisWorkbook.Worksheets(SheetName("Projects")), ThisWorkbook.Worksheets(SheetName("Workflows")), wsI, wsV, wsChangelog:=wsC
     steps = 0
     Do
         steps = steps + 1
@@ -1028,6 +1034,7 @@ Public Sub T_ExtractJob()
     Check "extractjob", "a batch of one issue adds one step", "steps", 8, steps
     Check "extractjob", "the batches give the same rows", "TTT-1, AAA-1", "TTT-1|AAA-1", wsI.Range("A2").Value & "|" & wsI.Range("A3").Value
     Check "extractjob", "the intervals are written once per issue", "2 rows", 3, wsV.Cells(wsV.Rows.Count, 1).End(-4162).Row
+    Check "extractjob", "the sheet Changelog gets its header even when Jira sent no item", "Key|ToString", "Key|ToString", wsC.Range("A1").Value & "|" & wsC.Range("L1").Value
 End Sub
 
 Public Sub T_ExtractCheckFields()
@@ -1168,6 +1175,8 @@ Public Sub T_FlowBuild()
     FlowIterations "x", "y"
     FlowRaw True
     Check "flowbuild", "text that is not a date is refused", "Start x", 701, FlowBuildError()
+    FlowIterations "1026-10-01", "1026-10-15"
+    Check "flowbuild", "a year before 2000 is a typo, not an iteration (it would make 365 000 days of DailyLoad)", "1026", 701, FlowBuildError()
     FlowIterations DateSerial(2026, 10, 15), DateSerial(2026, 10, 1)
     Check "flowbuild", "an iteration that ends before it starts is refused", "15 Oct -> 1 Oct", 704, FlowBuildError()
     wb.Worksheets(SheetName("Iterations")).Range("A2:C10").ClearContents
@@ -1803,6 +1812,32 @@ Public Sub T_StatusChanges()
     Check "flow", "date converted to UTC", "10:00+0200", DateSerial(2026, 10, 2) + TimeSerial(8, 0, 0), out(1)(2)
 End Sub
 
+Public Sub T_ChangelogRows()
+    ' Every item of the changelog becomes a row: no author, the date as Jira sent it next to the date read, a text cut at 255
+    ' characters, the value of a person field (assignee...) not kept.
+    Dim raw As New Collection, map As Object, out As Collection, r As Variant, all As String, v As Variant
+    Set map = CreateObject("Scripting.Dictionary"): map("10") = "A-1"
+    raw.Add Array("10", "h1", "2026-10-02T10:00:00.000+0200", "Ann", "a1", "status", "status", "jira", "1", "Nouveau", "3", "Pret")
+    raw.Add Array("10", "h2", "1696000000000", "Ann", "a1", "description", "description", "jira", "", String$(300, "x"), "", "ok")
+    raw.Add Array("11", "h3", "2026-10-03T10:00:00.000Z", "Bob", "b1", "assignee", "assignee", "jira", "acc-1", "Mary Martin", "acc-2", "Paul Durand")
+    Set out = ChangelogRows(raw, map)
+    Check "changelog", "one row per item", "3", 3, out.Count
+    Check "changelog", "the key of the issue, its id, the id of the change", "A-1|10|h1", "A-1|10|h1", out(1)(0) & "|" & out(1)(1) & "|" & out(1)(2)
+    Check "changelog", "the date read, in UTC", "10:00+0200", DateSerial(2026, 10, 2) + TimeSerial(8, 0, 0), out(1)(3)
+    Check "changelog", "the date as Jira sent it", "text", "2026-10-02T10:00:00.000+0200", out(1)(4)
+    Check "changelog", "an epoch is not read, the text shows it", "1696000000000", "empty|1696000000000", IIf(IsEmpty(out(2)(3)), "empty", "read") & "|" & out(2)(4)      ' not CStr(True): "Vrai" on a French PC
+    Check "changelog", "a text is cut at 255 characters", "300 -> 255", 255, Len(out(2)(9))
+    Check "changelog", "an id that no issue has is kept as it is", "11", "11", out(3)(0)
+    Check "changelog", "a person field keeps no value", "assignee", "||||", out(3)(8) & "|" & out(3)(9) & "|" & out(3)(10) & "|" & out(3)(11) & "|"
+    For Each r In out
+        For Each v In r
+            all = all & "|" & CStr(v)
+        Next v
+    Next r
+    Check "changelog", "no author and no person name anywhere", "none", True, InStr(all, "Ann") = 0 And InStr(all, "Bob") = 0 And InStr(all, "Martin") = 0 And InStr(all, "Durand") = 0
+    Check "changelog", "the columns", "12", 12, UBound(ChangelogHeader()) + 1
+End Sub
+
 Public Sub T_StatusChangesUnreadableDate()
     ' A status change whose date cannot be read is left out (as the Python path does), counted, and its shape is kept.
     Dim rows As New Collection, map As Object, out As Collection, skipped As Long, shapes As String
@@ -1913,7 +1948,11 @@ Private Function ProposalBook() As Object
         Array("4", "TA", "Board TA", "Sprint 3", "closed", "2026-01-29T09:00:00.000+0000", "2026-02-12T09:00:00.000+0000"), _
         Array("5", "TB", "Board TB", "Sprint 3", "closed", "2026-01-29T09:00:00.000+0000", "2026-02-12T09:00:00.000+0000"), _
         Array("6", "TA", "Board TA", "Sprint 4", "active", "2026-02-12T09:00:00.000+0000", "2026-02-25T17:00:00.000+0000"), _
-        Array("7", "TA", "Board TA", "Sprint 5", "future", "", ""))
+        Array("7", "TA", "Board TA", "Sprint 5", "future", "", ""), _
+        Array("8", "T1", "Board T1", "T1 Sprint 9", "future", "2026-02-26T09:00:00.000+0000", "2026-03-11T17:00:00.000+0000"), _
+        Array("9", "T2", "Board T2", "T2 Sprint 9", "future", "2026-02-26T09:00:00.000+0000", "2026-03-18T17:00:00.000+0000"), _
+        Array("10", "T3", "Board T3", "T3 Sprint 9", "future", "2026-02-26T09:00:00.000+0000", "2026-03-11T17:00:00.000+0000"), _
+        Array("11", "T4", "Board T4", "Broken", "future", "2026-04-10T09:00:00.000+0000", "2026-04-01T17:00:00.000+0000"))
     Application.DisplayAlerts = False
     wb.Worksheets(1).Delete
     Application.DisplayAlerts = True
@@ -1967,8 +2006,10 @@ Public Sub T_ProposeIterations()
           "Iteration 2026-01-15|2026-01-15|2026-01-29", RowText(ws, 3, 3)
     Check "propose", "the shared name is the label; the end is cut at the start of the next iteration (no day twice)", "Sprint 3", "Sprint 3|2026-01-29|2026-02-12", RowText(ws, 4, 3)
     Check "propose", "the end is the day after the last day", "Sprint 4", "Sprint 4|2026-02-12|2026-02-26", RowText(ws, 5, 3)
-    Check "propose", "a sprint inside an iteration the sheet has adds nothing; a sprint without dates neither", "rows", 5, LastRow(ws)
-    Check "propose", "the summary counts them", "3", True, InStr(summary, " | Iterations_from_user: 3 proposed") > 0
+    Check "propose", "three teams that start the same day with three lengths are one iteration, as long as the longest", "T1/T2/T3", _
+          "Iteration 2026-02-26|2026-02-26|2026-03-19", RowText(ws, 6, 3)
+    Check "propose", "a sprint inside an iteration the sheet has, a sprint without dates, a sprint that ends before it starts: nothing", "rows", 6, LastRow(ws)
+    Check "propose", "the summary counts them", "4", True, InStr(summary, " | Iterations_from_user: 4 proposed") > 0
     Check "propose", "a proposed iteration is yellow with a note", "label", yellow & "|To confirm: proposed from Jira", ws.Cells(3, 1).Interior.Color & "|" & ws.Cells(3, 1).Comment.Text
     Check "propose", "its dates are ISO text, as the sheet reads them", "Start", "2026-01-15", CStr(ws.Cells(3, 2).Value)
     Application.DisplayAlerts = False

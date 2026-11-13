@@ -9,6 +9,7 @@ Option Explicit
 Private Const XL_CALC_MANUAL As Long = -4135                  ' xlCalculationManual
 Private mCfg As Object, mJql As String, mWorkType As String, mAsOf As Date, mClear As Boolean, mSettings As Object
 Private mWsProjects As Object, mWsWorkflows As Object, mWsIssues As Object, mWsIntervals As Object, mWsLinks As Object
+Private mWsChangelog As Object, mChangelog As Collection         ' the sheet Changelog and its rows (every changelog item)
 Private mIssues As Collection, mNames As Object, mToken As String, mPage As Long
 Private mKeys As Collection, mIdToKey As Object, mRaw As Collection, mNextChunk As Long
 Private mPhase As Long                  ' 0 no job, 1 search, 2 changelogs, 3 issue rows, 4 intervals, 5 write
@@ -35,7 +36,7 @@ Public Sub ExtractFlowData()
     ExtractFlowDataTo cfg, jql, ConfigValue(ThisWorkbook.Worksheets(SheetName("Config")), "WorkTypeField"), _
                       AsOfFromConfig(ThisWorkbook.Worksheets(SheetName("Config"))), ThisWorkbook.Worksheets(SheetName("Projects")), _
                       ThisWorkbook.Worksheets(SheetName("Workflows")), SheetNamed("Issues"), SheetNamed("StatusIntervals"), True, settings, _
-                      SheetNamed("IssueLinks")
+                      SheetNamed("IssueLinks"), SheetNamed("Changelog")
 End Sub
 
 Public Sub ExtractFlowDataStart()
@@ -45,7 +46,7 @@ Public Sub ExtractFlowDataStart()
     ExtractJobStart cfg, jql, ConfigValue(ThisWorkbook.Worksheets(SheetName("Config")), "WorkTypeField"), _
                     AsOfFromConfig(ThisWorkbook.Worksheets(SheetName("Config"))), ThisWorkbook.Worksheets(SheetName("Projects")), _
                     ThisWorkbook.Worksheets(SheetName("Workflows")), SheetNamed("Issues"), SheetNamed("StatusIntervals"), True, settings, _
-                    SheetNamed("IssueLinks")
+                    SheetNamed("IssueLinks"), SheetNamed("Changelog")
 End Sub
 
 Private Function SheetNamed(ByVal name As String) As Object
@@ -236,7 +237,8 @@ Public Sub ExtractFlowDataTo(ByVal cfg As Object, ByVal jql As String, ByVal wor
                              ByVal asOf As Date, ByVal wsProjects As Object, ByVal wsWorkflows As Object, _
                              ByVal wsIssues As Object, ByVal wsIntervals As Object, _
                              Optional ByVal clearDerived As Boolean = False, _
-                             Optional ByVal settings As Object = Nothing, Optional ByVal wsLinks As Object = Nothing)
+                             Optional ByVal settings As Object = Nothing, Optional ByVal wsLinks As Object = Nothing, _
+                             Optional ByVal wsChangelog As Object = Nothing)
     ' clearDerived: after everything was read from Jira, and only then, empty the sheets of an earlier run (a failed
     ' extraction therefore leaves the previous results as they were).
     ' settings: the field ids of the data checks (see FieldSettings); wsLinks: where the "blocks" links go.
@@ -246,7 +248,7 @@ Public Sub ExtractFlowDataTo(ByVal cfg As Object, ByVal jql As String, ByVal wor
     ' IssueLinks: Blocker | Blocked.
     ' The Program follows the Feature workflow, every other project the Team workflow (sheet Projects).
     Cov "MEX01"
-    ExtractJobStart cfg, jql, workTypeField, asOf, wsProjects, wsWorkflows, wsIssues, wsIntervals, clearDerived, settings, wsLinks
+    ExtractJobStart cfg, jql, workTypeField, asOf, wsProjects, wsWorkflows, wsIssues, wsIntervals, clearDerived, settings, wsLinks, wsChangelog
     Do While Not ExtractJobStep()
     Loop
 End Sub
@@ -255,11 +257,12 @@ Public Sub ExtractJobStart(ByVal cfg As Object, ByVal jql As String, ByVal workT
                            ByVal asOf As Date, ByVal wsProjects As Object, ByVal wsWorkflows As Object, _
                            ByVal wsIssues As Object, ByVal wsIntervals As Object, _
                            Optional ByVal clearDerived As Boolean = False, _
-                           Optional ByVal settings As Object = Nothing, Optional ByVal wsLinks As Object = Nothing)
+                           Optional ByVal settings As Object = Nothing, Optional ByVal wsLinks As Object = Nothing, _
+                           Optional ByVal wsChangelog As Object = Nothing)
     Cov "MEX07"
     Set mCfg = cfg: mJql = jql: mWorkType = workTypeField: mAsOf = asOf: mClear = clearDerived: Set mSettings = settings
     Set mWsProjects = wsProjects: Set mWsWorkflows = wsWorkflows: Set mWsIssues = wsIssues
-    Set mWsIntervals = wsIntervals: Set mWsLinks = wsLinks
+    Set mWsIntervals = wsIntervals: Set mWsLinks = wsLinks: Set mWsChangelog = wsChangelog: Set mChangelog = Nothing
     Set mIssues = New Collection: Set mNames = CreateObject("Scripting.Dictionary"): mToken = "": mPage = 0
     Set mKeys = Nothing: Set mIdToKey = Nothing: Set mRaw = New Collection: mNextChunk = 1
     Set mRows = Nothing: Set mLinks = Nothing: Set mChanges = Nothing: Set mMoved = Nothing: Set mIntervals = Nothing
@@ -341,7 +344,7 @@ Public Sub ExtractJobAbort()
     mPhase = 0
     Set mIssues = Nothing: Set mKeys = Nothing: Set mRaw = Nothing: Set mIdToKey = Nothing: Set mNames = Nothing
     Set mRows = Nothing: Set mLinks = Nothing: Set mChanges = Nothing: Set mMoved = Nothing: Set mIntervals = Nothing
-    Set mCfg = Nothing: Set mSettings = Nothing
+    Set mCfg = Nothing: Set mSettings = Nothing: Set mChangelog = Nothing: Set mWsChangelog = Nothing
     Set mWsProjects = Nothing: Set mWsWorkflows = Nothing: Set mWsIssues = Nothing: Set mWsIntervals = Nothing: Set mWsLinks = Nothing
 End Sub
 
@@ -354,7 +357,8 @@ Private Sub RowsInit()
     Set mMoved = KeyChangeCounts(mRaw, mIdToKey)
     LogEnd "raw sheets: status changes: " & mChanges.Count
     LogSkippedDates skipped, shapes                                    ' J2D-DATA-003, only when some were left out
-    Set mRaw = New Collection                                          ' every changelog item of Jira: the status changes above are all we keep
+    Set mChangelog = ChangelogRows(mRaw, mIdToKey)                      ' the sheet Changelog: every item, texts cut
+    Set mRaw = New Collection                                          ' the parsed items are not read again: free them before the write
     mIds = RowFieldIds(mSettings)
     mBlocksType = Setting(mSettings, "BlocksLinkType")
 End Sub
@@ -446,5 +450,12 @@ Private Sub WriteRawSheetsCore()
         LogBegin "raw sheets: write IssueLinks " & mLinks.Count
         WriteTable mWsLinks, Array("Blocker", "Blocked"), mLinks
         LogEnd "raw sheets: write IssueLinks"
+    End If
+    If Not mWsChangelog Is Nothing And Not mChangelog Is Nothing Then
+        Cov "MEX14"
+        LogBegin "raw sheets: write Changelog " & mChangelog.Count
+        WriteTable mWsChangelog, ChangelogHeader(), mChangelog
+        Set mChangelog = Nothing
+        LogEnd "raw sheets: write Changelog"
     End If
 End Sub

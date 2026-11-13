@@ -48,7 +48,7 @@ def test_real_vba_modules_are_ascii_and_have_unique_markers():
     markers = rvt.coverage_markers(sources)
     # 65 originally + modParams PRM01..PRM23 + TXT16 (TrimWhite) + JIR14..JIR21 (proxy, Config sheet, hints, filter)
     # + modExtract MEX01..MEX09 (the job: MEX07-09), JIR23 (search page)
-    assert len(markers) == 334          # + JCF37-38 (the sprints), PRP15-19 (the iterations) + HLT01-06 (modHealth: what to look at after an extraction) + PRP01-14 (modPropose), JCF35-36 (IsUserProjectAdmin) + TXT31-35 (the real names of the sheets: SheetName, LogicalSheet) + FLW09-13 (status changes whose date cannot be read: left out, counted, their shape logged) + TXT17 (malformed Jira date), PRM24 (AsOf typed as a date), JIR22 (http BaseUrl refused), FLB30-32, FLW08, MEX04-06
+    assert len(markers) == 339          # + PRP20 (an iteration that makes no sense is not proposed) + FLW14-16, MEX14 (the sheet Changelog) + JCF37-38 (the sprints), PRP15-19 (the iterations) + HLT01-06 (modHealth: what to look at after an extraction) + PRP01-14 (modPropose), JCF35-36 (IsUserProjectAdmin) + TXT31-35 (the real names of the sheets: SheetName, LogicalSheet) + FLW09-13 (status changes whose date cannot be read: left out, counted, their shape logged) + TXT17 (malformed Jira date), PRM24 (AsOf typed as a date), JIR22 (http BaseUrl refused), FLB30-32, FLW08, MEX04-06
     #                                     + code review 2026-11-04: FLB35, HTP08-09, HTP10-11 (Cancel during a retry wait), TXT18-28 (UTF-8 and Base64 in plain VBA), JIR24-25, JSN19-20, PRM25
     #                                     + modLog LOG01..LOG31 (the local log of the runs, its level and run flag, the hint and Notepad after an error, the support codes)
     #                                     + LOG32..LOG37 (the inputs of the run in PARAM lines, the code on RUN end stopped)
@@ -64,7 +64,7 @@ def test_real_vba_modules_are_ascii_and_have_unique_markers():
     assert sorted(m for m in markers if m.startswith("LOG")) == [f"LOG{n:02d}" for n in range(1, 41)]
     assert sorted(m for m in markers if m.startswith("JCF")) == [f"JCF{n:02d}" for n in range(1, 39)]
     assert sorted(m for m in markers if m.startswith("PRM")) == [f"PRM{n:02d}" for n in range(1, 54)]
-    assert sorted(m for m in markers if m.startswith("MEX")) == [f"MEX{n:02d}" for n in range(1, 14)]
+    assert sorted(m for m in markers if m.startswith("MEX")) == [f"MEX{n:02d}" for n in range(1, 15)]
     assert sorted(m for m in markers if m.startswith("PXY")) == [f"PXY{n:02d}" for n in range(1, 12)]
     # + modFlowBuild FLB01..FLB42 (build of the flow sheets, the data checks and the charts, the PI axis)
     assert sorted(m for m in markers if m.startswith("FLB")) == [f"FLB{n:02d}" for n in range(1, 43)]

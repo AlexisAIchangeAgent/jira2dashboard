@@ -30,7 +30,7 @@ from collections import defaultdict
 from dataclasses import dataclass, field
 
 from jira2dashboard.flow.itemflow import item_flow
-from jira2dashboard.flow.model import BACKLOG, REMOVED, UNCLASSIFIED, FlowIssue, Rules
+from jira2dashboard.flow.model import BACKLOG, REMOVED, UNCLASSIFIED, FlowIssue, Rules, change_order
 from jira2dashboard.params.model import ParamSheet, load_all
 
 PI_FORMAT = re.compile(r"PI#[0-9]{2}-[0-9]{4}")
@@ -147,7 +147,7 @@ def valid_pi(value: str | None) -> bool:
 def _status_history(issue: FlowIssue, as_of: dt.datetime, rules: Rules, moves: Moves) -> set[str]:
     """DC06 to DC10 and DC28: from the status changes."""
     found: set[str] = set()
-    changes = sorted(issue.changes, key=lambda c: (c.at, c.id))
+    changes = sorted(issue.changes, key=change_order)
     status = changes[0].from_status if changes else issue.status
     entered = issue.created
     for change in changes:

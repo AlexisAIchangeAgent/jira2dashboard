@@ -44,7 +44,7 @@ Public Sub ClearFlowSheets(ByVal wb As Object)
     Cov "FLB03"
     Dim nm As Variant
     DeleteDerived wb
-    For Each nm In Array("Issues", "StatusIntervals", "IssueLinks")
+    For Each nm In Array("Issues", "StatusIntervals", "IssueLinks", "Changelog")
         If SheetExists(wb, CStr(nm)) Then
             UnlistAll wb.Worksheets(SheetName(CStr(nm)))
             wb.Worksheets(SheetName(CStr(nm))).Cells.Clear
@@ -115,9 +115,11 @@ Private Function IterationRows(ByVal wsIterations As Object) As Collection
     Dim out As New Collection, row As Variant, s As Variant, e As Variant
     For Each row In ReadTable(wsIterations)
         s = SerialOf(row("Start")): e = SerialOf(row("End"))
+        If Not IsEmpty(s) Then If s < 36526 Then s = Empty             ' before 2000-01-01: a typo (1026 for 2026), not an iteration
+        If Not IsEmpty(e) Then If e < 36526 Then e = Empty
         If IsEmpty(s) Or IsEmpty(e) Then
             Cov "FLB28"
-            Err.Raise vbObjectError + 701, "BuildFlowSheets", "Sheet Iterations: Start and End of iteration " & row("Iteration-label") & " must be dates."
+            Err.Raise vbObjectError + 701, "BuildFlowSheets", "Sheet Iterations: Start and End of iteration " & row("Iteration-label") & " must be dates (2000 or later)."
         End If
         If e <= s Then
             Cov "FLB27"

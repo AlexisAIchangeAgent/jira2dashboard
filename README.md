@@ -116,6 +116,7 @@ Excel tables keep the logical names (`Config`, `Issues[Key]`); `sheet_names.py` 
 | `JiraIssueTypes_from_Jira`, `JiraStatuses_from_Jira`, `JiraWorkflows_from_Jira`, `JiraTransitions_from_Jira`, `JiraFields_from_Jira` | Proposals read from Jira (workflows and moves end with the column Project) | VBA |
 | `RovoPromptSpec_from_excel`, `RovoPrompt_from_excel` | The text behind the button Prompt for Rovo, and the prompt it writes (a CSV answer is asked: Sheet, Row, Column, Value, Note); the button Load settings CSV loads that answer into Config and the parameter sheets | Python (spec), VBA |
 | `JiraProjectWorkflows_from_Jira`, `JiraProjectFields_from_Jira`, `JiraFieldUsage_from_Jira` | Per project: workflow and issue types; fields of the create screen; fields filled in one page of issues | VBA |
+| `Changelog_from_Jira` | Every changelog item of the tickets read (all fields, no author, texts cut at 255 characters, no value for assignee, reporter, creator), the date read and as Jira sent it | VBA |
 | `JiraSprints_from_Jira` | The sprints of the scrum boards of the projects (read by the button Propose values from Jira) | VBA |
 
 ## 4. Repository layout

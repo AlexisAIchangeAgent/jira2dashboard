@@ -1,7 +1,7 @@
 """StatusIntervals: the status history of an issue as intervals. Mirrors modFlow.BuildStatusIntervals."""
 import datetime as dt
 
-from jira2dashboard.flow.model import FlowIssue, Interval, Rules, days_between
+from jira2dashboard.flow.model import FlowIssue, Interval, Rules, change_order, days_between
 
 
 def build_intervals(issue: FlowIssue, as_of: dt.datetime, rules: Rules) -> tuple[Interval, ...]:
@@ -10,7 +10,7 @@ def build_intervals(issue: FlowIssue, as_of: dt.datetime, rules: Rules) -> tuple
     The first status is the `from` of the first change (the issue was created there); with no change it is the
     current status. Changes are taken in date order, whatever their order in the extract.
     """
-    changes = sorted(issue.changes, key=lambda c: (c.at, c.id))
+    changes = sorted(issue.changes, key=change_order)
     status = changes[0].from_status if changes else issue.status
     entered = issue.created
     out: list[Interval] = []

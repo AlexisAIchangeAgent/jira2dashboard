@@ -81,7 +81,7 @@ Public Function ParseMoment(ByVal text As String) As Variant
     ' "2026-11-03", "2026-11-03 18:00" or "2026-11-03T18:00:00" (UTC) -> Date. Empty text if blank or invalid.
     ' Parsed by hand: CDate depends on the Excel language.
     Cov "PRM21"
-    Dim s As String, d As Date, sec As Long
+    Dim s As String, d As Date, parts() As String, h As Long, m As Long, sec As Long
     ParseMoment = Empty
     s = TrimWhite(text)
     If Len(s) < 10 Then Exit Function
@@ -89,9 +89,13 @@ Public Function ParseMoment(ByVal text As String) As Variant
     On Error GoTo Invalid
     d = DateSerial(CInt(Left$(s, 4)), CInt(Mid$(s, 6, 2)), CInt(Mid$(s, 9, 2)))
     If Month(d) <> CInt(Mid$(s, 6, 2)) Or Day(d) <> CInt(Mid$(s, 9, 2)) Then GoTo Invalid     ' 2026-13-45 does not exist
-    If Len(s) >= 16 Then
-        If Len(s) >= 19 Then sec = CInt(Mid$(s, 18, 2))
-        d = d + TimeSerial(CInt(Mid$(s, 12, 2)), CInt(Mid$(s, 15, 2)), sec)
+    If Len(s) > 10 Then                                              ' a time: H:MM or H:MM:SS, as TIMEVALUE(MID(t,12,8)) of the sheet reads it
+        parts = Split(Mid$(s, 12, 8), ":")
+        If UBound(parts) < 1 Or UBound(parts) > 2 Then GoTo Invalid  ' "2026-11-03 18" is no time; it was dropped without a word
+        h = CInt(parts(0)): m = CInt(parts(1))
+        If UBound(parts) = 2 Then sec = CInt(parts(2))
+        If h > 23 Or m > 59 Or sec > 59 Or h < 0 Or m < 0 Or sec < 0 Then GoTo Invalid
+        d = d + TimeSerial(h, m, sec)
     End If
     ParseMoment = d
     Exit Function

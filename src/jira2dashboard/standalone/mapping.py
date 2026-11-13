@@ -7,10 +7,11 @@ the active one, else a future one, else the last closed one.
 """
 import datetime as dt
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
+from jira2dashboard.flow.formulas import CHANGELOG_PERSON_FIELDS, CHANGELOG_TEXT_MAX
 from jira2dashboard.flow.intervals import build_intervals
-from jira2dashboard.flow.model import ART, Change, FlowIssue, Rules
+from jira2dashboard.flow.model import ART, Change, FlowIssue, Rules, change_order
 
 _NUMBER_TEXT = re.compile(r"[0-9.+-]+")
 _LEADING_NUMBER = re.compile(r"[+-]?(\d+\.?\d*|\.\d+)")
@@ -38,7 +39,7 @@ def parse_jira_date(value) -> dt.datetime | None:
             digits = tail[1:].replace(":", "")
             offset = (-1 if tail[0] == "-" else 1) * (int(digits[:2]) * 60 + int(digits[2:4]))
         return moment - dt.timedelta(minutes=offset)
-    except (ValueError, IndexError):
+    except (ValueError, IndexError, OverflowError):                  # a year 9999 minus an offset, a year 1 plus one
         return None
 
 
@@ -198,6 +199,25 @@ def unreadable_status_dates(items) -> tuple[int, str]:
     return sum(shapes.values()), "; ".join(f"{shape} x {count}" for shape, count in shapes.items())
 
 
+def _cut(text):
+    return text if text is None or len(str(text)) <= CHANGELOG_TEXT_MAX else str(text)[:CHANGELOG_TEXT_MAX]
+
+
+def changelog_rows(items, id_to_key: dict[str, str]) -> list[tuple]:
+    """The rows of the sheet Changelog (formulas.CHANGELOG_RAW), one per changelog item of every field (modFlow.ChangelogRows):
+    the key of the issue, its id, the id of the change, the date read (None when it cannot be) and as Jira sent it, the field,
+    the old and new values. No author. A text is cut at 255 characters; a person field (assignee...) keeps no value."""
+    rows = []
+    for issue_id, history, item in items:
+        person = item.get("fieldId") in CHANGELOG_PERSON_FIELDS
+        created = history.get("created")
+        rows.append((id_to_key.get(issue_id, issue_id), issue_id, history.get("id"), parse_jira_date(created),
+                     None if created is None else str(created), item.get("fieldId"), item.get("field"), item.get("fieldtype"),
+                     None if person else item.get("from"), None if person else _cut(item.get("fromString")),
+                     None if person else item.get("to"), None if person else _cut(item.get("toString"))))
+    return rows
+
+
 def key_change_counts(items, id_to_key: dict[str, str]) -> dict[str, int]:
     """{key: moves between projects}: the items of the field Key (modFlow.KeyChangeCounts)."""
     out: dict[str, int] = {}
@@ -234,7 +254,7 @@ def interval_checks(issue: FlowIssue) -> list[str]:
     """The Check of each visit, in the order of build_intervals: FROM_MISMATCH(prev=...) when a change does not leave
     the status the issue was in, BEFORE_CREATED when it is dated before the visit started, CURRENT_MISMATCH(now=...)
     on the open visit when the history does not end in the current status (modFlow.AddIssueIntervals)."""
-    changes = sorted(issue.changes, key=lambda c: (c.at, c.id))
+    changes = sorted(issue.changes, key=change_order)
     running = changes[0].from_status if changes else issue.status
     entered = issue.created
     out = []
@@ -266,6 +286,7 @@ class Extract:
     changelog_items: int
     unreadable_dates: int = 0               # status changes left out: their date cannot be read (J2D-DATA-003)
     unreadable_shapes: str = ""             # what those dates look like (date_shape), to find why
+    changelog: list = field(default_factory=list)   # sheet Changelog
 
 
 def extracted(issues: list[dict], changelog_pages: list[dict], ids: FieldIds, projects: list[tuple[str, str, str]],
@@ -287,4 +308,4 @@ def extracted(issues: list[dict], changelog_pages: list[dict], ids: FieldIds, pr
         blocks = tuple(blocked_by.get(row[0], ()))
         flow.append(flow_issue(row, changes.get(row[0], []), projects, blocks,
                                versions_of(issue.get("fields") or {})))
-    return Extract(rows, flow, links, len(items), *unreadable_status_dates(items))
+    return Extract(rows, flow, links, len(items), *unreadable_status_dates(items), changelog_rows(items, id_to_key))

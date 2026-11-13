@@ -43,10 +43,15 @@ class Results:
     predictability: list[PIPredictability]   # Feature Predictability per PI of the sheet PIs (ART)
 
 
+def iteration_span(iterations) -> tuple[dt.datetime, dt.datetime]:
+    """The first start and the last end of the iterations, whatever their order in the sheet (as modFlowBuild.DaysOf)."""
+    return min(i.start for i in iterations), max(i.end for i in iterations)
+
+
 def compute(issues: list[FlowIssue], s: RunSettings) -> Results:
     items = [item_flow(i, s.as_of, s.rules) for i in issues]
     teams = team_names(s.projects)
-    first, end = s.iterations[0].start, s.iterations[-1].end
+    first, end = iteration_span(s.iterations)
     flags = run_checks(issues, s.as_of, s.rules, s.moves, s.checks)
     fill = fill_rates(issues, s.checks, sorted({i.team for i in issues}), sorted({i.type for i in issues}))
     return Results(items, flags, teams,
