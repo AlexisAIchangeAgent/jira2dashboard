@@ -6,6 +6,7 @@ import io
 from jira2dashboard import clean
 from jira2dashboard import rovo_prompt as RP
 from jira2dashboard import mock_workbook as M
+from jira2dashboard import sheet_names as S
 from jira2dashboard.mockjira.anomalies import PI, PI_WINDOW
 from jira2dashboard.mockjira.dataset import FieldIds
 from jira2dashboard.mockjira.generator import AS_OF, SINCE, generate
@@ -24,17 +25,17 @@ def test_the_rovo_csv_gives_the_configuration_of_the_fake_jira_but_never_the_con
     text = M.rovo_csv()
     assert text.startswith("\ufeffSheet,Row,Column,Value,Note\r\n")
     rows = list(csv.reader(io.StringIO(text.removeprefix("\ufeff"))))[1:]
-    config = {column: value for sheet, _row, column, value, _note in rows if sheet == "Config"}
+    config = {column: value for sheet, _row, column, value, _note in rows if sheet == S.of("Config")}
     assert config["AsOf"] == f"{AS_OF:%Y-%m-%d %H:%M}" and config["StoryPointsField"] == FieldIds().story_points
     assert not set(config) & set(RP.PROTECTED)                                  # the button never loads them anyway
-    cells = {(sheet, int(row), column): value for sheet, row, column, value, _note in rows if sheet != "Config"}
+    cells = {(sheet, int(row), column): value for sheet, row, column, value, _note in rows if sheet != S.of("Config")}
     first = M.iterations()[0]
-    assert cells[("Iterations", 1, "Iteration-label")] == first.name and cells[("Iterations", 1, "Start")] == f"{first.start:%Y-%m-%d}"
-    assert len([1 for sheet, row, column in cells if sheet == "Iterations" and column == "End"]) == len(M.iterations())
-    assert cells[("PIs", 1, "PI")] == PI
-    assert {sheet for sheet, _row, _column in cells} == set(RP.SHEET_RULES)
+    assert cells[(S.of("Iterations"), 1, "Iteration-label")] == first.name and cells[(S.of("Iterations"), 1, "Start")] == f"{first.start:%Y-%m-%d}"
+    assert len([1 for sheet, row, column in cells if sheet == S.of("Iterations") and column == "End"]) == len(M.iterations())
+    assert cells[(S.of("PIs"), 1, "PI")] == PI
+    assert {S.logical(sheet) for sheet, _row, _column in cells} == set(RP.SHEET_RULES)
     projects = next(sheet for sheet in load_all() if sheet.name == "Projects")
-    assert len([1 for sheet, _row, column in cells if sheet == "Projects" and column == "Project"]) == len(projects.rows)
+    assert len([1 for sheet, _row, column in cells if sheet == S.of("Projects") and column == "Project"]) == len(projects.rows)
 
 
 def test_a_date_reads_as_rovo_writes_it():

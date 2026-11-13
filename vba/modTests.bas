@@ -50,7 +50,7 @@ Private Function TestNames() As Variant
     TestNames = Array("T_JsonNested", "T_JsonEscapes", "T_JsonEmpty", "T_JsonErrors", "T_JsonRoundTrip", _
         "T_JsonLarge", "T_Base64Auth", "T_UrlEncode", "T_Utf8RoundTrip", "T_JiraDates", "T_FieldToCell", _
         "T_SafeCell", "T_ProjectsJql", "T_SearchUrl", "T_SearchPagination", "T_Retry429", _
-        "T_HttpNetworkAndCancel", "T_RetryExhausted", "T_ChangelogChunks", "T_IssueRows", "T_WriteTable", "T_StatusIntervals", "T_IntervalsUnreadableDate", "T_StatusChangesUnreadableDate", "T_DateShape", "T_SkippedDatesWarning", _
+        "T_HttpNetworkAndCancel", "T_RetryExhausted", "T_ChangelogChunks", "T_IssueRows", "T_WriteTable", "T_StatusIntervals", "T_IntervalsUnreadableDate", "T_StatusChangesUnreadableDate", "T_DateShape", "T_SkippedDatesWarning", "T_SheetName", _
         "T_StatusChanges", "T_RetryDelay", "T_SafeAccess", "T_FilesUtf8", "T_StringifyBadObject", _
         "T_TooManyPages", "T_BackgroundExport", "T_TextNotConverted", "T_ParamsTables", "T_ParamsOnWorkbook", _
         "T_TrimWhite", "T_ConfigSheet", "T_MandatoryConfig", "T_ProxyDetect", "T_ProxyScript", "T_ProjectsSheet", "T_ParseMoment", "T_ExtractFlowData", "T_ExtractJob", "T_ExtractCheckFields", "T_FlowBuild", "T_BaseUrlHttps", "T_Log", "T_LogInputsAndTimes", "T_StatusParts", "T_ErrorCodes", "T_LogHintAndOpen", "T_StepsSheet", "T_RovoPrompt", "T_RovoCsv", _
@@ -121,7 +121,7 @@ End Function
 
 Private Sub StartRows()
     Dim ws As Object
-    Set ws = ThisWorkbook.Worksheets("TestResults")
+    Set ws = ThisWorkbook.Worksheets(SheetName("TestResults"))
     If ws.Range("A1").Value = "" Then
         ws.Range("A1:H1").Value = Array("TestId", "Area", "Description", "Input", "Expected", "Actual", "Result", "RunAt")
     End If
@@ -135,7 +135,7 @@ Private Sub AddRow(ByVal row As Variant)
     For c = 1 To 8
         data(1, c) = SafeCell(row(c - 1))
     Next c
-    Set ws = ThisWorkbook.Worksheets("TestResults")
+    Set ws = ThisWorkbook.Worksheets(SheetName("TestResults"))
     ws.Range(ws.Cells(mNextRow, 1), ws.Cells(mNextRow, 8)).Value = data
     mNextRow = mNextRow + 1
     DoEvents
@@ -157,7 +157,7 @@ Private Sub ProgressDraw(ByVal done As Long, ByVal total As Long)
     Dim ws As Object, pct As Double
     If total > 0 Then pct = done / total
     On Error Resume Next
-    Set ws = ThisWorkbook.Worksheets("TestResults")
+    Set ws = ThisWorkbook.Worksheets(SheetName("TestResults"))
     ws.Shapes("pbFill").Width = ws.Shapes("pbBack").Width * pct + 0.1
     If total > 0 Then
         ws.Range("J10").Value = "'" & done & " / " & total & " tests (" & Format$(pct, "0%") & ")"
@@ -296,7 +296,7 @@ Public Sub T_MandatoryConfig()
     ConfigRows ws, Array("BaseUrl", "", "AsOf", "")
     Check "mandatory", "a sheet without the column has nothing to check", "3 columns", "", MissingMandatory(ws)
     Check "mandatory", "the real Config sheet: the client values are mandatory and empty", "Config", _
-          "BaseUrl, Email, ApiToken, AsOf", MissingMandatory(ThisWorkbook.Worksheets("Config"))
+          "BaseUrl, Email, ApiToken, AsOf", MissingMandatory(ThisWorkbook.Worksheets(SheetName("Config")))
 End Sub
 
 Public Sub SetPacUrl(ByVal url As String)
@@ -401,7 +401,7 @@ Public Sub T_ConfigSheet()
     Check "config", "401 points to Email and ApiToken", "HTTP 401", True, InStr(HintOf(401), "ApiToken") > 0
     Check "config", "no answer points to BaseUrl and proxy", "status 0", True, InStr(HintOf(0), "BaseUrl") > 0
     Check "config", "a 500 has no connection hint", "HTTP 500", False, InStr(HintOf(500), "Hint") > 0
-    Set wsReal = ThisWorkbook.Worksheets("Config")
+    Set wsReal = ThisWorkbook.Worksheets(SheetName("Config"))
     Check "config", "the real Config sheet keeps client values empty", "BaseUrl", "", ConfigValue(wsReal, "BaseUrl")
     Check "config", "the real Config sheet defaults", "ProxyWindowsAuth", "Yes", ConfigValue(wsReal, "ProxyWindowsAuth")
     Check "config", "JiraConfigFromWorkbook reads the sheet", "MaxRetries", 4, JiraConfigFromWorkbook()("MaxRetries")
@@ -424,7 +424,7 @@ Public Sub T_ProjectsSheet()
     rows.Remove 2
     WriteTable ws, Array("Project", "Role", "Team"), rows
     Check "projects", "no Program gives empty text", "AAA, BBB", "", ProgramProject(ws)
-    Set wsReal = ThisWorkbook.Worksheets("Projects")
+    Set wsReal = ThisWorkbook.Worksheets(SheetName("Projects"))
     Check "projects", "real sheet: the Program", "first key of the script", "TTT", ProgramProject(wsReal)
     Check "projects", "real sheet: nine projects", "Projects", 9, ProjectKeys(wsReal).Count
     Check "projects", "real sheet: the Program is first", "Projects", "TTT", ProjectKeys(wsReal)(1)
@@ -537,10 +537,10 @@ Public Sub T_RovoCsv()
     ' the load: Config, Projects, Iterations are saved, written, read back and restored
     names = Array("Config", "Projects", "Iterations")
     For i = 1 To 3
-        saved(i) = ThisWorkbook.Worksheets(names(i - 1)).UsedRange.Value
-        addr(i) = ThisWorkbook.Worksheets(names(i - 1)).UsedRange.Address
+        saved(i) = ThisWorkbook.Worksheets(SheetName(names(i - 1))).UsedRange.Value
+        addr(i) = ThisWorkbook.Worksheets(SheetName(names(i - 1))).UsedRange.Address
     Next i
-    Set wsC = ThisWorkbook.Worksheets("Config"): Set wsP = ThisWorkbook.Worksheets("Projects")
+    Set wsC = ThisWorkbook.Worksheets(SheetName("Config")): Set wsP = ThisWorkbook.Worksheets(SheetName("Projects"))
     For rowProxy = 2 To 60
         If CStr(wsC.Cells(rowProxy, 1).Value & "") = "FillRateThreshold" Then Exit For
     Next rowProxy
@@ -563,12 +563,12 @@ Public Sub T_RovoCsv()
     Check "csv", "a table sheet: the rows are the rows of the CSV", "Projects", "ZZA|Program|Train Z|ZZB|Team||", _
           wsP.Range("A2").Value & "|" & wsP.Range("B2").Value & "|" & wsP.Range("C2").Value & "|" & wsP.Range("A3").Value & "|" & wsP.Range("B3").Value & "|" & wsP.Range("C3").Value & "|" & wsP.Range("A4").Value
     Check "csv", "the old rows are gone", "row 4", True, IsEmpty(wsP.Range("A4").Value)
-    Check "csv", "an ISO date stays text (the readers of the sheet parse it)", "Start", "2026-10-05", CStr(ThisWorkbook.Worksheets("Iterations").Range("B2").Value)
+    Check "csv", "an ISO date stays text (the readers of the sheet parse it)", "Start", "2026-10-05", CStr(ThisWorkbook.Worksheets(SheetName("Iterations")).Range("B2").Value)
     Check "csv", "the summary says what was loaded", "summary", True, _
-          InStr(summary, "Settings CSV loaded | Config: 1 value(s): FillRateThreshold | Projects: 2 row(s) | Iterations: 1 row(s) | Empty values: 1 (not loaded) | UNKNOWN values: 2 (not loaded)") = 1
+          InStr(summary, "Settings CSV loaded | Config_from_user: 1 value(s): FillRateThreshold | Projects_from_user: 2 row(s) | Iterations_from_user: 1 row(s) | Empty values: 1 (not loaded) | UNKNOWN values: 2 (not loaded)") = 1
     Check "csv", "and the first problem", "problems", True, InStr(summary, " | Problems: ") > 0 And InStr(summary, ", first: Line ") > 0
     For i = 1 To 3
-        With ThisWorkbook.Worksheets(names(i - 1))
+        With ThisWorkbook.Worksheets(SheetName(names(i - 1)))
             .UsedRange.ClearContents
             .Range(addr(i)).Value = saved(i)
         End With
@@ -591,7 +591,7 @@ Public Sub T_RovoPrompt()
     ' example), the header of each sheet, and never a Value of Config (it may hold the address, the e-mail or the token).
     Dim lines As Collection, text As String, ln As Variant, ws As Object, wsC As Object, rowBaseUrl As Long, r As Long, saved As Variant
     Dim n As Long, firstText As String
-    Set wsC = ThisWorkbook.Worksheets("Config")
+    Set wsC = ThisWorkbook.Worksheets(SheetName("Config"))
     For r = 2 To 60
         If CStr(wsC.Cells(r, 1).Value & "") = "BaseUrl" Then rowBaseUrl = r: Exit For
     Next r
@@ -602,17 +602,17 @@ Public Sub T_RovoPrompt()
         text = text & ln & vbLf
     Next ln
     wsC.Cells(rowBaseUrl, 2).Value = saved
-    Check "rovo", "the first line is the first row of the spec", "intro", CStr(ReadTable(ThisWorkbook.Worksheets(SHEET_ROVO_SPEC))(1)("Text")), CStr(lines(1))
+    Check "rovo", "the first line is the first row of the spec", "intro", CStr(ReadTable(ThisWorkbook.Worksheets(SheetName(SHEET_ROVO_SPEC)))(1)("Text")), CStr(lines(1))
     Check "rovo", "a parameter of Config: name, mandatory, meaning", "BaseUrl", True, InStr(text, "- BaseUrl (mandatory): ") > 0
     Check "rovo", "an optional parameter says so", "ProxyServer", True, InStr(text, "- ProxyServer (optional): ") > 0
     Check "rovo", "the example of the form of the value follows", "Example:", True, InStr(text, " Example: ") > 0
     Check "rovo", "no Value of Config is in the prompt", "SECRET-HOST", 0, InStr(text, "SECRET-HOST")
-    Check "rovo", "a sheet: its header row, then its rule", "Projects", True, InStr(text, "SHEET Projects - columns: Project | Role | Team. ") > 0
+    Check "rovo", "a sheet: its header row, then its rule", "Projects", True, InStr(text, "SHEET Projects_from_user - columns: Project | Role | Team. ") > 0
     Check "rovo", "the column Example of a sheet is not a column to fill", "Iterations", True, _
-          InStr(text, "SHEET Iterations - columns: Iteration-label | Start | End. ") > 0
+          InStr(text, "SHEET Iterations_from_user - columns: Iteration-label | Start | End. ") > 0
     Check "rovo", "the format asks for a CSV with its columns", "Sheet,Row,Column,Value,Note", True, InStr(text, "Sheet,Row,Column,Value,Note") > 0
     n = WriteRovoPrompt(ThisWorkbook)
-    Set ws = ThisWorkbook.Worksheets(SHEET_ROVO)
+    Set ws = ThisWorkbook.Worksheets(SheetName(SHEET_ROVO))
     Check "rovo", "the sheet RovoPrompt holds one line per row", "count", lines.Count, n
     Check "rovo", "the last line of the sheet is the last line of the prompt", "last", CStr(lines(lines.Count)), CStr(ws.Cells(n, 1).Value)
     Check "rovo", "nothing under the last line", "next", True, IsEmpty(ws.Cells(n + 1, 1).Value)
@@ -627,10 +627,10 @@ Public Sub T_StepsSheet()
     saved = gLogPath
     gLogPath = Environ$("TEMP") & "\j2d_steps_test_" & Format$(Now, "hhnnss") & Int(Rnd() * 1000) & ".log"
     Application.DisplayAlerts = False
-    If SheetExists(ThisWorkbook, "Steps") Then ThisWorkbook.Worksheets("Steps").Delete
+    If SheetExists(ThisWorkbook, "Steps") Then ThisWorkbook.Worksheets(SheetName("Steps")).Delete
     Application.DisplayAlerts = True
     LogRunStart "steps test"
-    Set ws = ThisWorkbook.Worksheets("Steps")
+    Set ws = ThisWorkbook.Worksheets(SheetName("Steps"))
     Check "steps", "the sheet is created with its header", "A1:D1", "Step|Status|Time elapsed (s)|Error code", ws.Range("A1").Value & "|" & ws.Range("B1").Value & "|" & ws.Range("C1").Value & "|" & ws.Range("D1").Value
     LogBegin "outer"
     LogBegin "inner"
@@ -829,7 +829,7 @@ Public Sub T_LogInputsAndTimes()
     Check "logversion", "a workbook without the name J2D_Version", "none", "unknown", WorkbookVersion(other)
     other.Names.Add "J2D_Version", "=""v1.0.0 commit 1a2b3c4, built 2026-11-11 19:40""", False
     Check "logversion", "the version written at build", "J2D_Version", "v1.0.0 commit 1a2b3c4, built 2026-11-11 19:40", WorkbookVersion(other)
-    other.Worksheets(1).Name = "PIs"                                 ' a header and one row: "1 row", not "1 rows"
+    other.Worksheets(1).Name = SheetName("PIs")                                 ' a header and one row: "1 row", not "1 rows"
     other.Worksheets(1).Range("A1:A2").Value = Application.Transpose(Array("PI", "PI#01-2026"))
     LogParameters other
     other.Close False
@@ -915,8 +915,8 @@ Public Sub T_ExtractFlowData()
         "{'issueId':'11','changeHistories':[" & _
         "{'id':'3','created':'2026-10-02" & ts & "','items':[{'fieldId':'status','field':'status','fieldtype':'jira','from':'1','fromString':'Nouveau','to':'2','toString':'En analyse'}]}]}]}"
     FakeAdd "POST", cfg("BaseUrl") & "/rest/api/3/changelog/bulkfetch", 200, J(body)
-    ExtractFlowDataTo cfg, jql, "customfield_10200", DateSerial(2026, 10, 5), ThisWorkbook.Worksheets("Projects"), _
-                      ThisWorkbook.Worksheets("Workflows"), wsI, wsV
+    ExtractFlowDataTo cfg, jql, "customfield_10200", DateSerial(2026, 10, 5), ThisWorkbook.Worksheets(SheetName("Projects")), _
+                      ThisWorkbook.Worksheets(SheetName("Workflows")), wsI, wsV
     Check "extract", "Issues header", "A1:V1", "Key|Id|Project|Type|WorkType|CreatedUtc|Status|Parent|StatusCategory|ResolvedUtc|" & _
           "FixVersions|StoryPoints|PI|BV|TeamValue|SprintState|SprintStart|SprintEnd|SprintCount|TargetStart|TargetEnd|KeyChanges", _
           RowText(wsI, 1, 22)
@@ -988,14 +988,14 @@ Public Sub T_ExtractJob()
     FakeAdd "POST", cfg("BaseUrl") & "/rest/api/3/changelog/bulkfetch", 200, J("{'issueChangeLogs':[]}")
     wsI.Cells.ClearContents
     wsI.Range("A2").Value = "KEEP"
-    ExtractJobStart cfg, jql, "", DateSerial(2026, 10, 5), ThisWorkbook.Worksheets("Projects"), ThisWorkbook.Worksheets("Workflows"), wsI, wsV
+    ExtractJobStart cfg, jql, "", DateSerial(2026, 10, 5), ThisWorkbook.Worksheets(SheetName("Projects")), ThisWorkbook.Worksheets(SheetName("Workflows")), wsI, wsV
     ExtractJobStep
     Check "extractjob", "after one step the job is not finished and says what it reads", "page 1", "True|Reading Jira: 1 issues (page 1)", _
           IIf(ExtractJobFraction() > 0 And ExtractJobFraction() < 0.3, "True", "False") & "|" & ExtractJobLabel()
     Check "extractjob", "a job dropped before its last step writes nothing", "A2", "KEEP", wsI.Range("A2").Value
     ExtractJobAbort
     Check "extractjob", "an aborted job is finished", "fraction", 1, ExtractJobFraction()
-    ExtractJobStart cfg, jql, "", DateSerial(2026, 10, 5), ThisWorkbook.Worksheets("Projects"), ThisWorkbook.Worksheets("Workflows"), wsI, wsV
+    ExtractJobStart cfg, jql, "", DateSerial(2026, 10, 5), ThisWorkbook.Worksheets(SheetName("Projects")), ThisWorkbook.Worksheets(SheetName("Workflows")), wsI, wsV
     increasing = True
     Do
         steps = steps + 1
@@ -1017,7 +1017,7 @@ Public Sub T_ExtractJob()
     FakeAdd "POST", cfg("BaseUrl") & "/rest/api/3/changelog/bulkfetch", 200, J("{'issueChangeLogs':[]}")
     wsI.Cells.ClearContents
     gRowBatch = 1
-    ExtractJobStart cfg, jql, "", DateSerial(2026, 10, 5), ThisWorkbook.Worksheets("Projects"), ThisWorkbook.Worksheets("Workflows"), wsI, wsV
+    ExtractJobStart cfg, jql, "", DateSerial(2026, 10, 5), ThisWorkbook.Worksheets(SheetName("Projects")), ThisWorkbook.Worksheets(SheetName("Workflows")), wsI, wsV
     steps = 0
     Do
         steps = steps + 1
@@ -1060,7 +1060,7 @@ Public Sub T_ExtractCheckFields()
         "{'issueChangeLogs':[{'issueId':'11','changeHistories':[" & _
         "{'id':'1','created':'2026-10-02" & ts & "','items':[{'fieldId':'status','field':'status','fieldtype':'jira','from':'1','fromString':'Nouveau','to':'2','toString':'En analyse'}]}," & _
         "{'id':'2','created':'2026-10-03" & ts & "','items':[{'fieldId':'issuekey','field':'Key','fieldtype':'jira','from':null,'fromString':'OLD-1','to':null,'toString':'AAA-1'}]}]}]}")
-    ExtractFlowDataTo cfg, jql, "", DateSerial(2026, 10, 5), ThisWorkbook.Worksheets("Projects"), ThisWorkbook.Worksheets("Workflows"), _
+    ExtractFlowDataTo cfg, jql, "", DateSerial(2026, 10, 5), ThisWorkbook.Worksheets(SheetName("Projects")), ThisWorkbook.Worksheets(SheetName("Workflows")), _
                       wsI, wsV, False, st, wsL
     Check "extract", "the feature has only what Jira gave: BV 40, team text ART, no sprint, no change of key", "TTT-1", _
           "TTT-1||40|ART||0|0", wsI.Range("A2").Value & "|" & wsI.Range("K2").Value & "|" & wsI.Range("N2").Value & "|" & _
@@ -1082,7 +1082,7 @@ Public Sub T_ExtractCheckFields()
         "{'issues':[{'id':'11','key':'AAA-1','fields':{'project':{'key':'AAA'},'issuetype':{'name':'Story'},'created':'2026-10-01" & ts & "'," & _
         "'status':{'name':'En analyse'},'issuelinks':[{'type':{'name':'Blocks'},'outwardIssue':{'key':'AAA-2'}}]}}],'isLast':true}")
     FakeAdd "POST", cfg("BaseUrl") & "/rest/api/3/changelog/bulkfetch", 200, J("{'issueChangeLogs':[]}")
-    ExtractFlowDataTo cfg, jql, "", DateSerial(2026, 10, 5), ThisWorkbook.Worksheets("Projects"), ThisWorkbook.Worksheets("Workflows"), _
+    ExtractFlowDataTo cfg, jql, "", DateSerial(2026, 10, 5), ThisWorkbook.Worksheets(SheetName("Projects")), ThisWorkbook.Worksheets(SheetName("Workflows")), _
                       wsI, wsV, False, st, wsL
     Check "extract", "no link type: no link row", "AAA-1", 0, LastRow(wsL) - 1
     Check "extract", "no sprint field: no sprint", "AAA-1", "|0", wsI.Range("P2").Value & "|" & wsI.Range("S2").Value
@@ -1110,17 +1110,17 @@ Private Sub FlowRaw(ByVal withStory As Boolean, Optional ByVal featurePis As Var
         ivs.Add Array("AAA-1", "Team", 1, "Nouveau", "Backlog", t0, t0 + 1, 1, False, "1", "")
         ivs.Add Array("AAA-1", "Team", 2, "En analyse", "Active", t0 + 1, Empty, 3, True, "2", "")
     End If
-    WriteTable ThisWorkbook.Worksheets("Issues"), Array("Key", "Id", "Project", "Type", "WorkType", "CreatedUtc", "Status", "Parent", _
+    WriteTable ThisWorkbook.Worksheets(SheetName("Issues")), Array("Key", "Id", "Project", "Type", "WorkType", "CreatedUtc", "Status", "Parent", _
         "StatusCategory", "ResolvedUtc", "FixVersions", "StoryPoints", "PI", "BV", "TeamValue", "SprintState", "SprintStart", _
         "SprintEnd", "SprintCount", "TargetStart", "TargetEnd", "KeyChanges"), issues
-    WriteTable ThisWorkbook.Worksheets("IssueLinks"), Array("Blocker", "Blocked"), New Collection
-    WriteTable ThisWorkbook.Worksheets("StatusIntervals"), Array("Key", "Workflow", "Seq", "Status", "Category", "EnteredUtc", _
+    WriteTable ThisWorkbook.Worksheets(SheetName("IssueLinks")), Array("Blocker", "Blocked"), New Collection
+    WriteTable ThisWorkbook.Worksheets(SheetName("StatusIntervals")), Array("Key", "Workflow", "Seq", "Status", "Category", "EnteredUtc", _
         "LeftUtc", "DurationDays", "IsOpen", "ChangeId", "Check"), ivs
 End Sub
 
 Private Sub FlowIterations(ByVal start1 As Variant, ByVal end1 As Variant, Optional ByVal second As Boolean = False)
     Dim ws As Object
-    Set ws = ThisWorkbook.Worksheets("Iterations")
+    Set ws = ThisWorkbook.Worksheets(SheetName("Iterations"))
     ws.Range("A2:C10").ClearContents
     ws.Range("A2").Value = "P1": ws.Range("B2").Value = start1: ws.Range("C2").Value = end1
     If second Then ws.Range("A3").Value = "P2": ws.Range("B3").Value = "2026-10-15": ws.Range("C3").Value = "2026-10-29"
@@ -1147,8 +1147,8 @@ Private Function FlowBuildError() As Long
     Err.Clear
 End Function
 
-Private Function TableRows(ByVal sheetName As String) As Long
-    TableRows = ThisWorkbook.Worksheets(sheetName).ListObjects(sheetName).ListRows.Count
+Private Function TableRows(ByVal sheetKey As String) As Long
+    TableRows = ThisWorkbook.Worksheets(SheetName(sheetKey)).ListObjects(sheetKey).ListRows.Count
 End Function
 
 Private Function PiRows() As Variant
@@ -1163,14 +1163,14 @@ Public Sub T_FlowBuild()
     ' of newer data: nothing of a bigger earlier run stays. Iteration dates come as a date, as text or as a number.
     Dim wb As Object, dash As Object, sheetCount As Long, teams As Long
     Set wb = ThisWorkbook
-    Set dash = wb.Worksheets("Charts")                               ' the charts and the team selector (B2)
+    Set dash = wb.Worksheets(SheetName("Charts"))                               ' the charts and the team selector (B2)
     ClearFlowSheets wb
     FlowIterations "x", "y"
     FlowRaw True
     Check "flowbuild", "text that is not a date is refused", "Start x", 701, FlowBuildError()
     FlowIterations DateSerial(2026, 10, 15), DateSerial(2026, 10, 1)
     Check "flowbuild", "an iteration that ends before it starts is refused", "15 Oct -> 1 Oct", 704, FlowBuildError()
-    wb.Worksheets("Iterations").Range("A2:C10").ClearContents
+    wb.Worksheets(SheetName("Iterations")).Range("A2:C10").ClearContents
     Check "flowbuild", "no iteration is refused", "empty Iterations", 703, FlowBuildError()
     FlowIterations DateSerial(2026, 10, 1), DateSerial(2026, 10, 15), True
     ClearFlowSheets wb
@@ -1183,10 +1183,10 @@ Public Sub T_FlowBuild()
     Check "flowbuild", "DailyLoad: one row per day and team", "28 days x 9", 28 * teams, TableRows("DailyLoad")
     Check "flowbuild", "Metrics: one row per iteration and team", "2 iterations x 9", 2 * teams, TableRows("Metrics")
     Check "flowbuild", "nine charts, on the sheet Charts", "Charts", 9, dash.ChartObjects.Count
-    Check "flowbuild", "and none on the Dashboard", "Dashboard", 0, wb.Worksheets("Dashboard").ChartObjects.Count
+    Check "flowbuild", "and none on the Dashboard", "Dashboard", 0, wb.Worksheets(SheetName("Dashboard")).ChartObjects.Count
     Check "flowbuild", "DataChecks: one row per check of ChecksSpec", "29 checks", 29, TableRows("DataChecks")
     Check "flowbuild", "DataChecks: the first check, and the check that needs a field is not computable", "DC01 / DC11", "DC01|OK|not computable", _
-          wb.Worksheets("DataChecks").Range("A2").Value & "|" & wb.Worksheets("DataChecks").Range("J2").Value & "|" & wb.Worksheets("DataChecks").Range("J12").Value
+          wb.Worksheets(SheetName("DataChecks")).Range("A2").Value & "|" & wb.Worksheets(SheetName("DataChecks")).Range("J2").Value & "|" & wb.Worksheets(SheetName("DataChecks")).Range("J12").Value
     Check "flowbuild", "FillRates: the system fields x teams x issue types (the fields not configured are left out)", "3 x 9 x 2", 54, TableRows("FillRates")
     Check "flowbuild", "IssueLinks is a table even without any link", "rows", 1, TableRows("IssueLinks")
     Check "flowbuild", "one series per team in the Velocity chart", "Velocity", teams, dash.ChartObjects("velocity").Chart.SeriesCollection.Count
@@ -1203,16 +1203,16 @@ Public Sub T_FlowBuild()
     Check "flowbuild", "without a PI in the sheet PIs the PI axis has one row, a gap", "no PI", "(no PI in the sheet PIs)|(no PI in the sheet PIs)", _
           AxisEnds(dash.ChartObjects("feature_predictability").Chart, False)
     Check "flowbuild", "PIMetrics: one row, not computable, without a PI", "no PI", "1|0|not computable", _
-          TableRows("PIMetrics") & "|" & wb.Worksheets("PIMetrics").Range("D2").Value & "|" & wb.Worksheets("PIMetrics").Range("F2").Value
+          TableRows("PIMetrics") & "|" & wb.Worksheets(SheetName("PIMetrics")).Range("D2").Value & "|" & wb.Worksheets(SheetName("PIMetrics")).Range("F2").Value
     Check "flowbuild", "the day axis starts on the first day, one row per day", "2026-10-01, 28 days", "46296|27", _
           AxisEnds(dash.ChartObjects("flow_load_daily").Chart, True)
     Check "flowbuild", "the formulas give the issue keys", "ItemFlow.Key", "TTT-1|AAA-1", _
-          wb.Worksheets("ItemFlow").ListObjects("ItemFlow").ListColumns("Key").DataBodyRange.Cells(1, 1).Value & "|" & _
-          wb.Worksheets("ItemFlow").ListObjects("ItemFlow").ListColumns("Key").DataBodyRange.Cells(2, 1).Value
+          wb.Worksheets(SheetName("ItemFlow")).ListObjects("ItemFlow").ListColumns("Key").DataBodyRange.Cells(1, 1).Value & "|" & _
+          wb.Worksheets(SheetName("ItemFlow")).ListObjects("ItemFlow").ListColumns("Key").DataBodyRange.Cells(2, 1).Value
     Check "flowbuild", "the Program is the team ART, a team project its own team", "ItemFlow.Team", "ART|AAA", _
-          wb.Worksheets("ItemFlow").ListObjects("ItemFlow").ListColumns("Team").DataBodyRange.Cells(1, 1).Value & "|" & _
-          wb.Worksheets("ItemFlow").ListObjects("ItemFlow").ListColumns("Team").DataBodyRange.Cells(2, 1).Value
-    Check "flowbuild", "the mode is read from Config", "Controls!B2", "A", wb.Worksheets("Controls").Range("B2").Value
+          wb.Worksheets(SheetName("ItemFlow")).ListObjects("ItemFlow").ListColumns("Team").DataBodyRange.Cells(1, 1).Value & "|" & _
+          wb.Worksheets(SheetName("ItemFlow")).ListObjects("ItemFlow").ListColumns("Team").DataBodyRange.Cells(2, 1).Value
+    Check "flowbuild", "the mode is read from Config", "Controls!B2", "A", wb.Worksheets(SheetName("Controls")).Range("B2").Value
     sheetCount = wb.Worksheets.Count
     ' a second, smaller run: no row, no sheet and no chart of the first one stays
     FlowRaw False
@@ -1227,36 +1227,36 @@ Public Sub T_FlowBuild()
     Check "flowbuild", "still nine charts", "Charts", 9, dash.ChartObjects.Count
     Check "flowbuild", "an unknown team in the selector goes back to All teams", "Nowhere", "All teams", dash.Range("B2").Value
     dash.Range("B2").Value = "AAA"
-    wb.Worksheets("PIs").Range("A2:C3").Value = PiRows()                 ' two PIs: the PI axis lists them in order
+    wb.Worksheets(SheetName("PIs")).Range("A2:C3").Value = PiRows()                 ' two PIs: the PI axis lists them in order
     BuildFlowSheetsIn wb
     Check "flowbuild", "a known team stays selected", "AAA", "AAA", dash.Range("B2").Value
     Check "flowbuild", "the PI axis lists the PIs of the sheet PIs in order", "two PIs", "PI#01-2026|PI#02-2026", _
           AxisEnds(dash.ChartObjects("feature_predictability").Chart, False)
     Check "flowbuild", "PIMetrics: one row per PI, its dates looked up in the sheet PIs, a date or an ISO text", "two PIs", _
           "2|" & CLng(DateSerial(2026, 10, 15)) & "|PI#02-2026|" & CLng(DateSerial(2026, 12, 1)), _
-          TableRows("PIMetrics") & "|" & wb.Worksheets("PIMetrics").Range("C2").Value2 & "|" & wb.Worksheets("PIMetrics").Range("A3").Value & _
-          "|" & wb.Worksheets("PIMetrics").Range("C3").Value2
+          TableRows("PIMetrics") & "|" & wb.Worksheets(SheetName("PIMetrics")).Range("C2").Value2 & "|" & wb.Worksheets(SheetName("PIMetrics")).Range("A3").Value & _
+          "|" & wb.Worksheets(SheetName("PIMetrics")).Range("C3").Value2
     ' Features in PIs that the sheet PIs lacks (AL, 2026-11-12): after the sheet's, by year then number, not computable; a PI
     ' of the sheet, a malformed one (DC29) and the PI of a story add no row
     FlowRaw True, Array("PI#01-2027", "PI#04-2026", "PI#04-2026", "PI#02-2026", "PI 4", "pi#05-2026"), "PI#06-2026"
     BuildFlowSheetsIn wb
     Check "flowbuild", "PIMetrics: the PIs of Features missing from the sheet PIs come after it, in order, not computable", _
           "PI#04-2026 (2 features), PI#01-2027", "4|PI#04-2026|2||not computable|PI#01-2027|PI#01-2026|PI#01-2027", _
-          TableRows("PIMetrics") & "|" & wb.Worksheets("PIMetrics").Range("A4").Value & "|" & wb.Worksheets("PIMetrics").Range("D4").Value & _
-          "|" & wb.Worksheets("PIMetrics").Range("C4").Value & "|" & wb.Worksheets("PIMetrics").Range("F4").Value & "|" & _
-          wb.Worksheets("PIMetrics").Range("A5").Value & "|" & AxisEnds(dash.ChartObjects("feature_predictability").Chart, False)
+          TableRows("PIMetrics") & "|" & wb.Worksheets(SheetName("PIMetrics")).Range("A4").Value & "|" & wb.Worksheets(SheetName("PIMetrics")).Range("D4").Value & _
+          "|" & wb.Worksheets(SheetName("PIMetrics")).Range("C4").Value & "|" & wb.Worksheets(SheetName("PIMetrics")).Range("F4").Value & "|" & _
+          wb.Worksheets(SheetName("PIMetrics")).Range("A5").Value & "|" & AxisEnds(dash.ChartObjects("feature_predictability").Chart, False)
     FlowRaw False
-    wb.Worksheets("PIs").Range("A2:C3").ClearContents
+    wb.Worksheets(SheetName("PIs")).Range("A2:C3").ClearContents
     ' Excel left in manual mode by the user: the build gives the mode back and still ends with every figure calculated
     ' (guard only: removing CalculateFull for this case changed nothing observable, entering a formula calculates it)
     Application.Calculation = -4135                               ' xlCalculationManual
     BuildFlowSheetsIn wb
     Check "flowbuild", "manual calculation: the mode is given back and nothing is left to calculate", "Excel in manual mode", "-4135|0|OK", _
-          Application.Calculation & "|" & Application.CalculationState & "|" & wb.Worksheets("DataChecks").Range("J2").Value   ' 0 = xlDone: nothing left to calculate
+          Application.Calculation & "|" & Application.CalculationState & "|" & wb.Worksheets(SheetName("DataChecks")).Range("J2").Value   ' 0 = xlDone: nothing left to calculate
     Application.Calculation = -4105                               ' xlCalculationAutomatic
     ' leave the workbook as it was
     dash.Range("B2").Value = "All teams"
-    wb.Worksheets("Iterations").Range("A2:C10").ClearContents
+    wb.Worksheets(SheetName("Iterations")).Range("A2:C10").ClearContents
     ClearFlowSheets wb
     Check "flowbuild", "cleared: the derived sheets are gone", "Metrics", False, SheetExists(wb, "Metrics")
     Check "flowbuild", "cleared: the data checks and fill rates are gone too", "DataChecks", "False|False", _
@@ -1818,6 +1818,21 @@ Public Sub T_StatusChangesUnreadableDate()
     Check "flow", "their shapes are counted, with no content", "epoch x2, Null x1", "String:9999999999999 x 2; Null x 1", shapes
 End Sub
 
+Public Sub T_SheetName()
+    ' The suffix says where the data of a sheet comes from (python: sheet_names.of / logical).
+    Check "sheets", "typed by the person", "Config", "Config_from_user", SheetName("Config")
+    Check "sheets", "read from Jira", "Issues", "Issues_from_Jira", SheetName("Issues")
+    Check "sheets", "a proposal read from Jira", "JiraFields", "JiraFields_from_Jira", SheetName("JiraFields")
+    Check "sheets", "calculated by Excel", "Metrics", "Metrics_from_excel", SheetName("Metrics")
+    Check "sheets", "the dashboard", "Dashboard", "Dashboard_from_excel", SheetName("Dashboard")
+    Check "sheets", "a real name is left alone", "Config_from_user", "Config_from_user", SheetName("Config_from_user")
+    Check "sheets", "an unknown sheet is left alone", "TestScratch", "TestScratch", SheetName("TestScratch")
+    Check "sheets", "the logical name of a real one", "PIs_from_user", "PIs", LogicalSheet("PIs_from_user")
+    Check "sheets", "the logical name of a logical one", "PIs", "PIs", LogicalSheet("PIs")
+    Check "sheets", "a suffix on an unknown name is kept", "Foo_from_user", "Foo_from_user", LogicalSheet("Foo_from_user")
+    Check "sheets", "the longest name fits Excel", "31", True, Len(SheetName("JiraProjectWorkflows")) <= 31
+End Sub
+
 Public Sub T_DateShape()
     ' No content in the shape: the log must not hold what Jira answered.
     Check "flow", "an ISO date", "2026-10-01T09:12:33.123+0200", "String:9999-99-99A99:99:99.999+9999", DateShape("2026-10-01T09:12:33.123+0200")
@@ -2052,8 +2067,8 @@ Public Sub T_ParamsOnWorkbook()
     depri = "D" & ChrW(233) & "prioris" & ChrW(233)
     deployer = ChrW(192) & " d" & ChrW(233) & "ployer"
     termine = "Termin" & ChrW(233)
-    Set wsW = ThisWorkbook.Worksheets("Workflows")
-    Set wsF = ThisWorkbook.Worksheets("FieldMapping")
+    Set wsW = ThisWorkbook.Worksheets(SheetName("Workflows"))
+    Set wsF = ThisWorkbook.Worksheets(SheetName("FieldMapping"))
     Check "params", "Team start status", "Team IsStart", "En analyse", FlaggedStatus(wsW, "Team", "IsStart")
     Check "params", "Team end status", "Team IsEnd", termine, FlaggedStatus(wsW, "Team", "IsEnd")
     Check "params", "Team category", "Team En analyse", "Active", CategoryOf("Team", "En analyse")
@@ -2088,7 +2103,7 @@ Public Sub T_JiraConfig()
     Application.DisplayAlerts = False
     For Each nm In Array("JiraIssueTypes", "JiraStatuses", "JiraWorkflows", "JiraTransitions", "JiraFields", "JiraProjectWorkflows", _
                          "JiraProjectFields", "JiraFieldUsage")
-        If SheetExists(ThisWorkbook, CStr(nm)) Then ThisWorkbook.Worksheets(CStr(nm)).Delete
+        If SheetExists(ThisWorkbook, CStr(nm)) Then ThisWorkbook.Worksheets(SheetName(CStr(nm))).Delete
     Next nm
     Application.DisplayAlerts = True
     wf = "{'statuses':[{'statusReference':'r1','name':'Open','statusCategory':'TODO'}," & _
@@ -2143,11 +2158,11 @@ Public Sub T_JiraConfig()
         "'custom':'com.atlassian.teams:rm-teams-custom-field-team'}},{'id':'status','name':'Status','custom':false," & _
         "'schema':{'type':'status','system':'status'}}]")
     summary = ReadJiraConfiguration(cfg, keys, ThisWorkbook)
-    Set wsT = ThisWorkbook.Worksheets("JiraIssueTypes"): Set wsS = ThisWorkbook.Worksheets("JiraStatuses")
-    Set wsW = ThisWorkbook.Worksheets("JiraWorkflows"): Set wsM = ThisWorkbook.Worksheets("JiraTransitions")
-    Set wsF = ThisWorkbook.Worksheets("JiraFields")
-    Set wsU = ThisWorkbook.Worksheets("JiraProjectWorkflows"): Set wsP = ThisWorkbook.Worksheets("JiraProjectFields")
-    Set wsG = ThisWorkbook.Worksheets("JiraFieldUsage")
+    Set wsT = ThisWorkbook.Worksheets(SheetName("JiraIssueTypes")): Set wsS = ThisWorkbook.Worksheets(SheetName("JiraStatuses"))
+    Set wsW = ThisWorkbook.Worksheets(SheetName("JiraWorkflows")): Set wsM = ThisWorkbook.Worksheets(SheetName("JiraTransitions"))
+    Set wsF = ThisWorkbook.Worksheets(SheetName("JiraFields"))
+    Set wsU = ThisWorkbook.Worksheets(SheetName("JiraProjectWorkflows")): Set wsP = ThisWorkbook.Worksheets(SheetName("JiraProjectFields"))
+    Set wsG = ThisWorkbook.Worksheets(SheetName("JiraFieldUsage"))
     Check "jiraconfig", "a workflow shared by two projects names both", "WF-A", "WF-A|1|Open|Backlog|||0|TODO|PRG, TA", RowText(wsW, 2, 9)
     Check "jiraconfig", "a workflow of one project names it", "WF-B", "WF-B|1|Triage|Backlog|||0|TODO|TA", RowText(wsW, 6, 9)
     Check "jiraconfig", "a move has its id, its scope and its projects", "Start", "WF-A|Open|Doing||Start|11|DIRECTED|PRG, TA", RowText(wsM, 2, 8)
@@ -2289,7 +2304,7 @@ End Function
 
 Private Function MockProjects() As Collection
     ' The projects come from the Projects sheet of the workbook, the Program first (the fake Jira holds them).
-    Set MockProjects = ProjectKeys(ThisWorkbook.Worksheets("Projects"))
+    Set MockProjects = ProjectKeys(ThisWorkbook.Worksheets(SheetName("Projects")))
 End Function
 
 Private Sub MockFault(ByVal cfg As Object, ByVal path As String, ByVal status As Long, ByVal times As Long, _
@@ -2334,7 +2349,7 @@ End Sub
 Private Function RoleMismatches(ByVal issues As Collection) As Long
     ' Features are in the Program project of the Projects sheet and nowhere else; the Program holds nothing but Features.
     Dim issue As Variant, program As String
-    program = ProgramProject(ThisWorkbook.Worksheets("Projects"))
+    program = ProgramProject(ThisWorkbook.Worksheets(SheetName("Projects")))
     For Each issue In issues
         If (JPath(issue, "fields.issuetype.name") = "Feature") <> (JPath(issue, "fields.project.key") = program) Then RoleMismatches = RoleMismatches + 1
     Next issue
@@ -2397,7 +2412,7 @@ Public Sub M_FlowFromMock()
         keys.Add JGet(issue, "key")
     Next issue
     Set changes = StatusChangesFromChangelog(JiraChangelogsAll(cfg, keys), idToKey)
-    Set cats = StatusCategories(ThisWorkbook.Worksheets("Workflows"), "Team")
+    Set cats = StatusCategories(ThisWorkbook.Worksheets(SheetName("Workflows")), "Team")
     Set out = BuildStatusIntervals(info, changes, DateSerial(2026, 11, 3), cats)
     For Each iv In out
         If Len(CStr(iv(9) & "")) > 0 Then bad = bad + 1
@@ -2529,7 +2544,7 @@ Public Function RunWithCoverage(ByVal includeNetwork As Boolean) As String
     s = RunAllTests()
     If includeNetwork Then s = s & " | net: " & RunNetworkTests()
     CovStop
-    CovWrite ThisWorkbook.Worksheets("CoverageHits")
+    CovWrite ThisWorkbook.Worksheets(SheetName("CoverageHits"))
     mTotalPlanned = 0
     RunWithCoverage = s
 End Function
@@ -2544,24 +2559,24 @@ Public Sub M_JiraConfig()
     Check "mock", "the configuration is read", "summary", True, _
           InStr(summary, "Jira configuration read | Projects: " & MockProjects().Count & " | Workflows: 2 | ") = 1
     Set want = CreateObject("Scripting.Dictionary"): Set got = CreateObject("Scripting.Dictionary")
-    For Each row In ReadTable(ThisWorkbook.Worksheets("Workflows"))
+    For Each row In ReadTable(ThisWorkbook.Worksheets(SheetName("Workflows")))
         want(row("Workflow") & "|" & row("Status") & "|" & row("IsFree")) = True
     Next row
-    For Each row In ReadTable(ThisWorkbook.Worksheets("JiraWorkflows"))
+    For Each row In ReadTable(ThisWorkbook.Worksheets(SheetName("JiraWorkflows")))
         got(row("Workflow") & "|" & row("Status") & "|" & row("IsFree")) = True
     Next row
     Check "mock", "JiraWorkflows gives back the statuses and the free flags of Workflows", "Workflow|Status|IsFree", _
           SortedKeys(want), SortedKeys(got)
     Set want = CreateObject("Scripting.Dictionary"): Set got = CreateObject("Scripting.Dictionary")
-    For Each row In ReadTable(ThisWorkbook.Worksheets("Transitions"))
+    For Each row In ReadTable(ThisWorkbook.Worksheets(SheetName("Transitions")))
         want(row("Workflow") & "|" & row("From") & "|" & row("To")) = True
     Next row
-    For Each row In ReadTable(ThisWorkbook.Worksheets("JiraTransitions"))
+    For Each row In ReadTable(ThisWorkbook.Worksheets(SheetName("JiraTransitions")))
         got(row("Workflow") & "|" & row("From") & "|" & row("To")) = True
     Next row
     Check "mock", "JiraTransitions gives back the moves of Transitions", "Workflow|From|To", SortedKeys(want), SortedKeys(got)
-    program = ProgramProject(ThisWorkbook.Worksheets("Projects"))
-    For Each row In ReadTable(ThisWorkbook.Worksheets("JiraIssueTypes"))
+    program = ProgramProject(ThisWorkbook.Worksheets(SheetName("Projects")))
+    For Each row In ReadTable(ThisWorkbook.Worksheets(SheetName("JiraIssueTypes")))
         If (row("Project") = program) <> (row("Workflow") = "Feature") Or Len(row("Workflow") & "") = 0 Then wrong = wrong + 1
     Next row
     Check "mock", "the Program types follow Feature, the team types Team", "JiraIssueTypes", 0, wrong
@@ -2569,8 +2584,8 @@ Public Sub M_JiraConfig()
     summary = ReadJiraConfiguration(cfg, MockProjects(), ThisWorkbook)
     Check "mock", "without the right to read workflows the run says so", "401 on the preview", True, _
           InStr(summary, " | Workflows not read: " & MockProjects().Count & " project(s), ") > 0
-    Check "mock", "and writes no workflow", "JiraWorkflows", 1, LastRow(ThisWorkbook.Worksheets("JiraWorkflows"))
-    Check "mock", "but the statuses of each issue type", "JiraStatuses", True, LastRow(ThisWorkbook.Worksheets("JiraStatuses")) > 1
+    Check "mock", "and writes no workflow", "JiraWorkflows", 1, LastRow(ThisWorkbook.Worksheets(SheetName("JiraWorkflows")))
+    Check "mock", "but the statuses of each issue type", "JiraStatuses", True, LastRow(ThisWorkbook.Worksheets(SheetName("JiraStatuses"))) > 1
     MockReset cfg
 End Sub
 
@@ -2662,7 +2677,7 @@ End Function
 
 ' (from modJira)
 Public Function ExtractionJqlFromWorkbook() As String
-    ExtractionJqlFromWorkbook = ExtractionJql(ThisWorkbook.Worksheets("Projects"), ThisWorkbook.Worksheets("Config"))
+    ExtractionJqlFromWorkbook = ExtractionJql(ThisWorkbook.Worksheets(SheetName("Projects")), ThisWorkbook.Worksheets(SheetName("Config")))
 End Function
 
 ' (from modParams)
@@ -2718,7 +2733,7 @@ Public Function CategoryOf(ByVal workflow As String, ByVal status As String) As 
     ' Category of a status in this workbook's Workflows sheet. A status that is not listed is "Unclassified".
     Cov "PRM11"
     Dim cats As Object
-    Set cats = StatusCategories(ThisWorkbook.Worksheets(SHEET_WORKFLOWS), workflow)
+    Set cats = StatusCategories(ThisWorkbook.Worksheets(SheetName(SHEET_WORKFLOWS)), workflow)
     If cats.Exists(status) Then CategoryOf = cats(status) Else Cov "PRM12": CategoryOf = "Unclassified"
 End Function
 
@@ -2726,6 +2741,6 @@ End Function
 Public Function IsAllowed(ByVal workflow As String, ByVal fromStatus As String, ByVal toStatus As String) As Boolean
     ' Transition check on this workbook's sheets Workflows and Transitions.
     Cov "PRM13"
-    IsAllowed = TransitionAllowed(ThisWorkbook.Worksheets(SHEET_WORKFLOWS), ThisWorkbook.Worksheets(SHEET_TRANSITIONS), _
+    IsAllowed = TransitionAllowed(ThisWorkbook.Worksheets(SheetName(SHEET_WORKFLOWS)), ThisWorkbook.Worksheets(SheetName(SHEET_TRANSITIONS)), _
                                   workflow, fromStatus, toStatus)
 End Function

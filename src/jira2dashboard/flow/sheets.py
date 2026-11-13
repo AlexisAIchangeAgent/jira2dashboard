@@ -5,6 +5,7 @@ Dashboard. After each extraction, VBA (modFlowBuild) builds the tables, formulas
 workbook needs no Python to refresh. Here are also the readers the tests use (tables, errors, PNG export).
 """
 
+from jira2dashboard import sheet_names as S
 from jira2dashboard.excel import com as R
 from jira2dashboard.flow import blueprint as B
 from jira2dashboard.flow import dashboard_spec as D
@@ -18,7 +19,7 @@ EXCEL_ERRORS = {-2146826281: "#DIV/0!", -2146826246: "#N/A", -2146826259: "#NAME
 
 def read_table(wb, sheet: str, name: str) -> tuple[list[str], list[list]]:
     """Header names and the raw values (Value2: dates are serial numbers, errors are negative integers)."""
-    table = wb.Worksheets(sheet).ListObjects(name)
+    table = wb.Worksheets(S.of(sheet)).ListObjects(name)
     header = [h for h in table.HeaderRowRange.Value2[0]]
     body = table.DataBodyRange.Value2
     return header, [list(row) for row in body]
@@ -80,17 +81,17 @@ def write_dashboard_frame(wb, dash, button_macro: str | None = None) -> None:
     dash.Range("A:A").ColumnWidth = 22                  # the names of the status rows
     dash.Range(D.STATUS_CELL).Value = "Ready"
     dash.Range(D.STATUS_CELL).Font.Bold = True
-    wb.Names.Add(D.STATUS, "=Dashboard!" + dash.Range(D.STATUS_CELL).Address)
+    wb.Names.Add(D.STATUS, "=" + S.of("Dashboard") + "!" + dash.Range(D.STATUS_CELL).Address)
     status = dash.Range(D.STATUS_CELL)
     dash.Range(dash.Cells(status.Row + 1, status.Column), dash.Cells(status.Row + D.STATUS_ROWS, status.Column)).Font.Bold = True
     charts = wb.Worksheets.Add(None, dash)              # positional: (Before, After)
-    charts.Name = D.CHARTS_SHEET
+    charts.Name = S.of(D.CHARTS_SHEET)
     charts.Range("A1").Value = "Flow metrics - charts"
     charts.Range("A1").Font.Bold = True
     charts.Range("A2").Value = "Team of the Distribution chart"
     charts.Range("A:R").ColumnWidth = 11
     charts.Range(D.SELECTOR_CELL).Value = D.ALL_TEAMS
-    wb.Names.Add(D.SELECTOR, f"={D.CHARTS_SHEET}!" + charts.Range(D.SELECTOR_CELL).Address)
+    wb.Names.Add(D.SELECTOR, f"={S.of(D.CHARTS_SHEET)}!" + charts.Range(D.SELECTOR_CELL).Address)
     dash.Activate()
     if button_macro:
         R.add_progress_bar(dash, D.BAR_CELL, D.BUTTON_WIDTH, D.BAR_HEIGHT)
@@ -109,7 +110,7 @@ def write_manual(wb, dash, mandatory: tuple[str, ...]) -> None:
     R.write_block(dash, first.Row, first.Column, [[line] for line in M.first_steps()])
     first.Font.Bold = True
     ws = wb.Worksheets.Add(None, dash)                       # positional: (Before, After)
-    ws.Name = M.MANUAL_SHEET
+    ws.Name = S.of(M.MANUAL_SHEET)
     rows = M.manual(mandatory)
     R.write_block(ws, 1, 1, [[text] for _kind, text in rows])
     for n, (kind, _text) in enumerate(rows, start=1):
@@ -121,7 +122,7 @@ def write_manual(wb, dash, mandatory: tuple[str, ...]) -> None:
 def export_charts(wb, folder) -> dict[str, str]:
     """Save every chart of the sheet Charts as <name>.png in `folder`; returns {chart name: file}."""
     folder.mkdir(parents=True, exist_ok=True)
-    dash, files = wb.Worksheets(D.CHARTS_SHEET), {}
+    dash, files = wb.Worksheets(S.of(D.CHARTS_SHEET)), {}
     dash.Activate()
     for spec in D.CHARTS:
         target = folder / f"{spec.name}.png"

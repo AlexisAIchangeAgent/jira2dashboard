@@ -12,6 +12,7 @@ import pytest
 from pytest_bdd import given, parsers, scenarios, then, when
 
 from jira2dashboard import mock_workbook as M
+from jira2dashboard import sheet_names as S
 from jira2dashboard.build_workbook import build_delivery
 from jira2dashboard.excel import com
 from jira2dashboard.flow import dashboard_spec as D
@@ -150,7 +151,7 @@ def _code(world, code):
 def sheets(world) -> dict[str, list[dict]]:
     if "sheets" not in world:
         grids = read_sheets(world["out"])
-        world["sheets"] = {name: [dict(zip(grid[0], row + [None] * (len(grid[0]) - len(row)))) for row in grid[1:]]
+        world["sheets"] = {S.logical(name): [dict(zip(grid[0], row + [None] * (len(grid[0]) - len(row)))) for row in grid[1:]]
                            for name, grid in grids.items() if grid}          # empty cells at the end are not stored
     return world["sheets"]
 
@@ -320,10 +321,10 @@ def _excel_opens(world):
     with com.excel_session() as app:
         app.DisplayAlerts = False
         wb = app.Workbooks.Open(str(world["out"].resolve()))
-        charts = wb.Worksheets("Charts")
+        charts = wb.Worksheets(S.of("Charts"))
         kinds = [charts.Shapes(n).Type for n in range(1, charts.Shapes.Count + 1)]
         names = [wb.Worksheets(n).Name for n in range(1, wb.Worksheets.Count + 1)]
         wb.Close(False)
         del charts, wb, app
     assert kinds == [com.MSO_GRAPHIC] * len(D.CHARTS)
-    assert names[:3] == ["Run", "Charts", "Metrics"] and "Errors" in names
+    assert names[:3] == [S.of("Run"), S.of("Charts"), S.of("Metrics")] and S.of("Errors") in names

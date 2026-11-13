@@ -16,6 +16,7 @@ import time
 from pathlib import Path
 
 from jira2dashboard import rovo_prompt as RP
+from jira2dashboard import sheet_names as S
 from jira2dashboard.cli.args import parser
 from jira2dashboard.excel import com
 from jira2dashboard.flow.model import Iteration
@@ -77,7 +78,7 @@ def params_book(url: str, values: dict[str, str] | None = None) -> list[Sheet]:
             rows = [row[:value] + (filled.get(row[0], row[value]),) + row[value + 1:] for row in rows]
         elif sheet.name in ("Iterations", "PIs"):
             rows = [(p.name, p.start, p.end) for p in (iterations() if sheet.name == "Iterations" else PIS)]
-        out.append(Sheet(sheet.name, sheet.header, rows))
+        out.append(Sheet(S.of(sheet.name), sheet.header, rows))
     return out
 
 
@@ -101,9 +102,9 @@ def rovo_csv(port: int = 8099) -> str:
     writer.writerow(RP.CSV_COLUMNS)
     for name, value in config_values(base_url(port)).items():
         if name not in RP.PROTECTED:
-            writer.writerow(("Config", "", name, value, CSV_NOTE))
+            writer.writerow((S.of("Config"), "", name, value, CSV_NOTE))
     for sheet in params_book(base_url(port)):
-        if sheet.name in RP.SHEET_RULES:
+        if S.logical(sheet.name) in RP.SHEET_RULES:
             for number, row in enumerate(sheet.rows, start=1):
                 for column, value in zip(sheet.header, row):
                     writer.writerow((sheet.name, number, column, csv_value(value), ""))
@@ -129,9 +130,9 @@ def write_config(ws, values: dict[str, str]) -> None:
 def fill_copy(path: Path, url: str) -> None:
     with com.excel_session() as app:
         wb = com.open_without_macros(app, path)
-        write_config(wb.Worksheets("Config"), config_values(url))
-        write_iterations(wb.Worksheets("Iterations"), iterations())
-        write_iterations(wb.Worksheets("PIs"), PIS)
+        write_config(wb.Worksheets(S.of("Config")), config_values(url))
+        write_iterations(wb.Worksheets(S.of("Iterations")), iterations())
+        write_iterations(wb.Worksheets(S.of("PIs")), PIS)
         wb.Save()
         wb.Close(False)
         del wb, app                                                   # release every COM proxy before Excel quits

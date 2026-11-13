@@ -9,7 +9,7 @@ import datetime as dt
 import sys
 from pathlib import Path
 
-from jira2dashboard import clean, version
+from jira2dashboard import clean, sheet_names as S, version
 from jira2dashboard.cli.args import bare_xlsm, parser
 from jira2dashboard.excel import com as R
 from jira2dashboard.flow.sheets import write_blueprint, write_manual
@@ -49,7 +49,7 @@ def build_delivery(target: Path = TARGET, release: str | None = None) -> Path:
         wb = R.new_workbook(app)
         R.assert_vba_access(wb)                                       # fail now, not deep inside the module import
         dash = wb.Worksheets(1)
-        dash.Name = "Dashboard"
+        dash.Name = S.of("Dashboard")
         params = load_all()
         write_params(wb, params)                                      # Config, Projects, Iterations, Workflows, ...
         write_blueprint(wb, dash, BUTTON_MACRO)

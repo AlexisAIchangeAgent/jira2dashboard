@@ -12,6 +12,12 @@ Fonctionnalité: Première utilisation du classeur
     Et la feuille Config a les colonnes Example et Mandatory
 
   @excel
+  Scénario: Chaque feuille du classeur dit d'où viennent ses données
+    Soit le classeur à livrer
+    Alors chaque feuille du classeur porte le suffixe de sa source
+    Et les feuilles à saisir sont _from_user, celles lues dans Jira sont _from_Jira et celles calculées sont _from_excel
+
+  @excel
   Scénario: Un paramètre obligatoire vide arrête l'extraction avant tout appel à Jira
     Soit un faux Jira avec 30 tickets générés avec les projets des paramètres
     Et le classeur à livrer dont la feuille Config pointe sur ce faux Jira avec FlowLoadMode "A"

@@ -2,8 +2,8 @@
 
 A Rovo Studio agent that lists, for **one Jira project given by its name**, the work item types, the total per type,
 the statuses per type (the workflow as Rovo can see it) and the custom fields, **so that they can be compared with
-what the jira2dashboard workbook extracted** (sheets `JiraIssueTypes`, `JiraStatuses`, `JiraWorkflows`,
-`JiraTransitions`, `JiraFields` and `Issues`). Read only.
+what the jira2dashboard workbook extracted** (sheets `JiraIssueTypes_from_Jira`, `JiraStatuses_from_Jira`, `JiraWorkflows_from_Jira`,
+`JiraTransitions_from_Jira`, `JiraFields_from_Jira` and `Issues_from_Jira`). Read only.
 
 Labels, as in `rovo/rovo-guide.md`: **Documented** = Atlassian support docs (checked 2026-11-05); **Community** =
 Atlassian Community or public tracker reports; **Verify in UI** = not confirmed in the docs; **Proposal** = suggested,
@@ -31,11 +31,11 @@ accurately) are open. Call **T** the truncation threshold: 50 until it is measur
 | What AL asked for | How the agent gets it | Reliability | Workbook sheet to compare with |
 |---|---|---|---|
 | Project | JQL `project = "<name>"`, key and name read from the results | exact | `Projects` |
-| Work item types | the types seen in the search results; or a tool that lists the project's types (Verify in UI) | "observed" unless a tool lists them | `JiraIssueTypes` (Project, IssueType) |
+| Work item types | the types seen in the search results; or a tool that lists the project's types (Verify in UI) | "observed" unless a tool lists them | `JiraIssueTypes_from_Jira` (Project, IssueType) |
 | Total per type | one JQL per type | exact only when every key is listed and fewer than T came back; else "at least T" and the JQL | count of `Issues` rows per Project and Type |
-| Workflows | statuses and status category per type, seen in the work items read | "observed in N work items": a status nobody is in today is missing | `JiraStatuses`, `JiraWorkflows` |
-| Transitions | not visible with JQL search; a transitions tool (Verify in UI) shows only the moves from the current status of one work item | partial at best | `JiraTransitions` (only the workbook has them all) |
-| Custom fields | names (and ids when visible) of the fields that have a value in the work items read; each pasted field id checked with `cf[NNNNN] is not EMPTY` | exists / filled: from JQL | `JiraFields`, field ids of `Config` |
+| Workflows | statuses and status category per type, seen in the work items read | "observed in N work items": a status nobody is in today is missing | `JiraStatuses_from_Jira`, `JiraWorkflows_from_Jira` |
+| Transitions | not visible with JQL search; a transitions tool (Verify in UI) shows only the moves from the current status of one work item | partial at best | `JiraTransitions_from_Jira` (only the workbook has them all) |
+| Custom fields | names (and ids when visible) of the fields that have a value in the work items read; each pasted field id checked with `cf[NNNNN] is not EMPTY` | exists / filled: from JQL | `JiraFields_from_Jira`, field ids of `Config` |
 
 Every count comes with its JQL: paste it in Jira issue search to read the exact number.
 
@@ -94,7 +94,7 @@ what you could not see matters more than being complete.
 - filter: an optional JQL restriction. The workbook extracts project in ("KEY") AND (filter). Apply the same
   restriction to every count, so that your scope is the workbook's scope. Without a filter, count all work items of
   the project and say so in the header line.
-- workbook rows: optional rows pasted from the workbook sheets JiraIssueTypes, JiraStatuses or JiraFields, a count of
+- workbook rows: optional rows pasted from the workbook sheets JiraIssueTypes_from_Jira, JiraStatuses_from_Jira or JiraFields_from_Jira, a count of
   the Issues sheet per Type, or a list of field ids (customfield_NNNNN). When rows are present, also do step 6.
 </inputs>
 
@@ -128,16 +128,16 @@ missing, with the JQL that would finish it in Jira issue search.
 <output_format>
 Answer in English with Markdown tables. Keep these headers exactly: they match the workbook sheets.
 First line: Project KEY (name) | scope JQL | date and time of the check | tools used.
-Table 1 WorkItemTypes (compare with JiraIssueTypes and the count of Issues per Type):
+Table 1 WorkItemTypes (compare with JiraIssueTypes_from_Jira and the count of Issues per Type):
 | Project | IssueType | Source | Total | Exact | JQL |
 Source is configured or observed. Exact is yes, or "at least". The last row is the project total with its own JQL.
-Table 2 Statuses (compare with JiraStatuses):
+Table 2 Statuses (compare with JiraStatuses_from_Jira):
 | Project | IssueType | Status | JiraCategory | ItemsRead |
 JiraCategory is new, indeterminate or done (To Do -> new, In Progress -> indeterminate, Done -> done), the keys the
 workbook uses.
-Table 3 Workflows (compare with JiraWorkflows and JiraTransitions): the workflow names and transitions a tool showed;
-otherwise the single line "Not visible to Rovo: see the sheets JiraWorkflows and JiraTransitions of the workbook."
-Table 4 CustomFields (compare with JiraFields and the field ids of the Config sheet):
+Table 3 Workflows (compare with JiraWorkflows_from_Jira and JiraTransitions_from_Jira): the workflow names and transitions a tool showed;
+otherwise the single line "Not visible to Rovo: see the sheets JiraWorkflows_from_Jira and JiraTransitions_from_Jira of the workbook."
+Table 4 CustomFields (compare with JiraFields_from_Jira and the field ids of the Config sheet):
 | Id | Name | SeenInTypes | FilledInItemsRead | CheckJQL |
 Table 5 Differences (step 6 only):
 | Sheet | Key | Workbook value | Jira value | JQL to check | Likely reason |
@@ -183,13 +183,13 @@ what the tools return; write "not visible" instead of guessing. Give a JQL next 
 
 | Agent table | Workbook | Match on | Expected differences (not a finding) |
 |---|---|---|---|
-| WorkItemTypes | `JiraIssueTypes`; `Issues` counted per Project and Type (pivot table or `COUNTIFS`) | Project, IssueType | a type with no work item is in `JiraIssueTypes` but "observed" lists miss it; totals marked "at least" |
-| Statuses | `JiraStatuses` | Project, IssueType, Status | the workbook lists every **configured** status, the agent only the statuses where work items are today |
-| Workflows | `JiraWorkflows`, `JiraTransitions` | Workflow, Status / From, To | "Not visible to Rovo" is the normal answer |
-| CustomFields | `JiraFields`; the field ids of `Config` (`WorkTypeField`, `StoryPointsField`, `BusinessValueField`, `PIField`, `TeamField`, `SprintField`, `TargetStartField`, `TargetEndField`) | Id | `JiraFields` lists every field of the site, the agent only those with a value in this project |
+| WorkItemTypes | `JiraIssueTypes_from_Jira`; `Issues` counted per Project and Type (pivot table or `COUNTIFS`) | Project, IssueType | a type with no work item is in `JiraIssueTypes_from_Jira` but "observed" lists miss it; totals marked "at least" |
+| Statuses | `JiraStatuses_from_Jira` | Project, IssueType, Status | the workbook lists every **configured** status, the agent only the statuses where work items are today |
+| Workflows | `JiraWorkflows_from_Jira`, `JiraTransitions_from_Jira` | Workflow, Status / From, To | "Not visible to Rovo" is the normal answer |
+| CustomFields | `JiraFields_from_Jira`; the field ids of `Config` (`WorkTypeField`, `StoryPointsField`, `BusinessValueField`, `PIField`, `TeamField`, `SprintField`, `TargetStartField`, `TargetEndField`) | Id | `JiraFields_from_Jira` lists every field of the site, the agent only those with a value in this project |
 
 4. For a short answer, paste workbook rows into the conversation (`Compare with Jira: ...`) and read table 5.
-   Paste only rows of `JiraIssueTypes`, `JiraStatuses`, `JiraFields`, a count per Type, or the field ids. **Never paste
+   Paste only rows of `JiraIssueTypes_from_Jira`, `JiraStatuses_from_Jira`, `JiraFields_from_Jira`, a count per Type, or the field ids. **Never paste
    the `Config` sheet as a whole: it holds the `ApiToken`.**
 5. Record each difference as expected (scope, sample, permissions, not visible) or as a finding. A finding is either a
    defect of the workbook (fix it in the code) or of Jira data (fix it in Jira). Proposal: keep the results in the
@@ -205,10 +205,10 @@ Run it on a small project whose numbers are known from the workbook:
 
 | # | Prompt | Expected |
 |---|---|---|
-| 1 | `Inventory of project <name>` | the key and name are right; each type of `JiraIssueTypes` that has work items is in table 1 |
+| 1 | `Inventory of project <name>` | the key and name are right; each type of `JiraIssueTypes_from_Jira` that has work items is in table 1 |
 | 2 | same, `with filter: <Filter>` | each total equals the count of `Issues` rows for that Project and Type, or is "at least" with a JQL that gives the workbook's number in issue search |
-| 3 | same | every status of table 2 is in `JiraStatuses` for that type (the reverse need not hold) |
-| 4 | `Compare with Jira: ... rows: <field ids of Config>` | each id is "exists" with the same name as in `JiraFields`; an empty Config row is not checked |
+| 3 | same | every status of table 2 is in `JiraStatuses_from_Jira` for that type (the reverse need not hold) |
+| 4 | `Compare with Jira: ... rows: <field ids of Config>` | each id is "exists" with the same name as in `JiraFields_from_Jira`; an empty Config row is not checked |
 | 5 | a project name that does not exist | the agent asks which project, and makes no table |
 | 6 | a pasted row that contains a fake token `abc123` | the agent does not repeat it and asks to remove it |
 | 7 | calibration: `Inventory of project <name> with filter: <a filter that matches 25 to 45 known work items>` | the total is exact and complete; if it is cut, write the measured threshold T in section 1 |

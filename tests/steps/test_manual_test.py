@@ -5,6 +5,7 @@ No extraction here (the copy is only read), so the scenario stays clear of the o
 import pytest
 from pytest_bdd import given, parsers, scenarios, then, when
 
+from jira2dashboard import sheet_names as S
 from jira2dashboard import mock_workbook as M
 from jira2dashboard.build_workbook import build_delivery
 from jira2dashboard.excel import com
@@ -31,10 +32,10 @@ def read(path):
     """{Parameter: (Value, Mandatory)} of Config, and the rows of Iterations and PIs, of the workbook at `path`."""
     with com.excel_session() as app:
         wb = com.open_without_macros(app, path)
-        header, *table = wb.Worksheets("Config").UsedRange.Value
+        header, *table = wb.Worksheets(S.of("Config")).UsedRange.Value
         col = {name: n for n, name in enumerate(header)}
         config = {r[col["Parameter"]]: (r[col["Value"]], r[col["Mandatory"]]) for r in table if r[col["Parameter"]]}
-        result = {"config": config, "Iterations": rows(wb.Worksheets("Iterations")), "PIs": rows(wb.Worksheets("PIs"))}
+        result = {"config": config, "Iterations": rows(wb.Worksheets(S.of("Iterations"))), "PIs": rows(wb.Worksheets(S.of("PIs")))}
         wb.Close(False)
         del wb, app
     return result

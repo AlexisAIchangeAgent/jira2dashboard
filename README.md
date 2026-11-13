@@ -101,16 +101,21 @@ The extraction runs in slices (`Application.OnTime`), so Excel stays usable and 
 are retried (2 s × 2^n up to 30 s, or `Retry-After` up to 120 s). Previous results are cleared only after Jira has
 answered.
 
+The suffix of a sheet name says where its data comes from: `_from_user` (typed by the person), `_from_Jira` (read from the
+Jira API: check it against Jira) and `_from_excel` (calculated or drawn by Excel formulas and macros). The code and the
+Excel tables keep the logical names (`Config`, `Issues[Key]`); `sheet_names.py` and `modText.SheetName` give the real name.
+
 | Sheets | Content | Written by |
 |---|---|---|
-| `Dashboard`, `Manual`, `Charts` | Progress bar and buttons stacked in `A2:A12`, status `A14` and one row per field under it; user manual; the 9 charts and their team `B2` | build |
-| `Config`, `Projects`, `Iterations`, `PIs`, `Workflows`, `Transitions`, `FieldMapping` | Parameters | build, then user |
-| `Issues`, `StatusIntervals`, `IssueLinks` | Raw data (values) | VBA |
-| `Controls`, `ItemFlow`, `DailyLoad`, `Metrics`, `PIMetrics`, `FillRates`, `DataChecks`, `ChartData` | Results (formulas) | VBA |
-| `FlowFormulas`, `ChartSpec`, `ChecksSpec` | The plan. Do not edit. | build |
-| `JiraIssueTypes`, `JiraStatuses`, `JiraWorkflows`, `JiraTransitions`, `JiraFields` | Proposals read from Jira (workflows and moves end with the column Project) | VBA |
-| `RovoPromptSpec`, `RovoPrompt` | The text behind the button Prompt for Rovo, and the prompt it writes (a CSV answer is asked: Sheet, Row, Column, Value, Note); the button Load settings CSV loads that answer into Config and the parameter sheets | Python (spec), VBA |
-| `JiraProjectWorkflows`, `JiraProjectFields`, `JiraFieldUsage` | Per project: workflow and issue types; fields of the create screen; fields filled in one page of issues | VBA |
+| `Dashboard_from_excel`, `Manual_from_excel`, `Charts_from_excel` | Progress bar and buttons stacked in `A2:A12`, status `A14` and one row per field under it; user manual; the 9 charts and their team `B2` | build |
+| `ErrorCodes_from_excel`, `Steps_from_excel` | The support codes (what each means and what to check); the steps of the last run | build, VBA |
+| `Config_from_user`, `Projects_from_user`, `Iterations_from_user`, `PIs_from_user`, `Workflows_from_user`, `Transitions_from_user`, `FieldMapping_from_user` | Parameters | build, then user |
+| `Issues_from_Jira`, `StatusIntervals_from_Jira`, `IssueLinks_from_Jira` | Raw data (values) | VBA |
+| `Controls_from_excel`, `ItemFlow_from_excel`, `DailyLoad_from_excel`, `Metrics_from_excel`, `PIMetrics_from_excel`, `FillRates_from_excel`, `DataChecks_from_excel`, `ChartData_from_excel` | Results (formulas) | VBA |
+| `FlowFormulas_from_excel`, `ChartSpec_from_excel`, `ChecksSpec_from_excel` | The plan. Do not edit. | build |
+| `JiraIssueTypes_from_Jira`, `JiraStatuses_from_Jira`, `JiraWorkflows_from_Jira`, `JiraTransitions_from_Jira`, `JiraFields_from_Jira` | Proposals read from Jira (workflows and moves end with the column Project) | VBA |
+| `RovoPromptSpec_from_excel`, `RovoPrompt_from_excel` | The text behind the button Prompt for Rovo, and the prompt it writes (a CSV answer is asked: Sheet, Row, Column, Value, Note); the button Load settings CSV loads that answer into Config and the parameter sheets | Python (spec), VBA |
+| `JiraProjectWorkflows_from_Jira`, `JiraProjectFields_from_Jira`, `JiraFieldUsage_from_Jira` | Per project: workflow and issue types; fields of the create screen; fields filled in one page of issues | VBA |
 
 ## 4. Repository layout
 

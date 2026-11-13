@@ -94,6 +94,13 @@ python.log). `tests/unit/test_claude_hooks.py` and `test_claude_skills.py` test 
 
 ## Architecture (big picture)
 
+- **Sheet names say where the data comes from (AL, 2026-11-13).** `_from_user` = typed by the person (Config, Projects, Iterations, PIs, Workflows,
+  Transitions, FieldMapping), `_from_Jira` = read from the Jira API (Issues, StatusIntervals, IssueLinks, the `Jira...` proposals), `_from_excel` = calculated,
+  drawn or written by the workbook (Charts, Metrics, ItemFlow, Dashboard, Manual, Steps, the plan sheets...). The code keeps the LOGICAL names (`Config`,
+  `Issues`; the Excel tables too: `Issues[Key]`) and converts at the edge: `sheet_names.of(name)` in Python, `modText.SheetName(name)` in VBA (both idempotent,
+  an unknown name such as a test's scratch sheet comes back unchanged; `LogicalSheet` goes back). The three lists must be the same on both sides
+  (`tests/unit/test_sheet_names.py`); a new sheet is added to both, then to the scenario "chaque feuille ... suffixe". A message may name a sheet by the
+  start of its name ("the Config sheet"). Never name a VBA variable `sheetName` (VBA ignores case: it hides the function and the compile fails).
 - **Python generates, Excel computes.** `src/jira2dashboard/build_workbook.py` writes the parameter sheets, the empty raw
   sheets and a *plan*, injects the `vba/*.bas` modules and compiles them. VBA writes only raw data (`Issues`,
   `StatusIntervals`); **every figure is an Excel formula** in a table (`ItemFlow`, `DailyLoad`, `Metrics`, `DataChecks`).

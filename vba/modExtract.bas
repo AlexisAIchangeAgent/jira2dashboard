@@ -19,12 +19,12 @@ Private Const ROW_BATCH As Long = 100   ' about 20 ms per batch on the developme
 
 Private Sub ExtractParameters(ByRef cfg As Object, ByRef jql As String, ByRef settings As Object)
     Dim wsConfig As Object
-    Set wsConfig = ThisWorkbook.Worksheets("Config")
+    Set wsConfig = ThisWorkbook.Worksheets(SheetName("Config"))
     RequireMandatory wsConfig                        ' first, as in the first steps: an empty mandatory value would fail a
                                                      ' request or give wrong figures
     ValidateBuildInputs ThisWorkbook                 ' before any call to Jira: nothing is read or cleared if the build cannot run
     Set cfg = JiraConfigFromSheet(wsConfig)
-    jql = ExtractionJql(ThisWorkbook.Worksheets("Projects"), wsConfig)
+    jql = ExtractionJql(ThisWorkbook.Worksheets(SheetName("Projects")), wsConfig)
     Set settings = FieldSettings(wsConfig)
 End Sub
 
@@ -32,9 +32,9 @@ Public Sub ExtractFlowData()
     ' Everything comes from the workbook: Config (connection, proxy, Filter, field ids, AsOf), Projects, Workflows.
     Dim cfg As Object, jql As String, settings As Object
     ExtractParameters cfg, jql, settings
-    ExtractFlowDataTo cfg, jql, ConfigValue(ThisWorkbook.Worksheets("Config"), "WorkTypeField"), _
-                      AsOfFromConfig(ThisWorkbook.Worksheets("Config")), ThisWorkbook.Worksheets("Projects"), _
-                      ThisWorkbook.Worksheets("Workflows"), SheetNamed("Issues"), SheetNamed("StatusIntervals"), True, settings, _
+    ExtractFlowDataTo cfg, jql, ConfigValue(ThisWorkbook.Worksheets(SheetName("Config")), "WorkTypeField"), _
+                      AsOfFromConfig(ThisWorkbook.Worksheets(SheetName("Config"))), ThisWorkbook.Worksheets(SheetName("Projects")), _
+                      ThisWorkbook.Worksheets(SheetName("Workflows")), SheetNamed("Issues"), SheetNamed("StatusIntervals"), True, settings, _
                       SheetNamed("IssueLinks")
 End Sub
 
@@ -42,9 +42,9 @@ Public Sub ExtractFlowDataStart()
     ' Starts the same extraction as a job: call ExtractJobStep until it returns True.
     Dim cfg As Object, jql As String, settings As Object
     ExtractParameters cfg, jql, settings
-    ExtractJobStart cfg, jql, ConfigValue(ThisWorkbook.Worksheets("Config"), "WorkTypeField"), _
-                    AsOfFromConfig(ThisWorkbook.Worksheets("Config")), ThisWorkbook.Worksheets("Projects"), _
-                    ThisWorkbook.Worksheets("Workflows"), SheetNamed("Issues"), SheetNamed("StatusIntervals"), True, settings, _
+    ExtractJobStart cfg, jql, ConfigValue(ThisWorkbook.Worksheets(SheetName("Config")), "WorkTypeField"), _
+                    AsOfFromConfig(ThisWorkbook.Worksheets(SheetName("Config"))), ThisWorkbook.Worksheets(SheetName("Projects")), _
+                    ThisWorkbook.Worksheets(SheetName("Workflows")), SheetNamed("Issues"), SheetNamed("StatusIntervals"), True, settings, _
                     SheetNamed("IssueLinks")
 End Sub
 
@@ -52,10 +52,10 @@ Private Function SheetNamed(ByVal name As String) As Object
     ' The sheet, created at the end of the workbook if it is not there yet.
     Dim ws As Object
     For Each ws In ThisWorkbook.Worksheets
-        If ws.Name = name Then Set SheetNamed = ws: Exit Function
+        If ws.Name = SheetName(name) Then Set SheetNamed = ws: Exit Function
     Next ws
     Set SheetNamed = ThisWorkbook.Worksheets.Add(, ThisWorkbook.Worksheets(ThisWorkbook.Worksheets.Count))
-    SheetNamed.Name = name
+    SheetNamed.Name = SheetName(name)
 End Function
 
 Private Function FieldParameters() As Variant

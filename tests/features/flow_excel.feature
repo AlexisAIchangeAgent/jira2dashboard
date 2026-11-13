@@ -20,6 +20,7 @@ Fonctionnalité: Le classeur livré extrait Jira et calcule les mêmes chiffres 
     Et chaque graphique a une série par équipe ou par type de travail avec les valeurs de ChartData
     Et le graphique Flow Distribution suit l'équipe choisie dans la cellule B2
     Et les graphiques sont exportés en PNG
+    Et chaque feuille du classeur porte le suffixe de sa source
     Quand je passe FlowLoadMode à "B" dans la feuille Config
     Alors la table DailyLoad reproduit la référence Python en mode "B"
     Et la table Metrics reproduit la référence Python en mode "B"

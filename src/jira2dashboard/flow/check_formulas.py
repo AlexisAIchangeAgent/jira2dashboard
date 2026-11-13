@@ -15,7 +15,7 @@ RAW_FIELDS = ("Parent", "StatusCategory", "ResolvedUtc", "FixVersions", "StoryPo
 
 def cfg(name: str) -> str:
     """The text of a Config value ("" when empty)."""
-    return f'TRIM(INDEX(Config!$B:$B,MATCH("{name}",Config!$A:$A,0)))'
+    return f'TRIM(INDEX(Config_from_user!$B:$B,MATCH("{name}",Config_from_user!$A:$A,0)))'
 
 
 def _list(name: str) -> str:
@@ -30,7 +30,7 @@ def in_list(value: str, name: str) -> str:
 
 def _ready(*needs: str) -> str:
     """True when every field id (Config parameter) is filled in; "PIs" = the sheet PIs has rows."""
-    parts = ["COUNTA(PIs!$A:$A)>1" if n == "PIs" else f'{cfg(n)}<>""' for n in needs]
+    parts = ["COUNTA(PIs_from_user!$A:$A)>1" if n == "PIs" else f'{cfg(n)}<>""' for n in needs]
     return parts[0] if len(parts) == 1 else "AND(" + ",".join(parts) + ")"
 
 
@@ -71,8 +71,8 @@ HELPERS = (
                        f'({IF_}[IsSubTask]=1)*({IF_}[ParentType]<>"")))),0),0)'),
 )
 
-_PI_START = f'INDEX(PIs!$B:$B,MATCH([@PI],PIs!$A:$A,0))'
-_PI_END = f'INDEX(PIs!$C:$C,MATCH([@PI],PIs!$A:$A,0))'
+_PI_START = f'INDEX(PIs_from_user!$B:$B,MATCH([@PI],PIs_from_user!$A:$A,0))'
+_PI_END = f'INDEX(PIs_from_user!$C:$C,MATCH([@PI],PIs_from_user!$A:$A,0))'
 
 
 def _date(cell: str) -> str:
@@ -163,7 +163,7 @@ DATACHECKS_KEYS = ("Id", "Title", "Severity", "Need1", "Need2", "Need3", "Source
 
 
 def _need_ok(cell: str) -> str:
-    return f'IF({cell}="",TRUE,IF({cell}="PIs",COUNTA(PIs!$A:$A)>1,TRIM(INDEX(Config!$B:$B,MATCH({cell},Config!$A:$A,0)))<>""))'
+    return f'IF({cell}="",TRUE,IF({cell}="PIs",COUNTA(PIs_from_user!$A:$A)>1,TRIM(INDEX(Config_from_user!$B:$B,MATCH({cell},Config_from_user!$A:$A,0)))<>""))'
 
 
 DATACHECKS_COLUMNS = (

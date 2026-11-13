@@ -10,6 +10,7 @@ from jira2dashboard.mockjira.generator import AS_OF
 from jira2dashboard.mockjira.server import MOCK_EMAIL, MOCK_TOKEN
 from jira2dashboard.params.model import ParamsError, load_all
 from jira2dashboard.standalone import params_book as P
+from jira2dashboard import sheet_names as S
 from jira2dashboard.standalone.xlsx_write import Sheet, write_xlsx
 
 URL = "http://127.0.0.1:8099"
@@ -24,11 +25,11 @@ def book(tmp_path, values=None, change=None):
 
 
 def named(sheets, name):
-    return next(s for s in sheets if s.name == name)
+    return next(s for s in sheets if S.logical(s.name) == name)
 
 
 def replace(sheets, name, new):
-    index = next(n for n, s in enumerate(sheets) if s.name == name)
+    index = next(n for n, s in enumerate(sheets) if S.logical(s.name) == name)
     sheets[index] = new
 
 
@@ -68,7 +69,7 @@ def test_a_workbook_built_before_the_columns_example_and_mandatory_is_read(tmp_p
     def old(sheets):
         config = named(sheets, "Config")
         keep = [config.header.index(c) for c in ("Parameter", "Value", "Description")]
-        replace(sheets, "Config", Sheet("Config", tuple(config.header[i] for i in keep),
+        replace(sheets, "Config", Sheet(S.of("Config"), tuple(config.header[i] for i in keep),
                                         [tuple(row[i] for i in keep) for row in config.rows]))
     sheets = P.read_params(book(tmp_path, change=old))
     config = named(sheets, "Config")
@@ -82,7 +83,7 @@ def test_a_flag_typed_as_text_boolean_or_decimal_stays_a_number(tmp_path):
         rows = [list(r) for r in workflows.rows]
         rows[0][4], rows[1][4], rows[2][4] = "0", False, 0.0          # Nouveau, En analyse (the start), Prêt: IsStart
         rows[1][4] = True
-        replace(sheets, "Workflows", Sheet("Workflows", workflows.header, [tuple(r) for r in rows]))
+        replace(sheets, "Workflows", Sheet(S.of("Workflows"), workflows.header, [tuple(r) for r in rows]))
     sheets = P.read_params(book(tmp_path, change=typed))
     rows = named(sheets, "Workflows").rows
     assert (rows[0][4], rows[1][4], rows[2][4]) == (0, 1, 0)
@@ -123,7 +124,7 @@ def test_the_rules_of_the_md_files_apply_to_the_sheets(tmp_path):
         workflows = named(sheets, "Workflows")
         rows = [list(r) for r in workflows.rows]
         rows[1][3] = "Actif"
-        replace(sheets, "Workflows", Sheet("Workflows", workflows.header, [tuple(r) for r in rows]))
+        replace(sheets, "Workflows", Sheet(S.of("Workflows"), workflows.header, [tuple(r) for r in rows]))
     with pytest.raises(ParamsError, match=r"Workflows row 2: Category 'Actif'"):
         P.read_params(book(tmp_path, change=wrong))
 
@@ -132,7 +133,7 @@ def test_a_missing_sheet_or_column_is_named(tmp_path):
     def broken(sheets):
         sheets.remove(named(sheets, "PIs"))
         projects = named(sheets, "Projects")
-        replace(sheets, "Projects", Sheet("Projects", ("Project", "Team"), [(r[0], r[2]) for r in projects.rows]))
+        replace(sheets, "Projects", Sheet(S.of("Projects"), ("Project", "Team"), [(r[0], r[2]) for r in projects.rows]))
     with pytest.raises(ParamsError) as error:
         P.read_params(book(tmp_path, change=broken))
     assert "The workbook has no sheet PIs" in str(error.value)
@@ -141,7 +142,7 @@ def test_a_missing_sheet_or_column_is_named(tmp_path):
 
 def test_no_iteration_stops_the_run(tmp_path):
     def empty(sheets):
-        replace(sheets, "Iterations", Sheet("Iterations", ("Iteration-label", "Start", "End"), []))
+        replace(sheets, "Iterations", Sheet(S.of("Iterations"), ("Iteration-label", "Start", "End"), []))
     with pytest.raises(ParamsError, match="Sheet Iterations has no iteration"):
         P.run_settings(P.read_params(book(tmp_path, change=empty)))
 

@@ -1,5 +1,6 @@
 """The text behind the button Prompt for Rovo (rovo_prompt.py): what Rovo is asked, and the CSV it must answer."""
 from jira2dashboard import rovo_prompt as RP
+from jira2dashboard import sheet_names as S
 from jira2dashboard.params.model import SPECS
 
 
@@ -11,7 +12,7 @@ def test_every_rule_talks_about_a_parameter_sheet_of_the_workbook():
 
 def test_the_spec_has_one_config_part_and_one_sheet_part_per_rule_in_order():
     rows = RP.spec_rows()
-    assert [name for part, name, _text in rows if part == RP.SHEET] == list(RP.SHEET_RULES)
+    assert [name for part, name, _text in rows if part == RP.SHEET] == [S.of(name) for name in RP.SHEET_RULES]   # the real names
     assert [part for part, _name, _text in rows].count(RP.CONFIG) == 1
     parts = [part for part, _name, _text in rows]
     assert parts.index(RP.CONFIG) < parts.index(RP.SHEET)             # Config first, then the sheets, then the format
@@ -25,7 +26,7 @@ def test_rovo_is_asked_for_a_csv_with_the_columns_the_workbook_can_read_back():
     joined = "\n".join(text)
     assert "CSV" in joined and RP.UNKNOWN in joined
     for sheet in ("Config", *RP.SHEET_RULES):
-        assert sheet in joined.split("- Sheet:")[1].split("\n")[0], sheet           # each sheet is named in the format
+        assert S.of(sheet) in joined.split("- Sheet:")[1].split("\n")[0], sheet     # each sheet is named in the format, by its real name
 
 
 def test_the_connection_parameters_are_kept_out_of_the_load_and_exist_in_config():

@@ -176,10 +176,10 @@ Public Function RovoPromptLines(ByVal wb As Object) As Collection
     ' The Value column of Config is never read: it may hold the address, the e-mail or the token.
     Cov "PRM30"
     Dim out As New Collection, spec As Variant
-    For Each spec In ReadTable(wb.Worksheets(SHEET_ROVO_SPEC))
+    For Each spec In ReadTable(wb.Worksheets(SheetName(SHEET_ROVO_SPEC)))
         Select Case LCase$(CStr(spec("Part") & ""))
             Case "keep"                                                  ' a connection parameter: not part of the prompt text
-            Case "config": Cov "PRM31": AddConfigLines wb.Worksheets("Config"), out
+            Case "config": Cov "PRM31": AddConfigLines wb.Worksheets(SheetName("Config")), out
             Case "sheet": Cov "PRM32": out.Add SheetLine(wb, CStr(spec("Name") & ""), CStr(spec("Text") & ""))
             Case Else: Cov "PRM33": out.Add CStr(spec("Text") & "")
         End Select
@@ -203,7 +203,7 @@ Private Function SheetLine(ByVal wb As Object, ByVal name As String, ByVal rule 
     ' "SHEET Projects - columns: Project | Role | Team. rule", the columns read from the header row of the sheet.
     Dim ws As Object, c As Long, cols As String, head As String
     If Not SheetExists(wb, name) Then SheetLine = "SHEET " & name & " - this sheet is not in the workbook. " & rule: Exit Function
-    Set ws = wb.Worksheets(name)
+    Set ws = wb.Worksheets(SheetName(name))
     For c = 1 To ws.Columns.Count
         head = CStr(ws.Cells(1, c).Value & "")
         If Len(head) = 0 Then Exit For
@@ -220,11 +220,11 @@ Public Function WriteRovoPrompt(ByVal wb As Object) As Long
     Set lines = RovoPromptLines(wb)
     If lines.Count = 0 Then Err.Raise vbObjectError + 630, "WriteRovoPrompt", "The sheet " & SHEET_ROVO_SPEC & " has no row: rebuild the workbook."
     If SheetExists(wb, SHEET_ROVO) Then
-        Set ws = wb.Worksheets(SHEET_ROVO)
+        Set ws = wb.Worksheets(SheetName(SHEET_ROVO))
     Else
         Cov "PRM35"
         Set ws = wb.Worksheets.Add(, wb.Worksheets(wb.Worksheets.Count))
-        ws.Name = SHEET_ROVO
+        ws.Name = SheetName(SHEET_ROVO)
     End If
     ws.Cells.ClearContents
     ReDim data(1 To lines.Count, 1 To 1)
@@ -330,14 +330,14 @@ Public Function RovoCsvRead(ByVal wb As Object, ByVal text As String) As Object
     Set allowed = CreateObject("Scripting.Dictionary"): Set protected = CreateObject("Scripting.Dictionary")
     Set res("protected") = protected
     allowed("config") = True
-    For Each spec In ReadTable(wb.Worksheets(SHEET_ROVO_SPEC))
-        If LCase$(CStr(spec("Part") & "")) = "sheet" Then allowed(LCase$(CStr(spec("Name") & ""))) = True
+    For Each spec In ReadTable(wb.Worksheets(SheetName(SHEET_ROVO_SPEC)))
+        If LCase$(CStr(spec("Part") & "")) = "sheet" Then allowed(LCase$(LogicalSheet(CStr(spec("Name") & "")))) = True     ' the spec names the real sheets
         If LCase$(CStr(spec("Part") & "")) = "keep" Then protected(LCase$(CStr(spec("Name") & ""))) = True
     Next spec
     For Each rec In recs
         line = line + 1
         If line > 1 Then
-            sh = TrimWhite(CsvAt(rec, cSheet)): col = TrimWhite(CsvAt(rec, cCol)): v = TrimWhite(CsvAt(rec, cVal))
+            sh = LogicalSheet(TrimWhite(CsvAt(rec, cSheet))): col = TrimWhite(CsvAt(rec, cCol)): v = TrimWhite(CsvAt(rec, cVal))
             If Len(sh) = 0 And Len(col) = 0 And Len(v) = 0 Then
                 ' a blank line of the table
             ElseIf Not allowed.Exists(LCase$(sh)) Then
@@ -431,15 +431,15 @@ Public Function RovoCsvApply(ByVal wb As Object, ByVal res As Object) As String
         If Not SheetExists(wb, CStr(item(0))) Then
             problems.Add "The sheet " & item(0) & " is not in the workbook."
         Else
-            Set ws = wb.Worksheets(CStr(item(0)))
+            Set ws = wb.Worksheets(SheetName(CStr(item(0))))
             If StrComp(CStr(item(0)), "Config", vbTextCompare) = 0 Then
                 cParam = HeaderColumn(ws, "Parameter"): cValue = HeaderColumn(ws, "Value")
                 r = FindRow(ws, cParam, CStr(item(2)))
                 If r = 0 Or cValue = 0 Then
-                    problems.Add "Config has no parameter " & item(2) & "."
+                    problems.Add SheetName("Config") & " has no parameter " & item(2) & "."
                 ElseIf res("protected").Exists(LCase$(TrimWhite(CStr(ws.Cells(r, cParam).Value & "")))) Then
                     Cov "PRM52"
-                    problems.Add "Config parameter " & TrimWhite(CStr(ws.Cells(r, cParam).Value & "")) & " says where the credentials go: type it by hand."
+                    problems.Add SheetName("Config") & " parameter " & TrimWhite(CStr(ws.Cells(r, cParam).Value & "")) & " says where the credentials go: type it by hand."
                 Else
                     ws.Cells(r, cValue).Value = SafeCell(CStr(item(3)))
                     counts("Config") = Val(counts("Config") & "") + 1
@@ -462,7 +462,7 @@ Public Function RovoCsvApply(ByVal wb As Object, ByVal res As Object) As String
     Next k
     ' "Title | Name: value | ...": the Dashboard shows the title in its status cell and one row per field under it.
     summary = "Settings CSV loaded"
-    If counts.Exists("Config") Then summary = summary & " | Config: " & counts("Config") & " value(s): " & loaded & IIf(counts("Config") > 8, ", ...", "")
+    If counts.Exists("Config") Then summary = summary & " | " & SheetName("Config") & ": " & counts("Config") & " value(s): " & loaded & IIf(counts("Config") > 8, ", ...", "")
     summary = summary & names
     If counts.Count = 0 And Len(names) = 0 Then summary = summary & " | Result: nothing to load"
     summary = summary & " | Empty values: " & res("empty") & " (not loaded)" & " | UNKNOWN values: " & res("unknown") & " (not loaded)"

@@ -99,8 +99,8 @@ Public Sub BtnReadJiraConfiguration()
     LogRunStart "button Read the Jira configuration", LogLevelSetting()
     LogParameters ThisWorkbook                                      ' the inputs of the run (no value of the client)
     ShowProgress 0, "Reading the Jira configuration..."
-    RequireMandatory ThisWorkbook.Worksheets("Config"), "BaseUrl,Email,ApiToken"      ' only the connection is needed here
-    summary = ReadJiraConfiguration(JiraConfigFromWorkbook(), ProjectKeys(ThisWorkbook.Worksheets("Projects")), ThisWorkbook)
+    RequireMandatory ThisWorkbook.Worksheets(SheetName("Config")), "BaseUrl,Email,ApiToken"      ' only the connection is needed here
+    summary = ReadJiraConfiguration(JiraConfigFromWorkbook(), ProjectKeys(ThisWorkbook.Worksheets(SheetName("Projects"))), ThisWorkbook)
     LogRunEnd "ok"
     mExtracting = False
     EndRun summary, 1
@@ -129,10 +129,10 @@ Public Sub BtnRovoPrompt()
     LogBegin "prompt for Rovo"
     n = WriteRovoPrompt(ThisWorkbook)
     LogEnd "prompt for Rovo: " & n & " lines"
-    Set ws = ThisWorkbook.Worksheets(SHEET_ROVO)
+    Set ws = ThisWorkbook.Worksheets(SheetName(SHEET_ROVO))
     ws.Activate
     ws.Range(ws.Cells(1, 1), ws.Cells(n, 1)).Select
-    ShowProgress -1, "Rovo prompt | Lines: " & n & ", selected in the sheet " & SHEET_ROVO & _
+    ShowProgress -1, "Rovo prompt | Lines: " & n & ", selected in the sheet " & SheetName(SHEET_ROVO) & _
                      " | Next: Ctrl+C, paste into Rovo, save its CSV answer, then click Load settings CSV and choose the file"
     LogRunEnd "ok"
     Exit Sub
@@ -224,7 +224,7 @@ Public Sub ExtractSlice()
     Else
         BuildFlowSheetsIn ThisWorkbook
         LogRunEnd "ok"
-        EndRun "Done | Charts: the six flow metrics in the sheet " & CHARTS_SHEET & " | Figures: the sheet Metrics" & _
+        EndRun "Done | Charts: the six flow metrics in the sheet " & SheetName(CHARTS_SHEET) & " | Figures: the sheet " & SheetName("Metrics") & _
                " | Data checks: the sheet DataChecks", 1
     End If
     Exit Sub
@@ -259,7 +259,7 @@ Public Function ProgressSnapshot() As String
     ' read back from the cells, the headline (the cell dashStatus) then each row under it as " | Name: value".
     Dim shapes As Object, cell As Object, text As String, i As Long, name As String, value As String
     On Error Resume Next
-    Set shapes = ThisWorkbook.Worksheets("Dashboard").Shapes
+    Set shapes = ThisWorkbook.Worksheets(SheetName("Dashboard")).Shapes
     Set cell = ThisWorkbook.Names("dashStatus").RefersToRange
     text = CStr(cell.Value)
     For i = 1 To STATUS_ROWS
@@ -274,7 +274,7 @@ Private Function LogLevelSetting() As String
     ' Config LogLevel (Steps or Errors); Steps when the sheet or the row is missing.
     On Error Resume Next
     LogLevelSetting = "Steps"
-    LogLevelSetting = ConfigValue(ThisWorkbook.Worksheets("Config"), "LogLevel", "Steps")
+    LogLevelSetting = ConfigValue(ThisWorkbook.Worksheets(SheetName("Config")), "LogLevel", "Steps")
     Err.Clear
 End Function
 
@@ -282,7 +282,7 @@ Private Function OpenLogSetting() As Boolean
     ' Config OpenLogOnError (Yes or No); Yes when the sheet or the row is missing.
     On Error Resume Next
     OpenLogSetting = True
-    OpenLogSetting = IsYes(ConfigValue(ThisWorkbook.Worksheets("Config"), "OpenLogOnError", "Yes"))
+    OpenLogSetting = IsYes(ConfigValue(ThisWorkbook.Worksheets(SheetName("Config")), "OpenLogOnError", "Yes"))
     Err.Clear
 End Function
 
@@ -317,7 +317,7 @@ Private Sub ShowProgress(ByVal fraction As Double, ByVal text As String)
     ' field under it, the name in column A and the value in column B; the rows of the previous status are cleared first.
     Dim shapes As Object, cell As Object, parts As Collection, i As Long
     On Error Resume Next
-    Set shapes = ThisWorkbook.Worksheets("Dashboard").Shapes
+    Set shapes = ThisWorkbook.Worksheets(SheetName("Dashboard")).Shapes
     If fraction >= 0 Then shapes("pbFill").Width = shapes("pbBack").Width * fraction + 0.1
     Set cell = ThisWorkbook.Names("dashStatus").RefersToRange
     Set parts = StatusParts(text)

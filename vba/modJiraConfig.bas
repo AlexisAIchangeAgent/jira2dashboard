@@ -468,11 +468,11 @@ End Sub
 Private Sub WriteProposal(ByVal wb As Object, ByVal name As String, ByVal headers As Variant, ByVal rows As Collection)
     Dim ws As Object
     If SheetExists(wb, name) Then
-        Set ws = wb.Worksheets(name)
+        Set ws = wb.Worksheets(SheetName(name))
     Else
         Cov "JCF23"
         Set ws = wb.Worksheets.Add(, wb.Worksheets(wb.Worksheets.Count))
-        ws.Name = name
+        ws.Name = SheetName(name)
     End If
     WriteTable ws, headers, rows
 End Sub

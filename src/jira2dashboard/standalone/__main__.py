@@ -36,6 +36,7 @@ from jira2dashboard.standalone.http_winhttp import JiraClient, WinHttp, took
 from jira2dashboard.standalone.mapping import FieldIds, extracted, interval_rows
 from jira2dashboard.standalone.params_book import read_params, run_settings
 from jira2dashboard.standalone.proxy import choose_proxy, detect_proxy
+from jira2dashboard import sheet_names as S
 from jira2dashboard import version
 from jira2dashboard.standalone.xlsx_read import NotAWorkbook, defined_name
 from jira2dashboard.standalone.xlsx_write import Sheet, XlsxLocked, write_xlsx
@@ -138,7 +139,7 @@ def _masked(sheets) -> list[Sheet]:
         if sheet.name == "Config":
             value = sheet.header.index("Value")
             rows = [r[:value] + (MASK if r[0] in SECRET_PARAMETERS and r[value] else r[value],) + r[value + 1:] for r in rows]
-        out.append(Sheet(sheet.name, sheet.header, rows))
+        out.append(Sheet(S.of(sheet.name), sheet.header, rows))
     return out
 
 
@@ -214,27 +215,30 @@ def run(args, formatter: Scrubbed, collected: Collected, sleep=time.sleep, detec
         ("Issues", len(extract.rows)), ("Changelog items", extract.changelog_items),
         ("Status intervals", len(intervals)), ("Blocking links", len(extract.links)),
         ("Retries of a call to Jira", client.retries), ("Flow Distribution chart", args.team),
-        ("Warnings", f"{len(collected.rows)} (sheet Errors)"), ("Log", str(Path(args.log).resolve())),
+        ("Warnings", f"{len(collected.rows)} (sheet {ERRORS_SHEET})"), ("Log", str(Path(args.log).resolve())),
         ("Duration (s)", round(time.monotonic() - started, 1)),
     ]
     sheets_out = [
-        Sheet("Run", ("Item", "Value"), run_rows),
-        Sheet("Charts", rows=[("The charts of the run, drawn by Python (SVG pictures: Excel 365 shows them).",)],
+        Sheet(RUN_SHEET, ("Item", "Value"), run_rows),
+        Sheet(S.of("Charts"), rows=[("The charts of the run, drawn by Python (SVG pictures: Excel 365 shows them).",)],
               pictures=pictures, pictures_per_row=D.CHARTS_PER_ROW),
-        Sheet("Metrics", R.METRICS, R.metrics_rows(results, settings)),
-        Sheet("PIMetrics", R.PI_METRICS, R.pimetrics_rows(results, settings)),
-        Sheet("DataChecks", R.DATA_CHECKS, R.data_check_rows(results.flags, results.fill, settings.checks)),
-        Sheet("FillRates", R.FILL_RATES, R.fillrates_rows(results.fill)),
-        Sheet("ItemFlow", R.ITEMFLOW, R.itemflow_rows(results, extract.rows, extract.flow, settings.projects)),
-        Sheet("DailyLoad", R.DAILY_LOAD, R.dailyload_rows(results, first, end)),
-        Sheet("Issues", ISSUES, extract.rows),
-        Sheet("StatusIntervals", INTERVALS_RAW, intervals),
-        Sheet("IssueLinks", ("Blocker", "Blocked"), extract.links),
-        Sheet("Errors", ("TimeUtc", "Level", "Message"), collected.rows),
+        Sheet(S.of("Metrics"), R.METRICS, R.metrics_rows(results, settings)),
+        Sheet(S.of("PIMetrics"), R.PI_METRICS, R.pimetrics_rows(results, settings)),
+        Sheet(S.of("DataChecks"), R.DATA_CHECKS, R.data_check_rows(results.flags, results.fill, settings.checks)),
+        Sheet(S.of("FillRates"), R.FILL_RATES, R.fillrates_rows(results.fill)),
+        Sheet(S.of("ItemFlow"), R.ITEMFLOW, R.itemflow_rows(results, extract.rows, extract.flow, settings.projects)),
+        Sheet(S.of("DailyLoad"), R.DAILY_LOAD, R.dailyload_rows(results, first, end)),
+        Sheet(S.of("Issues"), ISSUES, extract.rows),
+        Sheet(S.of("StatusIntervals"), INTERVALS_RAW, intervals),
+        Sheet(S.of("IssueLinks"), ("Blocker", "Blocked"), extract.links),
+        Sheet(ERRORS_SHEET, ("TimeUtc", "Level", "Message"), collected.rows),
     ] + _masked(sheets)
     write_xlsx(out, sheets_out)
     return out
 
+
+RUN_SHEET = S.of("Run")                     # sheets of this path only: written by the tool, like the calculated ones
+ERRORS_SHEET = S.of("Errors")
 
 UNEXPECTED_CODE = "J2D-SYS-099"
 

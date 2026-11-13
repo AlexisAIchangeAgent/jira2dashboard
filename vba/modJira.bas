@@ -87,7 +87,7 @@ Public Function JiraConfigFromSheet(ByVal wsConfig As Object) As Object
 End Function
 
 Public Function JiraConfigFromWorkbook() As Object
-    Set JiraConfigFromWorkbook = JiraConfigFromSheet(ThisWorkbook.Worksheets("Config"))
+    Set JiraConfigFromWorkbook = JiraConfigFromSheet(ThisWorkbook.Worksheets(SheetName("Config")))
 End Function
 
 Public Function ProjectsJql(ByVal projectKeys As Collection, Optional ByVal filter As String = "") As String

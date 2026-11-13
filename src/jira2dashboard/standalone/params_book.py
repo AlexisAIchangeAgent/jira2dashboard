@@ -12,6 +12,7 @@ import re
 from dataclasses import dataclass
 from pathlib import Path
 
+from jira2dashboard import sheet_names as S
 from jira2dashboard.flow.checks import FIELD_PARAMETERS, CheckSettings, Moves
 from jira2dashboard.flow.model import Iteration, Rules
 from jira2dashboard.params.model import (CONFIG_PARAMETERS, SPECS, ParamSheet, ParamsError, _parse_moment,
@@ -114,14 +115,14 @@ def missing_mandatory(config: ParamSheet) -> list[str]:
 
 def read_params(path: Path) -> list[ParamSheet]:
     """The parameter sheets of the workbook at `path`, in workbook order. Raises ParamsError listing every problem."""
-    grids = read_sheets(path, set(SHEETS))
+    grids = read_sheets(path, {S.of(name) for name in SHEETS})       # the real names: Config_from_user...
     problems: list[str] = []
     sheets: dict[str, ParamSheet] = {}
     for spec in (s for s in SPECS if s.name in SHEETS):
-        if spec.name not in grids:
-            problems.append(f"The workbook has no sheet {spec.name}")
+        if S.of(spec.name) not in grids:
+            problems.append(f"The workbook has no sheet {S.of(spec.name)}")
             continue
-        sheets[spec.name] = sheet_from_grid(spec, grids[spec.name], problems)
+        sheets[spec.name] = sheet_from_grid(spec, grids[S.of(spec.name)], problems)
     if "Config" in sheets:
         sheets["Config"] = complete_config(sheets["Config"])
         problems += config_problems(sheets["Config"])

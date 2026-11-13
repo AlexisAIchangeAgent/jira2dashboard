@@ -32,8 +32,8 @@ _row_index = row_index
 # --- StatusIntervals: helper columns after the raw ones ------------------------------------------------
 
 INTERVAL_HELPERS = (
-    ("IsStart", "=SUMIFS(Workflows!$E:$E,Workflows!$A:$A,[@Workflow],Workflows!$C:$C,[@Status])"),
-    ("IsEnd", "=SUMIFS(Workflows!$F:$F,Workflows!$A:$A,[@Workflow],Workflows!$C:$C,[@Status])"),
+    ("IsStart", "=SUMIFS(Workflows_from_user!$E:$E,Workflows_from_user!$A:$A,[@Workflow],Workflows_from_user!$C:$C,[@Status])"),
+    ("IsEnd", "=SUMIFS(Workflows_from_user!$F:$F,Workflows_from_user!$A:$A,[@Workflow],Workflows_from_user!$C:$C,[@Status])"),
     ("PrevCategory", f'=IF([@Seq]=1,"",INDEX({SI}[Category],{_row_index(SI)}-1))'),
     ("Team", f"=INDEX({IF_}[Team],MATCH([@Key],{IF_}[Key],0))"),
     ("Bucket", f"=INDEX({IF_}[WorkTypeBucket],MATCH([@Key],{IF_}[Key],0))"),
@@ -44,8 +44,8 @@ INTERVAL_HELPERS = (
     # DC28: the move from the previous status is not in Transitions (same workflow) and the status is not free (IsFree)
     ("BadMove", f'=IF([@Seq]=1,0,IF(OR(COUNTIFS({bounded("Transitions", "A", TRANSITIONS_LAST)},[@Workflow],'
                 f'{bounded("Transitions", "B", TRANSITIONS_LAST)},[@PrevStatus],'
-                f'{bounded("Transitions", "C", TRANSITIONS_LAST)},[@Status])>0,SUMIFS(Workflows!$G:$G,Workflows!$A:$A,[@Workflow],'
-                'Workflows!$C:$C,[@Status])>0),0,1))'),
+                f'{bounded("Transitions", "C", TRANSITIONS_LAST)},[@Status])>0,SUMIFS(Workflows_from_user!$G:$G,Workflows_from_user!$A:$A,[@Workflow],'
+                'Workflows_from_user!$C:$C,[@Status])>0),0,1))'),
 )
 
 
@@ -67,9 +67,9 @@ ITEMFLOW_COLUMNS = (
     ("Project", f"=INDEX({IS}[Project],{_row_index(IF_)})"),
     ("Type", f"=INDEX({IS}[Type],{_row_index(IF_)})"),
     ("WorkType", f'=IF(INDEX({IS}[WorkType],{_row_index(IF_)})="","",INDEX({IS}[WorkType],{_row_index(IF_)}))'),
-    ("Role", '=IFERROR(INDEX(Projects!$B:$B,MATCH([@Project],Projects!$A:$A,0)),"")'),
+    ("Role", '=IFERROR(INDEX(Projects_from_user!$B:$B,MATCH([@Project],Projects_from_user!$A:$A,0)),"")'),
     ("Workflow", '=IF([@Role]="Program","Feature","Team")'),
-    ("Team", '=IF([@Role]="Program","ART",IFERROR(INDEX(Projects!$C:$C,MATCH([@Project],Projects!$A:$A,0)),""))'),
+    ("Team", '=IF([@Role]="Program","ART",IFERROR(INDEX(Projects_from_user!$C:$C,MATCH([@Project],Projects_from_user!$A:$A,0)),""))'),
     ("CreatedUtc", f"=INDEX({IS}[CreatedUtc],{_row_index(IF_)})"),
     ("LastBacklogUtc", f'=MAXIFS({SI}[EnteredUtc],{SI}[Key],[@Key],{SI}[Category],"Backlog")'),
     ("FirstStartUtc", f'=IF(COUNTIFS({SI}[Key],[@Key],{SI}[IsStart],1)=0,"",'
@@ -170,7 +170,7 @@ PIMETRICS_KEYS = ("PI",)
 
 def _pi_date(column: str) -> str:
     # a date typed in Excel is a number; Load settings CSV writes an ISO text ('2026-12-01): DATEVALUE reads it, as DC18
-    return f'=IFERROR(LET(v,INDEX(PIs!${column}:${column},MATCH([@PI],PIs!$A:$A,0)),IF(ISNUMBER(v),IF(v>0,v,""),DATEVALUE(v))),"")'
+    return f'=IFERROR(LET(v,INDEX(PIs_from_user!${column}:${column},MATCH([@PI],PIs_from_user!$A:$A,0)),IF(ISNUMBER(v),IF(v>0,v,""),DATEVALUE(v))),"")'
 
 
 PIMETRICS_COLUMNS = (
@@ -185,7 +185,7 @@ PIMETRICS_COLUMNS = (
 
 # --- control cells of the Metrics sheet: the as-of date and the Flow Load mode, read from Config ------------
 
-CONFIG_VALUE = 'INDEX(Config!$B:$B,MATCH("{name}",Config!$A:$A,0))'
+CONFIG_VALUE = 'INDEX(Config_from_user!$B:$B,MATCH("{name}",Config_from_user!$A:$A,0))'
 # A date typed in the cell is a number, ISO text (2026-11-03 18:00) is parsed, an empty cell is #N/A (not 1900).
 AS_OF_CELL = ('=LET(v,' + CONFIG_VALUE.format(name="AsOf") + ',IF(ISNUMBER(v),v,'
               'LET(t,SUBSTITUTE(TRIM(v),"T"," "),'

@@ -6,6 +6,7 @@ import pywintypes                     # pywintypes.com_error
 import win32com.client as win32       # DispatchEx
 import win32process                   # GetWindowThreadProcessId (cleanup)
 import winreg                         # read the VBA trust setting (standard library)
+from jira2dashboard import sheet_names as S   # the suffix of a sheet: where its data comes from
 
 
 # Excel
@@ -185,10 +186,11 @@ def new_workbook(app):
     return app.Workbooks.Add(XL_WBAT_WORKSHEET)
 
 def add_sheet_after_last(wb, name: str):
-    """Add a worksheet at the end and name it."""
+    """Add a worksheet at the end and name it: `name` is the logical name (`Config`), the sheet gets its real one
+    (`Config_from_user`, see sheet_names)."""
     last = wb.Worksheets(wb.Worksheets.Count)
     ws = wb.Worksheets.Add(None, last)        # positional: (Before, After). Tested.
-    ws.Name = name
+    ws.Name = S.of(name)
     return ws
 
 

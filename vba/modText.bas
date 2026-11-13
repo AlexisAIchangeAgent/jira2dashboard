@@ -1,6 +1,45 @@
 Option Explicit
 ' Text helpers: UTF-8, Base64, URL encoding, Jira dates, field values to cells. Plain VBA: no ADODB.Stream, no MSXML.
 
+' ---------- The names of the worksheets ----------
+' The suffix of a sheet says where its data comes from: typed by the person, read from the Jira API, or calculated by Excel.
+' The code keeps the LOGICAL names ("Config", "Issues"...) and SheetName gives the real one where it meets Excel. The same three
+' lists as the Python side (src/jira2dashboard/sheet_names.py): tests/unit/test_sheet_names.py compares them.
+Private Const USER_SHEETS As String = "|Config|Projects|Iterations|PIs|Workflows|Transitions|FieldMapping|"
+Private Const JIRA_SHEETS As String = "|Issues|StatusIntervals|IssueLinks|JiraIssueTypes|JiraStatuses|JiraWorkflows|JiraTransitions|JiraFields|JiraProjectWorkflows|JiraProjectFields|JiraFieldUsage|"
+Private Const EXCEL_SHEETS As String = "|Dashboard|Charts|Manual|ErrorCodes|Steps|ItemFlow|DailyLoad|Metrics|PIMetrics|DataChecks|FillRates|Controls|ChartData|FlowFormulas|ChartSpec|ChecksSpec|RovoPromptSpec|RovoPrompt|Run|Errors|"
+Private Const SUFFIX_USER As String = "_from_user"
+Private Const SUFFIX_JIRA As String = "_from_Jira"
+Private Const SUFFIX_EXCEL As String = "_from_excel"
+
+Public Function SheetName(ByVal logical As String) As String
+    ' "Config" -> "Config_from_user", "Issues" -> "Issues_from_Jira", "Metrics" -> "Metrics_from_excel". A real name, or a name
+    ' the workbook does not know (the scratch sheet of a test), comes back as it is.
+    If InStr(1, USER_SHEETS, "|" & logical & "|", vbBinaryCompare) > 0 Then
+        Cov "TXT31": SheetName = logical & SUFFIX_USER
+    ElseIf InStr(1, JIRA_SHEETS, "|" & logical & "|", vbBinaryCompare) > 0 Then
+        Cov "TXT32": SheetName = logical & SUFFIX_JIRA
+    ElseIf InStr(1, EXCEL_SHEETS, "|" & logical & "|", vbBinaryCompare) > 0 Then
+        Cov "TXT33": SheetName = logical & SUFFIX_EXCEL
+    Else
+        Cov "TXT34": SheetName = logical
+    End If
+End Function
+
+Public Function LogicalSheet(ByVal name As String) As String
+    ' "Config_from_user" -> "Config". Any other text (a logical name, an unknown sheet) comes back as it is.
+    Dim suffix As Variant, base As String
+    LogicalSheet = name
+    For Each suffix In Array(SUFFIX_USER, SUFFIX_JIRA, SUFFIX_EXCEL)
+        If Len(name) > Len(suffix) Then
+            If Right$(name, Len(suffix)) = suffix Then
+                base = Left$(name, Len(name) - Len(suffix))
+                If SheetName(base) <> base Then Cov "TXT35": LogicalSheet = base: Exit Function
+            End If
+        End If
+    Next suffix
+End Function
+
 Public Function Utf8Encode(ByVal text As String) As Byte()
     ' Plain VBA, no ADODB.Stream (an endpoint protection reads a stream next to an HTTP client as a downloader). No BOM.
     ' A lone surrogate becomes U+FFFD. Empty text gives an empty (uninitialised) array.

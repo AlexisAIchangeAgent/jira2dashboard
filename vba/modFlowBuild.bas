@@ -18,14 +18,14 @@ Public Function SheetExists(ByVal wb As Object, ByVal name As String) As Boolean
     Cov "FLB01"
     Dim ws As Object
     For Each ws In wb.Worksheets
-        If ws.Name = name Then SheetExists = True: Exit Function
+        If ws.Name = SheetName(name) Then SheetExists = True: Exit Function
     Next ws
 End Function
 
 Private Function AddSheet(ByVal wb As Object, ByVal name As String) As Object
     Cov "FLB02"
     Set AddSheet = wb.Worksheets.Add(, wb.Worksheets(wb.Worksheets.Count))
-    AddSheet.Name = name
+    AddSheet.Name = SheetName(name)
 End Function
 
 Private Function AsText(ByVal s As String) As String
@@ -46,8 +46,8 @@ Public Sub ClearFlowSheets(ByVal wb As Object)
     DeleteDerived wb
     For Each nm In Array("Issues", "StatusIntervals", "IssueLinks")
         If SheetExists(wb, CStr(nm)) Then
-            UnlistAll wb.Worksheets(CStr(nm))
-            wb.Worksheets(CStr(nm)).Cells.Clear
+            UnlistAll wb.Worksheets(SheetName(CStr(nm)))
+            wb.Worksheets(SheetName(CStr(nm))).Cells.Clear
         End If
     Next nm
 End Sub
@@ -56,16 +56,16 @@ Private Sub DeleteDerived(ByVal wb As Object)
     Cov "FLB04"
     Dim nm As Variant, i As Long, alerts As Boolean
     If SheetExists(wb, CHARTS_SHEET) Then                 ' the charts and the notes under them; the sheet and its selector stay
-        For i = wb.Worksheets(CHARTS_SHEET).ChartObjects.Count To 1 Step -1
-            wb.Worksheets(CHARTS_SHEET).ChartObjects(i).Delete
+        For i = wb.Worksheets(SheetName(CHARTS_SHEET)).ChartObjects.Count To 1 Step -1
+            wb.Worksheets(SheetName(CHARTS_SHEET)).ChartObjects(i).Delete
         Next i
-        wb.Worksheets(CHARTS_SHEET).Range("A4:R400").ClearContents
+        wb.Worksheets(SheetName(CHARTS_SHEET)).Range("A4:R400").ClearContents
     End If
     alerts = Application.DisplayAlerts
     Application.DisplayAlerts = False
     On Error GoTo Restore
     For Each nm In Array("ChartData", "ItemFlow", "DailyLoad", "Metrics", "PIMetrics", "DataChecks", "FillRates", "Controls")
-        If SheetExists(wb, CStr(nm)) Then wb.Worksheets(CStr(nm)).Delete
+        If SheetExists(wb, CStr(nm)) Then wb.Worksheets(SheetName(CStr(nm))).Delete
     Next nm
 Restore:
     Application.DisplayAlerts = alerts
@@ -77,7 +77,7 @@ Private Function ReadFormulas(ByVal wb As Object) As Object
     Cov "FLB05"
     Dim out As Object, row As Variant, name As String
     Set out = CreateObject("Scripting.Dictionary")
-    For Each row In ReadTable(wb.Worksheets("FlowFormulas"))
+    For Each row In ReadTable(wb.Worksheets(SheetName("FlowFormulas")))
         name = CStr(row("Table"))
         If Not out.Exists(name) Then Set out(name) = New Collection
         out(name).Add Array(CStr(row("Column")), CStr(row("Formula") & ""))
@@ -218,12 +218,12 @@ Private Sub LoadPlan(ByVal wb As Object, ByRef spec As Object, ByRef teams As Co
     For Each nm In Array("FlowFormulas", "ChartSpec", "ChecksSpec", "Config", "Iterations", "PIs", "Projects", "Workflows", _
                          "Transitions", "Dashboard", CHARTS_SHEET, "Issues", "StatusIntervals", "IssueLinks")
         If Not SheetExists(wb, CStr(nm)) Then
-            Err.Raise vbObjectError + 705, "BuildFlowSheets", "Sheet " & nm & " is missing: rebuild the workbook with scripts\run.ps1 build."
+            Err.Raise vbObjectError + 705, "BuildFlowSheets", "Sheet " & SheetName(CStr(nm)) & " is missing: rebuild the workbook with scripts\run.ps1 build."
         End If
     Next nm
     Set spec = ReadFormulas(wb)
-    Set teams = TeamNames(wb.Worksheets("Projects"), SettingOf(spec, "Dashboard", "ProgramTeam"))
-    Set iterations = IterationRows(wb.Worksheets("Iterations"))
+    Set teams = TeamNames(wb.Worksheets(SheetName("Projects")), SettingOf(spec, "Dashboard", "ProgramTeam"))
+    Set iterations = IterationRows(wb.Worksheets(SheetName("Iterations")))
     If iterations.Count = 0 Then
         Cov "FLB15"
         Err.Raise vbObjectError + 703, "BuildFlowSheets", "Sheet Iterations has no iteration: fill Iteration-label, Start and End first."
@@ -254,7 +254,7 @@ Public Sub BuildFlowSheetsIn(ByVal wb As Object)
     Application.ScreenUpdating = screen
     LogEnd "flow sheets: calculation"
     On Error Resume Next
-    wb.Worksheets("Dashboard").Activate                  ' the sheets added by the build must not leave another one in front
+    wb.Worksheets(SheetName("Dashboard")).Activate                  ' the sheets added by the build must not leave another one in front
     Exit Sub
 Failed:
     num = Err.Number: desc = Err.Description
@@ -270,10 +270,10 @@ Private Sub BuildAll(ByVal wb As Object, ByVal spec As Object, ByVal teams As Co
     Dim wsP As Object, loP As Object, pis As Collection
     LogBegin "flow sheets: prepare"
     DeleteDerived wb
-    Set wsI = wb.Worksheets("Issues"): Set wsS = wb.Worksheets("StatusIntervals")
+    Set wsI = wb.Worksheets(SheetName("Issues")): Set wsS = wb.Worksheets(SheetName("StatusIntervals"))
     PrepareRaw wsI, spec("Issues")
     PrepareRaw wsS, spec("StatusIntervals")
-    Set wsL = wb.Worksheets("IssueLinks")
+    Set wsL = wb.Worksheets(SheetName("IssueLinks"))
     PrepareRaw wsL, spec("IssueLinks")
     Dim issues As Long, checks As Long, fills As Long
     issues = UsedRows(wsI)
@@ -286,7 +286,7 @@ Private Sub BuildAll(ByVal wb As Object, ByVal spec As Object, ByVal teams As Co
     WriteDailyKeys wsD, iterations, teams
     WriteMetricKeys wsM, iterations, teams
     WritePiKeys wsP, pis
-    checks = WriteCheckKeys(wsC, wb.Worksheets("ChecksSpec"))
+    checks = WriteCheckKeys(wsC, wb.Worksheets(SheetName("ChecksSpec")))
     fills = WriteFillKeys(wsR, spec("FillFields"), wb, teams)
     LogEnd "flow sheets: keys"
     ' every table exists before any formula is written: the formulas refer to each other's columns
@@ -340,7 +340,7 @@ Private Sub BuildControls(ByVal wb As Object, ByVal spec As Object)
     For i = 1 To spec("Controls").Count
         ws.Cells(i, 1).Value = spec("Controls")(i)(0)
         ws.Cells(i, 2).Formula2 = spec("Controls")(i)(1)
-        wb.Names.Add spec("Controls")(i)(0), "=Controls!$B$" & i
+        wb.Names.Add spec("Controls")(i)(0), "=" & SheetName("Controls") & "!$B$" & i
     Next i
     ws.Cells(1, 2).NumberFormat = "yyyy-mm-dd hh:mm:ss"
     ws.Columns("A:B").AutoFit
@@ -465,11 +465,11 @@ Private Function WriteFillKeys(ByVal ws As Object, ByVal fields As Collection, B
     ' id is empty in Config (a system field always counts). Returns the number of rows.
     Cov "FLB31"
     Dim types As Collection, names As New Collection, pair As Variant, t As Long, k As Long, f As Long, r As Long, data() As Variant
-    Set types = IssueTypes(wb.Worksheets("Issues"))
+    Set types = IssueTypes(wb.Worksheets(SheetName("Issues")))
     For Each pair In fields
         If Len(CStr(pair(1))) = 0 Then
             names.Add CStr(pair(0))
-        ElseIf Len(ConfigValue(wb.Worksheets("Config"), CStr(pair(1)))) > 0 Then
+        ElseIf Len(ConfigValue(wb.Worksheets(SheetName("Config")), CStr(pair(1)))) > 0 Then
             names.Add CStr(pair(0))
         End If
     Next pair
@@ -493,13 +493,13 @@ Private Sub BuildCharts(ByVal wb As Object, ByVal spec As Object, ByVal teams As
                         ByVal pis As Collection)
     Cov "FLB21"
     Dim data As Object, dash As Object, row As Variant, index As Long, stride As Long
-    Set dash = wb.Worksheets(CHARTS_SHEET)               ' a sheet of their own: on the Dashboard they hid its cells
+    Set dash = wb.Worksheets(SheetName(CHARTS_SHEET))               ' a sheet of their own: on the Dashboard they hid its cells
     Set data = AddSheet(wb, "ChartData")
     stride = IIf(pis.Count > iterations.Count, pis.Count, iterations.Count)     ' a block: one row per iteration or PI
     LogBegin "flow sheets: charts: selector | " & teams.Count & " teams, " & iterations.Count & " iterations, " & pis.Count & " PIs"
     WriteSelectorList wb, dash, data, spec, teams
     LogEnd "flow sheets: charts: selector"
-    For Each row In ReadTable(wb.Worksheets("ChartSpec"))
+    For Each row In ReadTable(wb.Worksheets(SheetName("ChartSpec")))
         BuildChart dash, data, row, 1 + index * (stride + 4), teams, iterations, pis
         index = index + 1
     Next row
@@ -513,7 +513,7 @@ Private Function PiNames(ByVal wb As Object, ByVal noPi As String) As Collection
     Dim out As New Collection, seen As Object, ws As Object, last As Long, r As Long, v As String
     Cov "FLB37"
     Set seen = CreateObject("Scripting.Dictionary")
-    Set ws = wb.Worksheets("PIs")
+    Set ws = wb.Worksheets(SheetName("PIs"))
     last = ws.Cells(ws.Rows.Count, 1).End(-4162).Row     ' -4162 = xlUp
     For r = 2 To last
         v = Trim$(CStr(ws.Cells(r, 1).Value & ""))
@@ -533,11 +533,11 @@ Private Sub FeaturePis(ByVal out As Collection, ByVal seen As Object, ByVal wb A
     ' Only a valid PI (PI#XX-YYYY) counts: a malformed one is for DC17 and DC29.
     Dim wsI As Object, last As Long, types As Variant, pis As Variant, features As Object, extra As New Collection
     Dim r As Long, j As Long, v As String, t As Variant
-    Set wsI = wb.Worksheets("Issues")
+    Set wsI = wb.Worksheets(SheetName("Issues"))
     last = UsedRows(wsI)
     If last < 1 Then Exit Sub
     Set features = CreateObject("Scripting.Dictionary")              ' binary compare: case-sensitive, as FIND in IsFeature
-    For Each t In Split(ConfigValue(wb.Worksheets("Config"), "FeatureTypes"), ",")
+    For Each t In Split(ConfigValue(wb.Worksheets(SheetName("Config")), "FeatureTypes"), ",")
         If Len(TrimWhite(CStr(t))) > 0 Then features(TrimWhite(CStr(t))) = True
     Next t
     types = IssueColumn(wsI, "Type", last)
@@ -596,7 +596,7 @@ Private Sub WriteSelectorList(ByVal wb As Object, ByVal dash As Object, ByVal da
         If CStr(cell.Value) = CStr(teams(i)) Then found = True
     Next i
     cell.Validation.Delete
-    cell.Validation.Add 3, 1, 1, "=ChartData!" & data.Range(data.Cells(2, listColumn), data.Cells(teams.Count + 2, listColumn)).Address   ' list, stop on error, between
+    cell.Validation.Add 3, 1, 1, "=" & SheetName("ChartData") & "!" & data.Range(data.Cells(2, listColumn), data.Cells(teams.Count + 2, listColumn)).Address   ' list, stop on error, between
     If Not found Then Cov "FLB23": cell.Value = allTeams
 End Sub
 
@@ -678,7 +678,7 @@ Private Sub BuildChart(ByVal dash As Object, ByVal data As Object, ByVal row As 
     stage = "series"
     For j = 1 To count
         Set s = ch.SeriesCollection.NewSeries
-        s.Name = "=ChartData!" & data.Cells(top + 1, 1 + j).Address
+        s.Name = "=" & SheetName("ChartData") & "!" & data.Cells(top + 1, 1 + j).Address
         s.Values = data.Range(data.Cells(first, 1 + j), data.Cells(last, 1 + j))
         s.XValues = data.Range(data.Cells(first, 1), data.Cells(last, 1))
     Next j
@@ -690,7 +690,7 @@ Private Sub BuildChart(ByVal dash As Object, ByVal data As Object, ByVal row As 
             data.Cells(top + 1, 2 + count + j).Value = IIf(j = 0, "Target band low", "Target band high")
             data.Range(data.Cells(first, 2 + count + j), data.Cells(last, 2 + count + j)).Value = Val(band(j))
             Set s = ch.SeriesCollection.NewSeries
-            s.Name = "=ChartData!" & data.Cells(top + 1, 2 + count + j).Address
+            s.Name = "=" & SheetName("ChartData") & "!" & data.Cells(top + 1, 2 + count + j).Address
             s.Values = data.Range(data.Cells(first, 2 + count + j), data.Cells(last, 2 + count + j))
             s.XValues = data.Range(data.Cells(first, 1), data.Cells(last, 1))
             s.ChartType = 65                                 ' xlLineMarkers: a line needs two points, one PI shows only its markers
@@ -712,7 +712,7 @@ Private Sub BuildChart(ByVal dash As Object, ByVal data As Object, ByVal row As 
     stage = "note"
     Set rng = data.Range(data.Cells(first, 2), data.Cells(last, 1 + count))
     dash.Cells(CLng(row("AnchorRow")) + CLng(row("Rows")), CLng(row("AnchorColumn"))).Formula2 = _
-        Replace(CStr(row("NoteFormula")), "{range}", "ChartData!" & rng.Address)
+        Replace(CStr(row("NoteFormula")), "{range}", SheetName("ChartData") & "!" & rng.Address)
     LogEnd "flow sheets: charts: " & CStr(row("Name"))
     Exit Sub
 Failed:

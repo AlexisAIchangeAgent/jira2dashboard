@@ -13,6 +13,7 @@ import pytest
 import pywintypes
 from pytest_bdd import given, parsers, scenarios, then, when
 
+from jira2dashboard import sheet_names as S
 from jira2dashboard import manual, mock_workbook
 from jira2dashboard.build_workbook import build_delivery
 from jira2dashboard.excel import com
@@ -88,7 +89,7 @@ def jira_server():
 
 
 def set_config(wb, name, value):
-    ws = wb.Worksheets("Config")
+    ws = wb.Worksheets(S.of("Config"))
     row = next(r for r in range(2, 30) if ws.Cells(r, 1).Value == name)
     ws.Cells(row, 2).Value = com.as_cell(value)
 
@@ -168,7 +169,7 @@ FIELD_IDS = mock_workbook.FIELD_IDS          # Config parameter -> attribute of 
 
 
 def put_pis(wb, rows):
-    ws = wb.Worksheets("PIs")
+    ws = wb.Worksheets(S.of("PIs"))
     ws.Range("A2:C20").ClearContents()
     for n, (name, start, end) in enumerate(rows, start=2):
         ws.Cells(n, 1).Value = com.as_cell(name)
@@ -196,7 +197,7 @@ def _check_fields_empty(world):
 @given(parsers.parse('les itérations de 14 jours depuis le "{first}" jusqu\'à la date de référence dans la feuille Iterations'))
 def _iterations(world, first):
     iterations = mock_workbook.iterations(dt.datetime.fromisoformat(first), world["dataset"].as_of)
-    mock_workbook.write_iterations(world["wb"].Worksheets("Iterations"), iterations)    # the iterations of an earlier run go
+    mock_workbook.write_iterations(world["wb"].Worksheets(S.of("Iterations")), iterations)    # the iterations of an earlier run go
     world["iterations"] = iterations
 
 
@@ -293,7 +294,7 @@ def _cancel(world):
 
 @then("la barre de progression avance sans reculer, le classeur répond entre deux tranches et l'extraction se termine")
 def _progress(world):
-    wb, dash = world["wb"], world["wb"].Worksheets("Dashboard")
+    wb, dash = world["wb"], world["wb"].Worksheets(S.of("Dashboard"))
     ticks = checks = 0
 
     def usable(text):
@@ -314,12 +315,12 @@ def _progress(world):
     kinds = {text.split(":")[0] for text, _bar in samples}
     assert "Reading Jira" in kinds, kinds        # the search has many slices; the other steps are one slice each (not always seen)
     dash.Range("R1").ClearContents()
-    assert retry(lambda: wb.Worksheets("ItemFlow").ListObjects("ItemFlow").ListRows.Count) == len(world["items"])
+    assert retry(lambda: wb.Worksheets(S.of("ItemFlow")).ListObjects("ItemFlow").ListRows.Count) == len(world["items"])
 
 
 def status_rows(world) -> list[tuple[str, str]]:
     """The rows under the status cell of the Dashboard: (name in column A, value in column B), up to the first empty row."""
-    dash = world["wb"].Worksheets("Dashboard")
+    dash = world["wb"].Worksheets(S.of("Dashboard"))
     first = dash.Range(D.STATUS_CELL)
     rows = []
     for offset in range(1, D.STATUS_ROWS + 1):
@@ -569,7 +570,7 @@ def pi_names(wb) -> list[str]:
 def chart_blocks(wb, world):
     """{chart name: (series names, row keys, rows of points)} read from the sheet ChartData. A row is an iteration, a PI, or
     a day for the daily curve; the series of a band are not in the names (they are checked on their own)."""
-    ws, iterations, pis = wb.Worksheets("ChartData"), len(world["iterations"]), pi_names(wb)
+    ws, iterations, pis = wb.Worksheets(S.of("ChartData")), len(world["iterations"]), pi_names(wb)
     days = (world["iterations"][-1].end - world["iterations"][0].start).days
     stride = max(iterations, len(pis))                       # a block: one row per iteration or PI (modFlowBuild.BuildCharts)
     blocks = {}
@@ -590,6 +591,23 @@ def team_names():
     return blueprint.team_names([tuple(row) for row in projects.rows])
 
 
+@then("chaque feuille du classeur porte le suffixe de sa source")
+def _every_sheet_says_its_source(world):
+    """_from_user = typed by the person, _from_Jira = read from Jira, _from_excel = calculated or drawn (sheet_names.py)."""
+    for sheet in world["wb"].Worksheets:
+        kind = S.source(sheet.Name)
+        assert kind and S.logical(sheet.Name) != sheet.Name and sheet.Name.endswith(S.SUFFIX[kind]), sheet.Name
+
+
+@then("les feuilles à saisir sont _from_user, celles lues dans Jira sont _from_Jira et celles calculées sont _from_excel")
+def _the_sheets_by_source(world):
+    names = {sheet.Name for sheet in world["wb"].Worksheets}
+    assert {S.of(n) for n in ("Config", "Projects", "Iterations", "PIs", "Workflows", "Transitions", "FieldMapping")} <= names
+    assert {name for name in names if name.endswith(S.FROM_USER)} == {S.of(n) for n in S.USER}
+    assert {name for name in names if name.endswith(S.FROM_JIRA)} == {S.of(n) for n in ("Issues", "StatusIntervals", "IssueLinks")}
+    assert S.of("Dashboard") in names and S.of("Charts") in names and S.of("Manual") in names
+
+
 @then("les feuilles de flux ont exactement la taille des nouvelles données")
 def _sizes(world):
     wb, teams, iterations = world["wb"], team_names(), world["iterations"]
@@ -598,8 +616,8 @@ def _sizes(world):
     assert size["StatusIntervals"] == sum(len(item.intervals) for item in world["items"])
     assert size["DailyLoad"] == (iterations[-1].end - iterations[0].start).days * len(teams)
     assert size["Metrics"] == len(iterations) * len(teams)
-    assert wb.Worksheets(D.CHARTS_SHEET).ChartObjects().Count == len(D.CHARTS) == 9
-    assert wb.Worksheets("Dashboard").ChartObjects().Count == 0                  # nothing hides the Dashboard
+    assert wb.Worksheets(S.of(D.CHARTS_SHEET)).ChartObjects().Count == len(D.CHARTS) == 9
+    assert wb.Worksheets(S.of("Dashboard")).ChartObjects().Count == 0                  # nothing hides the Dashboard
     names = [sheet.Name for sheet in wb.Worksheets]
     assert len(names) == len(set(names)), names
 
@@ -675,7 +693,7 @@ def _chart_data(world, mode):
 
 @then("chaque graphique a une série par équipe ou par type de travail avec les valeurs de ChartData")
 def _series(world):
-    wb, dash = world["wb"], world["wb"].Worksheets(D.CHARTS_SHEET)
+    wb, dash = world["wb"], world["wb"].Worksheets(S.of(D.CHARTS_SHEET))
     blocks = chart_blocks(wb, world)
     assert {co.Name for co in dash.ChartObjects()} == {s.name for s in D.CHARTS}
     for spec in D.CHARTS:
@@ -700,7 +718,7 @@ def _series(world):
 
 @then("le graphique Flow Distribution suit l'équipe choisie dans la cellule B2")
 def _distribution(world):
-    wb, dash, as_of = world["wb"], world["wb"].Worksheets(D.CHARTS_SHEET), world["dataset"].as_of
+    wb, dash, as_of = world["wb"], world["wb"].Worksheets(S.of(D.CHARTS_SHEET)), world["dataset"].as_of
     expected = {(m.iteration, m.team): m for m in flow_metrics(world["items"], world["iterations"], "A", as_of)}
     by_team = {}
     for (_p, team), m in expected.items():
@@ -782,7 +800,7 @@ MSO_FORM_CONTROL = 8                 # Shape.Type of a Form button
 
 def sheet_rows(wb, name):
     """Rows of a proposal sheet as dicts (header -> value); empty cells as ""."""
-    values = wb.Worksheets(name).UsedRange.Value
+    values = wb.Worksheets(S.of(name)).UsedRange.Value
     header, rows = values[0], values[1:]
     return [{h: ("" if v is None else v) for h, v in zip(header, row)} for row in rows]
 
@@ -803,10 +821,10 @@ def _preview_refused(world, status):
 @when("je clique sur le bouton Lire la configuration Jira")
 def _read_configuration(world):
     wb = world["wb"]
-    world["params_before"] = {name: wb.Worksheets(name).UsedRange.Value for name in PARAMETER_SHEETS}
+    world["params_before"] = {name: wb.Worksheets(S.of(name)).UsedRange.Value for name in PARAMETER_SHEETS}
     world["log_from"] = log_file(world).stat().st_size if log_file(world).exists() else 0
     buttons = {shape.TextFrame.Characters().Text: (shape.OnAction, shape.TopLeftCell.Address)
-               for shape in wb.Worksheets("Dashboard").Shapes if shape.Type == MSO_FORM_CONTROL}
+               for shape in wb.Worksheets(S.of("Dashboard")).Shapes if shape.Type == MSO_FORM_CONTROL}
     on_action, cell = buttons["Read the Jira configuration"]                  # the button the user clicks is there
     assert on_action.endswith(sheets.CONFIG_MACRO), on_action
     assert cell.replace("$", "") == D.CONFIG_CELL, cell
@@ -924,7 +942,7 @@ def _field_usage(world):
 @then("les feuilles de paramètres n'ont pas changé")
 def _parameters_kept(world):
     wb = world["wb"]
-    assert {name: wb.Worksheets(name).UsedRange.Value for name in PARAMETER_SHEETS} == world["params_before"]
+    assert {name: wb.Worksheets(S.of(name)).UsedRange.Value for name in PARAMETER_SHEETS} == world["params_before"]
 
 
 @then("les feuilles JiraWorkflows et JiraTransitions n'ont que leurs en-têtes")
@@ -948,7 +966,7 @@ def _configuration_log(world):
 # --- rovo_prompt.feature: the button Prompt for Rovo ---------------------------------------------------------------------
 
 def rovo_lines(world) -> list[str]:
-    cells = world["wb"].Worksheets("RovoPrompt").UsedRange.Value
+    cells = world["wb"].Worksheets(S.of("RovoPrompt")).UsedRange.Value
     return ["" if row[0] is None else str(row[0]) for row in cells]
 
 
@@ -956,14 +974,14 @@ def rovo_lines(world) -> list[str]:
 def _rovo_click(world):
     wb = world["wb"]
     buttons = {shape.TextFrame.Characters().Text: (shape.OnAction, shape.TopLeftCell.Address)
-               for shape in wb.Worksheets("Dashboard").Shapes if shape.Type == MSO_FORM_CONTROL}
+               for shape in wb.Worksheets(S.of("Dashboard")).Shapes if shape.Type == MSO_FORM_CONTROL}
     on_action, cell = buttons[D.ROVO_CAPTION]                                  # the button the user clicks is there
     assert on_action.endswith(sheets.ROVO_MACRO), on_action
     assert cell.replace("$", "") == D.ROVO_CELL, cell
     world["log_from"] = log_file(world).stat().st_size if log_file(world).exists() else 0
     macro(world, on_action.rpartition(".")[2])
     world["status"] = macro(world, "ProgressSnapshot").partition("|")[2]
-    world["config_before"] = [(r[0], r[1]) for r in wb.Worksheets("Config").UsedRange.Value[1:]]
+    world["config_before"] = [(r[0], r[1]) for r in wb.Worksheets(S.of("Config")).UsedRange.Value[1:]]
 
 
 @then("la feuille RovoPrompt liste chaque paramètre de la feuille Config avec son caractère obligatoire")
@@ -980,8 +998,8 @@ def _rovo_config(world):
 def _rovo_sheets(world):
     text = "\n".join(rovo_lines(world))
     for name in RP.SHEET_RULES:
-        header = [h for h in world["wb"].Worksheets(name).Range("A1:Z1").Value[0] if h not in (None, "Example")]
-        assert f"SHEET {name} - columns: {' | '.join(header)}. " in text, name
+        header = [h for h in world["wb"].Worksheets(S.of(name)).Range("A1:Z1").Value[0] if h not in (None, "Example")]
+        assert f"SHEET {S.of(name)} - columns: {' | '.join(header)}. " in text, name
 
 
 @then("la feuille RovoPrompt demande une réponse en CSV avec les colonnes Sheet, Row, Column, Value et Note")
@@ -1049,7 +1067,7 @@ def _rovo_mock_csv(world):
 
 @then("la feuille Config a reçu la date de référence et les champs du faux Jira, et aucun paramètre de connexion")
 def _rovo_mock_config(world):
-    config = {name: ("" if value is None else str(value)) for name, value, *_ in world["wb"].Worksheets("Config").UsedRange.Value[1:]}
+    config = {name: ("" if value is None else str(value)) for name, value, *_ in world["wb"].Worksheets(S.of("Config")).UsedRange.Value[1:]}
     expected = mock_workbook.config_values(mock_workbook.base_url(8099))
     for name in ["AsOf", "WorkTypeField", *mock_workbook.FIELD_IDS]:
         assert config[name] == expected[name], (name, config[name])
@@ -1059,7 +1077,7 @@ def _rovo_mock_config(world):
 @then("les feuilles Iterations et PIs ont les itérations et le PI du faux Jira")
 def _rovo_mock_iterations(world):
     for name, expected in (("Iterations", mock_workbook.iterations()), ("PIs", mock_workbook.PIS)):
-        rows = [row for row in world["wb"].Worksheets(name).UsedRange.Value[1:] if row[0] is not None]
+        rows = [row for row in world["wb"].Worksheets(S.of(name)).UsedRange.Value[1:] if row[0] is not None]
         got = [(str(r[0]), as_day(r[1]), as_day(r[2])) for r in rows]
         assert got == [(i.name, f"{i.start:%Y-%m-%d}", f"{i.end:%Y-%m-%d}") for i in expected], (name, got[:2])
 
@@ -1078,11 +1096,11 @@ def _rovo_no_problem(world):
 def _rovo_load(world):
     wb = world["wb"]
     buttons = {shape.TextFrame.Characters().Text: (shape.OnAction, shape.TopLeftCell.Address)
-               for shape in wb.Worksheets("Dashboard").Shapes if shape.Type == MSO_FORM_CONTROL}
+               for shape in wb.Worksheets(S.of("Dashboard")).Shapes if shape.Type == MSO_FORM_CONTROL}
     on_action, cell = buttons[D.ROVO_LOAD_CAPTION]                              # the button the user clicks is there
     assert on_action.endswith(sheets.ROVO_LOAD_MACRO), on_action
     assert cell.replace("$", "") == D.ROVO_LOAD_CELL, cell
-    world["before"] = {name: wb.Worksheets(name).UsedRange.Value for name in PARAMETER_SHEETS}
+    world["before"] = {name: wb.Worksheets(S.of(name)).UsedRange.Value for name in PARAMETER_SHEETS}
     macro(world, "ProgressSnapshot")                                           # the proxies of the scenario
     world["log_from"] = log_file(world).stat().st_size if log_file(world).exists() else 0
     app, prefix = world["app"], world["prefix"]
@@ -1104,7 +1122,7 @@ def _rovo_log(world, how):
 
 @then("la feuille Config a reçu FillRateThreshold et aucun paramètre de connexion")
 def _rovo_config_loaded(world):
-    before, after = world["before"]["Config"], world["wb"].Worksheets("Config").UsedRange.Value
+    before, after = world["before"]["Config"], world["wb"].Worksheets(S.of("Config")).UsedRange.Value
     changed = [row[0] for old, row in zip(before, after) if old != row]
     assert changed == ["FillRateThreshold"], changed                              # BaseUrl of the CSV was not loaded
     values = dict((row[0], row[1]) for row in after)
@@ -1129,13 +1147,13 @@ def _rovo_iterations(world):
 def _rovo_others_kept(world):
     wb = world["wb"]
     for name in ("Workflows", "Transitions", "FieldMapping"):
-        assert wb.Worksheets(name).UsedRange.Value == world["before"][name], name
+        assert wb.Worksheets(S.of(name)).UsedRange.Value == world["before"][name], name
 
 
 @then("l'état du tableau de bord résume ce qui est chargé et les valeurs inconnues")
 def _rovo_summary(world):
-    assert world["summary"].startswith("Settings CSV loaded | Config: 1 value(s): FillRateThreshold | Projects: 2 row(s) | "
-                                       "Iterations: 1 row(s) | Empty values: 1 (not loaded) | UNKNOWN values: 2 (not loaded)"), world["summary"]
+    assert world["summary"].startswith("Settings CSV loaded | Config_from_user: 1 value(s): FillRateThreshold | Projects_from_user: 2 row(s) | "
+                                       "Iterations_from_user: 1 row(s) | Empty values: 1 (not loaded) | UNKNOWN values: 2 (not loaded)"), world["summary"]
     assert " | Problems: 2, first: Line 3: BaseUrl says where the credentials go" in world["summary"], world["summary"]
 
 
@@ -1144,7 +1162,7 @@ def _rovo_summary(world):
 def dashboard_buttons(wb):
     """{caption: OnAction} of the Form buttons of the Dashboard."""
     return {shape.TextFrame.Characters().Text: shape.OnAction
-            for shape in wb.Worksheets("Dashboard").Shapes if shape.Type == MSO_FORM_CONTROL}
+            for shape in wb.Worksheets(S.of("Dashboard")).Shapes if shape.Type == MSO_FORM_CONTROL}
 
 
 def column_values(ws, row, column, count):
@@ -1158,7 +1176,7 @@ def _delivered(world, flow_workbook):
 
 @then("le Dashboard donne les premières étapes, avec « Read the Jira configuration » avant « Extract from Jira and compute »")
 def _first_steps(world):
-    dash, steps = world["wb"].Worksheets("Dashboard"), manual.first_steps()
+    dash, steps = world["wb"].Worksheets(S.of("Dashboard")), manual.first_steps()
     first = dash.Range(D.STEPS_CELL)
     assert column_values(dash, first.Row, first.Column, len(steps) + 1) == steps + [None]     # nothing after the block
     assert first.Font.Bold
@@ -1170,9 +1188,9 @@ def _first_steps(world):
 @then("l'onglet Manual suit le Dashboard et reproduit le manuel")
 def _manual_sheet(world):
     wb = world["wb"]
-    assert [wb.Worksheets(1).Name, wb.Worksheets(2).Name] == ["Dashboard", manual.MANUAL_SHEET]
+    assert [wb.Worksheets(1).Name, wb.Worksheets(2).Name] == [S.of("Dashboard"), S.of(manual.MANUAL_SHEET)]
     config = next(sheet for sheet in load_all() if sheet.name == "Config")
-    rows, ws = manual.manual(mandatory_parameters(config)), wb.Worksheets(manual.MANUAL_SHEET)
+    rows, ws = manual.manual(mandatory_parameters(config)), wb.Worksheets(S.of(manual.MANUAL_SHEET))
     assert column_values(ws, 1, 1, len(rows) + 1) == [text for _kind, text in rows] + [None]
     assert [bool(ws.Cells(n, 1).Font.Bold) for n in range(1, len(rows) + 1)] == [kind == manual.HEADING
                                                                                  for kind, _text in rows]
@@ -1180,7 +1198,7 @@ def _manual_sheet(world):
 
 @then("la feuille Config a les colonnes Example et Mandatory")
 def _mandatory_column(world):
-    ws = world["wb"].Worksheets("Config")
+    ws = world["wb"].Worksheets(S.of("Config"))
     assert [ws.Cells(1, column).Value for column in range(1, 6)] == [
         "Parameter", "Value", "Example", "Mandatory", "Description"]
 
@@ -1204,7 +1222,7 @@ def _mandatory_named(world, names):
     assert f"(Mandatory = True): {names} | Log: " in world["status"], world["status"]          # the log path ends it
     assert world["status"].endswith(str(log_file(world))), world["status"]                   # next to the workbook
     rows = status_rows(world)                                                                 # A3 the title, one row per field
-    assert world["wb"].Worksheets("Dashboard").Range(D.STATUS_CELL).Value == "Stopped", rows
+    assert world["wb"].Worksheets(S.of("Dashboard")).Range(D.STATUS_CELL).Value == "Stopped", rows
     assert [name for name, _value in rows] == ["Code", "Message", "Log"] and rows[0][1] == "J2D-CFG-002", rows
     errors = [line for line in log_file(world).read_text(encoding="ascii").splitlines() if " ERROR " in line]
     assert errors and " ERROR J2D-CFG-002 | Btn" in errors[-1] and " | vbObjectError+608 | " in errors[-1], errors   # the code the client reads out

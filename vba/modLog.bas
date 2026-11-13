@@ -128,27 +128,27 @@ End Function
 Public Sub LogParameters(ByVal wb As Object)
     ' The inputs of the run, after its RUN line: "PARAM <name> = <value>" for each row of Config (ParameterShown: only the
     ' settings of the tool in clear), then "PARAM sheet <name> = <n> rows" for each parameter sheet. Never raises.
-    Dim ws As Object, row As Variant, sheetName As Variant, n As Long
+    Dim ws As Object, row As Variant, sheetKey As Variant, n As Long
     Cov "LOG32"
     On Error Resume Next
     If Not SheetExists(wb, "Config") Then
         Cov "LOG33"
         LogLine "PARAM", "no sheet Config"
     Else
-        Set ws = wb.Worksheets("Config")
+        Set ws = wb.Worksheets(SheetName("Config"))
         For Each row In ReadTable(ws)
             LogLine "PARAM", CStr(row("Parameter")) & " = " & ParameterShown(CStr(row("Parameter")), ParameterText(row("Value")))
         Next row
     End If
-    For Each sheetName In Split(PARAMETER_SHEETS, ",")
-        If SheetExists(wb, CStr(sheetName)) Then
-            n = Application.WorksheetFunction.CountA(wb.Worksheets(CStr(sheetName)).Columns(1)) - 1     ' the header apart
-            LogLine "PARAM", "sheet " & sheetName & " = " & n & IIf(n = 1, " row", " rows")
+    For Each sheetKey In Split(PARAMETER_SHEETS, ",")
+        If SheetExists(wb, CStr(sheetKey)) Then
+            n = Application.WorksheetFunction.CountA(wb.Worksheets(SheetName(CStr(sheetKey))).Columns(1)) - 1     ' the header apart
+            LogLine "PARAM", "sheet " & sheetKey & " = " & n & IIf(n = 1, " row", " rows")
         Else
             Cov "LOG34"
-            LogLine "PARAM", "sheet " & sheetName & " = missing"
+            LogLine "PARAM", "sheet " & sheetKey & " = missing"
         End If
-    Next sheetName
+    Next sheetKey
     Err.Clear
 End Sub
 
@@ -257,11 +257,11 @@ Private Sub StepsReset()
     Set mStepSheet = Nothing
     Set shown = Application.ActiveSheet
     If SheetExists(ThisWorkbook, STEPS_SHEET) Then
-        Set mStepSheet = ThisWorkbook.Worksheets(STEPS_SHEET)
+        Set mStepSheet = ThisWorkbook.Worksheets(SheetName(STEPS_SHEET))
     Else
         Cov "LOG22"
         Set mStepSheet = ThisWorkbook.Worksheets.Add(, ThisWorkbook.Worksheets(ThisWorkbook.Worksheets.Count))
-        mStepSheet.Name = STEPS_SHEET
+        mStepSheet.Name = SheetName(STEPS_SHEET)
         mStepSheet.Columns(1).ColumnWidth = 70
         mStepSheet.Columns(2).ColumnWidth = 12
         mStepSheet.Columns(3).ColumnWidth = 18

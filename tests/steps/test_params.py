@@ -4,6 +4,7 @@ import shutil
 import pytest
 from pytest_bdd import given, parsers, scenarios, then, when
 
+from jira2dashboard import sheet_names as S
 from jira2dashboard.params import model
 from jira2dashboard.params.write import EXAMPLES
 from jira2dashboard.paths import PARAMS_DIR
@@ -90,7 +91,7 @@ def _workbook(world, built_workbook):
 def _sheet_matches_file(world, sheet, filename):
     expected = next(s for s in model.load_all() if s.name == sheet)
     assert (PARAMS_DIR / filename).is_file()
-    values = world["wb"].Worksheets(sheet).UsedRange.Value
+    values = world["wb"].Worksheets(S.of(sheet)).UsedRange.Value
     width = len(expected.header)
     actual = [tuple(_normalize(v) for v in row[:width]) for row in values]
     if sheet in EXAMPLES:      # Iterations and PIs: the column Example sits next to the table, in rows the file leaves empty

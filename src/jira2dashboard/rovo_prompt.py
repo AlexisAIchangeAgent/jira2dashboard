@@ -7,6 +7,8 @@ mandatory or optional, description, example: never its Value, which may hold the
 part `sheet` as "SHEET <name> - columns: <header of the sheet>. <rule>". The user copies the sheet into Rovo and exports
 its answer as CSV (Sheet, Row, Column, Value, Note).
 """
+from jira2dashboard import sheet_names as S
+
 SPEC_SHEET = "RovoPromptSpec"
 PROMPT_SHEET = "RovoPrompt"
 SPEC_HEADER = ("Part", "Name", "Text")
@@ -32,7 +34,7 @@ INTRO = (
     "your answer: do not write a line for them.",
     "",
 )
-CONFIG_TITLE = ("SHEET Config - one line per parameter: name, mandatory or optional, meaning, and an example of the form "
+CONFIG_TITLE = (f"SHEET {S.of('Config')} - one line per parameter: name, mandatory or optional, meaning, and an example of the form "
                 "of the value:")
 SHEET_RULES = {
     "Projects": "One row per Jira project to extract. Project = the Jira project key. Role = Program for the project that "
@@ -50,8 +52,8 @@ SHEET_RULES = {
                  "Category = Backlog, Active (work in progress), Wait (waiting), Done, Removed (cancelled) or Unclassified. "
                  "IsStart = 1 for the status where the work starts and IsEnd = 1 for the final status: exactly one of each "
                  "per Workflow. IsFree = 1 for a status reachable from any status; 0 otherwise.",
-    "Transitions": "One row per allowed move between two statuses. Workflow = Team or Feature, as in the sheet Workflows. "
-                   "From and To = status names listed for that same Workflow in the sheet Workflows. Type = forward, back, "
+    "Transitions": "One row per allowed move between two statuses. Workflow = Team or Feature, as in the sheet " + S.of("Workflows") + ". "
+                   "From and To = status names listed for that same Workflow in the sheet " + S.of("Workflows") + ". Type = forward, back, "
                    "back to backlog or exit.",
 }
 FORMAT = (
@@ -59,12 +61,12 @@ FORMAT = (
     "Answer with ONE table that I can export as CSV (comma separated, UTF-8, one header row, a value that contains a comma "
     "between double quotes), with exactly these columns:",
     ",".join(CSV_COLUMNS),
-    "- Sheet: Config, " + ", ".join(SHEET_RULES) + ".",
-    "- Row: empty for Config; 1, 2, 3... for the other sheets (one number per line of the sheet).",
-    "- Column: the parameter name for Config; the column name for the other sheets.",
+    "- Sheet: " + ", ".join(S.of(name) for name in ("Config", *SHEET_RULES)) + ".",
+    "- Row: empty for " + S.of("Config") + "; 1, 2, 3... for the other sheets (one number per line of the sheet).",
+    "- Column: the parameter name for " + S.of("Config") + "; the column name for the other sheets.",
     "- Value: what to type in the cell.",
     "- Note: where you found it in Jira, or what I must check. Keep it short.",
-    "Give one line for every parameter of Config except the connection parameters, even when the Value is " + UNKNOWN + ", and "
+    "Give one line for every parameter of " + S.of("Config") + " except the connection parameters, even when the Value is " + UNKNOWN + ", and "
     "one line for every cell of the other sheets. No text outside the table.",
 )
 
@@ -75,7 +77,7 @@ def spec_rows() -> list[tuple[str, str, str]]:
     rows.append((TEXT, "", CONFIG_TITLE))
     rows.append((CONFIG, "", ""))
     rows.append((TEXT, "", ""))
-    rows += [(SHEET, name, rule) for name, rule in SHEET_RULES.items()]
+    rows += [(SHEET, S.of(name), rule) for name, rule in SHEET_RULES.items()]
     rows += [(TEXT, "", line) for line in FORMAT]
     rows += [(KEEP, name, "connection parameter: typed by hand, never loaded from the CSV") for name in PROTECTED]
     return rows
