@@ -50,7 +50,7 @@ Private Function TestNames() As Variant
     TestNames = Array("T_JsonNested", "T_JsonEscapes", "T_JsonEmpty", "T_JsonErrors", "T_JsonRoundTrip", _
         "T_JsonLarge", "T_Base64Auth", "T_UrlEncode", "T_Utf8RoundTrip", "T_JiraDates", "T_FieldToCell", _
         "T_SafeCell", "T_ProjectsJql", "T_SearchUrl", "T_SearchPagination", "T_Retry429", _
-        "T_HttpNetworkAndCancel", "T_RetryExhausted", "T_ChangelogChunks", "T_IssueRows", "T_WriteTable", "T_StatusIntervals", "T_IntervalsUnreadableDate", "T_StatusChangesUnreadableDate", "T_DateShape", "T_SkippedDatesWarning", "T_SheetName", "T_ProposeFromSheets", "T_ProposeKindOf", "T_ProposeValuesNotAdmin", _
+        "T_HttpNetworkAndCancel", "T_RetryExhausted", "T_ChangelogChunks", "T_IssueRows", "T_WriteTable", "T_StatusIntervals", "T_IntervalsUnreadableDate", "T_StatusChangesUnreadableDate", "T_DateShape", "T_SkippedDatesWarning", "T_SheetName", "T_ProposeFromSheets", "T_ProposeIterations", "T_ReadSprints", "T_ProposeKindOf", "T_ProposeValuesNotAdmin", "T_HealthFields", _
         "T_StatusChanges", "T_RetryDelay", "T_SafeAccess", "T_FilesUtf8", "T_StringifyBadObject", _
         "T_TooManyPages", "T_BackgroundExport", "T_TextNotConverted", "T_ParamsTables", "T_ParamsOnWorkbook", _
         "T_TrimWhite", "T_ConfigSheet", "T_MandatoryConfig", "T_ProxyDetect", "T_ProxyScript", "T_ProjectsSheet", "T_ParseMoment", "T_ExtractFlowData", "T_ExtractJob", "T_ExtractCheckFields", "T_FlowBuild", "T_BaseUrlHttps", "T_Log", "T_LogInputsAndTimes", "T_StatusParts", "T_ErrorCodes", "T_LogHintAndOpen", "T_StepsSheet", "T_RovoPrompt", "T_RovoCsv", _
@@ -1905,6 +1905,15 @@ Private Function ProposalBook() As Object
                                     Array("customfield_4", "PI", "Yes", "option", ""), _
                                     Array("customfield_5", "Business Value", "Yes", "number", ""), _
                                     Array("customfield_6", "business value", "Yes", "number", ""))
+    PutRows wb, "Iterations", Array(Array("Iteration-label", "Start", "End"), Array("I0", "2026-01-01", "2026-01-15"))
+    PutRows wb, "JiraSprints", Array(Array("Id", "Project", "Board", "Sprint", "State", "Start", "End"), _
+        Array("1", "TA", "Board TA", "A Sprint 1", "closed", "2026-01-01T09:00:00.000+0000", "2026-01-14T17:00:00.000+0000"), _
+        Array("2", "TA", "Board TA", "A Sprint 2", "closed", "2026-01-15T09:00:00.000+0000", "2026-01-28T17:00:00.000+0000"), _
+        Array("3", "TB", "Board TB", "B Sprint 2", "closed", "2026-01-16T09:00:00.000+0000", "2026-01-28T17:00:00.000+0000"), _
+        Array("4", "TA", "Board TA", "Sprint 3", "closed", "2026-01-29T09:00:00.000+0000", "2026-02-12T09:00:00.000+0000"), _
+        Array("5", "TB", "Board TB", "Sprint 3", "closed", "2026-01-29T09:00:00.000+0000", "2026-02-12T09:00:00.000+0000"), _
+        Array("6", "TA", "Board TA", "Sprint 4", "active", "2026-02-12T09:00:00.000+0000", "2026-02-25T17:00:00.000+0000"), _
+        Array("7", "TA", "Board TA", "Sprint 5", "future", "", ""))
     Application.DisplayAlerts = False
     wb.Worksheets(1).Delete
     Application.DisplayAlerts = True
@@ -1946,6 +1955,50 @@ Public Sub T_ProposeFromSheets()
     Application.DisplayAlerts = True
 End Sub
 
+Public Sub T_ProposeIterations()
+    ' The sprints of the teams that start and end on the same days (+- 1 day) are one iteration; the sheet gets only the ones it lacks.
+    Dim wb As Object, ws As Object, summary As String, yellow As Long
+    yellow = RGB(255, 242, 204)
+    Set wb = ProposalBook()
+    summary = ProposeFromSheets(wb)
+    Set ws = wb.Worksheets(SheetName("Iterations"))
+    Check "propose", "the iteration the sheet has is left as typed", "I0", "I0", CStr(ws.Cells(2, 1).Value)
+    Check "propose", "two teams, two names, the same days: one iteration, named by its start", "Iteration 2026-01-15", _
+          "Iteration 2026-01-15|2026-01-15|2026-01-29", RowText(ws, 3, 3)
+    Check "propose", "the shared name is the label; the end is cut at the start of the next iteration (no day twice)", "Sprint 3", "Sprint 3|2026-01-29|2026-02-12", RowText(ws, 4, 3)
+    Check "propose", "the end is the day after the last day", "Sprint 4", "Sprint 4|2026-02-12|2026-02-26", RowText(ws, 5, 3)
+    Check "propose", "a sprint inside an iteration the sheet has adds nothing; a sprint without dates neither", "rows", 5, LastRow(ws)
+    Check "propose", "the summary counts them", "3", True, InStr(summary, " | Iterations_from_user: 3 proposed") > 0
+    Check "propose", "a proposed iteration is yellow with a note", "label", yellow & "|To confirm: proposed from Jira", ws.Cells(3, 1).Interior.Color & "|" & ws.Cells(3, 1).Comment.Text
+    Check "propose", "its dates are ISO text, as the sheet reads them", "Start", "2026-01-15", CStr(ws.Cells(3, 2).Value)
+    Application.DisplayAlerts = False
+    wb.Close False
+    Application.DisplayAlerts = True
+End Sub
+
+Public Sub T_ReadSprints()
+    ' The sprints of the scrum boards of the projects: two boards of a project, paged; a sprint shared by two boards comes once;
+    ' a Kanban board (400) and a project whose boards the account cannot read (403) are skipped, never an error.
+    Dim cfg As Object, keys As New Collection, base As String, rows As Collection, noBoard As Long
+    Set cfg = TestConfig(): base = cfg("BaseUrl")
+    keys.Add "TA": keys.Add "ZZ": keys.Add "TK"
+    FakeReset
+    FakeAdd "GET", BoardsUrl(base, "TA", 0), 200, J("{'isLast':false,'values':[{'id':7,'name':'Board TA'}]}")
+    FakeAdd "GET", BoardsUrl(base, "TA", 1), 200, J("{'isLast':true,'values':[{'id':8,'name':'Board TA kanban'}]}")
+    FakeAdd "GET", SprintsUrl(base, "7", 0), 200, J("{'isLast':false,'values':[{'id':1,'name':'S1','state':'closed','startDate':'2026-01-01T09:00:00.000+0000'," & _
+        "'endDate':'2026-01-14T17:00:00.000+0000'}]}")
+    FakeAdd "GET", SprintsUrl(base, "7", 1), 200, J("{'isLast':true,'values':[{'id':2,'name':'S2','state':'future'}]}")
+    FakeAdd "GET", SprintsUrl(base, "8", 0), 400, J("{'errorMessages':['The board does not support sprints']}")
+    FakeAdd "GET", BoardsUrl(base, "ZZ", 0), 403, J("{'errorMessages':['no permission']}")
+    FakeAdd "GET", BoardsUrl(base, "TK", 0), 200, J("{'isLast':true,'values':[{'id':7,'name':'Board TA again'}]}")
+    FakeAdd "GET", SprintsUrl(base, "7", 0), 200, J("{'isLast':true,'values':[{'id':1,'name':'S1','state':'closed'}]}")
+    Set rows = ReadSprints(cfg, keys, noBoard)
+    Check "sprints", "the sprints of a board, page by page", "S1 then S2", "1|TA|Board TA|S1|closed|2026-01-01T09:00:00.000+0000|2026-01-14T17:00:00.000+0000;2|TA|Board TA|S2|future||", _
+          Join(Array(Join(rows(1), "|"), Join(rows(2), "|")), ";")
+    Check "sprints", "a sprint shared by two boards comes once", "S1", 2, rows.Count
+    Check "sprints", "a Kanban board and an unreadable project are skipped", "ZZ", 1, noBoard
+End Sub
+
 Public Sub T_ProposeKindOf()
     ' Feature only when every project that uses the Jira workflow is the Program; an unknown project makes it Team.
     Dim roleOf As Object
@@ -1975,6 +2028,7 @@ Public Sub T_ProposeValuesNotAdmin()
         "{'id':'6','name':'Shipped','statusCategory':{'key':'done','name':'Done'}}]}]")
     FakeAdd "GET", CreateMetaUrl(base, "TB", "10002", 0), 403, J("{'errorMessages':['no permission']}")
     FakeAdd "GET", JiraSearchUrl(base, ProjectsJql(ColOf("TB")), "", JIRA_PAGE_SIZE, "*all", "names"), 200, J("{'isLast':true,'names':{},'issues':[]}")
+    FakeAdd "GET", BoardsUrl(base, "TB", 0), 200, J("{'isLast':true,'values':[]}")
     FakeAdd "GET", base & "/rest/api/3/field", 200, J("[{'id':'customfield_7','name':'Sprint','custom':true,'schema':{'type':'array'," & _
         "'custom':'com.pyxis.greenhopper.jira:gh-sprint'}}]")
     summary = ProposeValues(cfg, keys, wb, False)
@@ -1982,6 +2036,8 @@ Public Sub T_ProposeValuesNotAdmin()
         If InStr(e(1), "/workflows/preview") > 0 Then previews = previews + 1
     Next e
     Check "propose", "no call to workflows/preview", "previews", 0, previews
+    Check "propose", "no scrum board: the status says how many sprints and which projects", "TB", True, _
+          InStr(summary, " | Sprints read: 0 (1 project(s) with no scrum board or sprint that you can read)") > 0
     Check "propose", "the status starts with its title and keeps the counts of the reading", "title", True, _
           InStr(summary, "Values proposed from Jira | Projects: 1 | Workflows: 0 | Fields: 1 | ") = 1
     Check "propose", "the status says why the workflows were not read", "IsUserProjectAdmin", True, _
@@ -1993,6 +2049,52 @@ Public Sub T_ProposeValuesNotAdmin()
     Application.DisplayAlerts = False
     wb.Close False
     Application.DisplayAlerts = True
+End Sub
+
+' ================= What to look at after an extraction =================
+
+Private Function HealthBook(ByVal clean As Boolean) As Object
+    ' A scratch workbook with the tables HealthFields reads: ItemFlow (Key, Team, DoneUtc, DC03), StatusIntervals, the sheet Iterations.
+    Dim wb As Object, ws As Object, done1 As Double, outside As Double
+    Set wb = Workbooks.Add
+    done1 = CDbl(DateSerial(2026, 1, 5)): outside = IIf(clean, CDbl(DateSerial(2026, 1, 9)), CDbl(DateSerial(2026, 3, 1)))
+    PutRows wb, "Iterations", Array(Array("Iteration-label", "Start", "End"), Array("I1", "2026-01-01", "2026-01-15"))
+    PutRows wb, "ItemFlow", Array(Array("Key", "Team", "DoneUtc", "DC03"), _
+                                  Array("K1", "Team A", done1, 0), Array("K2", "Team A", outside, 0), _
+                                  Array("K3", IIf(clean, "Team A", ""), "", IIf(clean, 0, "=NA()")), Array("K4", "Team A", done1 + 2, IIf(clean, 0, "=NA()")))
+    PutRows wb, "StatusIntervals", Array(Array("Key", "Status", "Category"), Array("K1", "Open", "Backlog"), _
+                                         Array("K1", "Weird", IIf(clean, "Active", "Unclassified")), Array("K2", "Weird", IIf(clean, "Active", "Unclassified")), _
+                                         Array("K3", "Odd", IIf(clean, "Done", "Unclassified")))
+    For Each ws In wb.Worksheets
+        If ws.Name = SheetName("ItemFlow") Then ws.ListObjects.Add(1, ws.UsedRange, , 1).Name = "ItemFlow"
+        If ws.Name = SheetName("StatusIntervals") Then ws.ListObjects.Add(1, ws.UsedRange, , 1).Name = "StatusIntervals"
+    Next ws
+    Application.DisplayAlerts = False
+    wb.Worksheets(1).Delete
+    Application.DisplayAlerts = True
+    Application.Calculate
+    Set HealthBook = wb
+End Function
+
+Public Sub T_HealthFields()
+    ' The fields that say why a figure is empty: only when there is something to see, with numbers and status names.
+    Dim wb As Object, text As String
+    Set wb = HealthBook(False)
+    text = HealthFields(wb)
+    Check "health", "done tickets that no iteration holds", "1 of 3", True, _
+          InStr(text, " | Done outside the iterations: 1 of 3 done tickets (no metric counts them): add iterations to Iterations_from_user") > 0
+    Check "health", "a ticket without a team", "1", True, InStr(text, " | Without a team: 1 tickets (a ticket takes its team from Projects_from_user)") > 0
+    Check "health", "the statuses the sheet Workflows lacks, each once", "Weird, Odd", True, _
+          InStr(text, " | Statuses not in Workflows: 2 (Weird, Odd): add them to Workflows_from_user with a Category") > 0
+    Check "health", "the column of a formula that fails on the data", "DC03 x 2", True, _
+          InStr(text, " | Cells in error: 1 column(s), first ItemFlow.DC03 x 2") > 0
+    Application.DisplayAlerts = False
+    wb.Close False
+    Set wb = HealthBook(True)
+    Check "health", "a clean run adds nothing", "(empty)", "", HealthFields(wb)
+    wb.Close False
+    Application.DisplayAlerts = True
+    Check "health", "it never raises: no workbook, no fields", "Nothing", "", HealthFields(Nothing)
 End Sub
 
 Public Sub T_RetryDelay()

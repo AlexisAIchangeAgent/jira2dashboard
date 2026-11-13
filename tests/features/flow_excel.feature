@@ -81,6 +81,7 @@ Fonctionnalité: Le classeur livré extrait Jira et calcule les mêmes chiffres 
     Et aucune cellule des feuilles de flux ne montre une erreur Excel
     Et la table ItemFlow reproduit les calculs de la référence Python
     Et la table Metrics reproduit la référence Python en mode "A"
+    Et l'état du tableau de bord ne signale ni ticket sans équipe, ni statut inconnu, ni cellule en erreur
 
   @excel
   Scénario: Annuler pendant l'extraction garde les résultats du calcul précédent
@@ -91,3 +92,13 @@ Fonctionnalité: Le classeur livré extrait Jira et calcule les mêmes chiffres 
     Et je clique sur le bouton Extraire et calculer sans attendre la fin
     Et j'annule dès que la barre a avancé
     Alors les résultats du premier calcul sont conservés et l'état dit « Cancelled »
+
+  @excel
+  Scénario: L'état de l'extraction dit pourquoi les graphiques sont vides quand les itérations ne couvrent pas les tickets terminés
+    Soit un faux Jira avec 120 tickets générés avec les projets des paramètres
+    Et le classeur à livrer dont la feuille Config pointe sur ce faux Jira avec FlowLoadMode "A"
+    Et les itérations de 14 jours depuis le "2026-08-17" jusqu'à la date de référence dans la feuille Iterations
+    Et seule la première itération reste dans la feuille Iterations
+    Quand je clique sur le bouton Extraire et calculer sans attendre la fin
+    Et j'attends la fin de l'extraction du bouton
+    Alors l'état du tableau de bord dit combien de tickets terminés sont hors des itérations

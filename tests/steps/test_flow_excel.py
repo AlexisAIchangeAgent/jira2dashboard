@@ -1321,6 +1321,17 @@ def _story_points_back(world):
     assert ws.Cells(row, 2).Interior.Color == YELLOW and ws.Cells(row, 2).Comment.Text() == TO_CONFIRM
 
 
+@then("les itérations des sprints du faux Jira sont proposées en jaune sans qu'aucun jour soit compté deux fois")
+def _iterations_proposed(world):
+    ws = world["wb"].Worksheets(S.of("Iterations"))
+    rows = [(ws.Cells(r, 1).Value, ws.Cells(r, 2).Value, ws.Cells(r, 3).Value) for r in range(2, last_row(ws) + 1)]
+    sprints = {s.id for issue in world["dataset"].issues for s in issue.sprints}
+    assert len(rows) == len(sprints) > 0, (len(rows), len(sprints))              # the sprints of the fake Jira, one iteration each
+    assert all(start < end for _label, start, end in rows)                       # ISO text: it sorts as dates do
+    assert all(rows[n][2] <= rows[n + 1][1] for n in range(len(rows) - 1)), rows  # an iteration ends before the next one starts
+    assert all(ws.Cells(r, 1).Interior.Color == YELLOW and ws.Cells(r, 1).Comment.Text() == TO_CONFIRM for r in range(2, last_row(ws) + 1))
+
+
 @then("aucune cellule saisie n'a changé")
 def _typed_cells_kept(world):
     wb = world["wb"]
@@ -1348,3 +1359,37 @@ def _status_back_not_the_move(world):
     row = next(r for r in range(2, last_row(ws) + 1) if (ws.Cells(r, 1).Value, ws.Cells(r, 3).Value) == world["lost"]["Workflows"])
     assert ws.Cells(row, 3).Interior.Color == YELLOW
     assert find_row(wb.Worksheets(S.of("Transitions")), *world["lost"]["Transitions"]) == 0
+
+
+# --- what the status says after an extraction (modHealth) -----------------------------------------------------------------
+
+@given("seule la première itération reste dans la feuille Iterations")
+def _one_iteration(world):
+    ws = world["wb"].Worksheets(S.of("Iterations"))
+    ws.Range(ws.Cells(3, 1), ws.Cells(ws.Rows.Count, 3)).ClearContents()
+
+
+@when("j'attends la fin de l'extraction du bouton")
+def _wait_for_the_button(world):
+    samples = wait_for(world, lambda text: text.startswith(("Done", "Stopped")))
+    assert samples[-1][0].startswith("Done"), samples[-1]
+
+
+@then("l'état du tableau de bord dit combien de tickets terminés sont hors des itérations")
+def _done_outside(world):
+    wb = world["wb"]
+    status = macro(world, "ProgressSnapshot").partition("|")[2]
+    done = [r for r in table_dicts(wb, "ItemFlow") if r["DoneUtc"] not in ("", None)]
+    found = re.search(r" \| Done outside the iterations: (\d+) of (\d+) done tickets", status)
+    assert found, status
+    assert int(found.group(2)) == len(done) and 0 < int(found.group(1)) <= len(done), (found.groups(), len(done))
+    assert "add iterations to " + S.of("Iterations") in status
+    assert " | Without a team: " not in status and " | Cells in error: " not in status, status      # nothing else to see here
+
+
+@then("l'état du tableau de bord ne signale ni ticket sans équipe, ni statut inconnu, ni cellule en erreur")
+def _nothing_to_check(world):
+    status = macro(world, "ProgressSnapshot").partition("|")[2]
+    # not " | Done outside the iterations: ": the fake data holds tickets done before the first iteration of the scenario
+    for field in (" | Without a team: ", " | Statuses not in Workflows: ", " | Cells in error: "):
+        assert field not in status, status

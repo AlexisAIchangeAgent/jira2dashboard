@@ -179,7 +179,14 @@ python.log). `tests/unit/test_claude_hooks.py` and `test_claude_skills.py` test 
   Active/Wait, the Type of a move), the `...Field` ids of `Config` that Jira names once (by the custom type, else by the name; two candidates = nothing).
   Every cell written is yellow (`RGB(255, 242, 204)`), the first of a row has the note "To confirm: proposed from Jira". `Config.IsUserProjectAdmin` (True by
   default, False = no call to `workflows/preview`, which needs the project administrator right: the statuses of `JiraStatuses` are proposed instead, no moves).
-  A new proposal rule goes in `modPropose` with its case in `T_ProposeFromSheets`. Not yet: sprints -> Iterations, PI names, the link type, the teams.
+  It also reads the sprints of the scrum boards (`modJiraConfig.ReadSprints`, agile/1.0, sheet `JiraSprints`; a 400/401/403/404 skips the board) and proposes the
+  iterations they make (`ProposeIterations`: sprints that start and end within a day = one iteration, End = last day + 1, cut at the start of the next iteration so
+  that no day is in two iterations, label = the shared name else `Iteration <Start>`, only the ones `Iterations` lacks). A new proposal rule goes in `modPropose`
+  with its case in `T_ProposeFromSheets`. Not yet: the link type, the teams; PI dates have no API.
+- **After an extraction (modHealth, AL 2026-11-13).** `ExtractSlice` appends `HealthFields` to the final status, each field only when there is something to see:
+  `Done outside the iterations: N of M` (no metric counts a ticket done outside every iteration: the usual cause of empty charts), `Without a team`,
+  `Statuses not in Workflows` (their names), `Cells in error: Table.Column x n` (a formula that fails on real data; the charts' own #N/A are not read).
+  Numbers and status names only, never a value of a ticket; it never raises. The synchronous `ExtractAndCompute` (tests) does not write it.
 - **Jira configuration (VBA).** `modJiraConfig` (button Read the Jira configuration, `BtnReadJiraConfiguration`) reads
   projects, issue types, statuses, workflows (`workflows/preview`) and fields into proposal sheets `Jira*`; it never writes
   the parameter sheets (calls and mapping: the header of `modJiraConfig.bas`). Besides the five first sheets it writes

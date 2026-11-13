@@ -128,7 +128,7 @@ Private Function IterationRows(ByVal wsIterations As Object) As Collection
     Set IterationRows = out
 End Function
 
-Private Function SerialOf(ByVal v As Variant) As Variant
+Public Function SerialOf(ByVal v As Variant) As Variant
     ' A date serial from a date cell, a number, or ISO text (2026-06-01). Empty if it is none of them.
     Cov "FLB29"
     Dim m As Variant

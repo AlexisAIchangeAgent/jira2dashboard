@@ -157,3 +157,43 @@ def _workflow_json(ds: Dataset, workflow: str, type_ids: list[str], pid: str, pa
     return {"id": f"wf-{workflow.lower()}", "name": workflow, "description": "", "scope": {"type": "GLOBAL"},
             "queryContext": [{"project": pid, "issueTypes": type_ids}], "statuses": status_refs,
             "transitions": transitions}
+
+
+# --- Jira Software (agile/1.0): the scrum boards and their sprints ----------------------------------------------------------
+
+BOARD_PAGE, SPRINT_PAGE_MAX = 50, 50
+
+
+def boards(ds: Dataset, query: dict) -> dict:
+    """GET /rest/agile/1.0/board?projectKeyOrId=A&type=scrum&startAt=0&maxResults=50: one scrum board per project, its id is
+    1 + the rank of the project (the project key or its id selects it, none selects every board)."""
+    wanted = _first(query, "projectKeyOrId", "")
+    found = [(number, key) for number, key in enumerate(ds.projects(), start=1) if wanted in ("", key, project_id(ds, key))]
+    start = int(_first(query, "startAt", "0"))
+    size = min(int(_first(query, "maxResults", str(BOARD_PAGE))), BOARD_PAGE)
+    values = [{"id": number, "name": f"Board {key}", "type": "scrum", "location": {"projectKey": key, "displayName": f"Project {key}"}}
+              for number, key in found[start:start + size]]
+    return {"maxResults": size, "startAt": start, "total": len(found), "isLast": start + size >= len(found), "values": values}
+
+
+def board_sprints(ds: Dataset, board_id: int, query: dict, tz_minutes: int = 0) -> dict:
+    """GET /rest/agile/1.0/board/{id}/sprint?state=active,closed,future&startAt=0&maxResults=50: the sprints that the issues of the
+    project of the board hold, oldest first, each once (offset paging). A board that does not exist is a 404."""
+    from jira2dashboard.mockjira.api import jira_time
+    projects = ds.projects()
+    if not 1 <= board_id <= len(projects):
+        raise _error(404, f"The board with id '{board_id}' does not exist.")
+    states = {s for value in query.get("state", []) for s in value.split(",") if s}
+    sprints = {s.id: s for i in ds.issues if i.project == projects[board_id - 1] for s in i.sprints if not states or s.state in states}
+    ordered = [sprints[n] for n in sorted(sprints)]
+    start = int(_first(query, "startAt", "0"))
+    size = min(int(_first(query, "maxResults", str(SPRINT_PAGE_MAX))), SPRINT_PAGE_MAX)
+    values = []
+    for sprint in ordered[start:start + size]:
+        value = {"id": sprint.id, "self": f"/rest/agile/1.0/sprint/{sprint.id}", "state": sprint.state, "name": sprint.name,
+                 "startDate": jira_time(sprint.start, tz_minutes), "endDate": jira_time(sprint.end, tz_minutes),
+                 "originBoardId": board_id}
+        if sprint.state == "closed":
+            value["completeDate"] = value["endDate"]
+        values.append(value)
+    return {"maxResults": size, "startAt": start, "isLast": start + size >= len(ordered), "values": values}

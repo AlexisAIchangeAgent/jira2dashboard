@@ -238,7 +238,7 @@ Public Sub ExtractSlice()
         BuildFlowSheetsIn ThisWorkbook
         LogRunEnd "ok"
         EndRun "Done | Charts: the six flow metrics in the sheet " & SheetName(CHARTS_SHEET) & " | Figures: the sheet " & SheetName("Metrics") & _
-               " | Data checks: the sheet DataChecks", 1
+               " | Data checks: the sheet " & SheetName("DataChecks") & HealthFields(ThisWorkbook), 1
     End If
     Exit Sub
 Failed:

@@ -19,6 +19,7 @@ Private Const PROJECTS_PER_PAGE As Long = 50
 Private Const TYPES_PER_PREVIEW As Long = 25         ' API limit of workflows/preview
 Private Const MAX_PAGES As Long = 100
 Private Const FIELDS_PER_PAGE As Long = 100          ' createmeta page size
+Private Const BOARDS_PER_PAGE As Long = 50           ' API limit of board and of board/sprint
 
 Public Function ReadJiraConfiguration(ByVal cfg As Object, ByVal keys As Collection, ByVal wb As Object, _
                                       Optional ByVal withWorkflows As Boolean = True) As String
@@ -442,6 +443,77 @@ End Function
 Private Function YesNo(ByVal value As Variant) As String
     If IsTrue(value) Then YesNo = "Yes" Else YesNo = "No"
 End Function
+
+Public Function BoardsUrl(ByVal baseUrl As String, ByVal projectKey As String, ByVal startAt As Long) As String
+    BoardsUrl = baseUrl & "/rest/agile/1.0/board?projectKeyOrId=" & UrlEncode(projectKey) & "&type=scrum&startAt=" & startAt & _
+                "&maxResults=" & BOARDS_PER_PAGE
+End Function
+
+Public Function SprintsUrl(ByVal baseUrl As String, ByVal boardId As String, ByVal startAt As Long) As String
+    SprintsUrl = baseUrl & "/rest/agile/1.0/board/" & UrlEncode(boardId) & "/sprint?state=active,closed,future&startAt=" & startAt & _
+                 "&maxResults=" & BOARDS_PER_PAGE
+End Function
+
+Private Function TryJiraPage(ByVal cfg As Object, ByVal url As String, ByRef page As Object, ByVal what As String) As Boolean
+    ' One page of the agile API. False when the account may not read it (no Jira Software right: 401, 403, 404) or when the board
+    ' has no sprints (400, a Kanban board): the other boards are still read.
+    Dim resp As Object
+    Set resp = HttpRequest(cfg, "GET", url)
+    If IsNotAllowed(resp("Status")) Or resp("Status") = 400 Then Cov "JCF38": Exit Function
+    CheckStatus resp, what
+    RequireJson resp, what
+    Set page = JsonParse(resp("Text"))
+    TryJiraPage = True
+End Function
+
+Public Function ReadSprints(ByVal cfg As Object, ByVal keys As Collection, ByRef noBoard As Long) As Collection
+    ' Id | Project | Board | Sprint | State | Start | End: the sprints of the scrum boards of the projects, each once (a sprint shared by
+    ' two boards comes once). Start and End are what Jira says (ISO with an offset, empty for a future sprint without dates).
+    ' noBoard: the projects with no board or sprint that the account can read (read only, never an error of the run).
+    Cov "JCF37"
+    Dim out As New Collection, seen As Object, key As Variant, page As Object, sp As Object, board As Variant, sprint As Variant
+    Dim startAt As Long, sprintAt As Long, id As String, found As Boolean, values As Collection, more As Collection
+    Set seen = CreateObject("Scripting.Dictionary")
+    For Each key In keys
+        startAt = 0: found = False
+        Do
+            If Not TryJiraPage(cfg, BoardsUrl(cfg("BaseUrl"), CStr(key), startAt), page, "boards") Then Exit Do
+            Set values = AsList(JGet(page, "values"))
+            For Each board In values
+                sprintAt = 0
+                Do
+                    If Not TryJiraPage(cfg, SprintsUrl(cfg("BaseUrl"), CStr(JGet(board, "id") & ""), sprintAt), sp, "sprints") Then Exit Do
+                    Set more = AsList(JGet(sp, "values"))
+                    For Each sprint In more
+                        id = CStr(JGet(sprint, "id") & "")
+                        found = True                                      ' this project has a sprint it can read, new or already seen
+                        If Not seen.Exists(id) Then
+                            seen(id) = True
+                            out.Add Array(id, CStr(key), CStr(JGet(board, "name") & ""), CStr(JGet(sprint, "name") & ""), _
+                                          CStr(JGet(sprint, "state") & ""), CStr(JGet(sprint, "startDate") & ""), CStr(JGet(sprint, "endDate") & ""))
+                        End If
+                    Next sprint
+                    If IsTrue(JGet(sp, "isLast")) Or more.Count = 0 Then Exit Do
+                    sprintAt = sprintAt + more.Count
+                Loop
+            Next board
+            If IsTrue(JGet(page, "isLast")) Or values.Count = 0 Then Exit Do
+            startAt = startAt + values.Count
+        Loop
+        If Not found Then noBoard = noBoard + 1
+    Next key
+    Set ReadSprints = out
+End Function
+
+Public Sub WriteSprints(ByVal wb As Object, ByVal rows As Collection)
+    ' The proposal sheet JiraSprints (the active sheet stays shown).
+    Dim shown As Object
+    On Error Resume Next
+    Set shown = wb.ActiveSheet
+    On Error GoTo 0
+    WriteProposal wb, "JiraSprints", Array("Id", "Project", "Board", "Sprint", "State", "Start", "End"), rows
+    If Not shown Is Nothing Then shown.Activate
+End Sub
 
 Private Function JiraJson(ByVal cfg As Object, ByVal method As String, ByVal url As String, ByVal body As String, _
                           ByVal what As String) As Object

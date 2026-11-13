@@ -7,6 +7,9 @@ Option Explicit
 '                Team), the category Jira gives for sure (to do -> Backlog, done -> Done) and IsFree; never Order, IsStart,
 '                IsEnd, Active or Wait, Removed: those are human choices;
 '   Transitions  the moves the sheet lacks (Workflow, From, To; the Type is a human choice);
+'   Iterations   the iterations that the sprints of the scrum boards make (the sprints of the teams that start and end on
+'                the same days, +- 1 day, are one iteration; End = the day after the last day: the end is excluded), the ones
+'                the sheet lacks;
 '   Config       the ids of the fields that Jira names once (Sprint, Team, Story Points, Target start and end, PI, Business
 '                Value) where the Value is empty. Two candidates for one parameter: nothing proposed, the person chooses.
 ' This module makes no call to Jira: it reads and writes the sheets of the workbook.
@@ -17,20 +20,25 @@ Public Function ProposeValues(ByVal cfg As Object, ByVal keys As Collection, ByV
                               ByVal withWorkflows As Boolean) As String
     ' ReadJiraConfiguration (the proposal sheets), then the proposals in the parameter sheets: the summary for the status cell.
     Cov "PRP01"
-    Dim summary As String
+    Dim summary As String, sprints As Collection, noBoard As Long
     summary = ReadJiraConfiguration(cfg, keys, wb, withWorkflows)
+    Set sprints = ReadSprints(cfg, keys, noBoard)                  ' read only: the agile API (Jira Software)
+    WriteSprints wb, sprints
+    summary = summary & " | Sprints read: " & sprints.Count
+    If noBoard > 0 Then Cov "PRP15": summary = summary & " (" & noBoard & " project(s) with no scrum board or sprint that you can read)"
     ProposeValues = "Values proposed from Jira" & Mid$(summary, InStr(summary, " | ")) & ProposeFromSheets(wb)
 End Function
 
 Public Function ProposeFromSheets(ByVal wb As Object) As String
     ' The proposals of the sheets already in wb; " | Name: value" fields for the status cell.
     Cov "PRP02"
-    Dim roleOf As Object, nW As Long, nT As Long, nC As Long
+    Dim roleOf As Object, nW As Long, nT As Long, nC As Long, nI As Long
     Set roleOf = RolesOfProjects(wb)
     nW = ProposeWorkflows(wb, roleOf)
     nT = ProposeTransitions(wb, roleOf)
     nC = ProposeFieldIds(wb)
-    If nW + nT + nC = 0 Then
+    nI = ProposeIterations(wb)
+    If nW + nT + nC + nI = 0 Then
         Cov "PRP03"
         ProposeFromSheets = " | Proposed: nothing new, the parameter sheets already hold what Jira gives"
         Exit Function
@@ -38,7 +46,8 @@ Public Function ProposeFromSheets(ByVal wb As Object) As String
     ProposeFromSheets = " | To confirm, in yellow: the cells below" & _
                         " | " & SheetName("Workflows") & ": " & nW & " proposed" & _
                         " | " & SheetName("Transitions") & ": " & nT & " proposed" & _
-                        " | " & SheetName("Config") & ": " & nC & " proposed"
+                        " | " & SheetName("Config") & ": " & nC & " proposed" & _
+                        " | " & SheetName("Iterations") & ": " & nI & " proposed"
 End Function
 
 Private Function RolesOfProjects(ByVal wb As Object) As Object
@@ -234,6 +243,94 @@ Private Function ProposeFieldIds(ByVal wb As Object) As Long
             End If
         End If
     Next rule
+End Function
+
+Private Function IsoDay(ByVal serial As Double) As String
+    ' 2026-01-15, whatever the regional settings (the sheets read ISO text as a date).
+    IsoDay = Year(serial) & "-" & Right$("0" & Month(serial), 2) & "-" & Right$("0" & Day(serial), 2)
+End Function
+
+Private Function ProposeIterations(ByVal wb As Object) As Long
+    ' The sheet Iterations: one row per iteration that the sprints of JiraSprints make and that the sheet does not hold yet. The
+    ' sprints of several teams that start and end on the same days (+- 1 day) are one iteration: Start = the earliest start,
+    ' End = the day after the latest last day (the end is excluded), never later than the start of the next iteration (two
+    ' iterations must not hold the same day: a ticket done that day would count twice). Label: the name the sprints share,
+    ' else "Iteration <Start>".
+    Cov "PRP16"
+    Dim ws As Object, cLabel As Long, cStart As Long, cEnd As Long, last As Long, r As Long
+    Dim startS As New Collection, endS As New Collection, names As New Collection, labels As Object
+    Dim row As Variant, s As Variant, e As Variant, i As Long, k As Long, n As Long, count As Long
+    Dim labelOf() As String, loOf() As Double, hiOf() As Double
+    If Not SheetExists(wb, "Iterations") Or Not SheetExists(wb, "JiraSprints") Then Exit Function
+    Set ws = wb.Worksheets(SheetName("Iterations"))
+    cLabel = HeaderColumn(ws, "Iteration-label"): cStart = HeaderColumn(ws, "Start"): cEnd = HeaderColumn(ws, "End")
+    If cLabel = 0 Or cStart = 0 Or cEnd = 0 Then Exit Function
+    ' the sprints with dates, oldest first (insertion sort: a few dozen)
+    For Each row In ReadTable(wb.Worksheets(SheetName("JiraSprints")))
+        s = ParseJiraDate(row("Start")): e = ParseJiraDate(row("End"))
+        If Not IsEmpty(s) And Not IsEmpty(e) Then
+            For i = 1 To startS.Count
+                If Int(CDbl(s)) < startS(i) Then Exit For
+            Next i
+            If i > startS.Count Then
+                startS.Add Int(CDbl(s)): endS.Add Int(CDbl(e)): names.Add CStr(row("Sprint") & "")
+            Else
+                startS.Add Int(CDbl(s)), Before:=i: endS.Add Int(CDbl(e)), Before:=i: names.Add CStr(row("Sprint") & ""), Before:=i
+            End If
+        End If
+    Next row
+    If startS.Count = 0 Then Exit Function
+    ReDim labelOf(1 To startS.Count): ReDim loOf(1 To startS.Count): ReDim hiOf(1 To startS.Count)
+    ' the clusters: the sprints that start and end within a day of the first one of the cluster
+    i = 1
+    Do While i <= startS.Count
+        count = count + 1
+        loOf(count) = startS(i): hiOf(count) = endS(i): labelOf(count) = names(i)
+        k = i + 1
+        Do While k <= startS.Count
+            If Abs(startS(k) - startS(i)) > 1 Or Abs(endS(k) - endS(i)) > 1 Then Exit Do
+            If endS(k) > hiOf(count) Then hiOf(count) = endS(k)
+            If names(k) <> labelOf(count) Then labelOf(count) = ""
+            k = k + 1
+        Loop
+        i = k
+    Loop
+    For n = 1 To count
+        hiOf(n) = hiOf(n) + 1                                             ' the end is excluded
+        If n < count Then
+            If hiOf(n) > loOf(n + 1) Then Cov "PRP19": hiOf(n) = loOf(n + 1)
+        End If
+        If Len(labelOf(n)) = 0 Then labelOf(n) = "Iteration " & IsoDay(loOf(n))
+    Next n
+    ' what the sheet already holds: the labels and the days
+    Set labels = CreateObject("Scripting.Dictionary")
+    last = LastUsedRow(ws, cLabel)
+    For r = 2 To last
+        labels(LCase$(TrimWhite(CStr(ws.Cells(r, cLabel).Value & "")))) = True
+    Next r
+    For n = 1 To count
+        If Not IterationHeld(ws, cStart, cEnd, last, loOf(n)) And Not labels.Exists(LCase$(labelOf(n))) Then
+            Cov "PRP17"
+            last = last + 1
+            labels(LCase$(labelOf(n))) = True
+            FillEmpty ws, last, cLabel, labelOf(n)
+            FillEmpty ws, last, cStart, IsoDay(loOf(n))
+            FillEmpty ws, last, cEnd, IsoDay(hiOf(n))
+            MarkToConfirm ws.Cells(last, cLabel), True
+            ProposeIterations = ProposeIterations + 1
+        End If
+    Next n
+End Function
+
+Private Function IterationHeld(ByVal ws As Object, ByVal cStart As Long, ByVal cEnd As Long, ByVal last As Long, ByVal day As Double) As Boolean
+    ' True when an iteration of the sheet (Start <= day < End) already holds this day.
+    Dim r As Long, s As Variant, e As Variant
+    For r = 2 To last
+        s = SerialOf(ws.Cells(r, cStart).Value): e = SerialOf(ws.Cells(r, cEnd).Value)
+        If Not IsEmpty(s) And Not IsEmpty(e) Then
+            If day >= s And day < e Then Cov "PRP18": IterationHeld = True: Exit Function
+        End If
+    Next r
 End Function
 
 Private Function FieldsThatFit(ByVal fields As Collection, ByVal how As String, ByVal text As String, ByRef id As String) As Long

@@ -6,7 +6,7 @@ Option Explicit
 ' The code keeps the LOGICAL names ("Config", "Issues"...) and SheetName gives the real one where it meets Excel. The same three
 ' lists as the Python side (src/jira2dashboard/sheet_names.py): tests/unit/test_sheet_names.py compares them.
 Private Const USER_SHEETS As String = "|Config|Projects|Iterations|PIs|Workflows|Transitions|FieldMapping|"
-Private Const JIRA_SHEETS As String = "|Issues|StatusIntervals|IssueLinks|JiraIssueTypes|JiraStatuses|JiraWorkflows|JiraTransitions|JiraFields|JiraProjectWorkflows|JiraProjectFields|JiraFieldUsage|"
+Private Const JIRA_SHEETS As String = "|Issues|StatusIntervals|IssueLinks|JiraIssueTypes|JiraStatuses|JiraWorkflows|JiraTransitions|JiraFields|JiraProjectWorkflows|JiraProjectFields|JiraFieldUsage|JiraSprints|"
 Private Const EXCEL_SHEETS As String = "|Dashboard|Charts|Manual|ErrorCodes|Steps|ItemFlow|DailyLoad|Metrics|PIMetrics|DataChecks|FillRates|Controls|ChartData|FlowFormulas|ChartSpec|ChecksSpec|RovoPromptSpec|RovoPrompt|Run|Errors|"
 Private Const SUFFIX_USER As String = "_from_user"
 Private Const SUFFIX_JIRA As String = "_from_Jira"

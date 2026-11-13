@@ -45,6 +45,7 @@ Fonctionnalité: Le bouton « Read the Jira configuration » propose les paramè
     Alors l'état du tableau de bord dit que des valeurs sont proposées
     Et le statut et le passage perdus sont revenus en jaune avec la note « To confirm »
     Et l'identifiant du champ Story Points est revenu en jaune
+    Et les itérations des sprints du faux Jira sont proposées en jaune sans qu'aucun jour soit compté deux fois
     Et aucune cellule saisie n'a changé
 
   @excel

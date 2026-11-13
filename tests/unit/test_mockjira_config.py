@@ -4,7 +4,7 @@ import pytest
 from jira2dashboard.mockjira import config
 from jira2dashboard.mockjira.errors import ApiError
 from jira2dashboard.mockjira.generator import generate
-from jira2dashboard.params.model import load_all
+from jira2dashboard.params.model import load_all, project_keys
 
 SHEETS = {s.name: s for s in load_all()}
 DS = generate(seed=11, issues=250)                    # projects PRG (the Program), TA, TB
@@ -138,3 +138,41 @@ def test_create_meta_of_an_unknown_project_or_an_absent_issue_type_is_404():
     with pytest.raises(ApiError) as err:
         config.create_meta_fields(DS, "TA", "99999", {})
     assert err.value.status == 404
+
+
+# --- the boards and the sprints (Jira Software, agile/1.0) ----------------------------------------------------------------
+
+def test_a_project_has_one_scrum_board_found_by_its_key():
+    data = generate(seed=2, issues=60, projects=project_keys())
+    every = config.boards(data, {})
+    assert every["isLast"] and [b["name"] for b in every["values"]] == [f"Board {k}" for k in data.projects()]
+    one = config.boards(data, {"projectKeyOrId": [data.projects()[1]]})
+    assert [b["id"] for b in one["values"]] == [2] and one["values"][0]["type"] == "scrum"
+    assert config.boards(data, {"projectKeyOrId": ["NOPE"]})["values"] == []
+
+
+def test_the_sprints_of_a_board_are_those_of_the_issues_of_its_project_each_once_oldest_first():
+    data = generate(seed=2, issues=200, projects=project_keys())
+    answer = config.board_sprints(data, 2, {"state": ["active,closed,future"]})
+    key = data.projects()[1]
+    expected = sorted({s.id for i in data.issues if i.project == key for s in i.sprints})
+    assert [s["id"] for s in answer["values"]] == expected and answer["isLast"]
+    assert all(s["originBoardId"] == 2 and s["startDate"] < s["endDate"] for s in answer["values"])
+    assert all(("completeDate" in s) == (s["state"] == "closed") for s in answer["values"])
+
+
+def test_the_sprints_are_filtered_by_state_and_paged():
+    data = generate(seed=2, issues=200, projects=project_keys())
+    closed = config.board_sprints(data, 1, {"state": ["closed"]})
+    assert closed["values"] and {s["state"] for s in closed["values"]} == {"closed"}
+    first = config.board_sprints(data, 1, {"maxResults": ["2"]})
+    assert len(first["values"]) == 2 and not first["isLast"]
+    rest = config.board_sprints(data, 1, {"startAt": ["2"], "maxResults": ["50"]})
+    assert first["values"][-1]["id"] < rest["values"][0]["id"] and rest["isLast"]
+
+
+def test_a_board_that_does_not_exist_is_a_404():
+    data = generate(seed=2, issues=30, projects=project_keys())
+    with pytest.raises(ApiError) as error:
+        config.board_sprints(data, 99, {})
+    assert error.value.status == 404

@@ -24,7 +24,7 @@ from jira2dashboard.paths import CHILDREN_DIR, INTER_DIR, VBA_DIR
 
 OUT = INTER_DIR / "vba_tests.xlsm"
 ORDER = ["modCoverage", "modLog", "modJson", "modText", "modHttp", "modProxy", "modJira", "modFlow", "modParams", "modExtract",
-         "modJiraConfig", "modPropose", "modFlowBuild", "modActions", "modBackground", "modTests", "modButtons"]
+         "modJiraConfig", "modPropose", "modHealth", "modFlowBuild", "modActions", "modBackground", "modTests", "modButtons"]
 BUTTONS = [("J2", "Lancer les tests (hors ligne)", "modButtons.BtnRunAllTests"),
            ("J4", "Lancer les tests + reseau", "modButtons.BtnRunNetworkTests"),
            ("J6", "Effacer les resultats", "modButtons.BtnClearResults")]

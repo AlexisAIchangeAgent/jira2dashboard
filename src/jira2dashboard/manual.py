@@ -86,7 +86,9 @@ def manual(mandatory: tuple[str, ...]) -> list[tuple[str, str]]:
         (f'Button "{PROPOSE_CAPTION}"', [
             f'It does what "{CONFIG_CAPTION}" does, then copies what fits of the proposal sheets into the sheets {WORKFLOWS}, '
             f"{TRANSITIONS} and {CONFIG}: the statuses and moves the sheets lack, and the ids of the fields that Jira names once "
-            "(Sprint, Team, Story Points, Target start and end, PI, Business Value).",
+            "(Sprint, Team, Story Points, Target start and end, PI, Business Value). It reads the sprints of the scrum boards "
+            f"({S.of('JiraSprints')}) and proposes the iterations they make in {ITERATIONS}: the sprints of the teams that start and end "
+            "on the same days are one iteration, and no day belongs to two iterations. PI dates have no API: type them.",
             "It writes only into EMPTY cells: what you typed is never changed. Every cell it writes is yellow, the first cell of a "
             "row has the note 'To confirm': check it, then clear the colour if you like. Order, IsStart, IsEnd, Active or Wait, "
             "Removed instead of Done and the Type of a move stay yours to type.",
@@ -117,6 +119,8 @@ def manual(mandatory: tuple[str, ...]) -> list[tuple[str, str]]:
             f"Excel stays usable. At the end, {STATUS_CELL} gives the result and the rows under it its details, one per line "
             "(name in column A, value in column B).",
             f'"{CANCEL_CAPTION}" stops it before the raw sheets are written: the previous results stay.',
+            "When something keeps a figure empty, the status adds a field: Done outside the iterations (add iterations), Without a team, "
+            f"Statuses not in Workflows (add them to {WORKFLOWS}) and Cells in error (Table.Column x n: a formula that fails on your data).",
             f"At the end the sheets {ITEMFLOW}, {S.of('DailyLoad')}, {METRICS}, {S.of('PIMetrics')}, {S.of('ChartData')} and the charts are rebuilt to the size of "
             "the new data. Run it as often as needed.",
             f"The charts are in the sheet {CHARTS}, right of the Dashboard. Its cell B2: the team of the Flow Distribution chart.",
