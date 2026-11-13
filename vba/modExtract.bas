@@ -423,15 +423,26 @@ Failed:
 End Sub
 
 Private Sub WriteRawSheetsCore()
-    LogBegin "raw sheets: write"
-    If mClear Then ClearFlowSheets ThisWorkbook
+    ' One step of the log per thing done (they never overlap): the clearing, then each table with its number of rows.
+    If mClear Then
+        LogBegin "raw sheets: clear the old results"
+        ClearFlowSheets ThisWorkbook
+        LogEnd "raw sheets: clear the old results"
+    End If
+    LogBegin "raw sheets: write Issues " & mRows.Count
     WriteTable mWsIssues, Array("Key", "Id", "Project", "Type", "WorkType", "CreatedUtc", "Status", "Parent", "StatusCategory", _
                                 "ResolvedUtc", "FixVersions", "StoryPoints", "PI", "BV", "TeamValue", "SprintState", _
                                 "SprintStart", "SprintEnd", "SprintCount", "TargetStart", "TargetEnd", "KeyChanges"), mRows
     Set mRows = Nothing                                               ' each table is freed once written: the next copy needs the room
+    LogEnd "raw sheets: write Issues"
+    LogBegin "raw sheets: write StatusIntervals " & mIntervals.Count
     WriteTable mWsIntervals, Array("Key", "Workflow", "Seq", "Status", "Category", "EnteredUtc", "LeftUtc", _
                                    "DurationDays", "IsOpen", "ChangeId", "Check"), mIntervals
     Set mIntervals = Nothing
-    If Not mWsLinks Is Nothing Then WriteTable mWsLinks, Array("Blocker", "Blocked"), mLinks
-    LogEnd "raw sheets: write"
+    LogEnd "raw sheets: write StatusIntervals"
+    If Not mWsLinks Is Nothing Then
+        LogBegin "raw sheets: write IssueLinks " & mLinks.Count
+        WriteTable mWsLinks, Array("Blocker", "Blocked"), mLinks
+        LogEnd "raw sheets: write IssueLinks"
+    End If
 End Sub

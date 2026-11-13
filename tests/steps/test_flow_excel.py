@@ -382,8 +382,9 @@ def _steps_sheet(world):
 def _log(world):
     lines, text = logged_run(world, "button Extract from Jira and compute")
     begun = [rest[0] for kind, *rest in lines if kind == "BEGIN"]
-    for name in ("search page 1", "changelogs from issue 1 of 150", "raw sheets: write", "flow sheets: charts"):
-        assert name in begun, (name, begun[:5])
+    for name in ("search page 1", "changelogs from issue 1 of 150", "raw sheets: write Issues 150", "raw sheets: write StatusIntervals",
+                 "flow sheets: charts"):
+        assert any(b.startswith(name) for b in begun), (name, begun[:5])      # the write of each table is a step of its own
     for secret in ("tok-123", "me@example.com", "127.0.0.1", "http", "{"):
         assert secret not in text, secret
 
