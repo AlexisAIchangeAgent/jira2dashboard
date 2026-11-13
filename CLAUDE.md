@@ -100,7 +100,8 @@ python.log). `tests/unit/test_claude_hooks.py` and `test_claude_skills.py` test 
   `Issues`; the Excel tables too: `Issues[Key]`) and converts at the edge: `sheet_names.of(name)` in Python, `modText.SheetName(name)` in VBA (both idempotent,
   an unknown name such as a test's scratch sheet comes back unchanged; `LogicalSheet` goes back). The three lists must be the same on both sides
   (`tests/unit/test_sheet_names.py`); a new sheet is added to both, then to the scenario "chaque feuille ... suffixe". A message may name a sheet by the
-  start of its name ("the Config sheet"). Never name a VBA variable `sheetName` (VBA ignores case: it hides the function and the compile fails).
+  start of its name ("the Config sheet"). Never name a VBA variable or parameter like a procedure (VBA ignores case: `sheetName` hid `SheetName`,
+  `readWorkflows` hid `ReadWorkflows`; only `vba-tests` shows it, as COMPILE_FAILED).
 - **Python generates, Excel computes.** `src/jira2dashboard/build_workbook.py` writes the parameter sheets, the empty raw
   sheets and a *plan*, injects the `vba/*.bas` modules and compiles them. VBA writes only raw data (`Issues`,
   `StatusIntervals`); **every figure is an Excel formula** in a table (`ItemFlow`, `DailyLoad`, `Metrics`, `DataChecks`).
@@ -252,10 +253,12 @@ then `mermaid.parse`), and check every `](#anchor)` link against the headings.
   `test_real_vba_modules_are_ascii_and_have_unique_markers` pins the marker count and ranges: update it when adding markers.
   Trivial entry points (`modActions`, `modButtons`) carry none.
 - **VBA conventions.** ASCII only, LF line endings, `Option Explicit`; offline tests `T_*` and fake-Jira tests `M_*` in
-  `modTests.bas`; button macros are Public Subs without arguments.
+  `modTests.bas`; button macros are Public Subs without arguments. A `T_` test that writes dates into `TestScratch` ends with
+  `ws.Cells.Clear`: `ClearContents` keeps the number format, and the next test reads 0/1 as dates.
 - **VBA traps.** A one-cell `Range.Value` is not an array; assigning an object to a Variant needs `Set` (error 450);
   `Application.OnTime` has a 1 s granularity; a COM call to an Excel that runs a macro is rejected (see `retry()` in
-  `tests/steps/test_flow_excel.py`).
+  `tests/steps/test_flow_excel.py`). `Empty - Date` is a negative DATE in VBA, and a `Range.Value = block` that holds one fails with
+  error 7 "Out of memory" (it is no memory error): subtract through `CDbl` (`modFlow.DaysBetween`).
 - **VBA speed traps** (measured on the dev machine, 2026-11-07: the full extraction of the fake Jira, 1 244 issues, went from
   245 s to 24 s). `TypeName(object)` costs about 0.3 ms: use `TypeOf x Is Collection` or an `On Error` probe, never in a loop
   (`JGet` was 300 us, now 2 us). The first call on a fresh `Scripting.Dictionary` costs about 0.65 ms, even `Exists`
@@ -294,7 +297,7 @@ then `mermaid.parse`), and check every `](#anchor)` link against the headings.
   half-second margin; a blank result is `""`, never `0`. Load settings CSV writes dates as ISO text (`SafeCell`): a formula
   that reads a date of the sheet PIs takes text too (`DATEVALUE`, as `formulas._pi_date` and DC18's `_date`).
 - Mind the COM traps (section 7 of the deleted handoff, see above): positional arguments only, `put_en_us` for number formats,
-  leading apostrophe on text written to cells (`as_cell` / `SafeCell`), read `.Value2`, activate a chart's sheet and its ChartObject before export (else an empty PNG).
+  leading apostrophe on text written to cells (`as_cell` / `SafeCell`), read `.Value2`, `Comment.Text` is a call in pywin32 (`.Text()`), activate a chart's sheet and its ChartObject before export (else an empty PNG).
 - **Git.** Repo `AlexisAIchangeAgent/jira2dashboard` (public), branch `main`. `.gitattributes` disables line-ending
   conversion (`* -text`, `*.bas text eol=lf`) so the tracked MD5 hold; Excel binaries (`*.xlsm`, `out/`) are ignored.
   Commit messages end with the `Co-Authored-By` line of the model in use (e.g. `Claude Opus 5.5 <noreply@anthropic.com>`). If SSH push is refused, push over
@@ -318,7 +321,11 @@ then `mermaid.parse`), and check every `](#anchor)` link against the headings.
   Since 2026-11-05 the event log names `ntdll.dll`, code `0xc0000028` or `0xc00000ff` (a failed stack unwind), offset
   `0x1d3df`; it also hits `BEGIN flow sheets: charts` of a second build in the same Excel (scenario "second calcul": 1 in 5
   at 61507d1 on 2026-11-12, `T_FlowBuild` alone 0 in 10). Measured as this defect then; still run the A/B above before
-  dismissing a new crash there.
+  dismissing a new crash there. `vba-tests` loses Excel at `BEGIN flow sheets: charts` (T_FlowBuild) too: 4 runs in about 14 on
+  2026-11-13, none tied to a change: rerun up to 3 times.
+- **Long runs in the background:** `cmd &` inside a background call notifies at once, not at the end: wait with
+  `until grep -qE "passed|failed" log; do sleep 15; done` in a background Bash. The harness kills background shells when the machine is low
+  on memory: run the test groups one after the other, and rerun a killed one only when asked.
 - **Git Bash rewrites `/switch` arguments** of Windows programs into paths (`/update` -> `C:/.../Git/update`, also
   `wevtutil /q:`): prefix the command with `MSYS_NO_PATHCONV=1`.
 - The PowerShell tool is slow here (CIM / event-log queries time out): use Bash `tasklist` for processes.
