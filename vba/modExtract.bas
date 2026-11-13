@@ -347,11 +347,13 @@ End Sub
 
 Private Sub RowsInit()
     ' Start of phase 3: the status changes and the key changes of all the issues (pure computing on the changelogs).
+    Dim skipped As Long, shapes As String
     Set mRows = New Collection: Set mLinks = New Collection: mRowNext = 1
     LogBegin "raw sheets: status changes"
-    Set mChanges = StatusChangesFromChangelog(mRaw, mIdToKey)
+    Set mChanges = StatusChangesFromChangelog(mRaw, mIdToKey, skipped, shapes)
     Set mMoved = KeyChangeCounts(mRaw, mIdToKey)
     LogEnd "raw sheets: status changes: " & mChanges.Count
+    LogSkippedDates skipped, shapes                                    ' J2D-DATA-003, only when some were left out
     Set mRaw = New Collection                                          ' every changelog item of Jira: the status changes above are all we keep
     mIds = RowFieldIds(mSettings)
     mBlocksType = Setting(mSettings, "BlocksLinkType")

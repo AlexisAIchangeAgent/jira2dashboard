@@ -360,7 +360,7 @@ def logged_run(world, how: str) -> tuple[list[list[str]], str]:
     assert any(p in params for p in ("FlowLoadMode = A", "FlowLoadMode = B")), params   # a setting of the tool, in clear
     assert any(p.startswith("sheet Projects = ") and p.endswith(" rows") for p in params), params
     assert lines[-1][0] == "RUN" and TIMED.search(" " + lines[-1][1]) and lines[-1][1].startswith("end ok | "), lines[-1]
-    steps = kinds[1 + len(params):-1]
+    steps = [k for k in kinds[1 + len(params):-1] if k != "WARN"]                         # a WARN (J2D-DATA-003) is no step
     assert steps == ["BEGIN", "END"] * (len(steps) // 2), kinds                          # each step ends before the next
     ends = [rest[0] for kind, *rest in lines if kind == "END"]
     assert all(TIMED.search(end) for end in ends), ends[:3]                             # each step gives its time

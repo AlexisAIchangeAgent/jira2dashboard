@@ -155,7 +155,9 @@ python.log). `tests/unit/test_claude_hooks.py` and `test_claude_skills.py` test 
   `version.py`: commit and date, plus the version given by `release.ps1`), `PARAM` lines right after `RUN` (`LogParameters`: each Config row in clear
   but BaseUrl, Email, ApiToken, ProxyServer, ProxyBypass and Filter, which read `(set)`/`(empty)`; `SHOWN_PARAMETERS`, compared with
   `CONFIG_PARAMETERS` by `test_vba_log_guard.py`: a new parameter is masked until added there), the time at the end of each `END` line and of
-  `RUN end`, a `RETRY` line before each new attempt of a call to Jira (`modHttp.RetryText`), the code on `RUN end stopped <code>`. Python: the same,
+  `RUN end`, a `RETRY` line before each new attempt of a call to Jira (`modHttp.RetryText`), the code on `RUN end stopped <code>`, and a `WARN J2D-DATA-003` line when status changes are left out because their date cannot be read (the count and the
+  shape of the values, digits and letters masked: `modFlow.DateShape`, `mapping.date_shape`; an Empty date once made a negative DATE of a duration, which Excel
+  refuses to write: error 7 "Out of memory" at the write of `StatusIntervals`). Python: the same,
   every Config value but the token. Keep a new step in a `LogBegin`/`LogEnd` pair; the Excel scenarios check the shape of a run (`logged_run` in
   `tests/steps/test_flow_excel.py`). `diagnose` quotes the end of the VBA log without its `PARAM` lines (it goes into a support ticket).
   Every Excel test (marker `excel`, all modules) leaves `out\inter\logs\excel-test_<test>.log` (fixture `keep_excel_logs` of `tests/conftest.py`,

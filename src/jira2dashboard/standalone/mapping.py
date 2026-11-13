@@ -171,6 +171,33 @@ def status_changes(items, id_to_key: dict[str, str]) -> dict[str, list[Change]]:
     return out
 
 
+def date_shape(value) -> str:
+    """What a value that is not a date looks like, with none of its content (the log must not hold what Jira answered):
+    the type, then each digit as 9, each letter as A or a, any other ASCII character as it is, 40 characters at most.
+    The same text as modFlow.DateShape for a string ("String:9999-99-99A99:99"); the type names of other values differ
+    (this is for reading a log, not a rule)."""
+    if isinstance(value, (dict, list)):
+        return "Object"
+    if value is None:
+        return "Null"
+    text = str(value)
+    masked = "".join("9" if c.isdigit() and c.isascii() else "A" if "A" <= c <= "Z" else "a" if "a" <= c <= "z"
+                     else c if " " <= c < "\x7f" else "?" for c in text[:40])
+    kind = "String" if isinstance(value, str) else type(value).__name__
+    return f"{kind}:{masked}{'...' if len(text) > 40 else ''}"
+
+
+def unreadable_status_dates(items) -> tuple[int, str]:
+    """(how many status changes `status_changes` leaves out because their date cannot be read, their shapes with the
+    count of each, like "String:9999999999999 x 2; Null x 1"). The shapes are what to read to find why (J2D-DATA-003)."""
+    shapes: dict[str, int] = {}
+    for _issue_id, history, item in items:
+        if item.get("fieldId") == "status" and parse_jira_date(history.get("created")) is None:
+            shape = date_shape(history.get("created"))
+            shapes[shape] = shapes.get(shape, 0) + 1
+    return sum(shapes.values()), "; ".join(f"{shape} x {count}" for shape, count in shapes.items())
+
+
 def key_change_counts(items, id_to_key: dict[str, str]) -> dict[str, int]:
     """{key: moves between projects}: the items of the field Key (modFlow.KeyChangeCounts)."""
     out: dict[str, int] = {}
@@ -237,6 +264,8 @@ class Extract:
     flow: list[FlowIssue]
     links: list[tuple[str, str]]            # sheet IssueLinks
     changelog_items: int
+    unreadable_dates: int = 0               # status changes left out: their date cannot be read (J2D-DATA-003)
+    unreadable_shapes: str = ""             # what those dates look like (date_shape), to find why
 
 
 def extracted(issues: list[dict], changelog_pages: list[dict], ids: FieldIds, projects: list[tuple[str, str, str]],
@@ -258,4 +287,4 @@ def extracted(issues: list[dict], changelog_pages: list[dict], ids: FieldIds, pr
         blocks = tuple(blocked_by.get(row[0], ()))
         flow.append(flow_issue(row, changes.get(row[0], []), projects, blocks,
                                versions_of(issue.get("fields") or {})))
-    return Extract(rows, flow, links, len(items))
+    return Extract(rows, flow, links, len(items), *unreadable_status_dates(items))

@@ -73,6 +73,7 @@ TABLE: tuple[ErrorCode, ...] = (
     # --- DATA ---------------------------------------------------------------------------------------------------------------
     ErrorCode("J2D-DATA-001", 513, "The JSON cannot be read", "An answer cut or altered on the way (the text is not logged: it quotes Jira)", "Run again; check the proxy", "The log (the position of the error)"),
     ErrorCode("J2D-DATA-002", 514, "A value cannot be written as JSON", "An internal case", "None", "The log"),
+    ErrorCode("J2D-DATA-003", None, "Status changes were ignored: their date cannot be read", "Jira sent a changelog entry with no date or a date in a format the tool does not know (the value is not logged: it is Jira's). Without it a status change cannot be placed in time; it used to give Excel a negative date and the error J2D-VBA-7 \"Out of memory\" at the write of StatusIntervals", "Nothing stops: the run goes on without those changes. Check that the status history of the issues looks right", "The WARN line of the log (VBA log, python.log): the number of changes, and the version of the workbook"),
     # --- FLOW ---------------------------------------------------------------------------------------------------------------
     ErrorCode("J2D-FLOW-001", 702, "A raw sheet is empty", "The extraction did not run or returned nothing", "Run Extract from Jira first", "The log of the run"),
     ErrorCode("J2D-FLOW-002", 705, "A sheet of the workbook is missing", "A sheet was deleted or renamed", "Use a fresh copy of the delivered workbook", "The workbook version"),

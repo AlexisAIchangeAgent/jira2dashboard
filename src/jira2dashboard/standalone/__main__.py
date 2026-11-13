@@ -191,6 +191,9 @@ def run(args, formatter: Scrubbed, collected: Collected, sleep=time.sleep, detec
                         settings.blocks_link_type)
     log.info("END Jira: %d issues, %d changelog items, %d links%s", len(extract.rows), extract.changelog_items,
              len(extract.links), took(step))
+    if extract.unreadable_dates:
+        log.warning("J2D-DATA-003 | %d status changes ignored: their date cannot be read | created: %s",
+                    extract.unreadable_dates, extract.unreadable_shapes)
     step = time.monotonic()
     intervals = [row for issue in extract.flow for row in interval_rows(issue, settings.as_of, settings.rules)]
     unknown = sorted({row[3] for row in intervals if row[4] == UNCLASSIFIED})

@@ -2,19 +2,70 @@ Option Explicit
 ' Status intervals: the traceable base for Flow Time, Flow Load and Flow Efficiency.
 ' One row per (issue, status visit): when it entered, when it left, how long, which change caused it.
 
-Public Function StatusChangesFromChangelog(ByVal changelogRows As Collection, ByVal idToKey As Object) As Collection
-    ' Keeps fieldId = "status". Output rows: Array(issueKey, changeId, createdUtc, fromString, toString)
+Public Function StatusChangesFromChangelog(ByVal changelogRows As Collection, ByVal idToKey As Object, _
+                                           Optional ByRef skipped As Long = 0, Optional ByRef shapes As String = "") As Collection
+    ' Keeps fieldId = "status". Output rows: Array(issueKey, changeId, createdUtc, fromString, toString).
+    ' A change whose date cannot be read is left out and counted in `skipped` (like the Python path, mapping.status_changes):
+    ' it cannot be placed in time, and its Empty date made a negative DATE of the duration, which Excel refuses to write.
+    ' `shapes` tells what the unreadable values look like (DateShape, no content), to find why they are not read.
     Cov "FLW01"
-    Dim out As New Collection, r As Variant, key As String
+    Dim out As New Collection, r As Variant, key As String, at As Variant, seen As Object, shape As String, k As Variant
+    skipped = 0: shapes = ""
     For Each r In changelogRows
         If CStr(r(5) & "") = "status" Then
             key = CStr(r(0) & "")
             If idToKey.Exists(key) Then key = idToKey(key)
-            out.Add Array(key, r(1), ParseJiraDate(r(2)), r(9), r(11))
+            at = ParseJiraDate(r(2))
+            If IsEmpty(at) Then
+                Cov "FLW09": skipped = skipped + 1
+                If seen Is Nothing Then Set seen = CreateObject("Scripting.Dictionary")
+                shape = DateShape(r(2))
+                seen(shape) = seen(shape) + 1
+            Else
+                out.Add Array(key, r(1), at, r(9), r(11))
+            End If
         End If
     Next r
+    If skipped > 0 Then
+        For Each k In seen.Keys
+            shapes = shapes & IIf(Len(shapes) > 0, "; ", "") & k & " x " & seen(k)
+        Next k
+    End If
     Set StatusChangesFromChangelog = out
 End Function
+
+Public Function DateShape(ByVal value As Variant) As String
+    ' What a value that is not a date looks like, with none of its content (the log must not hold what Jira answered): the
+    ' type, then each digit as 9, each letter as A or a, any other ASCII character as it is, 40 characters at most.
+    ' "2026-10-01T09:12" gives "String:9999-99-99A99:99"; an epoch in milliseconds "String:9999999999999".
+    Dim s As String, i As Long, n As Long, c As Long, out As String, tail As String
+    If IsObject(value) Then Cov "FLW11": DateShape = "Object": Exit Function
+    If IsNull(value) Or IsEmpty(value) Then Cov "FLW12": DateShape = TypeName(value): Exit Function
+    s = CStr(value)
+    n = Len(s)
+    If n > 40 Then Cov "FLW13": n = 40: tail = "..."
+    For i = 1 To n
+        c = AscW(Mid$(s, i, 1))
+        If c >= 48 And c <= 57 Then
+            out = out & "9"
+        ElseIf (c >= 65 And c <= 90) Then
+            out = out & "A"
+        ElseIf c >= 97 And c <= 122 Then
+            out = out & "a"
+        ElseIf c >= 32 And c < 127 Then
+            out = out & Chr$(c)
+        Else
+            out = out & "?"
+        End If
+    Next i
+    DateShape = TypeName(value) & ":" & out & tail
+End Function
+
+Public Sub LogSkippedDates(ByVal skipped As Long, ByVal shapes As String)
+    ' The code J2D-DATA-003 in the log, when status changes were left out (their date cannot be read): how many, and what the
+    ' values look like (never the values: they are Jira's).
+    If skipped > 0 Then Cov "FLW10": LogLine "WARN", "J2D-DATA-003 | " & skipped & " status changes ignored: their date cannot be read | created: " & shapes
+End Sub
 
 Public Function KeyChangeCounts(ByVal changelogRows As Collection, ByVal idToKey As Object) As Object
     ' Moves between projects: a changelog row of the field Key. Returns issueKey -> number of changes (absent = none).
@@ -68,15 +119,21 @@ Private Sub AddIssueIntervals(ByVal out As Collection, ByVal key As String, ByVa
         If CStr(ch(3) & "") <> status Then Cov "FLW04": check = "FROM_MISMATCH(prev=" & status & ")"
         If ch(2) < entered Then Cov "FLW05": check = check & IIf(Len(check) > 0, ";", "") & "BEFORE_CREATED"
         out.Add Array(key, seq, status, Category(categories, status), entered, ch(2), _
-                      ch(2) - entered, False, ch(1), check)
+                      DaysBetween(entered, ch(2)), False, ch(1), check)
         status = CStr(ch(4) & "")
         entered = ch(2)
     Next ch
     seq = seq + 1
     check = ""
     If status <> CStr(info(1) & "") Then Cov "FLW06": check = "CURRENT_MISMATCH(now=" & info(1) & ")"
-    out.Add Array(key, seq, status, Category(categories, status), entered, Empty, asOfUtc - entered, True, Empty, check)
+    out.Add Array(key, seq, status, Category(categories, status), entered, Empty, DaysBetween(entered, asOfUtc), True, Empty, check)
 End Sub
+
+Private Function DaysBetween(ByVal fromUtc As Variant, ByVal toUtc As Variant) As Double
+    ' Always a Double. A date that could not be read is Empty, and Empty - Date is a DATE in VBA (negative here): Excel refuses
+    ' a block holding one with "Out of memory" (error 7). Empty counts as 0, so the row stays flagged BEFORE_CREATED.
+    DaysBetween = CDbl(toUtc) - CDbl(fromUtc)
+End Function
 
 Private Function Category(ByVal categories As Object, ByVal status As String) As String
     If categories.Exists(status) Then Category = categories(status) Else Cov "FLW07": Category = "Unclassified"

@@ -50,7 +50,7 @@ Private Function TestNames() As Variant
     TestNames = Array("T_JsonNested", "T_JsonEscapes", "T_JsonEmpty", "T_JsonErrors", "T_JsonRoundTrip", _
         "T_JsonLarge", "T_Base64Auth", "T_UrlEncode", "T_Utf8RoundTrip", "T_JiraDates", "T_FieldToCell", _
         "T_SafeCell", "T_ProjectsJql", "T_SearchUrl", "T_SearchPagination", "T_Retry429", _
-        "T_HttpNetworkAndCancel", "T_RetryExhausted", "T_ChangelogChunks", "T_IssueRows", "T_WriteTable", "T_StatusIntervals", _
+        "T_HttpNetworkAndCancel", "T_RetryExhausted", "T_ChangelogChunks", "T_IssueRows", "T_WriteTable", "T_StatusIntervals", "T_IntervalsUnreadableDate", "T_StatusChangesUnreadableDate", "T_DateShape", "T_SkippedDatesWarning", _
         "T_StatusChanges", "T_RetryDelay", "T_SafeAccess", "T_FilesUtf8", "T_StringifyBadObject", _
         "T_TooManyPages", "T_BackgroundExport", "T_TextNotConverted", "T_ParamsTables", "T_ParamsOnWorkbook", _
         "T_TrimWhite", "T_ConfigSheet", "T_MandatoryConfig", "T_ProxyDetect", "T_ProxyScript", "T_ProjectsSheet", "T_ParseMoment", "T_ExtractFlowData", "T_ExtractJob", "T_ExtractCheckFields", "T_FlowBuild", "T_BaseUrlHttps", "T_Log", "T_LogInputsAndTimes", "T_StatusParts", "T_ErrorCodes", "T_LogHintAndOpen", "T_StepsSheet", "T_RovoPrompt", "T_RovoCsv", _
@@ -1758,6 +1758,37 @@ Public Sub T_StatusIntervals()
     Check "flow", "K-3 current mismatch flagged", "row 8", "CURRENT_MISMATCH(now=En test)", out(8)(9)
 End Sub
 
+Public Sub T_IntervalsUnreadableDate()
+    ' A change whose date ParseJiraDate cannot read is Empty, and Empty - Date is a NEGATIVE DATE in VBA: Excel refuses a
+    ' block that holds one ("Out of memory", error 7), so no interval may hold a date-typed duration. Found on a real Jira.
+    Dim info As Object, changes As New Collection, cats As Object, out As Collection, iv As Variant, d0 As Date, bad As Long
+    Dim ws As Object, rows As New Collection, errNumber As Long, i As Long
+    d0 = DateSerial(2026, 10, 1)
+    Set info = CreateObject("Scripting.Dictionary")
+    info("K-4") = Array(d0, "Termine")
+    Set cats = CreateObject("Scripting.Dictionary")
+    changes.Add Array("K-4", "c1", ParseJiraDate("not a date"), "Nouveau", "En analyse")
+    changes.Add Array("K-4", "c2", d0 + 3, "En analyse", "Termine")
+    Set out = BuildStatusIntervals(info, changes, d0 + 9, cats)
+    Check "flow", "unreadable date reads as Empty", "ParseJiraDate", True, IsEmpty(changes(1)(2))
+    For Each iv In out
+        If VarType(iv(6)) = vbDate Then bad = bad + 1
+    Next iv
+    Check "flow", "no duration is a date", "3 intervals", 0, bad
+    Check "flow", "unreadable date is flagged", "row 1", "BEFORE_CREATED", out(1)(9)
+    For Each iv In out
+        rows.Add Array(iv(0), "Team", iv(1), iv(2), iv(3), iv(4), iv(5), iv(6), iv(7), iv(8), iv(9))
+    Next iv
+    Set ws = ThisWorkbook.Worksheets("TestScratch")
+    On Error Resume Next
+    WriteTable ws, Array("Key", "Workflow", "Seq", "Status", "Category", "EnteredUtc", "LeftUtc", _
+                         "DurationDays", "IsOpen", "ChangeId", "Check"), rows
+    errNumber = Err.Number
+    On Error GoTo 0
+    Check "sheet", "the intervals are written", "no error", 0, errNumber
+    ws.Cells.Clear                                                    ' the date formats stay after ClearContents: the next test reads 0/1 there
+End Sub
+
 Public Sub T_StatusChanges()
     Dim rows As New Collection, map As Object, out As Collection
     rows.Add Array("10001", "1", "2026-10-02T10:00:00.000+0200", "Ann", "a1", "status", "status", "jira", "1", "Nouveau", "3", "En analyse")
@@ -1770,6 +1801,48 @@ Public Sub T_StatusChanges()
     Check "flow", "id mapped to key", "10001", "A-1", out(1)(0)
     Check "flow", "unknown id kept", "99999", "99999", out(2)(0)
     Check "flow", "date converted to UTC", "10:00+0200", DateSerial(2026, 10, 2) + TimeSerial(8, 0, 0), out(1)(2)
+End Sub
+
+Public Sub T_StatusChangesUnreadableDate()
+    ' A status change whose date cannot be read is left out (as the Python path does), counted, and its shape is kept.
+    Dim rows As New Collection, map As Object, out As Collection, skipped As Long, shapes As String
+    Set map = CreateObject("Scripting.Dictionary")
+    rows.Add Array("1", "h1", "2026-10-02T10:00:00.000+0200", "Ann", "a1", "status", "status", "jira", "1", "A", "2", "B")
+    rows.Add Array("1", "h2", "1696000000000", "Ann", "a1", "status", "status", "jira", "2", "B", "3", "C")     ' epoch ms
+    rows.Add Array("1", "h3", "1696000000001", "Ann", "a1", "status", "status", "jira", "2", "B", "3", "C")
+    rows.Add Array("1", "h4", Null, "Ann", "a1", "status", "status", "jira", "3", "C", "4", "D")
+    rows.Add Array("1", "h5", "not a date", "Ann", "a1", "customfield_10020", "Sprint", "custom", "", "", "", "S1")   ' not a status
+    Set out = StatusChangesFromChangelog(rows, map, skipped, shapes)
+    Check "flow", "the readable change is kept", "1 of 4", 1, out.Count
+    Check "flow", "the unreadable ones are counted", "3", 3, skipped
+    Check "flow", "their shapes are counted, with no content", "epoch x2, Null x1", "String:9999999999999 x 2; Null x 1", shapes
+End Sub
+
+Public Sub T_DateShape()
+    ' No content in the shape: the log must not hold what Jira answered.
+    Check "flow", "an ISO date", "2026-10-01T09:12:33.123+0200", "String:9999-99-99A99:99:99.999+9999", DateShape("2026-10-01T09:12:33.123+0200")
+    Check "flow", "letters are masked", "Hello World", "String:Aaaaa Aaaaa", DateShape("Hello World")
+    Check "flow", "a number", "15", "Integer:99", DateShape(15)               ' not 1.5: its text follows the decimal mark of the machine
+    Check "flow", "Empty and Null", "types", "Empty|Null", DateShape(Empty) & "|" & DateShape(Null)
+    Check "flow", "an object", "Dictionary", "Object", DateShape(CreateObject("Scripting.Dictionary"))
+    Check "flow", "non ASCII", "e-acute", "String:a?", DateShape("e" & ChrW(233))
+    Check "flow", "cut at 40 characters", "50 digits", "String:" & String$(40, "9") & "...", DateShape(String$(50, "7"))
+End Sub
+
+Public Sub T_SkippedDatesWarning()
+    ' J2D-DATA-003 in the log: only when something was left out, with the count and the shapes.
+    Dim file As String, saved As String, text As String
+    saved = gLogPath
+    file = Environ$("TEMP") & "\j2d_skipped_test_" & Format$(Now, "hhnnss") & Int(Rnd() * 1000) & ".log"
+    gLogPath = file
+    LogSkippedDates 0, ""
+    Check "log", "nothing skipped, no line", "0", False, Len(Dir(file)) > 0
+    LogSkippedDates 3, "String:9999999999999 x 3"
+    text = FileText(file)
+    Check "log", "the warning with its code, count and shapes", "3 x epoch", True, _
+          text Like "####-##-## ##:##:##.### WARN J2D-DATA-003 | 3 status changes ignored: their date cannot be read | created: String:9999999999999 x 3" & vbCrLf
+    gLogPath = saved
+    Kill file
 End Sub
 
 Public Sub T_RetryDelay()

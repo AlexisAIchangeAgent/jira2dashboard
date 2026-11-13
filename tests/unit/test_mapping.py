@@ -161,3 +161,36 @@ def test_status_and_key_changes_come_from_their_items():
     assert M.status_changes(items, {"10": "TA-1"}) == {"TA-1": [Change("h1", dt.datetime(2026, 10, 2, 10), "Nouveau",
                                                                         "Prêt")]}
     assert M.key_change_counts(items, {"10": "TA-1"}) == {"TA-1": 1}
+
+
+# --- status changes whose date cannot be read: left out, counted, and what the value looks like (J2D-DATA-003) ---------------
+
+@pytest.mark.parametrize("value, shape", [
+    ("2026-10-01T09:12:33.123+0200", "String:9999-99-99A99:99:99.999+9999"),      # the same texts as modFlow.DateShape (T_DateShape)
+    ("Hello World", "String:Aaaaa Aaaaa"),
+    ("1696000000000", "String:9999999999999"),
+    ("eé", "String:a?"),
+    ("7" * 50, "String:" + "9" * 40 + "..."),
+    (None, "Null"),
+    ({"a": 1}, "Object"),
+])
+def test_the_shape_of_a_date_that_cannot_be_read_holds_none_of_its_content(value, shape):
+    assert M.date_shape(value) == shape
+
+
+def test_status_changes_without_a_readable_date_are_counted_with_their_shapes():
+    items = [("10", {"id": "h1", "created": "2026-10-02T12:00:00.000+0200"}, {"fieldId": "status"}),
+             ("10", {"id": "h2", "created": "1696000000000"}, {"fieldId": "status"}),
+             ("10", {"id": "h3", "created": "1696000000001"}, {"fieldId": "status"}),
+             ("10", {"id": "h4"}, {"fieldId": "status"}),
+             ("10", {"id": "h5", "created": "not a date"}, {"fieldId": "assignee"})]          # not a status: not counted
+    assert M.unreadable_status_dates(items) == (3, "String:9999999999999 x 2; Null x 1")
+    assert M.unreadable_status_dates(items[:1]) == (0, "")
+
+def test_the_extract_tells_how_many_status_changes_were_left_out():
+    pages = [{"issueChangeLogs": [{"issueId": "10", "changeHistories": [
+        {"id": "h1", "created": "2026-10-02T12:00:00.000+0200", "items": [{"fieldId": "status", "fromString": "A", "toString": "B"}]},
+        {"id": "h2", "created": "1696000000000", "items": [{"fieldId": "status", "fromString": "B", "toString": "C"}]}]}]}]
+    extract = M.extracted([], pages, M.FieldIds("", {}), [], "Blocks")                # no issue: only the changelog matters here
+    assert (extract.unreadable_dates, extract.unreadable_shapes) == (1, "String:9999999999999 x 1")
+    assert extract.changelog_items == 2
