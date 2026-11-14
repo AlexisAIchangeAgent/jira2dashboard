@@ -88,7 +88,9 @@ Before finishing a change run the full pass: `coverage`, `vba-tests`, `test-exce
 `bas_guard.py` runs the VBA guard tests after an edit of `vba/*.bas`, and after a Bash/PowerShell command that changed a
 module (sizes and times kept in `%TEMP%\jira2dashboard\bas_guard.json`); `excel_kill_guard.py` asks before a command that
 stops Excel by its name (`taskkill /IM`, `Stop-Process -Name`). Skills: `full-pass`, `add-data-check`, `read-logs` (summary
-of the logs: `summarize_logs.py`), `release` (user only). Agents (`.claude/agents`, read-only): `vba-reviewer` (a `.bas`
+of the logs: `summarize_logs.py`), `release` (user only), `excel-hygiene` (Claude only: count `EXCEL.EXE` before and after a run, stop
+only the recovery or VBA-dialog Excel the run started, by PID), `vba-mutation` (user only: `mutate.py apply|restore|status`, the mutation proof of a
+`T_` test; run `status` before a commit). Agents (`.claude/agents`, read-only): `vba-reviewer` (a `.bas`
 change against the VBA traps, before `vba-tests`), `parity-checker` (VBA vs Python path, formulas vs `flow/`, modLog vs
 python.log). `tests/unit/test_claude_hooks.py` and `test_claude_skills.py` test the scripts (skipped without `.claude`).
 

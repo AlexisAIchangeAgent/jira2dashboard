@@ -72,3 +72,64 @@ def test_folders_and_files_are_read_and_nothing_found_is_said(S, tmp_path, capsy
     assert S.files([tmp_path, tmp_path / "missing.log"]) == [tmp_path / "a.log"]
     S.main([str(tmp_path / "empty")])
     assert "Nothing to report" in capsys.readouterr().out
+
+
+# --- the skill vba-mutation: .claude/skills/vba-mutation/mutate.py ---------------------------------------------------------------
+
+MUTATE = REPO_ROOT / ".claude" / "skills" / "vba-mutation" / "mutate.py"
+
+
+@pytest.fixture
+def mutate(tmp_path, monkeypatch):
+    if not MUTATE.is_file():
+        pytest.skip(".claude/skills is not in this copy of the code")
+    monkeypatch.setenv("J2D_MUTATION_DIR", str(tmp_path / "keep"))               # never the real folder of %TEMP%
+    spec = importlib.util.spec_from_file_location("mutate", MUTATE)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+@pytest.fixture
+def bas(tmp_path):
+    path = tmp_path / "modX.bas"
+    path.write_bytes(b"Option Explicit\nPublic Function F() As Long\n    F = 1\nEnd Function\n")
+    return path
+
+
+def test_a_mutation_is_applied_once_and_restored_byte_for_byte(mutate, bas, capsys):
+    good = bas.read_bytes()
+    assert mutate.main(["apply", str(bas), "--old", "F = 1", "--new", "F = 2"]) == 0
+    assert bas.read_bytes() == good.replace(b"F = 1", b"F = 2") and b"\r" not in bas.read_bytes()       # LF stays LF
+    assert mutate.main(["status"]) == 1 and "MUTATED: modX.bas" in capsys.readouterr().out
+    assert mutate.main(["restore", str(bas)]) == 0 and bas.read_bytes() == good
+    assert mutate.main(["status"]) == 0
+
+
+def test_a_mutation_that_does_not_apply_exactly_once_changes_nothing(mutate, bas):
+    good = bas.read_bytes()
+    for old in ("not there", "F"):                                                # 0 times, 3 times
+        with pytest.raises(SystemExit, match="exactly once"):
+            mutate.main(["apply", str(bas), "--old", old, "--new", "x"])
+    with pytest.raises(SystemExit, match="no mutation"):
+        mutate.main(["apply", str(bas), "--old", "F = 1", "--new", "F = 1"])
+    with pytest.raises(SystemExit, match="ASCII"):                                # a VBA module is ASCII
+        mutate.main(["apply", str(bas), "--old", "F = 1", "--new", "F = é"])
+    assert bas.read_bytes() == good and mutate.main(["status"]) == 0
+
+
+def test_a_module_already_mutated_is_not_mutated_again_and_restore_without_a_mutation_is_harmless(mutate, bas, capsys):
+    good = bas.read_bytes()
+    assert mutate.main(["restore", str(bas)]) == 0 and "nothing to restore" in capsys.readouterr().out
+    mutate.main(["apply", str(bas), "--old", "F = 1", "--new", "F = 2"])
+    with pytest.raises(SystemExit, match="already mutated"):
+        mutate.main(["apply", str(bas), "--old", "F = 2", "--new", "F = 3"])     # the good text must not be overwritten
+    mutate.main(["restore", str(bas)])
+    assert bas.read_bytes() == good
+
+
+def test_only_a_bas_module_is_touched(mutate, tmp_path):
+    other = tmp_path / "notes.txt"
+    other.write_text("a")
+    with pytest.raises(SystemExit, match="not a .bas module"):
+        mutate.main(["apply", str(other), "--old", "a", "--new", "b"])
