@@ -214,7 +214,7 @@ def test_changelog_has_issue_ids_and_status_items(small_dataset):
     assert log["issueId"] == "10002" and body["nextPageToken"] is None
     first = log["changeHistories"][0]
     ids = StatusCatalog.from_params().ids
-    assert first["created"] == "2026-10-02T12:00:00.000+0200"
+    assert first["created"] == 1790935200000          # a NUMBER of milliseconds since 1970 UTC (2026-10-02T10:00:00Z), as a real Jira dates a history
     assert first["author"] == {"accountId": "acc-ann", "displayName": "Ann Martin"}
     assert first["items"] == [{"field": "status", "fieldtype": "jira", "fieldId": "status",
                                "from": ids["Nouveau"], "fromString": "Nouveau",

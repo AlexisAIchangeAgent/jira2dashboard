@@ -18,11 +18,25 @@ _LEADING_NUMBER = re.compile(r"[+-]?(\d+\.?\d*|\.\d+)")
 SPRINT_RANK = {"active": 3, "future": 2, "closed": 1}
 
 
+def _epoch(number: float) -> dt.datetime | None:
+    """Jira sends the date of a changelog item (changelog/bulkfetch) as milliseconds since 1970-01-01 UTC (1761134538011 on a real Jira);
+    seconds are read too. Whole seconds like the text form; below 2001 or past the year 5138 it is no date (modText.EpochDate)."""
+    if 1e11 <= number < 1e14:
+        seconds = int(number // 1000)
+    elif 1e9 <= number < 1e11:
+        seconds = int(number)
+    else:
+        return None
+    return dt.datetime(1970, 1, 1) + dt.timedelta(seconds=seconds)
+
+
 def parse_jira_date(value) -> dt.datetime | None:
     """2026-10-01T09:12:33.123+0200, ...+02:00, ...Z -> naive UTC (milliseconds dropped); 2026-10-01 -> that day.
     Empty or invalid -> None, never an error (modText.ParseJiraDate)."""
     if value is None or isinstance(value, (dict, list, bool)):
         return None
+    if isinstance(value, (int, float)) or (isinstance(value, str) and value.isascii() and value.isdigit() and len(value) <= 14):
+        return _epoch(float(value))                                   # a number: milliseconds since 1970 (the changelog)
     text = str(value)
     if len(text) < 10 or text[4] != "-" or text[7] != "-":
         return None
@@ -41,6 +55,53 @@ def parse_jira_date(value) -> dt.datetime | None:
         return moment - dt.timedelta(minutes=offset)
     except (ValueError, IndexError, OverflowError):                  # a year 9999 minus an offset, a year 1 plus one
         return None
+
+
+DATE_SAMPLE = 20                                           # histories read to find the date key (modJira.DATE_SAMPLE)
+DATE_KEY_HINTS = ("creat", "date", "time")                 # a name that hints at a date, when several keys hold one
+_FALLBACK_KEY = ("created", "none", ())
+
+
+def date_kind(value) -> str:
+    """"epoch ms", "epoch s", "ISO" or "none", from the VALUE only (modText.DateKind): what the date key is found by."""
+    if parse_jira_date(value) is None:
+        return "none"
+    if isinstance(value, (int, float)) or (isinstance(value, str) and value.isdigit()):
+        return "epoch ms" if float(value) >= 1e11 else "epoch s"
+    return "ISO"
+
+
+def is_plausible_date(value, now: dt.datetime | None = None) -> bool:
+    """A date between 2000-01-01 and tomorrow: a change is never in the future, which rejects an id of ten digits or a version."""
+    moment = parse_jira_date(value)
+    now = now or dt.datetime.now(dt.timezone.utc).replace(tzinfo=None)
+    return moment is not None and dt.datetime(2000, 1, 1) <= moment <= now + dt.timedelta(days=1)
+
+
+def find_date_key(histories: list[dict], now: dt.datetime | None = None) -> tuple[str, str, tuple[str, ...]]:
+    """(key, kind, other keys that qualify) of the date of a changelog history, by the value of each key, never by its label:
+    the first DATE_SAMPLE histories are read and a key qualifies when it holds a plausible date in every one of them.
+    Several: `created`, else a name that hints at a date, else the first. None: ("created", "none", ()) (modJira.FindDateKey)."""
+    sample = histories[:DATE_SAMPLE]
+    if not sample:
+        return _FALLBACK_KEY
+    now = now or dt.datetime.now(dt.timezone.utc).replace(tzinfo=None)
+    names = [name for name in sample[0]
+             if all(name in history and is_plausible_date(history[name], now) for history in sample)]
+    if not names:
+        return _FALLBACK_KEY
+    hinted = [name for name in names if any(word in name.lower() for word in DATE_KEY_HINTS)]
+    key = "created" if "created" in names else hinted[0] if hinted else names[0]
+    return key, date_kind(sample[0][key]), tuple(name for name in names if name != key)
+
+
+def _histories(pages: list[dict]) -> list[dict]:
+    return [history for page in pages for log in page.get("issueChangeLogs") or [] for history in log.get("changeHistories") or []]
+
+
+def date_key_of(pages: list[dict], now: dt.datetime | None = None) -> tuple[str, str, tuple[str, ...]]:
+    """`find_date_key` on the histories of the changelog pages, in the order Jira sent them."""
+    return find_date_key(_histories(pages), now)
 
 
 def text_of(value) -> str | None:
@@ -153,8 +214,10 @@ def block_links(issues: list[dict], link_type: str) -> list[tuple[str, str]]:
 
 
 def changelog_items(pages: list[dict]) -> list[tuple[str, dict, dict]]:
-    """(issue id, history, item) of every item of the changelog pages, in the order Jira sent them."""
-    return [(str(log.get("issueId")), history, item)
+    """(issue id, history, item) of every item of the changelog pages, in the order Jira sent them. The date of a history is
+    found by its value (`find_date_key`) and put in `created` of a copy of the history when Jira names it otherwise."""
+    key = date_key_of(pages)[0]
+    return [(str(log.get("issueId")), history if key == "created" else {**history, "created": history.get(key)}, item)
             for page in pages for log in page.get("issueChangeLogs") or []
             for history in log.get("changeHistories") or [] for item in history.get("items") or []]
 
@@ -295,6 +358,7 @@ class Extract:
     unreadable_dates: int = 0               # status changes left out: their date cannot be read (J2D-DATA-003)
     unreadable_shapes: str = ""             # what those dates look like (date_shape), to find why
     changelog: list = field(default_factory=list)   # sheet Changelog
+    date_key: tuple = _FALLBACK_KEY         # (key, kind, other keys that qualify) found by value: find_date_key
 
 
 def extracted(issues: list[dict], changelog_pages: list[dict], ids: FieldIds, projects: list[tuple[str, str, str]],
@@ -316,4 +380,5 @@ def extracted(issues: list[dict], changelog_pages: list[dict], ids: FieldIds, pr
         blocks = tuple(blocked_by.get(row[0], ()))
         flow.append(flow_issue(row, changes.get(row[0], []), projects, blocks,
                                versions_of(issue.get("fields") or {})))
-    return Extract(rows, flow, links, len(items), *unreadable_status_dates(items), changelog_rows(items, id_to_key, user_fields))
+    return Extract(rows, flow, links, len(items), *unreadable_status_dates(items), changelog_rows(items, id_to_key, user_fields),
+                   date_key_of(changelog_pages))

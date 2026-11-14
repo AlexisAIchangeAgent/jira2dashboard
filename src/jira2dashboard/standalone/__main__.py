@@ -192,6 +192,9 @@ def run(args, formatter: Scrubbed, collected: Collected, sleep=time.sleep, detec
                         settings.blocks_link_type, client.user_fields())
     log.info("END Jira: %d issues, %d changelog items, %d links%s", len(extract.rows), extract.changelog_items,
              len(extract.links), took(step))
+    key, kind, others = extract.date_key
+    if kind != "none":                                              # key names are Jira's schema, not its data
+        log.info("changelog date key: %s (%s)%s", key, kind, f", other keys that hold a date: {', '.join(others)}" if others else "")
     if extract.unreadable_dates:
         log.warning("J2D-DATA-003 | %d status changes ignored: their date cannot be read | created: %s",
                     extract.unreadable_dates, extract.unreadable_shapes)

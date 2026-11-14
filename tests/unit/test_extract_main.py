@@ -124,3 +124,15 @@ def test_the_default_log_is_the_folder_logs_next_to_the_workbook(tmp_path, jira)
     workbook = params(tmp_path, jira.base_url)
     assert X.main(["--workbook", str(workbook)], sleep=lambda s: None, detect=direct) == 0
     assert "RUN" in (tmp_path / "logs" / "python.log").read_text(encoding="utf-8")
+
+
+@pytest.mark.parametrize("date, line", [
+    (("created", "ms"), "changelog date key: created (epoch ms)"),                      # what the real Jira sends
+    (("created", "iso"), "changelog date key: created (ISO)"),                          # what the OpenAPI says
+    (("createdAt", "ms"), "changelog date key: createdAt (epoch ms)"),                  # a label Atlassian could change
+    (("timestamp", "iso"), "changelog date key: timestamp (ISO)"),
+])
+def test_the_date_of_a_changelog_is_found_by_its_value_and_named_in_the_log(tmp_path, dataset, date, line):
+    with MockJira(dataset, credentials=(MOCK_EMAIL, MOCK_TOKEN), changelog_date=date) as server:
+        code, log = run(tmp_path, params(tmp_path, server.base_url))
+    assert code == 0 and line in log and "J2D-DATA-003" not in log

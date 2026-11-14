@@ -201,6 +201,7 @@ def _changelog(world):
     rows = sheets(world)["Changelog"]
     assert len(rows) == sum(len(i.changes) + len(i.key_changes) for i in ds.issues)       # one item per history of the fake
     assert {r["FieldId"] for r in rows} <= {"status", "issuekey"} and all(r["CreatedText"] for r in rows)
+    assert all(str(r["CreatedText"]).isdigit() and r["CreatedUtc"] for r in rows)          # milliseconds, read: as a real Jira sends them
     assert list(rows[0]) == list(CHANGELOG_RAW)
     authors = {c.author for i in ds.issues for c in i.changes if c.author}
     assert authors and not any(a in str(rows) for a in authors)                         # no author anywhere

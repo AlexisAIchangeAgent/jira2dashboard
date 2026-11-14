@@ -131,6 +131,13 @@ def _jira(world, jira_server, n):
     world["jira"] = jira_server(world["dataset"], credentials=("me@example.com", "tok-123"))
 
 
+@given(parsers.parse('un faux Jira avec {n:d} tickets générés dont les dates de changelog sont sous la clé "{key}" au format "{form}"'))
+def _jira_with_another_date_key(world, jira_server, n, key, form):
+    """The date of a history under another label and format: the workbook finds it by its value (modJira.FindDateKey)."""
+    world["dataset"] = generate(seed=11, issues=n, projects=project_keys())
+    world["jira"] = jira_server(world["dataset"], credentials=("me@example.com", "tok-123"), changelog_date=(key, form))
+
+
 @given(parsers.parse("un faux Jira lent avec {n:d} tickets générés avec les projets des paramètres"))
 def _slow_jira(world, jira_server, n):
     world["dataset"] = generate(seed=11, issues=n, projects=project_keys())
@@ -362,7 +369,7 @@ def logged_run(world, how: str) -> tuple[list[list[str]], str]:
     assert any(p in params for p in ("FlowLoadMode = A", "FlowLoadMode = B")), params   # a setting of the tool, in clear
     assert any(p.startswith("sheet Projects = ") and p.endswith(" rows") for p in params), params
     assert lines[-1][0] == "RUN" and TIMED.search(" " + lines[-1][1]) and lines[-1][1].startswith("end ok | "), lines[-1]
-    steps = [k for k in kinds[1 + len(params):-1] if k != "WARN"]                         # a WARN (J2D-DATA-003) is no step
+    steps = [k for k in kinds[1 + len(params):-1] if k not in ("WARN", "INFO")]            # a WARN (J2D-DATA-003) or an INFO is no step
     assert steps == ["BEGIN", "END"] * (len(steps) // 2), kinds                          # each step ends before the next
     ends = [rest[0] for kind, *rest in lines if kind == "END"]
     assert all(TIMED.search(end) for end in ends), ends[:3]                             # each step gives its time
@@ -599,8 +606,25 @@ def _changelog_sheet(world):
     assert len(rows) == sum(len(i.changes) + len(i.key_changes) for i in ds.issues), len(rows)
     assert list(rows[0]) == list(CHANGELOG_RAW) and {r["FieldId"] for r in rows} <= {"status", "issuekey"}
     assert all(r["CreatedUtc"] != "" and r["CreatedText"] != "" for r in rows)            # every date of the fake is read
+    assert all(str(r["CreatedText"]).isdigit() for r in rows)                            # the fake dates a history with milliseconds, as a real Jira
     authors = {c.author for i in ds.issues for c in i.changes if c.author}
     assert authors and not any(a in str(rows) for a in authors)                         # no author anywhere
+
+
+@then("la feuille Changelog a toutes ses dates lues et chaque date de statut égale à celle du faux Jira")
+def _changelog_dates_read(world):
+    ds, wb = world["dataset"], world["wb"]
+    rows = [r for r in sheet_rows(wb, "Changelog") if r["FieldId"] == "status"]
+    assert rows and all(r["CreatedUtc"] != "" for r in rows), [r for r in rows if r["CreatedUtc"] == ""][:3]
+    assert not any(str(r["CreatedText"]).isdigit() for r in rows)                        # sent as ISO text here
+    read = {(r["Key"], str(r["ChangeId"])): r["CreatedUtc"] for r in rows}
+    want = {(i.key, str(c.id)): c.at for i in ds.issues for c in i.changes}
+    assert len(read) == len(want) and want
+    for key, at in want.items():
+        got = read[key]
+        got = got if isinstance(got, dt.datetime) else dt.datetime.fromisoformat(str(got))
+        got = got.replace(tzinfo=None)                                                  # Excel gives a UTC datetime with its zone
+        assert abs((got - at).total_seconds()) < 1, (key, got, at)                      # to the second
 
 
 @then("chaque feuille du classeur porte le suffixe de sa source")

@@ -28,6 +28,16 @@ Fonctionnalité: Le classeur livré extrait Jira et calcule les mêmes chiffres 
     Et la feuille ChartData reproduit les métriques de la référence Python en mode "B", avec #N/A pour « not computable »
 
   @excel
+  Scénario: La date d'un changelog est trouvée par sa valeur, même sous une autre clé et dans un autre format
+    Soit un faux Jira avec 60 tickets générés dont les dates de changelog sont sous la clé "createdAt" au format "iso"
+    Et le classeur à livrer dont la feuille Config pointe sur ce faux Jira avec FlowLoadMode "A"
+    Et les itérations de 14 jours depuis le "2026-06-01" jusqu'à la date de référence dans la feuille Iterations
+    Quand j'exécute la macro Extraire et calculer du classeur
+    Alors aucune cellule des feuilles de flux ne montre une erreur Excel
+    Et la feuille StatusIntervals reproduit les intervalles de la référence Python
+    Et la feuille Changelog a toutes ses dates lues et chaque date de statut égale à celle du faux Jira
+
+  @excel
   Scénario: Les contrôles de données trouvent les anomalies connues et rien d'autre
     Soit un faux Jira avec 150 tickets générés et les anomalies de données connues
     Et le classeur à livrer dont la feuille Config pointe sur ce faux Jira avec FlowLoadMode "A"

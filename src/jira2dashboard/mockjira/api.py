@@ -16,6 +16,11 @@ BULK_ISSUES_MAX = 1000              # changelog/bulkfetch: max issues per call
 BULK_FIELD_IDS_MAX = 10
 
 
+def _epoch_ms(value: dt.datetime) -> int:
+    """Milliseconds since 1970-01-01 UTC: how changelog/bulkfetch dates its histories (the dates of the fake are UTC)."""
+    return int((value - dt.datetime(1970, 1, 1)).total_seconds() * 1000)
+
+
 def jira_time(value: dt.datetime, tz_minutes: int) -> str:
     """Jira style: 2026-10-06T10:00:00.000+0200 (the offset has no colon)."""
     local = value + dt.timedelta(minutes=tz_minutes)
@@ -169,8 +174,10 @@ def _key_item(issue: Issue) -> dict:
             "fromString": f"OLD-{issue.number}", "to": None, "toString": issue.key}
 
 
-def bulk_changelog(ds: Dataset, body: dict, *, tz: int, bulk_clamp: int) -> dict:
-    """POST /rest/api/3/changelog/bulkfetch: the status histories, oldest change first, paged by token."""
+def bulk_changelog(ds: Dataset, body: dict, *, tz: int, bulk_clamp: int, date: tuple[str, str] = ("created", "ms")) -> dict:
+    """POST /rest/api/3/changelog/bulkfetch: the status histories, oldest change first, paged by token. `date` = (the key that
+    holds the date of a history, its format "ms" or "iso"): the real Jira sends `created` as milliseconds; the others are what
+    Atlassian could change one day (the tool finds the date by its value)."""
     refs = body.get("issueIdsOrKeys")
     if not isinstance(refs, list) or not refs:
         raise _error(400, "issueIdsOrKeys is required and must not be empty.")
@@ -191,7 +198,7 @@ def bulk_changelog(ds: Dataset, body: dict, *, tz: int, bulk_clamp: int) -> dict
     grouped: dict[str, list] = {}
     for issue, change in histories[offset:offset + size]:
         grouped.setdefault(issue.id, []).append({
-            "id": change.id, "created": jira_time(change.at, tz),
+            "id": change.id, date[0]: _epoch_ms(change.at) if date[1] == "ms" else jira_time(change.at, tz),
             "author": {"accountId": change.author_id, "displayName": change.author},
             "items": [_key_item(issue) if isinstance(change, _KeyMove) else
                       {"field": "status", "fieldtype": "jira", "fieldId": "status",

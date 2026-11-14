@@ -2,8 +2,10 @@ Option Explicit
 ' Jira Cloud REST API v3: search all issues with all fields, bulk changelogs, write tables.
 
 Public Const JIRA_PAGE_SIZE As Long = 100
+Public Const DATE_SAMPLE As Long = 20                        ' histories read to find the key that holds the date of a changelog
 Public Const CHANGELOG_CHUNK As Long = 50             ' issues per bulkfetch call and per step (the API accepts 1000): a step must stay short
 
+Private mDateKey As String                                 ' the key found for the date of a changelog history, for the run
 Public Const MAX_SEARCH_PAGES As Long = 2000                  ' a search that has not ended after this many pages is given up
 
 Public Function JiraConfig(ByVal baseUrl As String, ByVal email As String, ByVal apiToken As String, _
@@ -186,6 +188,71 @@ Private Function StatusHint(ByVal status As Long) As String
     End Select
 End Function
 
+Public Sub ResetDateKey()
+    mDateKey = ""
+End Sub
+
+Public Function FindDateKey(ByVal histories As Collection, ByVal nowTime As Date, ByRef kind As String, ByRef others As String) As String
+    ' The key of a changelog history that holds its date, found by the VALUE of each key, never by its label (Atlassian sent a number of
+    ' milliseconds where its schema says a date-time): a key qualifies when it holds a plausible date in each of the first DATE_SAMPLE
+    ' histories. Several: "created", else a name that hints at a date, else the first. None: "created" and kind "none".
+    Dim first As Variant, names As New Collection, k As Variant, i As Long, ok As Boolean, found As String, low As String
+    FindDateKey = "created": kind = "none": others = ""
+    If histories.Count = 0 Then Cov "JIR28": Exit Function
+    JSet first, histories(1)
+    If Not IsObject(first) Then Exit Function
+    If TypeOf first Is Collection Then Exit Function
+    For Each k In first.Keys
+        ok = True
+        For i = 1 To histories.Count
+            If i > DATE_SAMPLE Then Exit For
+            If Not IsPlausibleDate(JGet(histories(i), CStr(k)), nowTime) Then ok = False: Exit For
+        Next i
+        If ok Then names.Add CStr(k)
+    Next k
+    If names.Count = 0 Then Cov "JIR29": Exit Function
+    For Each k In names
+        If k = "created" Then Cov "JIR30": found = "created": Exit For
+    Next k
+    If Len(found) = 0 Then
+        For Each k In names
+            low = LCase$(CStr(k))
+            If InStr(low, "creat") > 0 Or InStr(low, "date") > 0 Or InStr(low, "time") > 0 Then Cov "JIR31": found = CStr(k): Exit For
+        Next k
+    End If
+    If Len(found) = 0 Then Cov "JIR32": found = names(1)
+    For Each k In names
+        If k <> found Then others = others & IIf(Len(others) > 0, ", ", "") & k
+    Next k
+    FindDateKey = found
+    kind = DateKind(JGet(first, found))
+End Function
+
+Private Function DetectDateKey(ByVal data As Variant) As String
+    ' The key of the date of the histories of this answer: found by the values of its first histories (FindDateKey) and kept for the run
+    ' while the first history still holds a date under it. Said once in the log: key names are Jira's schema, never its data.
+    Dim histories As New Collection, icl As Variant, h As Variant, kind As String, others As String, key As String
+    For Each icl In AsList(JGet(data, "issueChangeLogs"))
+        For Each h In AsList(JGet(icl, "changeHistories"))
+            histories.Add h
+            If histories.Count >= DATE_SAMPLE Then Exit For
+        Next h
+        If histories.Count >= DATE_SAMPLE Then Exit For
+    Next icl
+    DetectDateKey = IIf(Len(mDateKey) > 0, mDateKey, "created")
+    If histories.Count = 0 Then Exit Function
+    If Len(mDateKey) > 0 Then
+        If IsPlausibleDate(JGet(histories(1), mDateKey), Now) Then Cov "JIR33": Exit Function
+    End If
+    key = FindDateKey(histories, Now, kind, others)
+    If kind = "none" Then
+        Cov "JIR35": mDateKey = "": DetectDateKey = "created"
+    Else
+        Cov "JIR34": mDateKey = key: DetectDateKey = key
+        LogLine "INFO", "changelog date key: " & key & " (" & kind & ")" & IIf(Len(others) > 0, ", other keys that hold a date: " & others, "")
+    End If
+End Function
+
 Private Function ChangelogBody(ByVal keys As Collection, ByVal nextPageToken As String) As String
     Cov "JIR09"
     Dim body As Object
@@ -208,17 +275,18 @@ Public Function JiraChangelogChunk(ByVal cfg As Object, ByVal issueKeys As Colle
 End Function
 
 Private Sub FetchChangelogChunk(ByVal cfg As Object, ByVal chunk As Collection, ByVal rows As Collection)
-    Dim token As String, resp As Object, data As Variant, icl As Variant, h As Variant, it As Variant, pages As Long, previous As String
+    Dim token As String, resp As Object, data As Variant, icl As Variant, h As Variant, it As Variant, pages As Long, previous As String, dateKey As String
     Do
         Set resp = HttpRequest(cfg, "POST", cfg("BaseUrl") & "/rest/api/3/changelog/bulkfetch", _
                                ChangelogBody(chunk, token))
         CheckStatus resp, "changelog/bulkfetch"
         RequireJson resp, "changelog/bulkfetch"
         Set data = JsonParse(resp("Text"))
+        dateKey = DetectDateKey(data)
         For Each icl In AsList(JGet(data, "issueChangeLogs"))
             For Each h In AsList(JGet(icl, "changeHistories"))
                 For Each it In AsList(JGet(h, "items"))
-                    rows.Add Array(JGet(icl, "issueId"), JGet(h, "id"), JGet(h, "created"), _
+                    rows.Add Array(JGet(icl, "issueId"), JGet(h, "id"), JGet(h, dateKey), _
                                    JPath(h, "author.displayName"), JPath(h, "author.accountId"), _
                                    JGet(it, "fieldId"), JGet(it, "field"), JGet(it, "fieldtype"), _
                                    JGet(it, "from"), JGet(it, "fromString"), JGet(it, "to"), JGet(it, "toString"))

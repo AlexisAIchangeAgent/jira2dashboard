@@ -50,7 +50,7 @@ Private Function TestNames() As Variant
     TestNames = Array("T_JsonNested", "T_JsonEscapes", "T_JsonEmpty", "T_JsonErrors", "T_JsonRoundTrip", _
         "T_JsonLarge", "T_Base64Auth", "T_UrlEncode", "T_Utf8RoundTrip", "T_JiraDates", "T_FieldToCell", _
         "T_SafeCell", "T_ProjectsJql", "T_SearchUrl", "T_SearchPagination", "T_Retry429", _
-        "T_HttpNetworkAndCancel", "T_RetryExhausted", "T_ChangelogChunks", "T_IssueRows", "T_WriteTable", "T_StatusIntervals", "T_IntervalsUnreadableDate", "T_StatusChangesUnreadableDate", "T_ChangelogRows", "T_UserFieldIds", "T_DateShape", "T_SkippedDatesWarning", "T_SheetName", "T_ProposeFromSheets", "T_ProposeIterations", "T_ReadSprints", "T_ProposeKindOf", "T_ProposeValuesNotAdmin", "T_HealthFields", _
+        "T_HttpNetworkAndCancel", "T_RetryExhausted", "T_ChangelogChunks", "T_IssueRows", "T_WriteTable", "T_StatusIntervals", "T_IntervalsUnreadableDate", "T_StatusChangesUnreadableDate", "T_ChangelogRows", "T_UserFieldIds", "T_DateShape", "T_ParseJiraDateEpoch", "T_DateKind", "T_IsPlausibleDate", "T_FindDateKey", "T_ChangelogDateKey", "T_SkippedDatesWarning", "T_SheetName", "T_ProposeFromSheets", "T_ProposeIterations", "T_ReadSprints", "T_ProposeKindOf", "T_ProposeValuesNotAdmin", "T_HealthFields", _
         "T_StatusChanges", "T_RetryDelay", "T_SafeAccess", "T_FilesUtf8", "T_StringifyBadObject", _
         "T_TooManyPages", "T_BackgroundExport", "T_TextNotConverted", "T_ParamsTables", "T_ParamsOnWorkbook", _
         "T_TrimWhite", "T_ConfigSheet", "T_MandatoryConfig", "T_ProxyDetect", "T_ProxyScript", "T_ProjectsSheet", "T_ParseMoment", "T_ExtractFlowData", "T_ExtractJob", "T_ExtractCheckFields", "T_FlowBuild", "T_BaseUrlHttps", "T_Log", "T_LogInputsAndTimes", "T_StatusParts", "T_ErrorCodes", "T_LogHintAndOpen", "T_StepsSheet", "T_RovoPrompt", "T_RovoCsv", _
@@ -1818,7 +1818,7 @@ Public Sub T_ChangelogRows()
     Dim raw As New Collection, map As Object, out As Collection, r As Variant, all As String, v As Variant
     Set map = CreateObject("Scripting.Dictionary"): map("10") = "A-1"
     raw.Add Array("10", "h1", "2026-10-02T10:00:00.000+0200", "Ann", "a1", "status", "status", "jira", "1", "Nouveau", "3", "Pret")
-    raw.Add Array("10", "h2", "1696000000000", "Ann", "a1", "description", "description", "jira", "", String$(300, "x"), "", "ok")
+    raw.Add Array("10", "h2", "not a date", "Ann", "a1", "description", "description", "jira", "", String$(300, "x"), "", "ok")
     raw.Add Array("11", "h3", "2026-10-03T10:00:00.000Z", "Bob", "b1", "assignee", "assignee", "jira", "acc-1", "Mary Martin", "acc-2", "Paul Durand")
     raw.Add Array("10", "h4", "2026-10-04T10:00:00.000Z", "Ann", "a1", "customfield_10050", "Product owner", "custom", "acc-9", "Mary Martin", "acc-8", "Paul Durand")
     raw.Add Array("10", "h5", "2026-10-05T10:00:00.000Z", "Ann", "a1", "description", "description", "jira", "", "Ask [~accountid:5b10ac8d82e05b22cc7d4ef5] and [~jdoe] now", "", "ok")
@@ -1829,7 +1829,7 @@ Public Sub T_ChangelogRows()
     Check "changelog", "the key of the issue, its id, the id of the change", "A-1|10|h1", "A-1|10|h1", out(1)(0) & "|" & out(1)(1) & "|" & out(1)(2)
     Check "changelog", "the date read, in UTC", "10:00+0200", DateSerial(2026, 10, 2) + TimeSerial(8, 0, 0), out(1)(3)
     Check "changelog", "the date as Jira sent it", "text", "2026-10-02T10:00:00.000+0200", out(1)(4)
-    Check "changelog", "an epoch is not read, the text shows it", "1696000000000", "empty|1696000000000", IIf(IsEmpty(out(2)(3)), "empty", "read") & "|" & out(2)(4)      ' not CStr(True): "Vrai" on a French PC
+    Check "changelog", "a date that is not one is not read, the text shows it", "not a date", "empty|not a date", IIf(IsEmpty(out(2)(3)), "empty", "read") & "|" & out(2)(4)      ' not CStr(True): "Vrai" on a French PC
     Check "changelog", "a text is cut at 255 characters", "300 -> 255", 255, Len(out(2)(9))
     Check "changelog", "an id that no issue has is kept as it is", "11", "11", out(3)(0)
     Check "changelog", "a person field keeps no value", "assignee", "||||", out(3)(8) & "|" & out(3)(9) & "|" & out(3)(10) & "|" & out(3)(11) & "|"
@@ -1849,14 +1849,14 @@ Public Sub T_StatusChangesUnreadableDate()
     Dim rows As New Collection, map As Object, out As Collection, skipped As Long, shapes As String
     Set map = CreateObject("Scripting.Dictionary")
     rows.Add Array("1", "h1", "2026-10-02T10:00:00.000+0200", "Ann", "a1", "status", "status", "jira", "1", "A", "2", "B")
-    rows.Add Array("1", "h2", "1696000000000", "Ann", "a1", "status", "status", "jira", "2", "B", "3", "C")     ' epoch ms
-    rows.Add Array("1", "h3", "1696000000001", "Ann", "a1", "status", "status", "jira", "2", "B", "3", "C")
+    rows.Add Array("1", "h2", "not a date", "Ann", "a1", "status", "status", "jira", "2", "B", "3", "C")
+    rows.Add Array("1", "h3", "yesterday", "Ann", "a1", "status", "status", "jira", "2", "B", "3", "C")
     rows.Add Array("1", "h4", Null, "Ann", "a1", "status", "status", "jira", "3", "C", "4", "D")
     rows.Add Array("1", "h5", "not a date", "Ann", "a1", "customfield_10020", "Sprint", "custom", "", "", "", "S1")   ' not a status
     Set out = StatusChangesFromChangelog(rows, map, skipped, shapes)
     Check "flow", "the readable change is kept", "1 of 4", 1, out.Count
     Check "flow", "the unreadable ones are counted", "3", 3, skipped
-    Check "flow", "their shapes are counted, with no content", "epoch x2, Null x1", "String:9999999999999 x 2; Null x 1", shapes
+    Check "flow", "their shapes are counted, with no content", "two texts, Null x1", "String:aaa a aaaa x 1; String:aaaaaaaaa x 1; Null x 1", shapes
 End Sub
 
 Public Sub T_SheetName()
@@ -1872,6 +1872,132 @@ Public Sub T_SheetName()
     Check "sheets", "the logical name of a logical one", "PIs", "PIs", LogicalSheet("PIs")
     Check "sheets", "a suffix on an unknown name is kept", "Foo_from_user", "Foo_from_user", LogicalSheet("Foo_from_user")
     Check "sheets", "the longest name fits Excel", "31", True, Len(SheetName("JiraProjectWorkflows")) <= 31
+End Sub
+
+Public Sub T_DateKind()
+    ' What a value is, from the value only: the date of a changelog is found by it, never by the label of its key.
+    Dim no As Variant
+    Check "datekind", "milliseconds as a number", "1761134538011", "epoch ms", DateKind(1761134538011#)
+    Check "datekind", "milliseconds as text", "1761134538011", "epoch ms", DateKind("1761134538011")
+    Check "datekind", "seconds as a number", "1761134538", "epoch s", DateKind(1761134538#)
+    Check "datekind", "seconds as text", "1761134538", "epoch s", DateKind("1761134538")
+    Check "datekind", "an ISO date-time", "2026-10-01T09:12:33.123+0200", "ISO", DateKind("2026-10-01T09:12:33.123+0200")
+    Check "datekind", "an ISO day", "2026-10-01", "ISO", DateKind("2026-10-01")
+    For Each no In Array("843000", 843000, "TA-1", "", Null, True)
+        Check "datekind", "not a date", "843000, text, empty, Null, True", "none", DateKind(no)
+    Next no
+    Check "datekind", "an object is not a date", "{a:1}", "none", DateKind(JsonParse(J("{'a':1}")))
+    Check "datekind", "an array is not a date", "[]", "none", DateKind(JsonParse("[]"))
+End Sub
+
+Public Sub T_IsPlausibleDate()
+    ' Between 2000-01-01 and tomorrow: a change is never in the future.
+    Dim now0 As Date
+    now0 = DateSerial(2026, 11, 14) + TimeSerial(12, 0, 0)
+    Check "plausible", "a real epoch", "1761134538011", "yes", IIf(IsPlausibleDate(1761134538011#, now0), "yes", "no")
+    Check "plausible", "now", "2026-11-14T12:00:00Z", "yes", IIf(IsPlausibleDate("2026-11-14T12:00:00Z", now0), "yes", "no")
+    Check "plausible", "until tomorrow", "2026-11-15T11:00:00Z", "yes", IIf(IsPlausibleDate("2026-11-15T11:00:00Z", now0), "yes", "no")
+    Check "plausible", "not later", "2026-11-16T12:00:00Z", "no", IIf(IsPlausibleDate("2026-11-16T12:00:00Z", now0), "yes", "no")
+    Check "plausible", "an epoch in 2100", "4102444800000", "no", IIf(IsPlausibleDate(4102444800000#, now0), "yes", "no")
+    Check "plausible", "1999", "1999-12-31", "no", IIf(IsPlausibleDate("1999-12-31", now0), "yes", "no")
+    Check "plausible", "2000", "2000-01-01", "yes", IIf(IsPlausibleDate("2000-01-01", now0), "yes", "no")
+    Check "plausible", "an id", "843000", "no", IIf(IsPlausibleDate("843000", now0), "yes", "no")
+    Check "plausible", "Null", "Null", "no", IIf(IsPlausibleDate(Null, now0), "yes", "no")
+    Check "plausible", "an object", "{}", "no", IIf(IsPlausibleDate(JsonParse("{}"), now0), "yes", "no")
+End Sub
+
+Private Function Histories(ParamArray jsons() As Variant) As Collection
+    Dim c As New Collection, i As Long
+    For i = LBound(jsons) To UBound(jsons)
+        c.Add JsonParse(J(CStr(jsons(i))))
+    Next i
+    Set Histories = c
+End Function
+
+Private Function DateKeyOf(ByVal hs As Collection) As String
+    Dim kind As String, others As String, key As String
+    key = FindDateKey(hs, DateSerial(2026, 11, 14) + TimeSerial(12, 0, 0), kind, others)
+    DateKeyOf = key & "|" & kind & "|" & others
+End Function
+
+Public Sub T_FindDateKey()
+    ' The key that holds the date of a changelog history is found by the VALUE of each key (the python twin: mapping.find_date_key).
+    Dim hs As Collection, i As Long, kind As String, others As String
+    Check "datekey", "created, milliseconds (the real Jira)", "created", "created|epoch ms|", _
+          DateKeyOf(Histories("{'id':'843000','created':1761134538011,'author':{'displayName':'x'},'items':[]}"))
+    Check "datekey", "created, ISO (what the schema says)", "created", "created|ISO|", _
+          DateKeyOf(Histories("{'id':'1','created':'2026-10-01T09:12:33.123+0200','items':[]}"))
+    Check "datekey", "a renamed key", "createdAt", "createdAt|epoch ms|", DateKeyOf(Histories("{'id':'1','createdAt':1761134538011,'items':[]}"))
+    Check "datekey", "a renamed key, ISO, with another text", "timestamp", "timestamp|ISO|", _
+          DateKeyOf(Histories("{'id':'1','timestamp':'2026-10-01T09:12:33Z','note':'x','items':[]}"))
+    Check "datekey", "several: created wins, the other is named", "created, other", "created|epoch ms|other", _
+          DateKeyOf(Histories("{'id':'1','other':1761134538011,'created':1761134538011}"))
+    Check "datekey", "several: the first, the others named", "first, second", "first|epoch ms|second", _
+          DateKeyOf(Histories("{'id':'1','first':1761134538011,'second':1761134538011}"))
+    Check "datekey", "several: a name that hints at a date", "zzz, createdOn", "createdOn|epoch ms|zzz", _
+          DateKeyOf(Histories("{'zzz':1761134538011,'createdOn':1761134538011}"))
+    Check "datekey", "several: another hint", "zzz, eventDate", "eventDate|epoch ms|zzz", _
+          DateKeyOf(Histories("{'zzz':1761134538011,'eventDate':1761134538011}"))
+    Check "datekey", "an id of ten digits in the past reads as a date: created wins", "id 1700000001", "created|ISO|id", _
+          DateKeyOf(Histories("{'id':'1700000001','created':'2026-10-01T09:12:33Z'}"))
+    Check "datekey", "an id in the future is not a date", "id 2000000001", "created|ISO|", _
+          DateKeyOf(Histories("{'id':'2000000001','created':'2026-10-01T09:12:33Z'}"))
+    Check "datekey", "one odd history rejects the key", "created, other", "other|epoch ms|", _
+          DateKeyOf(Histories("{'created':1761134538011,'other':1761134538011}", "{'created':'not a date','other':1761134538011}"))
+    Check "datekey", "a key missing from one history is rejected", "created, other", "other|epoch ms|", _
+          DateKeyOf(Histories("{'created':1761134538011,'other':1761134538011}", "{'other':1761134538011}"))
+    Check "datekey", "no date: created and none", "created not a date", "created|none|", DateKeyOf(Histories("{'id':'1','created':'not a date'}"))
+    Check "datekey", "no history: created and none", "empty", "created|none|", DateKeyOf(New Collection)
+    Check "datekey", "a date inside an object is not read", "created {epochMillis}", "created|none|", _
+          DateKeyOf(Histories("{'id':'1','created':{'epochMillis':1761134538011}}"))
+    Set hs = New Collection
+    For i = 1 To DATE_SAMPLE
+        hs.Add JsonParse(J("{'created':1761134538011}"))
+    Next i
+    hs.Add JsonParse(J("{'created':'not a date'}"))
+    Check "datekey", "only the first histories are read", "20 good then 1 odd", "created|epoch ms|", DateKeyOf(hs)
+End Sub
+
+Public Sub T_ChangelogDateKey()
+    ' The changelog of the run is read with the key found by value, and a new run finds it again: a renamed key, then the usual one.
+    Dim cfg As Object, keys As New Collection, rows As Collection, url As String, map As Object, out As Collection, skipped As Long, shapes As String
+    Set cfg = TestConfig()
+    keys.Add "K-1"
+    url = cfg("BaseUrl") & "/rest/api/3/changelog/bulkfetch"
+    Set map = CreateObject("Scripting.Dictionary")
+    FakeReset
+    FakeAdd "POST", url, 200, J("{'issueChangeLogs':[{'issueId':'10001','changeHistories':[{'id':'1','createdAt':1761134538011," & _
+        "'items':[{'field':'status','fieldId':'status','fieldtype':'jira','from':'1','fromString':'Nouveau','to':'3','toString':'En analyse'}]}]}]}")
+    ResetDateKey
+    Set rows = JiraChangelogsAll(cfg, keys)
+    Check "datekey", "the date of a renamed key is in the row", "createdAt 1761134538011", 1761134538011#, CDbl(rows(1)(2))
+    Set out = StatusChangesFromChangelog(rows, map, skipped, shapes)
+    Check "datekey", "the status change is not left out", "0 skipped", 0, skipped
+    FakeReset
+    FakeAdd "POST", url, 200, J("{'issueChangeLogs':[{'issueId':'10001','changeHistories':[{'id':'1','created':'2026-10-02T10:00:00.000+0200'," & _
+        "'items':[{'field':'status','fieldId':'status','fieldtype':'jira','from':'1','fromString':'Nouveau','to':'3','toString':'En analyse'}]}]}]}")
+    Set rows = JiraChangelogsAll(cfg, keys)
+    Check "datekey", "the key is found again when the first history lacks the key kept", "created ISO", "2026-10-02T10:00:00.000+0200", CStr(rows(1)(2))
+    FakeReset
+    FakeAdd "POST", url, 200, J("{'issueChangeLogs':[{'issueId':'10001','changeHistories':[{'id':'1','created':'not a date'," & _
+        "'items':[{'field':'status','fieldId':'status','fieldtype':'jira','from':'1','fromString':'Nouveau','to':'3','toString':'En analyse'}]}]}]}")
+    Set rows = JiraChangelogsAll(cfg, keys)
+    Check "datekey", "no date anywhere: created, as before", "not a date", "not a date", CStr(rows(1)(2))
+    ResetDateKey
+End Sub
+
+Public Sub T_ParseJiraDateEpoch()
+    ' The changelog of a real Jira dates its histories with a NUMBER of milliseconds since 1970 UTC (1761134538011): it was read as
+    ' no date, so every status change was left out. A number of seconds is read too; whole seconds; other numbers are no date.
+    Dim want As Double
+    want = CDbl(DateSerial(2025, 10, 22) + TimeSerial(12, 2, 18))
+    Check "epoch", "milliseconds, as a JSON number (Double)", "1761134538011", want, CDbl(ParseJiraDate(1761134538011#))
+    Check "epoch", "the same as text", "1761134538011", want, CDbl(ParseJiraDate("1761134538011"))
+    Check "epoch", "seconds", "1761134538", want, CDbl(ParseJiraDate(1761134538#))
+    Check "epoch", "the milliseconds are dropped, as in the text form", "...539999", want, CDbl(ParseJiraDate(1761134538999#))
+    Check "epoch", "a number too small is no date", "20261001", True, IsEmpty(ParseJiraDate(20261001#)) And IsEmpty(ParseJiraDate("20261001"))
+    Check "epoch", "a number too big is no date", "10^15", True, IsEmpty(ParseJiraDate(1E+15))
+    Check "epoch", "an ISO date is still read", "2026-10-01", CDbl(DateSerial(2026, 10, 1)), CDbl(ParseJiraDate("2026-10-01"))
 End Sub
 
 Public Sub T_DateShape()

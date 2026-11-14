@@ -70,6 +70,7 @@ class _State:
     bulk_clamp: int
     near_limit: bool
     proxy_challenge: str | None = None
+    changelog_date: tuple[str, str] = ("created", "ms")    # key and format of the date of a history (api.bulk_changelog)
     delay: float = 0.0                       # seconds every API call waits before it answers (slow Jira)
     base_url: str = ""
     address: tuple = ("", 0)
@@ -216,7 +217,7 @@ def _make_handler(state: _State):
             if (method, path) == ("POST", "/rest/api/3/search/approximate-count"):
                 return 200, api.approximate_count(ds, body), {}
             if (method, path) == ("POST", "/rest/api/3/changelog/bulkfetch"):
-                return 200, api.bulk_changelog(ds, body, tz=tz, bulk_clamp=state.bulk_clamp), {}
+                return 200, api.bulk_changelog(ds, body, tz=tz, bulk_clamp=state.bulk_clamp, date=state.changelog_date), {}
             if (method, path) == ("GET", "/rest/api/3/field"):
                 return 200, api.field_catalog(ds), {}
             if (method, path) == ("GET", "/rest/api/3/myself"):
@@ -286,9 +287,9 @@ class MockJira:
     def __init__(self, dataset: Dataset, *, host: str = "127.0.0.1", port: int = 0,
                  credentials: tuple[str, str] | None = None, tz_minutes: int = 120,
                  page_clamp: int = 100, bulk_clamp: int = 1000, near_limit: bool = False,
-                 proxy_challenge: str | None = None, delay: float = 0.0):
+                 proxy_challenge: str | None = None, delay: float = 0.0, changelog_date: tuple[str, str] = ("created", "ms")):
         self._state = _State(dataset, credentials, tz_minutes, page_clamp, bulk_clamp, near_limit, proxy_challenge,
-                             delay=delay)
+                             changelog_date=changelog_date, delay=delay)
         self._server = _ExclusiveServer((host, port), _make_handler(self._state))
         self._state.address = self._server.server_address[:2]
         self._server.daemon_threads = True

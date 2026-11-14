@@ -180,19 +180,19 @@ def test_the_shape_of_a_date_that_cannot_be_read_holds_none_of_its_content(value
 
 def test_status_changes_without_a_readable_date_are_counted_with_their_shapes():
     items = [("10", {"id": "h1", "created": "2026-10-02T12:00:00.000+0200"}, {"fieldId": "status"}),
-             ("10", {"id": "h2", "created": "1696000000000"}, {"fieldId": "status"}),
-             ("10", {"id": "h3", "created": "1696000000001"}, {"fieldId": "status"}),
+             ("10", {"id": "h2", "created": "not a date"}, {"fieldId": "status"}),
+             ("10", {"id": "h3", "created": "yesterday"}, {"fieldId": "status"}),
              ("10", {"id": "h4"}, {"fieldId": "status"}),
              ("10", {"id": "h5", "created": "not a date"}, {"fieldId": "assignee"})]          # not a status: not counted
-    assert M.unreadable_status_dates(items) == (3, "String:9999999999999 x 2; Null x 1")
+    assert M.unreadable_status_dates(items) == (3, "String:aaa a aaaa x 1; String:aaaaaaaaa x 1; Null x 1")
     assert M.unreadable_status_dates(items[:1]) == (0, "")
 
 def test_the_extract_tells_how_many_status_changes_were_left_out():
     pages = [{"issueChangeLogs": [{"issueId": "10", "changeHistories": [
         {"id": "h1", "created": "2026-10-02T12:00:00.000+0200", "items": [{"fieldId": "status", "fromString": "A", "toString": "B"}]},
-        {"id": "h2", "created": "1696000000000", "items": [{"fieldId": "status", "fromString": "B", "toString": "C"}]}]}]}]
+        {"id": "h2", "created": "not a date", "items": [{"fieldId": "status", "fromString": "B", "toString": "C"}]}]}]}]
     extract = M.extracted([], pages, M.FieldIds("", {}), [], "Blocks")                # no issue: only the changelog matters here
-    assert (extract.unreadable_dates, extract.unreadable_shapes) == (1, "String:9999999999999 x 1")
+    assert (extract.unreadable_dates, extract.unreadable_shapes) == (1, "String:aaa a aaaa x 1")
     assert extract.changelog_items == 2
 
 
@@ -201,7 +201,7 @@ def test_the_extract_tells_how_many_status_changes_were_left_out():
 def test_the_changelog_keeps_every_item_without_author_cuts_the_texts_and_keeps_no_person():
     items = [("10", {"id": "h1", "created": "2026-10-02T12:00:00.000+0200"},
               {"fieldId": "status", "field": "status", "fieldtype": "jira", "from": "1", "fromString": "Nouveau", "to": "3", "toString": "Pret"}),
-             ("10", {"id": "h2", "created": "1696000000000"},
+             ("10", {"id": "h2", "created": "not a date"},
               {"fieldId": "description", "field": "description", "fieldtype": "jira", "fromString": "x" * 300, "toString": "ok"}),
              ("11", {"id": "h3", "created": "2026-10-03T10:00:00.000Z", "author": {"displayName": "Ann"}},
               {"fieldId": "assignee", "field": "assignee", "fieldtype": "jira", "from": "acc-1", "fromString": "Mary Martin",
@@ -209,7 +209,7 @@ def test_the_changelog_keeps_every_item_without_author_cuts_the_texts_and_keeps_
     rows = M.changelog_rows(items, {"10": "TA-1"})
     assert rows[0] == ("TA-1", "10", "h1", dt.datetime(2026, 10, 2, 10), "2026-10-02T12:00:00.000+0200", "status", "status", "jira",
                        "1", "Nouveau", "3", "Pret")
-    assert rows[1][3] is None and rows[1][4] == "1696000000000" and len(rows[1][9]) == 255      # not read, shown; cut
+    assert rows[1][3] is None and rows[1][4] == "not a date" and len(rows[1][9]) == 255         # not read, shown; cut
     assert rows[2][0] == "11" and rows[2][8:] == (None, None, None, None)                       # an unknown id stays; a person keeps no value
     assert all(len(row) == len(CHANGELOG_RAW) for row in rows)
     assert not any(name in str(rows) for name in ("Ann", "Martin", "Durand"))
@@ -235,3 +235,105 @@ def test_the_changelog_hides_every_field_jira_types_as_a_user_and_the_mentions_i
     assert rows[1][9] == "Ask [user] and [user] now"
     assert not any(name in str(rows) for name in ("Martin", "Durand", "5b10", "jdoe"))
     assert M.changelog_rows(items[:1], {"10": "TA-1"})[0][9] == "Mary Martin"          # without the list, only the fixed fields are hidden
+
+
+# --- the changelog of a real Jira dates its histories with a number of milliseconds (1761134538011) -------------------------------
+
+def test_a_date_that_is_a_number_of_milliseconds_since_1970_is_read():
+    want = dt.datetime(2025, 10, 22, 12, 2, 18)
+    assert M.parse_jira_date(1761134538011) == want and M.parse_jira_date(1761134538011.0) == want
+    assert M.parse_jira_date("1761134538011") == want                          # the same number as text
+    assert M.parse_jira_date(1761134538) == want                               # seconds
+    assert M.parse_jira_date(1761134538999) == want                            # the milliseconds are dropped, as in the text form
+    for not_a_date in (20261001, "20261001", 10 ** 15, float("nan"), float("inf"), True, "17611345380111111"):
+        assert M.parse_jira_date(not_a_date) is None, not_a_date
+    assert M.parse_jira_date("2026-10-01") == dt.datetime(2026, 10, 1)
+
+
+def test_the_status_changes_of_a_real_jira_are_not_left_out():
+    pages = [{"issueChangeLogs": [{"issueId": "10", "changeHistories": [
+        {"id": "843000", "created": 1761134538011, "items": [{"fieldId": "status", "fromString": "A", "toString": "B"}]}]}]}]
+    items = M.changelog_items(pages)
+    assert M.unreadable_status_dates(items) == (0, "")
+    assert M.status_changes(items, {"10": "TA-1"})["TA-1"][0].at == dt.datetime(2025, 10, 22, 12, 2, 18)
+    assert M.changelog_rows(items, {"10": "TA-1"})[0][3:5] == (dt.datetime(2025, 10, 22, 12, 2, 18), "1761134538011")
+
+
+# --- the date of a changelog is found by its VALUE, not by the label Jira gives it ------------------------------------------------
+
+NOW = dt.datetime(2026, 11, 14, 12, 0)
+
+
+@pytest.mark.parametrize("value, kind", [
+    (1761134538011, "epoch ms"), ("1761134538011", "epoch ms"), (1761134538.0, "epoch s"), ("1761134538", "epoch s"),
+    ("2026-10-01T09:12:33.123+0200", "ISO"), ("2026-10-01T09:12:33Z", "ISO"), ("2026-10-01 09:12:33", "ISO"), ("2026-10-01", "ISO"),
+    ("843000", "none"), (843000, "none"), ("TA-1", "none"), ("", "none"), (None, "none"), (True, "none"), ({"a": 1}, "none"), ([], "none"),
+])
+def test_the_kind_of_a_date_is_read_from_its_value(value, kind):
+    assert M.date_kind(value) == kind
+
+
+@pytest.mark.parametrize("value, plausible", [
+    (1761134538011, True), ("2026-11-14T12:00:00Z", True), ("2026-11-15T11:00:00Z", True),       # until tomorrow
+    ("2026-11-16T12:00:00Z", False),                                                               # a change is never in the future
+    (4102444800000, False), ("1999-12-31", False), ("2000-01-01", True),                          # year 2100, 1999, 2000
+    (1000000000000, True), ("1234567890", True), ("843000", False), (None, False),
+])
+def test_a_date_is_plausible_between_2000_and_tomorrow(value, plausible):
+    assert M.is_plausible_date(value, NOW) is plausible
+
+
+def _history(**values):
+    return {"id": "843000", **values, "author": {"displayName": "x"}, "items": []}
+
+
+def test_the_date_key_is_the_one_whose_value_is_a_date_whatever_its_name():
+    assert M.find_date_key([_history(created=1761134538011)], NOW) == ("created", "epoch ms", ())
+    assert M.find_date_key([_history(created="2026-10-01T09:12:33.123+0200")], NOW) == ("created", "ISO", ())
+    assert M.find_date_key([_history(createdAt=1761134538011)], NOW) == ("createdAt", "epoch ms", ())            # renamed
+    assert M.find_date_key([_history(timestamp="2026-10-01T09:12:33Z", note="x")], NOW) == ("timestamp", "ISO", ())
+
+
+def test_a_key_must_hold_a_date_in_every_history_sampled():
+    good = [_history(created=1761134538011 + n * 1000, other=1761134538011) for n in range(5)]
+    assert M.find_date_key(good, NOW)[0] == "created"                                  # two keys: created wins
+    odd = good + [_history(created="not a date", other=1761134538011)]
+    assert M.find_date_key(odd, NOW)[0] == "other"                                       # one odd history rejects `created`
+    missing = good + [_history(other=1761134538011)]
+    assert M.find_date_key(missing, NOW)[0] == "other"                                   # a key absent from one history too
+
+
+def test_an_id_that_looks_like_an_epoch_is_not_the_date():
+    in_the_future = [dict(_history(created="2026-10-01T09:12:33Z"), id=str(2000000000 + n)) for n in range(3)]      # 2033
+    assert M.find_date_key(in_the_future, NOW) == ("created", "ISO", ())
+    in_the_past = [dict(_history(created="2026-10-01T09:12:33Z"), id=str(1700000000 + n)) for n in range(3)]       # 2023: a date
+    assert M.find_date_key(in_the_past, NOW) == ("created", "ISO", ("id",))                       # created wins, the other is named
+
+
+def test_several_date_keys_the_name_hint_then_the_first():
+    both = [_history(first=1761134538011, second=1761134538011)]
+    assert M.find_date_key(both, NOW) == ("first", "epoch ms", ("second",))                        # the first, the others named
+    hinted = [_history(zzz=1761134538011, createdOn=1761134538011)]
+    assert M.find_date_key(hinted, NOW) == ("createdOn", "epoch ms", ("zzz",))                     # a name with creat/date/time wins
+    dated = [_history(zzz=1761134538011, eventDate=1761134538011)]
+    assert M.find_date_key(dated, NOW)[0] == "eventDate"
+
+
+def test_no_date_key_falls_back_to_created_and_says_none():
+    assert M.find_date_key([_history(created="not a date")], NOW) == ("created", "none", ())
+    assert M.find_date_key([], NOW) == ("created", "none", ())
+    assert M.find_date_key([_history(created={"epochMillis": 1761134538011})], NOW) == ("created", "none", ())      # nested: not read
+
+
+def test_only_the_first_histories_are_sampled():
+    histories = [_history(created=1761134538011)] * M.DATE_SAMPLE + [_history(created="not a date")]
+    assert M.find_date_key(histories, NOW)[0] == "created"
+
+
+def test_changelog_items_puts_the_date_of_the_found_key_in_created():
+    pages = [{"issueChangeLogs": [{"issueId": "10", "changeHistories": [
+        {"id": "1", "createdAt": 1761134538011, "items": [{"fieldId": "status", "fromString": "A", "toString": "B"}]}]}]}]
+    items = M.changelog_items(pages)
+    assert items[0][1]["created"] == 1761134538011 and "created" not in pages[0]["issueChangeLogs"][0]["changeHistories"][0]   # a copy
+    assert M.status_changes(items, {"10": "TA-1"})["TA-1"][0].at == dt.datetime(2025, 10, 22, 12, 2, 18)
+    assert M.date_key_of(pages) == ("createdAt", "epoch ms", ())

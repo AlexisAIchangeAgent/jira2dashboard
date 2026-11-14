@@ -218,6 +218,27 @@ Public Function UrlEncode(ByVal text As String) As String
     UrlEncode = out
 End Function
 
+Private Function EpochDate(ByVal n As Double) As Variant
+    ' Jira sends the date of a changelog item (changelog/bulkfetch) as a NUMBER of milliseconds since 1970-01-01 UTC (found on a real Jira:
+    ' 1761134538011); a number of seconds is read too. Whole seconds, like the text form (the milliseconds are dropped). Below 2001
+    ' or past the year 5138 it is no date.
+    EpochDate = Empty
+    If n >= 100000000000# And n < 100000000000000# Then
+        Cov "TXT36": EpochDate = CDate(25569 + Int(n / 1000#) / 86400#)
+    ElseIf n >= 1000000000# And n < 100000000000# Then
+        Cov "TXT37": EpochDate = CDate(25569 + Int(n) / 86400#)
+    End If
+End Function
+
+Private Function IsDigits(ByVal s As String) As Boolean
+    Dim i As Long
+    If Len(s) = 0 Or Len(s) > 14 Then Exit Function
+    For i = 1 To Len(s)
+        If Mid$(s, i, 1) < "0" Or Mid$(s, i, 1) > "9" Then Exit Function
+    Next i
+    IsDigits = True
+End Function
+
 Public Function ParseJiraDate(ByVal value As Variant) As Variant
     ' "2026-10-01T09:12:33.123+0200", "...+02:00", "...Z" -> Date in UTC.
     ' "2026-10-01" -> that date. Empty or invalid -> Empty (never raises).
@@ -225,7 +246,12 @@ Public Function ParseJiraDate(ByVal value As Variant) As Variant
     ParseJiraDate = Empty
     On Error GoTo Invalid
     If IsNull(value) Or IsEmpty(value) Then Cov "TXT06": Exit Function
+    Select Case VarType(value)                       ' a JSON number: milliseconds since 1970 (the changelog), or seconds
+        Case vbInteger, vbLong, vbSingle, vbDouble, vbCurrency
+            ParseJiraDate = EpochDate(CDbl(value)): Exit Function
+    End Select
     s = CStr(value)
+    If IsDigits(s) Then ParseJiraDate = EpochDate(CDbl(s)): Exit Function   ' the same number as text
     If Len(s) < 10 Then Cov "TXT07": Exit Function
     If Mid$(s, 5, 1) <> "-" Or Mid$(s, 8, 1) <> "-" Then Cov "TXT08": Exit Function
     d = DateSerial(CInt(Left$(s, 4)), CInt(Mid$(s, 6, 2)), CInt(Mid$(s, 9, 2)))
@@ -247,6 +273,33 @@ Invalid:
     Cov "TXT17"
     Err.Clear
     ParseJiraDate = Empty
+End Function
+
+Public Function DateKind(ByVal value As Variant) As String
+    ' "epoch ms", "epoch s", "ISO" or "none", from the VALUE only: what FindDateKey (modJira) finds the date of a changelog by.
+    DateKind = "none"
+    If IsObject(value) Then Cov "TXT38": Exit Function
+    If IsEmpty(ParseJiraDate(value)) Then Cov "TXT39": Exit Function
+    Select Case VarType(value)
+        Case vbInteger, vbLong, vbSingle, vbDouble, vbCurrency
+            Cov "TXT40": DateKind = IIf(CDbl(value) >= 100000000000#, "epoch ms", "epoch s")
+        Case vbString
+            If IsDigits(CStr(value)) Then
+                Cov "TXT41": DateKind = IIf(CDbl(value) >= 100000000000#, "epoch ms", "epoch s")
+            Else
+                Cov "TXT42": DateKind = "ISO"
+            End If
+    End Select
+End Function
+
+Public Function IsPlausibleDate(ByVal value As Variant, ByVal nowTime As Date) As Boolean
+    ' A date between 2000-01-01 and tomorrow: a change is never in the future. It rejects an id of ten digits that reads as an epoch
+    ' in 2033, a version number, an epoch in 2100.
+    Dim d As Variant
+    If IsObject(value) Then Exit Function
+    d = ParseJiraDate(value)
+    If IsEmpty(d) Then Exit Function
+    If d >= DateSerial(2000, 1, 1) And d <= nowTime + 1 Then Cov "TXT43": IsPlausibleDate = True
 End Function
 
 Public Function FieldToCell(ByVal value As Variant) As Variant

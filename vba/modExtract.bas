@@ -265,7 +265,7 @@ Public Sub ExtractJobStart(ByVal cfg As Object, ByVal jql As String, ByVal workT
     Set mWsProjects = wsProjects: Set mWsWorkflows = wsWorkflows: Set mWsIssues = wsIssues
     Set mWsIntervals = wsIntervals: Set mWsLinks = wsLinks: Set mWsChangelog = wsChangelog: Set mChangelog = Nothing: Set mUserFields = Nothing
     Set mIssues = New Collection: Set mNames = CreateObject("Scripting.Dictionary"): mToken = "": mPage = 0
-    Set mKeys = Nothing: Set mIdToKey = Nothing: Set mRaw = New Collection: mNextChunk = 1
+    Set mKeys = Nothing: Set mIdToKey = Nothing: Set mRaw = New Collection: mNextChunk = 1: ResetDateKey
     Set mRows = Nothing: Set mLinks = Nothing: Set mChanges = Nothing: Set mMoved = Nothing: Set mIntervals = Nothing
     mRowNext = 1: mWfNext = 0
     mPhase = 1

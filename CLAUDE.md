@@ -160,7 +160,12 @@ python.log). `tests/unit/test_claude_hooks.py` and `test_claude_skills.py` test 
   (a name is personal data; a name written in clear in a description stays: only leaving out the long texts removes it). Written last by `WriteRawSheetsCore`, cleared by
   `ClearFlowSheets`; the fake Jira only sends status changes and key moves, so its rows are `len(changes) + len(key_changes)`.
 - **Dates and times (audit of 2026-11-13).** All dates are UTC. `modText.ParseJiraDate` and `standalone/mapping.parse_jira_date` must agree (offsets, `Z`, a space for `T`,
-  an epoch in ms is not a date); `modParams.ParseMoment` reads an hour as the sheet formula does (`H:MM`, not dropped); an Iterations date before 2000 is refused
+  a number or digit text of 1e11..1e14 is epoch milliseconds, 1e9..1e11 seconds: the real `changelog/bulkfetch` sends `created` as epoch ms (1761134538011) although the OpenAPI says
+  `date-time`, found 2026-11-14 when every status change was left out; PostHog PR #123173 saw the same). **The date of a history is found by its VALUE, never by its label**:
+  `modJira.FindDateKey` / `mapping.find_date_key` read the first 20 histories and take the key that holds a plausible date (2000 to tomorrow; `modText.DateKind`,
+  `IsPlausibleDate`) in every one: `created`, else a name with `creat`/`date`/`time`, else the first; one `INFO changelog date key: <key> (<kind>)` line in the log; the fake
+  Jira can rename the key and change the format (`MockJira(changelog_date=("createdAt", "iso"))`). A date nested in an object is not read (falls back to `created`
+  with the `J2D-DATA-003` warning); `modParams.ParseMoment` reads an hour as the sheet formula does (`H:MM`, not dropped); an Iterations date before 2000 is refused
   (error 701: a typo such as 1026 would write 365 000 days per team); two changes in one second are ordered by their id as a NUMBER (`model.change_order`), as the
   VBA keeps Jira's order; the iterations span is the earliest start to the latest end (`results.iteration_span`). Known and left: the logs use local time (VBA and
   python.log, unlabelled) while `Run` and `Errors` use UTC; an unreadable `created` crashes the Python path and gives a huge first duration in VBA (Jira always sends it);
