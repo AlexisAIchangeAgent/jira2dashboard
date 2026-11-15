@@ -60,6 +60,7 @@ Public Sub BtnExtractAndCompute()
     Randomize                                                       ' the retry jitter must differ from one run to the next
     LogRunStart "button Extract from Jira and compute", LogLevelSetting()
     LogParameters ThisWorkbook                                      ' the inputs of the run (no value of the client)
+    RequireEditable                                                 ' a locked workbook (Protected View, read-only) stops here, before Jira
     ShowProgress 0, "Starting..."
     ExtractFlowDataStart
     ScheduleSlice
@@ -106,6 +107,7 @@ Private Sub RunJiraConfiguration(ByVal propose As Boolean)
     Randomize                                                       ' the retry jitter must differ from one run to the next
     LogRunStart IIf(propose, "button Propose values from Jira", "button Read the Jira configuration"), LogLevelSetting()
     LogParameters ThisWorkbook                                      ' the inputs of the run (no value of the client)
+    RequireEditable                                                 ' a locked workbook (Protected View, read-only) stops here, before Jira
     ShowProgress 0, "Reading the Jira configuration..."
     RequireMandatory ThisWorkbook.Worksheets(SheetName("Config")), "BaseUrl,Email,ApiToken"      ' only the connection is needed here
     withWorkflows = IsYes(ConfigValue(ThisWorkbook.Worksheets(SheetName("Config")), "IsUserProjectAdmin", "True"))
@@ -139,6 +141,7 @@ Public Sub BtnRovoPrompt()
     On Error GoTo Failed
     LogRunStart "button Prompt for Rovo", LogLevelSetting()            ' a run of the log, as the other buttons
     LogParameters ThisWorkbook
+    RequireEditable
     LogBegin "prompt for Rovo"
     n = WriteRovoPrompt(ThisWorkbook)
     LogEnd "prompt for Rovo: " & n & " lines"
@@ -165,6 +168,7 @@ Public Sub BtnLoadRovoCsv()
     On Error GoTo Failed
     LogRunStart "button Load settings CSV", LogLevelSetting()         ' every click is a run of the log, a cancel too
     LogParameters ThisWorkbook                                       ' the values before the load
+    RequireEditable
     folder = ThisWorkbook.Path
     If Len(folder) > 0 Then
         On Error Resume Next

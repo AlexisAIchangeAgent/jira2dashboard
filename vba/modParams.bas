@@ -174,6 +174,49 @@ Public Sub RequireMandatory(ByVal wsConfig As Object, Optional ByVal onlyNames A
     End If
 End Sub
 
+Public Function LockReason(ByVal isReadOnly As Boolean, ByVal inProtectedView As Boolean) As String
+    ' Why the workbook cannot be used, "" when it can: a workbook opened in Protected View (file from the Internet or a mail) or
+    ' read-only. Pure: the state is read by RequireEditable.
+    If inProtectedView Then
+        Cov "PRM54": LockReason = "it is open in Protected View"
+    ElseIf isReadOnly Then
+        Cov "PRM55": LockReason = "it is open read-only"
+    End If
+End Function
+
+Public Sub RequireEditableIf(ByVal isReadOnly As Boolean, ByVal inProtectedView As Boolean)
+    ' Error 612 (J2D-SYS-003) when the workbook is locked: the message says what to do, before any call to Jira.
+    Dim why As String
+    why = LockReason(isReadOnly, inProtectedView)
+    If Len(why) > 0 Then
+        Cov "PRM56"
+        Err.Raise vbObjectError + 612, "RequireEditable", "The workbook is locked: " & why & ". If a yellow bar is shown at the top of Excel, " & _
+                  "click Enable Editing. Otherwise close what holds the file (another Excel or user), or save a copy (File > Save As) and open " & _
+                  "that one; for a file that came from the Internet also right-click it > Properties > Unblock. Then click the button again."
+    End If
+End Sub
+
+Public Function SameFile(ByVal pathA As String, ByVal pathB As String) As Boolean
+    ' Windows paths are not case-sensitive.
+    SameFile = (StrComp(pathA, pathB, vbTextCompare) = 0)
+End Function
+
+Public Sub RequireEditable()
+    ' Stops a button that writes the workbook while it is locked. The probe never raises by itself (a failed probe = not locked).
+    Dim views As Object, i As Long, inView As Boolean, ro As Boolean
+    On Error Resume Next
+    Set views = Application.ProtectedViewWindows
+    If Not views Is Nothing Then
+        For i = 1 To views.Count
+            If SameFile(CStr(views(i).SourcePath) & "\" & CStr(views(i).SourceName), ThisWorkbook.FullName) Then inView = True
+        Next i
+    End If
+    ro = ThisWorkbook.ReadOnly
+    Err.Clear
+    On Error GoTo 0
+    RequireEditableIf ro, inView
+End Sub
+
 Public Function RovoPromptLines(ByVal wb As Object) As Collection
     ' The prompt for Rovo, one line per item: the rows of the sheet RovoPromptSpec (Part | Name | Text) in order. A text row
     ' is a line as it is, "config" becomes one line per parameter of the sheet Config, "sheet" one line for a parameter sheet.

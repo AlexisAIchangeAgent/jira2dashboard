@@ -1326,6 +1326,27 @@ def _mandatory_named(world, names):
     assert "J2D-CFG-002" in codes and "J2D-JIRA-401" in codes, sorted(codes)
 
 
+@given("le classeur est rouvert en lecture seule")
+def _reopen_read_only(world, flow_workbook, tmp_path, request):
+    """A copy with the Config of this scenario, opened read-only as Excel does for a locked file (the module's workbook is left
+    as it was). The Protected View itself cannot be driven: VBA does not run there; AL checks it by hand."""
+    wb = flow_workbook["wb"]
+    app, copy = wb.Application, tmp_path / "jira2dashboard_readonly.xlsm"
+    wb.SaveCopyAs(str(copy))
+    locked = app.Workbooks.Open(str(copy), 0, True)                    # UpdateLinks=0, ReadOnly=True (positional only)
+    assert locked.ReadOnly
+    request.addfinalizer(lambda: locked.Close(False))
+    world["wb"] = locked
+    world.pop("app", None), world.pop("prefix", None)                  # macro() reads them again, for this workbook
+
+
+@then("l'état du tableau de bord dit que le classeur est verrouillé et qu'il faut activer la modification")
+def _locked_workbook(world):
+    assert world["status"].startswith("Stopped | Code: J2D-SYS-003 | Message: The workbook is locked: it is open read-only. "
+                                      "If a yellow bar is shown at the top of Excel, click Enable Editing."), world["status"]
+    assert "J2D-SYS-003" in {row["Code"] for row in sheet_rows(world["wb"], "ErrorCodes")}
+
+
 @then("le faux Jira n'a reçu aucune requête")
 def _no_request(world):
     assert world["jira"].requests == []

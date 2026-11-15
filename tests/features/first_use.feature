@@ -27,6 +27,15 @@ Fonctionnalité: Première utilisation du classeur
     Et le faux Jira n'a reçu aucune requête
 
   @excel
+  Scénario: Un classeur verrouillé arrête le bouton avant tout appel à Jira et dit comment le déverrouiller
+    Soit un faux Jira avec 30 tickets générés avec les projets des paramètres
+    Et le classeur à livrer dont la feuille Config pointe sur ce faux Jira avec FlowLoadMode "A"
+    Et le classeur est rouvert en lecture seule
+    Quand je clique sur le bouton Lire la configuration Jira
+    Alors l'état du tableau de bord dit que le classeur est verrouillé et qu'il faut activer la modification
+    Et le faux Jira n'a reçu aucune requête
+
+  @excel
   Scénario: Le bouton Lire la configuration Jira ne demande que les paramètres de connexion
     Soit un faux Jira avec 30 tickets générés avec les projets des paramètres
     Et le classeur à livrer dont la feuille Config pointe sur ce faux Jira avec FlowLoadMode "A"

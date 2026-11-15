@@ -435,6 +435,7 @@ Public Function ErrorCode(ByVal number As Long, Optional ByVal description As St
             Case 632: ErrorCode = "J2D-ROVO-003"
             Case 610: ErrorCode = "J2D-SYS-001"
             Case 611: ErrorCode = "J2D-SYS-002"
+            Case 612: ErrorCode = "J2D-SYS-003"
             Case 602                                           ' two causes: the BaseUrl check, and an answer of Jira that is not 200
                 If Left$(description, 5) <> "HTTP " Then
                     ErrorCode = "J2D-CFG-005"

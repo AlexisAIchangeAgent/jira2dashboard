@@ -53,7 +53,7 @@ Private Function TestNames() As Variant
         "T_HttpNetworkAndCancel", "T_RetryExhausted", "T_ChangelogChunks", "T_IssueRows", "T_WriteTable", "T_StatusIntervals", "T_IntervalsUnreadableDate", "T_StatusChangesUnreadableDate", "T_ChangelogRows", "T_UserFieldIds", "T_DateShape", "T_ParseJiraDateEpoch", "T_DateKind", "T_IsPlausibleDate", "T_FindDateKey", "T_ChangelogDateKey", "T_SkippedDatesWarning", "T_SheetName", "T_ProposeFromSheets", "T_ProposeIterations", "T_ReadSprints", "T_ProposeKindOf", "T_ProposeValuesNotAdmin", "T_HealthFields", "T_CellKind", "T_FitsType", "T_ShapeOfCell", "T_TypeHints", "T_TypeProblems", "T_TypeEmptyTable", "T_TypeBlocks", "T_TypeFillLines", "T_WireTypes", _
         "T_StatusChanges", "T_RetryDelay", "T_SafeAccess", "T_FilesUtf8", "T_StringifyBadObject", _
         "T_TooManyPages", "T_BackgroundExport", "T_TextNotConverted", "T_ParamsTables", "T_ParamsOnWorkbook", _
-        "T_TrimWhite", "T_ConfigSheet", "T_MandatoryConfig", "T_ProxyDetect", "T_ProxyScript", "T_ProjectsSheet", "T_ParseMoment", "T_ExtractFlowData", "T_ExtractJob", "T_ExtractCheckFields", "T_FlowBuild", "T_BaseUrlHttps", "T_Log", "T_LogInputsAndTimes", "T_StatusParts", "T_ErrorCodes", "T_LogHintAndOpen", "T_StepsSheet", "T_RovoPrompt", "T_RovoCsv", _
+        "T_TrimWhite", "T_ConfigSheet", "T_MandatoryConfig", "T_Locked", "T_ProxyDetect", "T_ProxyScript", "T_ProjectsSheet", "T_ParseMoment", "T_ExtractFlowData", "T_ExtractJob", "T_ExtractCheckFields", "T_FlowBuild", "T_BaseUrlHttps", "T_Log", "T_LogInputsAndTimes", "T_StatusParts", "T_ErrorCodes", "T_LogHintAndOpen", "T_StepsSheet", "T_RovoPrompt", "T_RovoCsv", _
         "T_JiraConfig", "T_AbortExtraction", "T_Utf8Oracle", "T_Utf8Invalid", "T_Base64Oracle")
 End Function
 
@@ -297,6 +297,26 @@ Public Sub T_MandatoryConfig()
     Check "mandatory", "a sheet without the column has nothing to check", "3 columns", "", MissingMandatory(ws)
     Check "mandatory", "the real Config sheet: the client values are mandatory and empty", "Config", _
           "BaseUrl, Email, ApiToken, AsOf", MissingMandatory(ThisWorkbook.Worksheets(SheetName("Config")))
+End Sub
+
+Public Sub T_Locked()
+    ' A workbook open in Protected View or read-only stops the buttons that write it (error 612, J2D-SYS-003) with what to do.
+    Dim num As Long, desc As String
+    Check "locked", "free workbook", "false false", "", LockReason(False, False)
+    Check "locked", "Protected View", "false true", "it is open in Protected View", LockReason(False, True)
+    Check "locked", "read-only", "true false", "it is open read-only", LockReason(True, False)
+    Check "locked", "Protected View comes first", "true true", "it is open in Protected View", LockReason(True, True)
+    On Error Resume Next
+    RequireEditableIf False, False
+    Check "locked", "a free workbook is not stopped", "no error", 0, Err.Number
+    RequireEditableIf True, False
+    num = Err.Number: desc = Err.Description: Err.Clear
+    On Error GoTo 0
+    Check "locked", "the stop is error 612", "read-only", vbObjectError + 612, num
+    Check "locked", "the stop says what to do", "read-only", True, (InStr(desc, "Enable Editing") > 0 And InStr(desc, "read-only") > 0 And InStr(desc, "Save As") > 0)
+    Check "locked", "the support code", "612", "J2D-SYS-003", ErrorCode(num, desc)
+    Check "locked", "the same file, whatever the case", "C:\A\b.xlsm", True, SameFile("C:\A\b.xlsm", "c:\a\B.XLSM")
+    Check "locked", "another folder is another file", "C:\A\b.xlsm", False, SameFile("C:\A\b.xlsm", "C:\Downloads\b.xlsm")
 End Sub
 
 Public Sub SetPacUrl(ByVal url As String)

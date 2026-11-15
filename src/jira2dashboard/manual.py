@@ -45,6 +45,8 @@ def manual(mandatory: tuple[str, ...]) -> list[tuple[str, str]]:
         ("Before the first run", [
             "If the file came from a download or an e-mail: right-click it > Properties > Unblock. Then open it and "
             "click Enable Content.",
+            "If a button says that the workbook is locked (J2D-SYS-003): click Enable Editing in the yellow bar at the top of "
+            "Excel if there is one, or save a copy (File > Save As) and open that one, then click the button again.",
             "It needs Excel for Windows with macros. Python is not needed.",
         ]),
         ("Where to type, where to check", [
