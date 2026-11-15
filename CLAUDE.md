@@ -418,6 +418,13 @@ then `mermaid.parse`), and check every `](#anchor)` link against the headings.
   it belongs to the run; stop it by its PID once its start time is checked.
 - **A few VBA tests only:** copy `modTests.bas`, cut `TestNames()` to the tests wanted, run `vba-tests --offline`, restore with `cp`
   (about 1 minute instead of 5; never commit the cut list).
+- **Mutation of a VBA test:** no `summary:` line in the log = no proof (a mutation that raises inside a test, e.g. a type mismatch, loses the run:
+  pick one that changes a result without raising). `Check` takes (area, label, input, expected, actual); the log cuts a line at 300 characters.
+- pywin32: `Range.Address` is a property (`cell.Address.replace("$", "")`), not a call with arguments; `ws.Cells(1, n).Value` reads a one-cell range as a scalar.
+- **`test-excel` by groups** (the whole run was killed once for memory, leaving an orphan `EXCEL.EXE`: stop it by PID): `tests/steps/test_build_workbook.py` (2 min),
+  `test_macro_check.py` + `test_manual_test.py` (2 min), `test_params.py` + `test_standalone.py` (2 min), `test_flow_excel.py` (7 min, foreground, `timeout 595`).
+- In an edit script a backslash goes through `chr(92)` or a raw string; after the run `python -m py_compile` the target and
+  `grep -cP '[\x00-\x08\x0b-\x1f]'` it (a `\b` in a plain triple-quoted string became a backspace, a `\r\n` a real line break).
 - `_launch.cmd` traps: a `for` list drops `/?` (wildcard), so it is tested apart; a launcher starts the helper without `call`
   (`call` swallows `/?`); from a test, `cmd /c` needs `.\name.cmd`.
 - After moving code between `.bas` modules: `Private` names (Const, Function) used from the new module break the compile of
