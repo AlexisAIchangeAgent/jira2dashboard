@@ -337,3 +337,46 @@ def test_changelog_items_puts_the_date_of_the_found_key_in_created():
     assert items[0][1]["created"] == 1761134538011 and "created" not in pages[0]["issueChangeLogs"][0]["changeHistories"][0]   # a copy
     assert M.status_changes(items, {"10": "TA-1"})["TA-1"][0].at == dt.datetime(2025, 10, 22, 12, 2, 18)
     assert M.date_key_of(pages) == ("createdAt", "epoch ms", ())
+
+
+# --- what Jira really sent: the JSON type of each field read (the log line that would have shown the v0.7.0 failure at once) -----------
+
+ISSUES_FOR_WIRE = [
+    {"id": "1", "key": "ABC-1", "fields": {"created": "2026-01-01T00:00:00.000+0000", "resolutiondate": None, "status": {"name": "Done"},
+                                           "customfield_3": "Feature", "customfield_2": [{"state": "active"}], "customfield_1": None}},
+    {"id": "2", "key": "ABC-2", "fields": {"created": "2026-01-02T00:00:00.000+0000", "resolutiondate": None, "status": {"name": "Open"},
+                                           "customfield_1": 5}},
+]
+ITEMS_FOR_WIRE = [("1", {"id": "5", "created": 1761134538011}, {"fieldId": "status", "field": "Status", "fieldtype": "jira", "from": "1",
+                                                               "fromString": "To Do", "to": "2", "toString": "Done"})]
+
+
+@pytest.mark.parametrize("value, word", [({}, "object"), ([], "array"), ("x", "string"), (1761134538011, "number"), (1.5, "number"),
+                                         (True, "boolean"), (None, "null")])
+def test_wire_word(value, word):
+    assert M.wire_word(value) == word
+
+
+def test_the_wire_lines_name_the_json_type_of_each_field_read_and_never_a_value():
+    ids = M.FieldIds("customfield_3", {"SprintField": "customfield_2", "StoryPointsField": "customfield_1"})
+    lines = M.wire_lines(ISSUES_FOR_WIRE, ITEMS_FOR_WIRE, ids, "created")
+    assert lines == [
+        "wire types issue | id string, key string, fields.created string, fields.resolutiondate null, fields.status.name string, "
+        "fields.parent.key absent",
+        "wire types configured fields | WorkTypeField string, SprintField array, StoryPointsField number, PIField not set, "
+        "BusinessValueField not set, TeamField not set, TargetStartField not set, TargetEndField not set",
+        "wire types changelog | id string, created number, fieldId string, from string, to string"]      # same words as T_WireTypes (VBA)
+    assert all(len(line) < 300 for line in lines)
+    assert not any(value in " ".join(lines) for value in ("ABC-1", "Feature", "1761134538011", "2026-01-01"))
+
+
+def test_the_wire_lines_name_the_key_found_for_the_date_and_say_when_there_is_no_history():
+    ids = M.FieldIds("", {})
+    assert M.wire_lines(ISSUES_FOR_WIRE, ITEMS_FOR_WIRE, ids, "createdAt")[2].startswith("wire types changelog | id string, createdAt number")
+    assert M.wire_lines(ISSUES_FOR_WIRE, [], ids, "created")[2] == "wire types changelog | no history"
+    assert "WorkTypeField not set, SprintField not set" in M.wire_lines(ISSUES_FOR_WIRE, [], ids, "created")[1]
+
+
+def test_only_the_first_200_issues_are_read_for_the_wire_types():
+    late = [{"id": str(n), "key": f"A-{n}", "fields": {}} for n in range(M.WIRE_SAMPLE)] + [{"id": "x", "key": "A-x", "fields": {"created": "c"}}]
+    assert "fields.created absent" in M.wire_lines(late, [], M.FieldIds("", {}), "created")[0]

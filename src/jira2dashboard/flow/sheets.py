@@ -9,6 +9,7 @@ from jira2dashboard import sheet_names as S
 from jira2dashboard.excel import com as R
 from jira2dashboard.flow import blueprint as B
 from jira2dashboard.flow import dashboard_spec as D
+from jira2dashboard.flow import raw_types as RT
 from jira2dashboard import manual as M
 from jira2dashboard import error_codes as EC
 from jira2dashboard import rovo_prompt as RP
@@ -47,7 +48,7 @@ ROVO_LOAD_MACRO = "modActions.BtnLoadRovoCsv"
 
 def write_blueprint(wb, dash=None, button_macro: str | None = None) -> None:
     """The sheets Issues, StatusIntervals, IssueLinks (empty, raw data comes from the extraction), FlowFormulas, ChartSpec and
-    ChecksSpec (read by modFlowBuild) and the frame of the Dashboard (`dash`: an existing sheet, or a new one)."""
+    ChecksSpec (read by modFlowBuild), RawTypesSpec (read by modHealth) and the frame of the Dashboard (`dash`: an existing sheet, or a new one)."""
     for name in ("Issues", "StatusIntervals", "IssueLinks", "Changelog"):
         R.add_sheet_after_last(wb, name)
     for name, header, rows in ((B.SHEET_FORMULAS, B.FORMULAS_HEADER, B.formula_rows()),
@@ -56,6 +57,10 @@ def write_blueprint(wb, dash=None, button_macro: str | None = None) -> None:
         ws = R.add_sheet_after_last(wb, name)
         R.write_block(ws, 1, 1, [list(header)] + [list(row) for row in rows])      # text: a formula stays text here
         ws.Columns("A:B").ColumnWidth = 28
+    ws = R.add_sheet_after_last(wb, RT.SPEC_SHEET)                  # the type of each raw column: modHealth checks the first value
+    R.write_block(ws, 1, 1, [list(RT.SPEC_HEADER)] + [list(row) for row in RT.spec_rows()])
+    ws.Columns("A:B").ColumnWidth = 18
+    ws.Columns("F").ColumnWidth = 48
     ws = R.add_sheet_after_last(wb, RP.SPEC_SHEET)                  # the text behind the button Prompt for Rovo
     R.write_block(ws, 1, 1, [list(RP.SPEC_HEADER)] + [list(row) for row in RP.spec_rows()])
     ws.Columns("A:B").ColumnWidth = 12

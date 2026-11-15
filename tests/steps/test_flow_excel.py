@@ -398,6 +398,60 @@ def _log(world):
         assert secret not in text, secret
 
 
+@then("le journal local dit ce que Jira a envoyé et que chaque colonne écrite a le type de son étiquette")
+def _wire_and_types(world):
+    """The lines that show a failure such as v0.7.0 at once: the JSON type Jira sent for each field read, then the check of the first
+    filled cell of each column; a clean run has no J2D-DATA-004..013 line."""
+    lines, text = logged_run(world, "button Extract from Jira and compute")
+    assert " INFO wire types issue | id string, key string, fields.created string, fields.resolutiondate string, fields.status.name string" in text
+    assert " INFO wire types configured fields | WorkTypeField string, SprintField not set, StoryPointsField not set" in text
+    assert " INFO wire types changelog | id string, created number, fieldId string, from string, to string" in text      # epoch ms, as Jira
+    assert re.search(r" INFO column types \| tables \d \| columns \d+ \| checked \d+ \| problems 0\r?\n", text), text[-600:]
+    assert " INFO types Issues | rows 150 | filled: Key 150, Id 150" in text
+    assert " INFO types Changelog | rows " in text and re.search(r" INFO column types \| tables [34] ", text), text[-600:]   # Changelog is a plain range: read too
+    assert not re.search(r"J2D-DATA-0(0[4-9]|1[0-3])", text), [line for line in text.splitlines() if "J2D-DATA" in line]
+    begun = [rest[0] for kind, *rest in lines if kind == "BEGIN"]
+    assert "column types" in begun, begun
+    assert " | Column types: " not in macro(world, "ProgressSnapshot").partition("|")[2]
+
+
+@when("je remplace la première date de création de la feuille Issues par un nombre de millisecondes")
+def _break_created(world):
+    ws = world["wb"].Worksheets(S.of("Issues"))
+    column = list(ws.Range(ws.Cells(1, 1), ws.Cells(1, 30)).Value[0]).index("CreatedUtc") + 1
+    cell = ws.Cells(2, column)
+    com.put_en_us(cell, "NumberFormat", "General")                                  # the cell had the date format of the column
+    cell.Value2 = 1761134538011.0
+    world["broken"] = (column, cell.Address.replace("$", ""))                       # "F2"
+
+
+@when("je remplace la première date de la feuille Changelog par un nombre de millisecondes")
+def _break_changelog_created(world):
+    """The sheet Changelog is a plain range (no table): the check must read it all the same."""
+    ws = world["wb"].Worksheets(S.of("Changelog"))
+    column = list(ws.Range(ws.Cells(1, 1), ws.Cells(1, 12)).Value[0]).index("CreatedUtc") + 1
+    cell = ws.Cells(2, column)
+    com.put_en_us(cell, "NumberFormat", "General")
+    cell.Value2 = 1761134538011.0
+    world["broken_changelog"] = cell.Address.replace("$", "")                      # "D2"
+
+
+@then("la vérification des types nomme les colonnes Issues.CreatedUtc et Changelog.CreatedUtc avec le code J2D-DATA-004 et sa cause")
+def _types_named(world):
+    wb = world["wb"]
+    field = wb.Application.Run(f"'{wb.Name}'!modHealth.HealthFields", wb)
+    assert " | Column types: 2 column(s), first Issues.CreatedUtc expected datetime found number; Changelog.CreatedUtc expected datetime found number" in field, field
+    text = log_file(world).read_bytes().decode("ascii")
+    cell_changelog = world["broken_changelog"]
+    assert f" WARN J2D-DATA-004 | Changelog.CreatedUtc | expected datetime | found number | source histories[].created | first filled {cell_changelog}\r\n" in text, [l for l in text.splitlines() if "J2D-DATA-004" in l]
+    cell = world["broken"][1]
+    assert f" WARN J2D-DATA-004 | Issues.CreatedUtc | expected datetime | found number | source fields.created | first filled {cell}\r\n" in text
+    assert " INFO J2D-DATA-004 | Issues.CreatedUtc | rows 60, filled 60, empty 0 | kinds in first 20: date x 19, number x 1 | " \
+           "value shape Double:9999999999999 | cell format General\r\n" in text, [l for l in text.splitlines() if "J2D-DATA-004" in l]
+    assert " INFO J2D-DATA-004 | Issues.CreatedUtc | hint: 13 digits: epoch milliseconds, Jira sent a number" in text
+    assert [t for t in table_dicts(wb, "Issues")][0]["CreatedUtc"] == 1761134538011                   # the run went on: the data is there
+
+
 @then("les résultats du premier calcul sont conservés et l'état dit « Cancelled »")
 def _cancelled(world):
     text, bar = world["samples"][-1]
@@ -1421,11 +1475,12 @@ def _done_outside(world):
     assert int(found.group(2)) == len(done) and 0 < int(found.group(1)) <= len(done), (found.groups(), len(done))
     assert "add iterations to " + S.of("Iterations") in status
     assert " | Without a team: " not in status and " | Cells in error: " not in status, status      # nothing else to see here
+    assert " | Column types: " not in status, status
 
 
 @then("l'état du tableau de bord ne signale ni ticket sans équipe, ni statut inconnu, ni cellule en erreur")
 def _nothing_to_check(world):
     status = macro(world, "ProgressSnapshot").partition("|")[2]
     # not " | Done outside the iterations: ": the fake data holds tickets done before the first iteration of the scenario
-    for field in (" | Without a team: ", " | Statuses not in Workflows: ", " | Cells in error: "):
+    for field in (" | Without a team: ", " | Statuses not in Workflows: ", " | Cells in error: ", " | Column types: "):
         assert field not in status, status

@@ -55,8 +55,8 @@ def manual(mandatory: tuple[str, ...]) -> list[tuple[str, str]]:
             f"{S.FROM_EXCEL}: calculated by Excel formulas and macros, or drawn: the charts ({CHARTS}), the flow metrics "
             f"({METRICS}, {S.of('PIMetrics')}), the work items ({ITEMFLOW}, {S.of('DailyLoad')}), the data checks "
             f"({DATACHECKS}, {S.of('FillRates')}), the {S.of('Dashboard')}, the {S.of('Steps')} of the last run and the "
-            f"{S.of('ErrorCodes')}. {S.of('FlowFormulas')}, {S.of('ChartSpec')}, {S.of('ChecksSpec')} and "
-            f"{S.of('RovoPromptSpec')} are the plan the workbook builds from: do not edit them.",
+            f"{S.of('ErrorCodes')}. {S.of('FlowFormulas')}, {S.of('ChartSpec')}, {S.of('ChecksSpec')}, "
+            f"{S.of('RawTypesSpec')} and {S.of('RovoPromptSpec')} are the plan the workbook builds from: do not edit them.",
         ]),
         (f"Sheet {CONFIG}", [
             "One row per parameter: Parameter, Value, Example, Mandatory, Description.",

@@ -217,7 +217,7 @@ End Function
 
 Public Sub ExtractSlice()
     ' Called by Application.OnTime: one step, then the next call is scheduled. Keep it short (UI thread).
-    Dim num As Long, desc As String
+    Dim num As Long, desc As String, health As String
     If Not mBusy Then Exit Sub
     On Error GoTo Failed
     If mExtracting Then
@@ -236,9 +236,10 @@ Public Sub ExtractSlice()
         If mBusy Then ScheduleSlice                ' AbortExtraction may have run during the DoEvents above
     Else
         BuildFlowSheetsIn ThisWorkbook
+        health = HealthFields(ThisWorkbook)                        ' before the end of the run: its step and its lines belong to it
         LogRunEnd "ok"
         EndRun "Done | Charts: the six flow metrics in the sheet " & SheetName(CHARTS_SHEET) & " | Figures: the sheet " & SheetName("Metrics") & _
-               " | Data checks: the sheet " & SheetName("DataChecks") & HealthFields(ThisWorkbook), 1
+               " | Data checks: the sheet " & SheetName("DataChecks") & health, 1
     End If
     Exit Sub
 Failed:

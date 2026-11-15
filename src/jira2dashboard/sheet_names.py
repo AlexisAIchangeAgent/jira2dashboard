@@ -22,7 +22,7 @@ USER = ("Config", "Projects", "Iterations", "PIs", "Workflows", "Transitions", "
 JIRA = ("Issues", "StatusIntervals", "IssueLinks", "JiraIssueTypes", "JiraStatuses", "JiraWorkflows", "JiraTransitions",
         "JiraFields", "JiraProjectWorkflows", "JiraProjectFields", "JiraFieldUsage", "JiraSprints", "Changelog")
 EXCEL = ("Dashboard", "Charts", "Manual", "ErrorCodes", "Steps", "ItemFlow", "DailyLoad", "Metrics", "PIMetrics",
-         "DataChecks", "FillRates", "Controls", "ChartData", "FlowFormulas", "ChartSpec", "ChecksSpec", "RovoPromptSpec",
+         "DataChecks", "FillRates", "Controls", "ChartData", "FlowFormulas", "ChartSpec", "ChecksSpec", "RawTypesSpec", "RovoPromptSpec",
          "RovoPrompt", "Run", "Errors")                  # Run and Errors: the sheets of the Python path only
 
 

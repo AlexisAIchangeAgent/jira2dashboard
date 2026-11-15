@@ -136,3 +136,42 @@ def test_the_date_of_a_changelog_is_found_by_its_value_and_named_in_the_log(tmp_
     with MockJira(dataset, credentials=(MOCK_EMAIL, MOCK_TOKEN), changelog_date=date) as server:
         code, log = run(tmp_path, params(tmp_path, server.base_url))
     assert code == 0 and line in log and "J2D-DATA-003" not in log
+
+
+# --- the type of every column written from Jira, and what Jira really sent (the log lines that show a v0.7.0 failure at once) ----------------
+
+def test_the_log_says_what_jira_sent_and_that_every_column_has_its_type(tmp_path, jira):
+    code, log = run(tmp_path, params(tmp_path, jira.base_url))
+    assert code == 0
+    assert "wire types issue | id string, key string, fields.created string, fields.resolutiondate string, fields.status.name string" in log
+    assert "wire types configured fields | WorkTypeField string, SprintField array, StoryPointsField number" in log
+    assert "wire types changelog | id string, created number, fieldId string, from string, to string" in log     # Jira sends epoch ms
+    assert re.search(r"column types \| tables \d \| columns \d+ \| checked \d+ \| problems 0\b", log)
+    assert "types Issues | rows 30 | filled: Key 30, Id 30" in log and "types Changelog | rows " in log
+    assert not re.search(r"J2D-DATA-0(0[4-9]|1[0-3])", log)
+
+
+def test_the_wire_types_follow_a_renamed_date_key(tmp_path, dataset):
+    with MockJira(dataset, credentials=(MOCK_EMAIL, MOCK_TOKEN), changelog_date=("createdAt", "iso")) as server:
+        code, log = run(tmp_path, params(tmp_path, server.base_url))
+    assert code == 0 and "wire types changelog | id string, createdAt string, fieldId string" in log
+    assert "problems 0" in log
+
+
+def test_a_wrong_type_is_a_warning_with_its_code_and_two_info_lines_and_stops_nothing(caplog):
+    import logging
+    import types
+    row = ("ABC-1", "10001", "5", 1761134538011, "1761134538011", "status", "Status", "jira", "1", "To Do", "2", "Done")
+    caplog.set_level(logging.INFO, logger="jira2dashboard.extract")
+    report = X.log_column_types(types.SimpleNamespace(rows=[], links=[], changelog=[row]), [])
+    assert [p.name for p in report.problems] == ["Changelog.CreatedUtc"]
+    records = [(r.levelname, r.getMessage()) for r in caplog.records]
+    assert ("WARNING", "J2D-DATA-004 | Changelog.CreatedUtc | expected datetime | found number | source histories[].created | "
+                       "first filled D2") in records
+    assert ("INFO", "J2D-DATA-004 | Changelog.CreatedUtc | rows 1, filled 1, empty 0 | kinds in first 20: number x 1 | "
+                    "value shape Double:9999999999999") in records
+    assert any(level == "INFO" and text.startswith("J2D-DATA-004 | Changelog.CreatedUtc | hint: 13 digits: epoch milliseconds")
+               for level, text in records)
+    assert ("INFO", "column types | tables 1 | columns 12 | checked 12 | problems 1") in records
+    order = [text for _level, text in records]
+    assert order.index(next(t for t in order if t.startswith("J2D-DATA-004"))) < order.index(next(t for t in order if t.startswith("types Changelog")))

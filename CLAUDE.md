@@ -207,7 +207,25 @@ python.log). `tests/unit/test_claude_hooks.py` and `test_claude_skills.py` test 
   `Done outside the iterations: N of M` (no metric counts a ticket done outside every iteration: the usual cause of empty charts), `Without a team`,
   `Statuses not in Workflows` (their names), `Cells in error: Table.Column x n` (a formula that fails on real data; the charts' own #N/A are not read).
   Numbers and status names only, never a value of a ticket; it never raises. The synchronous `ExtractAndCompute` (tests) does not write it. The fake data holds tickets
-  done before the first iteration of the scenarios (9 of 26 on 2026-11-13): a "clean run" assertion checks the other three fields only.
+  done before the first iteration of the scenarios (9 of 26 on 2026-11-13): a "clean run" assertion checks the other fields (`Column types` included) only.
+- **Column types of the raw sheets (AL, 2026-11-15).** After v0.7.0 wrote an empty date column and nobody saw it, the first FILLED cell of each column written from Jira
+  (Issues, StatusIntervals, IssueLinks, Changelog; not the `Jira...` proposals) is checked against the type its label promises (a `...Utc` column holds a datetime). The spec is data:
+  `flow/raw_types.py` (`RAW_TYPES`: Table, Column, Type, Required, Source, Allowed; a test pins that every raw column has a row and every `...Utc` is a datetime), written at build
+  into the sheet `RawTypesSpec` (`Required` is `yes`/`no` text: `CStr(True)` is "Vrai" on a French PC) and read by `modHealth.TypeProblems`, called by `HealthFields` (also by the Python path:
+  `standalone/__main__.log_column_types`). **One support code per data type:** `J2D-DATA-004` datetime, `005` date (midnight), `006` id (digits as text), `007` key (`ABC-12`), `008` integer,
+  `009` number, `010` boolean, `011` enum (closed list: sprint state, status category), `012` list (no empty item), `013` text. A problem never stops the run: a status field
+  ` | Column types: n column(s), first Issues.CreatedUtc expected datetime found number` and, in the log, three lines per problem with the same code: a WARN (column, expected, found, Jira's source
+  path, first cell), an INFO (rows, filled, empty, the kinds of the first 20 filled cells, the SHAPE of the first value, the cell format on the VBA side), an INFO hint (a fixed sentence per
+  type and kind found: 13 digits = epoch milliseconds...). Never a value: shapes only (`Double:9999999999999`). A required column with no filled cell is a problem too (`found empty`); an
+  optional empty column is silent but shows in the `INFO types <Table> | rows N | filled: ...` line (continued on a next line: **the VBA log cuts a line at 300 characters**, `LOG_MAX_TEXT`,
+  so a long message is several lines). `INFO wire types issue|configured fields|changelog | ...` says the JSON type Jira really sent for each field read (`modJira.WireTypesLines`,
+  `mapping.wire_lines`): the line that shows a v0.7.0 at once. `HealthFields` is called BEFORE `LogRunEnd` so that its step and lines belong to the run. The hint sentences and the
+  `FitsType`/`fits` rules exist on both sides: `test_raw_types.py` compares every `HintFor` literal with the Python hints. Not covered: only the first filled value is read (a bad value later
+  in a column is not seen; the kinds of the first 20 are counted in the log). **The sheet `Changelog` is a plain range, not an Excel table** (`WriteTable`; the flow tables are
+  made by `modFlowBuild.CreateTable`): `modHealth.TableShape` reads a table or, without one, the range from A1 (a first version read tables only and never saw `Changelog`,
+  the column of the v0.7.0 failure: found by the two reviewer agents, hidden by a test that built a table the real workbook does not have: **a test of a reader builds the
+  sheet as the real build does**). An empty table keeps one blank row (not a row). The filled cells are counted by `CountA` and the first 20 read by blocks of 2000 rows
+  (`T_TypeBlocks`), so that 1 000 000 changelog rows cost almost nothing. The log lines come per table: its problems, then its fill lines (`raw_types.log_lines`).
 - **Jira configuration (VBA).** `modJiraConfig` (button Read the Jira configuration, `BtnReadJiraConfiguration`) reads
   projects, issue types, statuses, workflows (`workflows/preview`) and fields into proposal sheets `Jira*`; it never writes
   the parameter sheets (calls and mapping: the header of `modJiraConfig.bas`). Besides the five first sheets it writes

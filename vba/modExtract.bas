@@ -357,7 +357,7 @@ End Sub
 
 Private Sub RowsInit()
     ' Start of phase 3: the status changes and the key changes of all the issues (pure computing on the changelogs).
-    Dim skipped As Long, shapes As String
+    Dim skipped As Long, shapes As String, wire As Variant, w As Long
     Set mRows = New Collection: Set mLinks = New Collection: mRowNext = 1
     LogBegin "raw sheets: status changes"
     Set mChanges = StatusChangesFromChangelog(mRaw, mIdToKey, skipped, shapes)
@@ -365,6 +365,10 @@ Private Sub RowsInit()
     LogEnd "raw sheets: status changes: " & mChanges.Count
     LogSkippedDates skipped, shapes                                    ' J2D-DATA-003, only when some were left out
     Set mChangelog = ChangelogRows(mRaw, mIdToKey, mUserFields)                      ' the sheet Changelog: every item, texts cut
+    wire = Split(WireTypesLines(mIssues, mRaw, RowFieldIds(mSettings), mWorkType), vbLf)   ' what Jira really sent, by JSON type
+    For w = 0 To UBound(wire)
+        LogLine "INFO", CStr(wire(w))
+    Next w
     Set mRaw = New Collection                                          ' the parsed items are not read again: free them before the write
     mIds = RowFieldIds(mSettings)
     mBlocksType = Setting(mSettings, "BlocksLinkType")

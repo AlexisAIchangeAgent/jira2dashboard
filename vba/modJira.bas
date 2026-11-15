@@ -5,6 +5,7 @@ Public Const JIRA_PAGE_SIZE As Long = 100
 Public Const DATE_SAMPLE As Long = 20                        ' histories read to find the key that holds the date of a changelog
 Public Const CHANGELOG_CHUNK As Long = 50             ' issues per bulkfetch call and per step (the API accepts 1000): a step must stay short
 
+Private Const WIRE_SAMPLE As Long = 200                       ' issues (or changelog rows) read to tell what Jira sent (mapping.WIRE_SAMPLE)
 Private mDateKey As String                                 ' the key found for the date of a changelog history, for the run
 Public Const MAX_SEARCH_PAGES As Long = 2000                  ' a search that has not ended after this many pages is given up
 
@@ -301,6 +302,79 @@ Private Sub FetchChangelogChunk(ByVal cfg As Object, ByVal chunk As Collection, 
         End If
     Loop While Len(token) > 0
 End Sub
+
+' ---------- What Jira really sent (python: mapping.wire_lines) ----------
+
+Public Function WireWord(ByVal v As Variant) As String
+    ' The JSON type of a parsed value, as Jira sent it: string, number, boolean, null, absent (not there), object, array.
+    If IsObject(v) Then
+        If TypeOf v Is Collection Then Cov "JIR36": WireWord = "array" Else Cov "JIR37": WireWord = "object"
+    ElseIf IsEmpty(v) Then
+        Cov "JIR38": WireWord = "absent"
+    ElseIf IsNull(v) Then
+        Cov "JIR39": WireWord = "null"
+    ElseIf VarType(v) = vbString Then
+        Cov "JIR40": WireWord = "string"
+    ElseIf VarType(v) = vbBoolean Then
+        Cov "JIR41": WireWord = "boolean"
+    Else
+        Cov "JIR42": WireWord = "number"
+    End If
+End Function
+
+Private Function FirstWire(ByVal items As Collection, ByVal path As String) As String
+    ' The type of the first value at `path` that is neither absent nor null among the first WIRE_SAMPLE items; "null" when some are
+    ' null and none is anything else; else "absent".
+    Dim i As Long, word As String
+    FirstWire = "absent"
+    For i = 1 To items.Count
+        If i > WIRE_SAMPLE Then Exit For
+        word = WireWord(JPath(items(i), path))
+        If word = "null" Then Cov "JIR47": FirstWire = "null"
+        If word <> "absent" And word <> "null" Then Cov "JIR43": FirstWire = word: Exit Function
+    Next i
+End Function
+
+Private Function FieldWire(ByVal issues As Collection, ByVal fieldId As String) As String
+    If Len(fieldId) = 0 Then Cov "JIR44": FieldWire = "not set": Exit Function
+    FieldWire = FirstWire(issues, "fields." & fieldId)
+End Function
+
+Private Function RawWire(ByVal raw As Collection, ByVal index As Long) As String
+    ' The same for the column `index` of the changelog rows kept by FetchChangelogChunk (they hold the JSON values as parsed).
+    Dim i As Long, word As String, one As Variant
+    RawWire = "absent"
+    For i = 1 To raw.Count
+        If i > WIRE_SAMPLE Then Exit For
+        one = raw(i)
+        word = WireWord(one(index))
+        If word = "null" Then Cov "JIR48": RawWire = "null"
+        If word <> "absent" And word <> "null" Then Cov "JIR45": RawWire = word: Exit Function
+    Next i
+End Function
+
+Public Function WireTypesLines(ByVal issues As Collection, ByVal raw As Collection, ByVal ids As Variant, ByVal workTypeField As String) As String
+    ' Three lines joined by vbLf (short: the log cuts a line at 300 characters): the JSON type of the first value present of each field
+    ' the tool reads. Names and types, never a value. It tells at once when Jira sends a number where its schema says a date-time.
+    Dim paths As Variant, names As Variant, i As Long, a As String, b As String, c As String, label As String
+    paths = Array("id", "key", "fields.created", "fields.resolutiondate", "fields.status.name", "fields.parent.key")
+    For i = 0 To UBound(paths)
+        a = a & IIf(i > 0, ", ", "") & paths(i) & " " & FirstWire(issues, CStr(paths(i)))
+    Next i
+    names = Array("SprintField", "StoryPointsField", "PIField", "BusinessValueField", "TeamField", "TargetStartField", "TargetEndField")
+    b = "WorkTypeField " & FieldWire(issues, workTypeField)
+    For i = 0 To UBound(names)
+        b = b & ", " & names(i) & " " & FieldWire(issues, CStr(ids(i)))
+    Next i
+    If raw.Count = 0 Then
+        Cov "JIR46": c = "no history"
+    Else
+        label = IIf(Len(mDateKey) > 0, mDateKey, "created")
+        c = "id " & RawWire(raw, 1) & ", " & label & " " & RawWire(raw, 2) & ", fieldId " & RawWire(raw, 5) & ", from " & RawWire(raw, 8) & _
+            ", to " & RawWire(raw, 10)
+    End If
+    WireTypesLines = "wire types issue | " & a & vbLf & "wire types configured fields | " & b & vbLf & "wire types changelog | " & c
+End Function
 
 ' ---------- Tables ----------
 

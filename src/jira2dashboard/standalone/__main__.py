@@ -25,6 +25,7 @@ from pathlib import Path
 
 from jira2dashboard.cli.args import parser
 from jira2dashboard.flow import dashboard_spec as D
+from jira2dashboard.flow import raw_types
 from jira2dashboard.flow.formulas import CHANGELOG_RAW, INTERVALS_RAW, ISSUES
 from jira2dashboard.flow.model import UNCLASSIFIED
 from jira2dashboard.params.model import ParamsError
@@ -159,6 +160,20 @@ def parameter_lines(sheets) -> list[str]:
     return lines
 
 
+def log_column_types(extract, intervals) -> raw_types.TypeReport:
+    """The first filled value of each column written from Jira against the type of its label (flow/raw_types.py, the VBA side is
+    modHealth.TypeProblems): a WARN and two INFO lines per problem with its J2D-DATA code, one INFO line per table and a summary.
+    Never stops the run."""
+    started = time.monotonic()
+    log.info("BEGIN column types")
+    report = raw_types.check({"Issues": (ISSUES, extract.rows), "StatusIntervals": (INTERVALS_RAW, intervals),
+                              "IssueLinks": (("Blocker", "Blocked"), extract.links), "Changelog": (CHANGELOG_RAW, extract.changelog)})
+    for level, text in raw_types.log_lines(report):
+        (log.warning if level == "WARN" else log.info)("%s", text)
+    log.info("END column types%s", took(started))
+    return report
+
+
 def run(args, formatter: Scrubbed, collected: Collected, sleep=time.sleep, detect=detect_proxy,
         transport=WinHttp) -> Path:
     started = time.monotonic()
@@ -198,12 +213,15 @@ def run(args, formatter: Scrubbed, collected: Collected, sleep=time.sleep, detec
     if extract.unreadable_dates:
         log.warning("J2D-DATA-003 | %d status changes ignored: their date cannot be read | created: %s",
                     extract.unreadable_dates, extract.unreadable_shapes)
+    for line in extract.wire:                                       # what Jira really sent: the JSON type of each field read
+        log.info("%s", line)
     step = time.monotonic()
     intervals = [row for issue in extract.flow for row in interval_rows(issue, settings.as_of, settings.rules)]
     unknown = sorted({row[3] for row in intervals if row[4] == UNCLASSIFIED})
     if unknown:
         log.warning("statuses not in the sheet Workflows (category Unclassified, data check DC08): %s",
                     ", ".join(unknown))
+    types = log_column_types(extract, intervals)
     results = R.compute(extract.flow, settings)
     first, end = R.iteration_span(settings.iterations)
     pictures = chart_pictures(results.metrics, results.teams, [p.name for p in settings.iterations], results.loads,
@@ -217,6 +235,7 @@ def run(args, formatter: Scrubbed, collected: Collected, sleep=time.sleep, detec
         ("Iterations", f"{len(settings.iterations)}: {settings.iterations[0].name} to {settings.iterations[-1].name}"),
         ("Issues", len(extract.rows)), ("Changelog items", extract.changelog_items),
         ("Status intervals", len(intervals)), ("Blocking links", len(extract.links)),
+        ("Column types", raw_types.status_field(types).removeprefix(" | Column types: ") or "every column has the type of its label"),
         ("Retries of a call to Jira", client.retries), ("Flow Distribution chart", args.team),
         ("Warnings", f"{len(collected.rows)} (sheet {ERRORS_SHEET})"), ("Log", str(Path(args.log).resolve())),
         ("Duration (s)", round(time.monotonic() - started, 1)),

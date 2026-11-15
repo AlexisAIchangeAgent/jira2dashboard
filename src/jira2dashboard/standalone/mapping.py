@@ -104,6 +104,73 @@ def date_key_of(pages: list[dict], now: dt.datetime | None = None) -> tuple[str,
     return find_date_key(_histories(pages), now)
 
 
+# --- what Jira really sent: the JSON type of the fields the tool reads (the evidence of the v0.7.0 failure) ---------------------------
+
+WIRE_SAMPLE = 200                                        # issues (or changelog items) looked at; modJira.WIRE_SAMPLE
+_ABSENT = object()
+
+
+def wire_word(value) -> str:
+    """The JSON type of a parsed value, as Jira sent it: string, number, boolean, null, absent, object, array (modJira.WireWord)."""
+    if value is _ABSENT:
+        return "absent"
+    if value is None:
+        return "null"
+    if isinstance(value, bool):
+        return "boolean"
+    if isinstance(value, (int, float)):
+        return "number"
+    if isinstance(value, dict):
+        return "object"
+    if isinstance(value, list):
+        return "array"
+    return "string"
+
+
+def _at(node, path: str):
+    for part in path.split("."):
+        if not isinstance(node, dict) or part not in node:
+            return _ABSENT
+        node = node[part]
+    return node
+
+
+def _first_wire(values) -> str:
+    """The type of the first value that is neither absent nor null; null when some are null and none is anything else; else absent."""
+    seen = "absent"
+    for value in values:
+        word = wire_word(value)
+        if word not in ("absent", "null"):
+            return word
+        if word == "null":
+            seen = "null"
+    return seen
+
+
+ISSUE_WIRE_PATHS = ("id", "key", "fields.created", "fields.resolutiondate", "fields.status.name", "fields.parent.key")
+
+
+def wire_lines(issues: list[dict], items, ids: "FieldIds", date_key: str) -> list[str]:
+    """Three INFO lines: the JSON type of the first value present of each field read (names and types, never a value). A line is
+    short because the VBA log cuts a line at 300 characters (modJira.WireTypesLines says the same words)."""
+    sample = issues[:WIRE_SAMPLE]
+    first = [f"{path} {_first_wire(_at(issue, path) for issue in sample)}" for path in ISSUE_WIRE_PATHS]
+    configured = (("WorkTypeField", ids.work_type), ("SprintField", ids.sprint), ("StoryPointsField", ids.story_points), ("PIField", ids.pi),
+                  ("BusinessValueField", ids.business_value), ("TeamField", ids.team), ("TargetStartField", ids.target_start),
+                  ("TargetEndField", ids.target_end))
+    fields = [f"{name} " + (_first_wire(_at(issue, "fields." + field_id) for issue in sample) if field_id else "not set")
+              for name, field_id in configured]
+    sample_items = items[:WIRE_SAMPLE]
+    if sample_items:
+        changelog = ", ".join((f"id {_first_wire(history.get('id', _ABSENT) for _i, history, _item in sample_items)}",
+                               f"{date_key} {_first_wire(history.get('created', _ABSENT) for _i, history, _item in sample_items)}",
+                               *(f"{name} {_first_wire(item.get(name, _ABSENT) for _i, _history, item in sample_items)}"
+                                 for name in ("fieldId", "from", "to"))))
+    else:
+        changelog = "no history"
+    return ["wire types issue | " + ", ".join(first), "wire types configured fields | " + ", ".join(fields), "wire types changelog | " + changelog]
+
+
 def text_of(value) -> str | None:
     """A text field, or an object (Team {"name"}, a select {"value"}): the text; a list or nothing: None."""
     if value is None or isinstance(value, list):
@@ -359,6 +426,7 @@ class Extract:
     unreadable_shapes: str = ""             # what those dates look like (date_shape), to find why
     changelog: list = field(default_factory=list)   # sheet Changelog
     date_key: tuple = _FALLBACK_KEY         # (key, kind, other keys that qualify) found by value: find_date_key
+    wire: list = field(default_factory=list)  # three INFO lines: the JSON type Jira sent for each field read (wire_lines)
 
 
 def extracted(issues: list[dict], changelog_pages: list[dict], ids: FieldIds, projects: list[tuple[str, str, str]],
@@ -380,5 +448,6 @@ def extracted(issues: list[dict], changelog_pages: list[dict], ids: FieldIds, pr
         blocks = tuple(blocked_by.get(row[0], ()))
         flow.append(flow_issue(row, changes.get(row[0], []), projects, blocks,
                                versions_of(issue.get("fields") or {})))
+    date_key = date_key_of(changelog_pages)
     return Extract(rows, flow, links, len(items), *unreadable_status_dates(items), changelog_rows(items, id_to_key, user_fields),
-                   date_key_of(changelog_pages))
+                   date_key, wire_lines(issues, items, ids, date_key[0]))

@@ -50,7 +50,7 @@ Private Function TestNames() As Variant
     TestNames = Array("T_JsonNested", "T_JsonEscapes", "T_JsonEmpty", "T_JsonErrors", "T_JsonRoundTrip", _
         "T_JsonLarge", "T_Base64Auth", "T_UrlEncode", "T_Utf8RoundTrip", "T_JiraDates", "T_FieldToCell", _
         "T_SafeCell", "T_ProjectsJql", "T_SearchUrl", "T_SearchPagination", "T_Retry429", _
-        "T_HttpNetworkAndCancel", "T_RetryExhausted", "T_ChangelogChunks", "T_IssueRows", "T_WriteTable", "T_StatusIntervals", "T_IntervalsUnreadableDate", "T_StatusChangesUnreadableDate", "T_ChangelogRows", "T_UserFieldIds", "T_DateShape", "T_ParseJiraDateEpoch", "T_DateKind", "T_IsPlausibleDate", "T_FindDateKey", "T_ChangelogDateKey", "T_SkippedDatesWarning", "T_SheetName", "T_ProposeFromSheets", "T_ProposeIterations", "T_ReadSprints", "T_ProposeKindOf", "T_ProposeValuesNotAdmin", "T_HealthFields", _
+        "T_HttpNetworkAndCancel", "T_RetryExhausted", "T_ChangelogChunks", "T_IssueRows", "T_WriteTable", "T_StatusIntervals", "T_IntervalsUnreadableDate", "T_StatusChangesUnreadableDate", "T_ChangelogRows", "T_UserFieldIds", "T_DateShape", "T_ParseJiraDateEpoch", "T_DateKind", "T_IsPlausibleDate", "T_FindDateKey", "T_ChangelogDateKey", "T_SkippedDatesWarning", "T_SheetName", "T_ProposeFromSheets", "T_ProposeIterations", "T_ReadSprints", "T_ProposeKindOf", "T_ProposeValuesNotAdmin", "T_HealthFields", "T_CellKind", "T_FitsType", "T_ShapeOfCell", "T_TypeHints", "T_TypeProblems", "T_TypeEmptyTable", "T_TypeBlocks", "T_TypeFillLines", "T_WireTypes", _
         "T_StatusChanges", "T_RetryDelay", "T_SafeAccess", "T_FilesUtf8", "T_StringifyBadObject", _
         "T_TooManyPages", "T_BackgroundExport", "T_TextNotConverted", "T_ParamsTables", "T_ParamsOnWorkbook", _
         "T_TrimWhite", "T_ConfigSheet", "T_MandatoryConfig", "T_ProxyDetect", "T_ProxyScript", "T_ProjectsSheet", "T_ParseMoment", "T_ExtractFlowData", "T_ExtractJob", "T_ExtractCheckFields", "T_FlowBuild", "T_BaseUrlHttps", "T_Log", "T_LogInputsAndTimes", "T_StatusParts", "T_ErrorCodes", "T_LogHintAndOpen", "T_StepsSheet", "T_RovoPrompt", "T_RovoCsv", _
@@ -2283,6 +2283,365 @@ Public Sub T_HealthFields()
     wb.Close False
     Application.DisplayAlerts = True
     Check "health", "it never raises: no workbook, no fields", "Nothing", "", HealthFields(Nothing)
+End Sub
+
+' ================= The type of the columns written from Jira =================
+
+Public Sub T_CellKind()
+    Check "types", "Empty", "Empty", "empty", CellKind(Empty)
+    Check "types", "Null", "Null", "empty", CellKind(Null)
+    Check "types", "an empty text", "", "empty", CellKind("")
+    Check "types", "a text of digits stays a text", "1761134538011", "text", CellKind("1761134538011")
+    Check "types", "a boolean", "True", "boolean", CellKind(True)
+    Check "types", "a date", "DateSerial", "date", CellKind(DateSerial(2026, 11, 14))
+    Check "types", "a number: epoch milliseconds", "1761134538011", "number", CellKind(1761134538011#)
+    Check "types", "a whole number", "3", "number", CellKind(3)
+    Check "types", "a currency", "CCur", "number", CellKind(CCur(3))
+    Check "types", "an error", "#N/A", "error", CellKind(CVErr(2042))
+    Check "types", "a list", "Array", "other", CellKind(Array(1, 2))
+End Sub
+
+Private Sub FitCase(ByVal typ As String, ByVal label As String, ByVal v As Variant, ByVal expected As Boolean, Optional ByVal allowed As String = "")
+    Check "types", typ & ": " & label, typ, expected, FitsType(typ, v, allowed)
+End Sub
+
+Public Sub T_FitsType()
+    ' The same table as tests/unit/test_raw_types.py::test_fits: the two sides must agree.
+    Dim d As Date, lists As String
+    d = DateSerial(2026, 11, 14) + TimeSerial(9, 30, 0)
+    FitCase "datetime", "a date", d, True
+    FitCase "datetime", "2000-01-01", DateSerial(2000, 1, 1), True
+    FitCase "datetime", "1999-12-31 23:59", DateSerial(1999, 12, 31) + TimeSerial(23, 59, 0), False
+    FitCase "datetime", "2100-01-01", DateSerial(2100, 1, 1), False
+    FitCase "datetime", "epoch milliseconds", 1761134538011#, False
+    FitCase "datetime", "an ISO text", "2026-11-14T09:30:00", False
+    FitCase "datetime", "a boolean", True, False
+    FitCase "date", "midnight", DateSerial(2026, 6, 1), True
+    FitCase "date", "a time of day", d, False
+    FitCase "date", "a text", "2026-06-01", False
+    FitCase "id", "digits as text", "10042", True
+    FitCase "id", "a number: Excel converted it", 10042, False
+    FitCase "id", "a key", "ABC-1", False
+    FitCase "id", "a space", "10 042", False
+    FitCase "key", "ABC-12", "ABC-12", True
+    FitCase "key", "digit and underscore in the project", "A1_B-7", True
+    FitCase "key", "lower case", "abc-12", False
+    FitCase "key", "no dash", "ABC12", False
+    FitCase "key", "no number", "ABC-", False
+    FitCase "key", "starts with a digit", "1AB-1", False
+    FitCase "key", "a number", 12, False
+    FitCase "integer", "3", 3, True
+    FitCase "integer", "3.0", 3#, True
+    FitCase "integer", "3.5", 3.5, False
+    FitCase "integer", "a text", "3", False
+    FitCase "integer", "a boolean", True, False
+    FitCase "integer", "a date", d, False
+    FitCase "number", "3.5", 3.5, True
+    FitCase "number", "0", 0, True
+    FitCase "number", "a text", "3.5", False
+    FitCase "number", "a boolean", True, False
+    FitCase "number", "a date", d, False
+    FitCase "boolean", "True", True, True
+    FitCase "boolean", "False", False, True
+    FitCase "boolean", "1", 1, False
+    FitCase "boolean", "a text", "TRUE", False
+    lists = "future, active, closed"
+    FitCase "enum", "in the list", "active", True, lists
+    FitCase "enum", "another case", "Active", False, lists
+    FitCase "enum", "outside the list", "done", False, lists
+    FitCase "enum", "two values of the list in one text", "future, active", False, lists
+    FitCase "enum", "a number", 1, False, lists
+    FitCase "text", "a name", "To Do", True
+    FitCase "text", "a text of digits", "123", True
+    FitCase "text", "a number", 123, False
+    FitCase "text", "a date", d, False
+    FitCase "text", "a boolean", True, False
+    FitCase "list", "one item", "1.0", True
+    FitCase "list", "two items", "1.0, 2.0", True
+    FitCase "list", "an empty item", "1.0, , 2.0", False
+    FitCase "list", "a trailing separator", "1.0,", False
+    FitCase "list", "a number", 1.5, False
+    Check "types", "the date limits are those of the python side", "serials", "36526|73051", CStr(CLng(DateSerial(2000, 1, 1))) & "|" & CStr(CLng(DateSerial(2100, 1, 1)))
+End Sub
+
+Public Sub T_ShapeOfCell()
+    ' The type and the shape of a cell, none of its content (raw_types.shape_of).
+    Dim d As Date
+    d = DateSerial(2026, 11, 14) + TimeSerial(9, 30, 0)
+    Check "types", "epoch milliseconds", "1761134538011", "Double:9999999999999", ShapeOfCell(1761134538011#)
+    Check "types", "a decimal number", "3.5", "Double:9.9", ShapeOfCell(3.5)
+    Check "types", "a key", "ABC-12", "String:AAA-99", ShapeOfCell("ABC-12")
+    Check "types", "a name", "To Do", "String:Aa Aa", ShapeOfCell("To Do")
+    Check "types", "a date", "DateSerial", "Date:9999-99-99A99:99:99", ShapeOfCell(d)
+    Check "types", "a boolean", "True", "Boolean", ShapeOfCell(True)
+    Check "types", "an error", "#N/A", "Error", ShapeOfCell(CVErr(2042))
+    Check "types", "Empty and an empty text", "", "Empty|Empty", ShapeOfCell(Empty) & "|" & ShapeOfCell("")
+    Check "types", "a list", "Array", "Object", ShapeOfCell(Array(1))
+    Check "types", "a decimal below 1 has its zero, as python writes it", "0.5", "Double:9.9", ShapeOfCell(0.5)
+    Check "types", "a whole number of 16 digits is written in full", "1E15", "Double:" & String$(16, "9"), ShapeOfCell(1E+15)
+    Check "types", "cut at 40 characters", "50 letters", "String:" & String$(40, "a") & "...", ShapeOfCell(String$(50, "x"))
+    Check "types", "no letter and no digit of the value", "PI#26-2026 secret", "String:AA#99-9999 aaaaaa", ShapeOfCell("PI#26-2026 secret")
+End Sub
+
+Public Sub T_TypeHints()
+    ' One sentence per (type, kind found): the texts of raw_types.hint (a unit test compares every literal of HintFor with them).
+    Check "types", "a column that is not in the sheet", "missing", True, InStr(HintFor("datetime", "missing", True, "", 0), "the column is not in the sheet") = 1
+    Check "types", "a required date column that is empty points at J2D-DATA-003", "empty", True, _
+          InStr(HintFor("datetime", "empty", True, "", 0), "no cell holds a date: Jira's date was not read (see WARN J2D-DATA-003") = 1
+    Check "types", "an optional date column that is empty is fine", "empty", "no ticket has this date: fine when the field is not used", HintFor("date", "empty", False, "", 0)
+    Check "types", "a required column that is empty", "empty", True, InStr(HintFor("text", "empty", True, "", 0), "a required column is empty") = 1
+    Check "types", "an optional column that is empty is fine", "empty", True, InStr(HintFor("number", "empty", False, "", 0), "no ticket has a value") = 1
+    Check "types", "13 digits are epoch milliseconds", "13", "13 digits: epoch milliseconds, Jira sent a number and the date was not converted (modText.ParseJiraDate)", HintFor("datetime", "number", True, "", 13)
+    Check "types", "10 digits are epoch seconds", "10", "10 digits: epoch seconds, Jira sent a number and the date was not converted (modText.ParseJiraDate)", HintFor("datetime", "text", True, "", 10)
+    Check "types", "a date out of range", "date", True, InStr(HintFor("datetime", "date", True, "", 0), "a date outside 2000-2099") = 1
+    Check "types", "a text that is no date", "text", True, InStr(HintFor("datetime", "text", True, "", 0), "a text that is not read as a date") = 1
+    Check "types", "another kind than a date", "boolean", True, InStr(HintFor("datetime", "boolean", True, "", 0), "not a date") = 1
+    Check "types", "a number in an id column", "number", True, InStr(HintFor("id", "number", True, "", 0), "Excel turned the text into a number") = 1
+    Check "types", "another text in a key column", "text", True, InStr(HintFor("key", "text", True, "", 0), "not a Jira id or key (ABC-12 or digits)") = 1
+    Check "types", "a text in a number column", "text", True, InStr(HintFor("integer", "text", True, "", 0), "a text where a number is expected") = 1
+    Check "types", "decimals in a whole-number column", "number", True, InStr(HintFor("integer", "number", True, "", 0), "a number with decimals") = 1
+    Check "types", "another kind in a number column", "boolean", True, InStr(HintFor("number", "boolean", True, "", 0), "not a number") = 1
+    Check "types", "a boolean column", "text", True, InStr(HintFor("boolean", "text", True, "", 0), "not TRUE/FALSE") = 1
+    Check "types", "an enum names its list", "enum", "not one of future, active, closed: Jira added a value or the field is another one", HintFor("enum", "text", False, "future, active, closed", 0)
+    Check "types", "a list with an empty item", "list", True, InStr(HintFor("list", "text", False, "", 0), "an item of the list is empty") = 1
+    Check "types", "a text column", "text", True, InStr(HintFor("text", "number", True, "", 0), "a text expected") = 1
+End Sub
+
+Public Sub T_TypeEmptyTable()
+    ' A table with no row is not read: no alarm for its required columns. A table with no data keeps one blank row (CreateTable); a sheet
+    ' written as a range with only its header has none; a table the sheet does not have is skipped.
+    Dim wb As Object, file As String, saved As String, text As String
+    saved = gLogPath
+    file = Environ$("TEMP") & "\j2d_empty_test_" & Format$(Now, "hhnnss") & Int(Rnd() * 1000) & ".log"
+    gLogPath = file
+    Set wb = Workbooks.Add
+    PutRows wb, "RawTypesSpec", Array(Array("Table", "Column", "Type", "Code", "Required", "Source", "Allowed"), _
+        Array("Changelog", "Key", "key", "J2D-DATA-007", "yes", "key", ""), _
+        Array("IssueLinks", "Blocker", "key", "J2D-DATA-007", "yes", "x", ""), _
+        Array("Absent", "A", "text", "J2D-DATA-013", "yes", "x", ""))
+    PutRows wb, "Changelog", Array(Array("Key", "IssueId"))
+    PutRows wb, "IssueLinks", Array(Array("Blocker", "Blocked"), Array("", ""))
+    MakeTable wb, "IssueLinks", 2, 2
+    Application.DisplayAlerts = False
+    wb.Worksheets(1).Delete
+    Check "types", "tables with no row raise no alarm", "(empty)", "", TypeProblems(wb)
+    wb.Close False
+    Application.DisplayAlerts = True
+    text = FileText(file)
+    Check "types", "none of them was read: no WARN, no fill line, a summary of zero", "tables 0", True, _
+          InStr(text, " WARN ") = 0 And InStr(text, " INFO types ") = 0 And InStr(text, " INFO column types | tables 0 | columns 0 | checked 0 | problems 0" & vbCrLf) > 0
+    gLogPath = saved
+    Kill file
+End Sub
+
+Public Sub T_TypeBlocks()
+    ' The first filled cells are looked for by blocks of rows, the filled ones counted by CountA: a column filled only far down is found,
+    ' on a sheet written as a range (no table), at its true cell.
+    Dim wb As Object, ws As Object, data() As Variant, r As Long, file As String, saved As String, text As String
+    saved = gLogPath
+    file = Environ$("TEMP") & "\j2d_blocks_test_" & Format$(Now, "hhnnss") & Int(Rnd() * 1000) & ".log"
+    gLogPath = file
+    Set wb = Workbooks.Add
+    PutRows wb, "RawTypesSpec", Array(Array("Table", "Column", "Type", "Code", "Required", "Source", "Allowed"), _
+        Array("Many", "Value", "key", "J2D-DATA-007", "no", "src.value", ""))
+    PutRows wb, "Many", Array(Array("Value", "Other"), Array("", "x"))
+    Set ws = wb.Worksheets("Many")
+    ReDim data(1 To 4500, 1 To 1)
+    For r = 4100 To 4500
+        data(r, 1) = "bad"
+    Next r
+    ws.Range(ws.Cells(2, 1), ws.Cells(4501, 1)).Value = data
+    Application.DisplayAlerts = False
+    wb.Worksheets(1).Delete
+    Check "types", "a column filled from row 4100 is found", "field", True, InStr(TypeProblems(wb), " | Column types: 1 column(s), first Many.Value expected key found text") = 1
+    wb.Close False
+    Application.DisplayAlerts = True
+    text = FileText(file)
+    Check "types", "its first cell is the true one", "A4101", True, _
+          InStr(text, " WARN J2D-DATA-007 | Many.Value | expected key | found text | source src.value | first filled A4101" & vbCrLf) > 0
+    Check "types", "the filled cells are all counted, the kinds are those of the first 20", "401", True, _
+          InStr(text, " INFO J2D-DATA-007 | Many.Value | rows 4500, filled 401, empty 4099 | kinds in first 20: text x 20 | value shape String:aaa | cell format General" & vbCrLf) > 0
+    Check "types", "and the fill line says it", "401", True, InStr(text, " INFO types Many | rows 4500 | filled: Value 401" & vbCrLf) > 0
+    gLogPath = saved
+    Kill file
+End Sub
+
+Public Sub T_TypeFillLines()
+    ' The fill counts of a wide table go on a next line: the log cuts a line at 300 characters (raw_types.fill_lines does the same).
+    Dim wb As Object, spec() As Variant, hdr() As Variant, one() As Variant, c As Long, file As String, saved As String, text As String
+    Dim first As String, second As String
+    saved = gLogPath
+    file = Environ$("TEMP") & "\j2d_fill_test_" & Format$(Now, "hhnnss") & Int(Rnd() * 1000) & ".log"
+    gLogPath = file
+    ReDim spec(0 To 22): ReDim hdr(0 To 21): ReDim one(0 To 21)
+    spec(0) = Array("Table", "Column", "Type", "Code", "Required", "Source", "Allowed")
+    For c = 0 To 21
+        hdr(c) = "WideColumn" & Format$(c + 1, "00"): one(c) = "x"
+        spec(c + 1) = Array("Wide", hdr(c), "text", "J2D-DATA-013", "no", "src", "")
+    Next c
+    Set wb = Workbooks.Add
+    PutRows wb, "RawTypesSpec", spec
+    PutRows wb, "Wide", Array(hdr, one, one)
+    MakeTable wb, "Wide", 3, 22
+    Application.DisplayAlerts = False
+    wb.Worksheets(1).Delete
+    Check "types", "a wide table with all its columns well typed: no field", "(empty)", "", TypeProblems(wb)
+    wb.Close False
+    Application.DisplayAlerts = True
+    text = FileText(file)
+    first = "types Wide | rows 2 | filled: WideColumn01 2"
+    For c = 2 To 15
+        first = first & ", WideColumn" & Format$(c, "00") & " 2"
+    Next c
+    second = "types Wide | filled (continued): WideColumn16 2"
+    For c = 17 To 22
+        second = second & ", WideColumn" & Format$(c, "00") & " 2"
+    Next c
+    Check "types", "the first line holds 15 columns", "268 characters", True, InStr(text, " INFO " & first & vbCrLf) > 0
+    Check "types", "the next line holds the 7 others", "continued", True, InStr(text, " INFO " & second & vbCrLf) > 0
+    Check "types", "no line is cut", "...", False, InStr(text, "...") > 0
+    gLogPath = saved
+    Kill file
+End Sub
+
+Public Sub T_WireTypes()
+    ' What Jira really sent, by JSON type: names and types, never a value (python: mapping.wire_lines, the same words).
+    Dim issues As New Collection, raw As New Collection, lines() As String, ids As Variant
+    ResetDateKey
+    Check "wire", "an object", "{}", "object", WireWord(JsonParse("{}"))
+    Check "wire", "an array", "[]", "array", WireWord(JsonParse("[]"))
+    Check "wire", "a string", "x", "string", WireWord("x")
+    Check "wire", "a number: epoch milliseconds", "1761134538011", "number", WireWord(1761134538011#)
+    Check "wire", "a boolean", "True", "boolean", WireWord(True)
+    Check "wire", "null", "Null", "null", WireWord(Null)
+    Check "wire", "absent", "Empty", "absent", WireWord(Empty)
+    issues.Add JsonParse(J("{'id':'1','key':'ABC-1','fields':{'created':'2026-01-01T00:00:00.000+0000','resolutiondate':null,'status':{'name':'Done'}," & _
+                           "'customfield_3':'Feature','customfield_2':[{'state':'active'}],'customfield_1':null}}"))
+    issues.Add JsonParse(J("{'id':'2','key':'ABC-2','fields':{'created':'2026-01-02T00:00:00.000+0000','resolutiondate':null,'status':{'name':'Open'}," & _
+                           "'customfield_1':5}}"))
+    raw.Add Array("10001", "5", 1761134538011#, "n", "a", "status", "Status", "jira", "1", "To Do", "2", "Done")
+    ids = Array("customfield_2", "customfield_1", "", "", "", "", "")
+    lines = Split(WireTypesLines(issues, raw, ids, "customfield_3"), vbLf)
+    Check "wire", "three lines", "3", 2, UBound(lines)
+    Check "wire", "the issue: a null stays null, a field nobody has is absent", "line 1", _
+          "wire types issue | id string, key string, fields.created string, fields.resolutiondate null, fields.status.name string, fields.parent.key absent", lines(0)
+    Check "wire", "the fields of Config: the first value present, a field not set says so", "line 2", _
+          "wire types configured fields | WorkTypeField string, SprintField array, StoryPointsField number, PIField not set, BusinessValueField not set, " & _
+          "TeamField not set, TargetStartField not set, TargetEndField not set", lines(1)
+    Check "wire", "the changelog: a date sent as a number says number", "line 3", _
+          "wire types changelog | id string, created number, fieldId string, from string, to string", lines(2)
+    raw.Add Array("10002", "6", 1761134538011#, "n", "a", "status", "Status", "jira", Null, "To Do", Null, "Done")
+    Check "wire", "a row with nulls after a filled one changes nothing", "line 3", _
+          "wire types changelog | id string, created number, fieldId string, from string, to string", Split(WireTypesLines(issues, raw, ids, ""), vbLf)(2)
+    Dim nulls As New Collection
+    nulls.Add Array("10002", "6", 1761134538011#, "n", "a", "status", "Status", "jira", Null, "To Do", Null, "Done")
+    Check "wire", "all null: null", "line 3", "wire types changelog | id string, created number, fieldId string, from null, to null", _
+          Split(WireTypesLines(issues, nulls, ids, ""), vbLf)(2)
+    Check "wire", "no history", "line 3", "wire types changelog | no history", Split(WireTypesLines(issues, New Collection, ids, ""), vbLf)(2)
+    Check "wire", "a work type field that is not set", "line 2", True, _
+          InStr(Split(WireTypesLines(issues, raw, ids, ""), vbLf)(1), "wire types configured fields | WorkTypeField not set, SprintField array") = 1
+End Sub
+
+Private Sub MakeTable(ByVal wb As Object, ByVal logicalName As String, ByVal nRows As Long, ByVal nCols As Long)
+    Dim ws As Object
+    Set ws = wb.Worksheets(SheetName(logicalName))
+    ws.ListObjects.Add(1, ws.Range(ws.Cells(1, 1), ws.Cells(nRows, nCols)), , 1).Name = logicalName
+End Sub
+
+Private Function TypesBook(ByVal clean As Boolean) As Object
+    ' A scratch workbook: the sheet RawTypesSpec (one column of several types), Issues as a table and Changelog as a plain range, as the
+    ' real workbook has them (the sheet Changelog is written by WriteTable, no table), wrong or not.
+    Dim wb As Object, d As Variant
+    Set wb = Workbooks.Add
+    d = DateSerial(2026, 11, 14) + TimeSerial(9, 30, 0)
+    PutRows wb, "RawTypesSpec", Array(Array("Table", "Column", "Type", "Code", "Required", "Source", "Allowed"), _
+        Array("Changelog", "CreatedUtc", "datetime", "J2D-DATA-004", "yes", "histories[].created", ""), _
+        Array("Changelog", "IssueId", "id", "J2D-DATA-006", "yes", "issueChangeLogs[].issueId", ""), _
+        Array("Changelog", "FromString", "text", "J2D-DATA-013", "no", "histories[].items[].fromString", ""), _
+        Array("Changelog", "Missing", "text", "J2D-DATA-013", "no", "x", ""), _
+        Array("Issues", "Key", "key", "J2D-DATA-007", "yes", "key", ""), _
+        Array("Issues", "State", "enum", "J2D-DATA-011", "no", "fields.sprint.state", "future, active, closed"), _
+        Array("Issues", "Points", "number", "J2D-DATA-009", "no", "fields.points", ""), _
+        Array("Issues", "Open", "boolean", "J2D-DATA-010", "yes", "computed", ""), _
+        Array("Other", "A", "text", "J2D-DATA-013", "no", "x", ""))
+    If clean Then
+        PutRows wb, "Changelog", Array(Array("CreatedUtc", "IssueId", "FromString", "Missing"), Array(d, "'10001", "To Do", "x"), Array(d + 1, "'10002", "Done", "y"))
+        PutRows wb, "Issues", Array(Array("Key", "State", "Points", "Open"), Array("ABC-1", "active", 5, True), Array("ABC-2", "closed", 3, False))
+    Else
+        PutRows wb, "Changelog", Array(Array("CreatedUtc", "IssueId", "FromString"), Array(1761134538011#, 10001, ""), Array(1761134538012#, 10002, ""))
+        PutRows wb, "Issues", Array(Array("Key", "State", "Points", "Open"), Array("ABC-1", "", "5 points", ""), Array("ABC-2", "paused", 3, ""))
+    End If
+    MakeTable wb, "Issues", 3, 4
+    Application.DisplayAlerts = False
+    wb.Worksheets(1).Delete
+    Application.DisplayAlerts = True
+    Set TypesBook = wb
+End Function
+
+Public Sub T_TypeProblems()
+    ' The first filled cell of each column against its type: a WARN line per problem with its code and what helps to debug (names, counts,
+    ' a shape, never a value), an INFO line per table, a summary, and the field of the status; nothing at all when all is well.
+    Dim wb As Object, text As String, field As String, file As String, saved As String
+    saved = gLogPath
+    file = Environ$("TEMP") & "\j2d_types_test_" & Format$(Now, "hhnnss") & Int(Rnd() * 1000) & ".log"
+    gLogPath = file
+    Set wb = TypesBook(False)
+    field = TypeProblems(wb)
+    text = FileText(file)
+    Check "types", "the status field names the first five columns and says there are more", "6 problems", _
+          " | Column types: 6 column(s), first Changelog.CreatedUtc expected datetime found number; Changelog.IssueId expected id found number; " & _
+          "Changelog.Missing expected text found missing; Issues.State expected enum found text; Issues.Points expected number found text; ...", field
+    Check "types", "epoch milliseconds in a date column: the v0.7.0 failure, the WARN line", "J2D-DATA-004", True, _
+          InStr(text, " WARN J2D-DATA-004 | Changelog.CreatedUtc | expected datetime | found number | source histories[].created | first filled A2" & vbCrLf) > 0
+    Check "types", "... its counts, kinds, shape and cell format", "J2D-DATA-004", True, _
+          InStr(text, " INFO J2D-DATA-004 | Changelog.CreatedUtc | rows 2, filled 2, empty 0 | kinds in first 20: number x 2 | value shape Double:9999999999999 | cell format General" & vbCrLf) > 0
+    Check "types", "... and its hint, which names the cause", "J2D-DATA-004", True, _
+          InStr(text, " INFO J2D-DATA-004 | Changelog.CreatedUtc | hint: 13 digits: epoch milliseconds, Jira sent a number and the date was not converted (modText.ParseJiraDate)" & vbCrLf) > 0
+    Check "types", "a number in an id column", "J2D-DATA-006", True, _
+          InStr(text, " WARN J2D-DATA-006 | Changelog.IssueId | expected id | found number | source issueChangeLogs[].issueId | first filled B2" & vbCrLf) > 0 And _
+          InStr(text, " INFO J2D-DATA-006 | Changelog.IssueId | rows 2, filled 2, empty 0 | kinds in first 20: number x 2 | value shape Double:99999 | cell format General" & vbCrLf) > 0 And _
+          InStr(text, " INFO J2D-DATA-006 | Changelog.IssueId | hint: Excel turned the text into a number (leading apostrophe lost) or Jira sent a number: keep ids as text" & vbCrLf) > 0
+    Check "types", "a column the sheet lacks", "J2D-DATA-013", True, _
+          InStr(text, " WARN J2D-DATA-013 | Changelog.Missing | expected text | found missing | source x | first filled -" & vbCrLf) > 0 And _
+          InStr(text, " INFO J2D-DATA-013 | Changelog.Missing | rows 2, filled 0, empty 2 | kinds in first 20: - | value shape Empty" & vbCrLf) > 0 And _
+          InStr(text, " INFO J2D-DATA-013 | Changelog.Missing | hint: the column is not in the sheet: the sheet and RawTypesSpec differ (an old workbook?)" & vbCrLf) > 0
+    Check "types", "the first FILLED cell is read, not the first row", "B3", True, _
+          InStr(text, " WARN J2D-DATA-011 | Issues.State | expected enum | found text | source fields.sprint.state | first filled B3" & vbCrLf) > 0 And _
+          InStr(text, " INFO J2D-DATA-011 | Issues.State | rows 2, filled 1, empty 1 | kinds in first 20: text x 1 | value shape String:aaaaaa | cell format General" & vbCrLf) > 0 And _
+          InStr(text, " INFO J2D-DATA-011 | Issues.State | hint: not one of future, active, closed: Jira added a value or the field is another one" & vbCrLf) > 0
+    Check "types", "a text in a number column, the kinds are counted", "J2D-DATA-009", True, _
+          InStr(text, " WARN J2D-DATA-009 | Issues.Points | expected number | found text | source fields.points | first filled C2" & vbCrLf) > 0 And _
+          InStr(text, " INFO J2D-DATA-009 | Issues.Points | rows 2, filled 2, empty 0 | kinds in first 20: number x 1, text x 1 | value shape String:9 aaaaaa | cell format General" & vbCrLf) > 0 And _
+          InStr(text, " INFO J2D-DATA-009 | Issues.Points | hint: a text where a number is expected: Jira sent text, or the custom field is of another type (check its id in Config)" & vbCrLf) > 0
+    Check "types", "a required column that is empty", "J2D-DATA-010", True, _
+          InStr(text, " WARN J2D-DATA-010 | Issues.Open | expected boolean | found empty | source computed | first filled -" & vbCrLf) > 0 And _
+          InStr(text, " INFO J2D-DATA-010 | Issues.Open | rows 2, filled 0, empty 2 | kinds in first 20: - | value shape Empty" & vbCrLf) > 0 And _
+          InStr(text, " INFO J2D-DATA-010 | Issues.Open | hint: a required column is empty: the extraction wrote nothing there (check the field and its id in Config)" & vbCrLf) > 0
+    Check "types", "an optional column that is empty says nothing", "FromString", False, InStr(text, "WARN J2D-DATA-013 | Changelog.FromString") > 0
+    Check "types", "a table of the spec the workbook lacks is not read", "Other", False, InStr(text, "Other.A") > 0
+    Check "types", "the filled cells of each column, in one line per table", "INFO", True, _
+          InStr(text, " INFO types Changelog | rows 2 | filled: CreatedUtc 2, IssueId 2, FromString 0" & vbCrLf) > 0 And _
+          InStr(text, " INFO types Issues | rows 2 | filled: Key 2, State 1, Points 2, Open 0" & vbCrLf) > 0
+    Check "types", "the summary", "INFO", True, InStr(text, " INFO column types | tables 2 | columns 8 | checked 5 | problems 6" & vbCrLf) > 0
+    Check "types", "per table: its problems, then its fill line (the order of raw_types.log_lines)", "order", True, _
+          InStr(text, " WARN J2D-DATA-013 | Changelog.Missing") < InStr(text, " INFO types Changelog | rows 2") And _
+          InStr(text, " INFO types Changelog | rows 2") < InStr(text, " WARN J2D-DATA-011 | Issues.State") And _
+          InStr(text, " WARN J2D-DATA-010 | Issues.Open") < InStr(text, " INFO types Issues | rows 2")
+    Check "types", "the check is one step of the log", "BEGIN END", True, InStr(text, " BEGIN column types" & vbCrLf) > 0 And InStr(text, " END column types | ") > 0
+    Application.DisplayAlerts = False
+    wb.Close False
+    Kill file
+    gLogPath = file
+    Set wb = TypesBook(True)
+    Check "types", "all well: no field", "(empty)", "", TypeProblems(wb)
+    text = FileText(file)
+    Check "types", "all well: no WARN line, a summary with no problem", "problems 0", True, _
+          InStr(text, " WARN ") = 0 And InStr(text, " INFO column types | tables 2 | columns 8 | checked 8 | problems 0" & vbCrLf) > 0
+    wb.Close False
+    Application.DisplayAlerts = True
+    Kill file
+    Check "types", "it never raises: no workbook", "Nothing", "", TypeProblems(Nothing)
+    gLogPath = saved
 End Sub
 
 Public Sub T_RetryDelay()

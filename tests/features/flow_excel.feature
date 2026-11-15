@@ -88,11 +88,22 @@ Fonctionnalité: Le classeur livré extrait Jira et calcule les mêmes chiffres 
     Quand je clique sur le bouton Extraire et calculer sans attendre la fin
     Alors la barre de progression avance sans reculer, le classeur répond entre deux tranches et l'extraction se termine
     Et le journal local décrit l'exécution étape par étape, avec ses paramètres et le temps de chaque étape, sans jeton, adresse ni réponse de Jira
+    Et le journal local dit ce que Jira a envoyé et que chaque colonne écrite a le type de son étiquette
     Et la feuille Steps montre chaque étape avec son statut et son temps
     Et aucune cellule des feuilles de flux ne montre une erreur Excel
     Et la table ItemFlow reproduit les calculs de la référence Python
     Et la table Metrics reproduit la référence Python en mode "A"
     Et l'état du tableau de bord ne signale ni ticket sans équipe, ni statut inconnu, ni cellule en erreur
+
+  @excel
+  Scénario: Une colonne qui n'a pas le type de son étiquette est signalée avec le code de son type, sans rien arrêter
+    Soit un faux Jira avec 60 tickets générés avec les projets des paramètres
+    Et le classeur à livrer dont la feuille Config pointe sur ce faux Jira avec FlowLoadMode "A"
+    Et les itérations de 14 jours depuis le "2026-06-01" jusqu'à la date de référence dans la feuille Iterations
+    Quand j'exécute la macro Extraire et calculer du classeur
+    Et je remplace la première date de création de la feuille Issues par un nombre de millisecondes
+    Et je remplace la première date de la feuille Changelog par un nombre de millisecondes
+    Alors la vérification des types nomme les colonnes Issues.CreatedUtc et Changelog.CreatedUtc avec le code J2D-DATA-004 et sa cause
 
   @excel
   Scénario: Annuler pendant l'extraction garde les résultats du calcul précédent
