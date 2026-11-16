@@ -169,9 +169,14 @@ METRICS_COLUMNS = (
 
 # --- the table PIMetrics: Feature Predictability per PI (AL's variant, 2026-11-12) -----------------------------
 # The key PI comes from the sheet PIs, then from the Features whose PI the sheet lacks (modFlowBuild.PiNames); its dates
-# are looked up in the sheet: a PI missing there or whose date is not a date gives "" and its figures are not computable. Planned = a Feature (IsFeature) whose PI field is the PI, whatever its status
-# (a cancelled one stays planned); done = DoneUtc before the end of the PI (excluded, half a second of margin).
+# are looked up in the sheet: a PI missing there or whose date is not a date gives "" and its figures are not computable.
+# A PI of the sheet is judged on what was ENGAGED at its start (AL, 2026-11-16): the figures are sums of the rows of the ART in
+# IterationFeatures (below), read in the history of the PI field, so a Feature deferred later is still planned and a cancelled
+# one stays planned. Planned = Engaged at the first iteration of the PI; done = ReleasedPlanned summed over its iterations
+# (mode A of cfg_PredictabilityMode) or Released (mode B: also the Features added after the start). A PI the sheet lacks has no
+# iteration: its Features are counted by their PI field as it is now, and its ratio is not computable.
 PIMETRICS_KEYS = ("PI",)
+_PI_ART = 'IterationFeatures[PI],[@PI],IterationFeatures[Team],"ART"'
 
 
 def _pi_date(column: str) -> str:
@@ -182,17 +187,69 @@ def _pi_date(column: str) -> str:
 PIMETRICS_COLUMNS = (
     ("Start", _pi_date("B")),
     ("End", _pi_date("C")),
-    ("FeaturesPlanned", "=COUNTIFS(ItemFlow[IsFeature],1,ItemFlow[PI],[@PI])"),
-    ("FeaturesDone", f'=IF(ISNUMBER([@End]),COUNTIFS(ItemFlow[IsFeature],1,ItemFlow[PI],[@PI],'
-                     f'ItemFlow[DoneUtc],"<"&([@End]-{HALF})),"")'),
+    ("FeaturesPlanned", f'=IF(ISNUMBER([@Start]),SUMIFS(IterationFeatures[Engaged],{_PI_ART},IterationFeatures[IterationStart],'
+                        f'MINIFS(IterationFeatures[IterationStart],{_PI_ART})),COUNTIFS(ItemFlow[IsFeature],1,ItemFlow[PI],[@PI]))'),
+    ("FeaturesDone", f'=IF(ISNUMBER([@Start]),IF(cfg_PredictabilityMode="B",SUMIFS(IterationFeatures[Released],{_PI_ART}),'
+                     f'SUMIFS(IterationFeatures[ReleasedPlanned],{_PI_ART})),"")'),
     ("FeaturePredictability", f"=IF(OR([@FeaturesPlanned]=0,NOT(ISNUMBER([@FeaturesDone]))),{_NC},"
                               "[@FeaturesDone]/[@FeaturesPlanned])"),
 )
 
-# The table IterationFeatures (flow/iteration_features.py): one row per iteration, PI and team; the keys are written by VBA,
-# the other columns are the counts of Features (the formulas come with the workbook table, the Python path writes values).
-ITERATIONFEATURES_KEYS = ("Iteration-label", "IterationStart", "IterationEnd", "Team")
-ITERATIONFEATURES_NAMES = ("PI", "Engaged", "Added", "Deferred", "Released", "ReleasedPlanned", "ReleasedAdded", "CarryOver")
+# --- PIIntervals: the PI field of each issue through time (raw: modFlow.PiIntervalRows; reference: flow/pi_history.py) --------
+# One row per stretch in which an issue carried a PI: FromUtc included, ToUtc excluded (empty = still: IsOpen). The helpers give each
+# row the Feature flag, the team of the Feature (the Team field; "(none)" when empty) and when it was done (far away when not).
+
+PIINTERVALS_RAW = ("Key", "PI", "FromUtc", "ToUtc", "IsOpen")
+_BY_KEY = "MATCH([@Key],ItemFlow[Key],0)"
+PIINTERVAL_HELPERS = (
+    # an empty table keeps one blank row (no stretch at all): IFERROR gives it neutral values instead of #N/A
+    ("IsFeature", f"=IFERROR(INDEX(ItemFlow[IsFeature],{_BY_KEY}),0)"),
+    ("FeatureTeam", f'=IFERROR(LET(v,TRIM(INDEX(ItemFlow[TeamValue],{_BY_KEY})),IF(v="","(none)",v)),"(none)")'),
+    ("DoneKey", f'=IFERROR(LET(d,INDEX(ItemFlow[DoneUtc],{_BY_KEY}),IF(d="",{FAR},d)),{FAR})'),
+    ("ToEff", f'=IF([@ToUtc]="",{FAR},[@ToUtc])'),
+)
+
+# --- IterationFeatures: the Features of the ART iteration by iteration (reference: flow/iteration_features.py) ------------
+# One row per iteration, PI that holds its start (VBA writes the keys) and team (ART, then the teams of the Features). The counts are
+# COUNTIFS on the stretches of PIIntervals: "at t" = FromUtc <= t < ToUtc; "through" = one stretch holds the start and the end.
+
+ITERATIONFEATURES_KEYS = ("Iteration-label", "IterationStart", "IterationEnd", "Team", "PI")
+_START, _END, _BASE = "[@IterationStart]", "[@IterationEnd]", "[@Baseline]"
+_WHO = ('PIIntervals[PI],[@PI],PIIntervals[IsFeature],1,'
+        'PIIntervals[FeatureTeam],IF([@Team]="ART","*",[@Team])')
+
+
+def _held(first: str, last: str) -> str:
+    """The stretches that begin at or before `first` and end after `last`."""
+    return f'PIIntervals[FromUtc],"<="&({first}+{HALF}),PIIntervals[ToEff],">"&({last}+{HALF})'
+
+
+_NOT_DONE_BEFORE_START = f'PIIntervals[DoneKey],">="&({_START}-{HALF})'
+_DONE_IN = f'{_NOT_DONE_BEFORE_START},PIIntervals[DoneKey],"<"&({_END}-{HALF})'
+
+
+def _count(first: str, last: str, done: str) -> str:
+    return f"COUNTIFS({_WHO},{_held(first, last)},{done})"
+
+
+_HOLDS_START = _count(_START, _START, _NOT_DONE_BEFORE_START)          # Engaged
+_THROUGH = _count(_START, _END, _NOT_DONE_BEFORE_START)                # held the start and the end by one stretch, not done before
+_HOLDS_END = _count(_END, _END, _NOT_DONE_BEFORE_START)
+_RELEASED_START = _count(_START, _START, _DONE_IN)
+_RELEASED_END = _count(_END, _END, _DONE_IN)
+_RELEASED_THROUGH = _count(_START, _END, _DONE_IN)
+
+ITERATIONFEATURES_COLUMNS = (
+    ("Baseline", '=IF([@PI]="","",MINIFS(IterationFeatures[IterationStart],IterationFeatures[PI],[@PI]))'),
+    ("Engaged", f'=IF([@PI]="",0,{_HOLDS_START})'),
+    ("Added", f'=IF([@PI]="",0,{_HOLDS_END}-{_THROUGH})'),
+    ("Deferred", f'=IF([@PI]="",0,{_HOLDS_START}-{_THROUGH}-({_RELEASED_START}-{_RELEASED_THROUGH}))'),
+    ("Released", f'=IF([@PI]="",0,{_RELEASED_START}+{_RELEASED_END}-{_RELEASED_THROUGH})'),
+    ("ReleasedPlanned", f'=IF([@PI]="",0,{_count(_BASE, _START, _DONE_IN)})'),
+    ("ReleasedAdded", "=[@Released]-[@ReleasedPlanned]"),
+    ("CarryOver", "=[@Engaged]+[@Added]-[@Deferred]-[@Released]"),
+)
+ITERATIONFEATURES_NAMES = tuple(name for name, _ in ITERATIONFEATURES_COLUMNS)
 
 # --- control cells of the Metrics sheet: the as-of date and the Flow Load mode, read from Config ------------
 
@@ -202,6 +259,7 @@ AS_OF_CELL = ('=LET(v,' + CONFIG_VALUE.format(name="AsOf") + ',IF(ISNUMBER(v),v,
               'LET(t,SUBSTITUTE(TRIM(v),"T"," "),'
               'IF(t="",NA(),DATEVALUE(LEFT(t,10))+IF(LEN(t)>10,TIMEVALUE(MID(t,12,8)),0)))))')
 MODE_CELL = "=UPPER(TRIM(" + CONFIG_VALUE.format(name="FlowLoadMode") + "))"
+PREDICTABILITY_MODE_CELL = "=UPPER(TRIM(" + CONFIG_VALUE.format(name="PredictabilityMode") + "))"
 TRANSITIONS_LAST_CELL, PIS_LAST_CELL = last_row_cell("Transitions"), last_row_cell("PIs")
 
 TABLES = {
@@ -213,5 +271,7 @@ TABLES = {
     "FillRates": C.FILL_KEYS + tuple(name for name, _ in C.FILL_COLUMNS),
     "DataChecks": C.DATACHECKS_KEYS + tuple(name for name, _ in C.DATACHECKS_COLUMNS),
     "Metrics": METRICS_KEYS + tuple(name for name, _ in METRICS_COLUMNS),
+    "PIIntervals": PIINTERVALS_RAW + tuple(name for name, _ in PIINTERVAL_HELPERS),
+    "IterationFeatures": ITERATIONFEATURES_KEYS + ITERATIONFEATURES_NAMES,
     "PIMetrics": PIMETRICS_KEYS + tuple(name for name, _ in PIMETRICS_COLUMNS),
 }

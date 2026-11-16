@@ -538,7 +538,7 @@ def excel_flags(world):
 def _feature_predictability(world):
     """AL's variant of Flow Predictability (2026-11-12): the table PIMetrics and ChartData against
     flow/metrics.feature_predictability."""
-    expected = feature_predictability(to_flow_issues(world["dataset"]), world["items"], world["settings"])
+    expected = feature_predictability(to_flow_issues(world["dataset"]), world["items"], world["settings"], world["iterations"])
     table = table_dicts(world["wb"], "PIMetrics")
     assert [row["PI"] for row in table] == [p.pi for p in expected], table
     for p, row in zip(expected, table):
@@ -636,7 +636,10 @@ def chart_blocks(wb, world):
     days = (world["iterations"][-1].end - world["iterations"][0].start).days
     stride = max(iterations, len(pis))                       # a block: one row per iteration or PI (modFlowBuild.BuildCharts)
     blocks = {}
-    for index, spec in enumerate(D.CHARTS):
+    order = D.CHARTS[:-1] + D.ITERATION_CHARTS + D.CHARTS[-1:]            # the order of ChartSpec (blueprint.chart_rows): the daily curve last
+    for index, spec in enumerate(order):
+        if spec in D.ITERATION_CHARTS:
+            continue                                           # the Features per iteration: checked on their own sheet
         n = days if spec.axis == D.DAY_AXIS else len(pis) if spec.axis == D.PI_AXIS else iterations
         top, count = D.block_top(index, stride), len(D.series_names(spec) or team_names())
         grid = ws.Range(ws.Cells(top + 1, 1), ws.Cells(top + 1 + n, 1 + count + (2 if spec.band else 0))).Value2
@@ -694,7 +697,7 @@ def _the_sheets_by_source(world):
     names = {sheet.Name for sheet in world["wb"].Worksheets}
     assert {S.of(n) for n in ("Config", "Projects", "Iterations", "PIs", "Workflows", "Transitions", "FieldMapping")} <= names
     assert {name for name in names if name.endswith(S.FROM_USER)} == {S.of(n) for n in S.USER}
-    assert {name for name in names if name.endswith(S.FROM_JIRA)} == {S.of(n) for n in ("Issues", "StatusIntervals", "IssueLinks", "Changelog")}
+    assert {name for name in names if name.endswith(S.FROM_JIRA)} == {S.of(n) for n in ("Issues", "StatusIntervals", "IssueLinks", "Changelog", "PIIntervals")}
     assert S.of("Dashboard") in names and S.of("Charts") in names and S.of("Manual") in names
 
 
@@ -836,7 +839,7 @@ def _distribution(world):
 @then("les graphiques sont exportés en PNG")
 def _png(world):
     files = sheets.export_charts(world["wb"], INTER_DIR / "dashboard")
-    assert set(files) == {s.name for s in D.CHARTS}
+    assert set(files) == {s.name for s in D.CHARTS + D.ITERATION_CHARTS}
     for path in files.values():
         data = Path(path).read_bytes()
         assert data[:8] == b"\x89PNG\r\n\x1a\n" and len(data) > 5000, path
@@ -1505,3 +1508,168 @@ def _nothing_to_check(world):
     # not " | Done outside the iterations: ": the fake data holds tickets done before the first iteration of the scenario
     for field in (" | Without a team: ", " | Statuses not in Workflows: ", " | Cells in error: ", " | Column types: "):
         assert field not in status, status
+
+
+# --- art_metrics_excel.feature: the scenario art-metrics on the real workbook ------------------------------------------------
+# The expected numbers are the hand-worked ones of tests/art_oracle.py (oracle L0); the tables are also compared with the reference.
+
+def art_table(world, name):
+    return table_dicts(world["wb"], name)
+
+
+@given("le faux Jira du scénario art-metrics")
+def _art_jira(world, jira_server):
+    from jira2dashboard.mockjira.scenarios import get
+    from jira2dashboard.mockjira.server import MOCK_EMAIL, MOCK_TOKEN
+    world["scenario"] = get("art-metrics")
+    world["jira"] = jira_server(world["scenario"].dataset, credentials=(MOCK_EMAIL, MOCK_TOKEN))
+
+
+@given("le classeur à livrer rempli pour ce scénario")
+def _art_workbook(world, flow_workbook):
+    wb = world["wb"] = flow_workbook["wb"]
+    scenario = world["scenario"]
+    mock_workbook.write_config(wb.Worksheets(S.of("Config")), mock_workbook.scenario_config(scenario, world["jira"].base_url))
+    mock_workbook.write_iterations(wb.Worksheets(S.of("Iterations")), list(scenario.iterations))
+    mock_workbook.write_iterations(wb.Worksheets(S.of("PIs")), list(scenario.pis))
+    for sheet in scenario.dataset.sheets:
+        if sheet.name in ("Workflows", "Transitions"):
+            mock_workbook.write_rows(wb.Worksheets(S.of(sheet.name)), sheet.rows)
+
+
+@when("j'extrais et calcule")
+def _art_run(world):
+    wb = world["wb"]
+    wb.Application.Run(f"'{wb.Name}'!modActions.ExtractAndCompute")
+
+
+@when(parsers.parse('je passe le paramètre PredictabilityMode à "{mode}"'))
+def _art_mode(world, mode):
+    set_config(world["wb"], "PredictabilityMode", mode)
+    world["wb"].Application.Calculate()
+
+
+def art_close(value, expected):
+    return isinstance(value, (int, float)) and abs(value - expected) < 1e-9
+
+
+@then("la feuille PIMetrics donne pour les 4 PI 6 prévues et 6, 5, 3 et 4 faites")
+def _art_pimetrics_a(world):
+    from art_oracle import DONE_A, PIS, PLANNED
+    rows = art_table(world, "PIMetrics")
+    assert [r["PI"] for r in rows] == list(PIS)
+    assert [(r["FeaturesPlanned"], r["FeaturesDone"]) for r in rows] == [(PLANNED[pi], DONE_A[pi]) for pi in PIS]
+
+
+@then("la feuille PIMetrics donne pour les 4 PI 6 prévues et 6, 5, 3 et 5 faites")
+def _art_pimetrics_b(world):
+    from art_oracle import DONE_B, PIS, PLANNED
+    rows = art_table(world, "PIMetrics")
+    assert [(r["FeaturesPlanned"], r["FeaturesDone"]) for r in rows] == [(PLANNED[pi], DONE_B[pi]) for pi in PIS]
+
+
+@then("la Feature Predictability des PI est 100 %, 83,33 %, 50 % et 66,67 %")
+def _art_ratios(world):
+    got = [r["FeaturePredictability"] for r in art_table(world, "PIMetrics")]
+    assert all(art_close(v, e) for v, e in zip(got, (1.0, 5 / 6, 3 / 6, 4 / 6))), got
+
+
+@then("la table IterationFeatures de l'ART est celle calculée à la main")
+def _art_rows(world):
+    from art_oracle import ART_ROWS
+    rows = [r for r in art_table(world, "IterationFeatures") if r["Team"] == "ART"]
+    assert [r["Iteration-label"] for r in rows] == list(ART_ROWS)
+    got = {r["Iteration-label"]: tuple(int(r[c]) for c in ("Engaged", "Added", "Deferred", "Released", "ReleasedAdded", "CarryOver")) for r in rows}
+    assert got == ART_ROWS
+    assert {r["Iteration-label"]: r["PI"] for r in rows} == {label: "PI-" + label[3] for label in ART_ROWS}
+
+
+@then("chaque équipe a ses lignes de PI-3 et PI-4 calculées à la main")
+def _art_team_rows(world):
+    from art_oracle import TEAM_ROWS
+    rows = {(r["Team"], r["Iteration-label"]): tuple(int(r[c]) for c in ("Engaged", "Added", "Deferred", "Released"))
+            for r in art_table(world, "IterationFeatures")}
+    for team, expected in TEAM_ROWS.items():
+        assert {label: rows[(team, label)] for label in expected} == expected, team
+
+
+@then("la table IterationFeatures et la table PIMetrics sont celles du calcul de référence")
+def _art_reference(world):
+    from jira2dashboard.flow.iteration_features import iteration_features
+    scenario = world["scenario"]
+    ds = scenario.dataset
+    issues = to_flow_issues(ds)
+    items = [item_flow(i, ds.as_of, Rules.from_params(list(ds.sheets))) for i in issues]
+    settings = CheckSettings(feature_types=frozenset({"Feature"}), pis={p.name: (p.start, p.end) for p in scenario.pis})
+    expected = iteration_features(issues, items, list(scenario.iterations), settings.pis, settings.feature_types)
+    got = art_table(world, "IterationFeatures")
+    assert len(got) == len(expected)
+    columns = (("Engaged", "engaged"), ("Added", "added"), ("Deferred", "deferred"), ("Released", "released"),
+               ("ReleasedPlanned", "released_planned"), ("ReleasedAdded", "released_added"), ("CarryOver", "carry_over"))
+    wrong = []
+    for row, ref in zip(got, expected):
+        if (row["Iteration-label"], row["Team"], row["PI"]) != (ref.iteration, ref.team, ref.pi):
+            wrong.append((row["Iteration-label"], row["Team"], "key"))
+        wrong += [(ref.iteration, ref.team, column) for column, attribute in columns if int(row[column]) != getattr(ref, attribute)]
+        if not same_moment(row["Baseline"], ref.baseline):
+            wrong.append((ref.iteration, ref.team, "Baseline"))
+    assert wrong == [], wrong[:8]
+    reference = feature_predictability(issues, items, settings, scenario.iterations)
+    for p, row in zip(reference, art_table(world, "PIMetrics")):
+        assert (row["PI"], row["FeaturesPlanned"], row["FeaturesDone"]) == (p.pi, p.planned, p.done) and art_close(row["FeaturePredictability"], p.ratio)
+
+
+@then("la vélocité par itération de l'ART est celle du scénario")
+def _art_velocity(world):
+    from art_oracle import VELOCITY
+    assert {r["Iteration-label"]: r["Velocity"] for r in art_table(world, "Metrics") if r["Team"] == "ART"} == VELOCITY
+
+
+@then("chaque itération qui livre a un Flow Time de 8 jours et le Flow Efficiency de son PI")
+def _art_flow(world):
+    from art_oracle import FLOW_EFFICIENCY, FLOW_TIME_DAYS, VELOCITY
+    for r in (r for r in art_table(world, "Metrics") if r["Team"] == "ART"):
+        label = r["Iteration-label"]
+        if VELOCITY[label]:
+            assert art_close(r["FlowTimeMedian"], FLOW_TIME_DAYS) and art_close(r["FlowTimeP85"], FLOW_TIME_DAYS), (label, r["FlowTimeMedian"])
+            assert art_close(r["FlowEfficiency"], FLOW_EFFICIENCY["PI-" + label[3]]), (label, r["FlowEfficiency"])
+        else:
+            assert r["FlowTimeMedian"] == NOT_COMPUTABLE and r["FlowEfficiency"] == NOT_COMPUTABLE, label
+
+
+@then("chaque statut dure en moyenne 1 jour, 2 jours pour le statut long du PI de la Feature")
+def _art_durations(world):
+    from art_oracle import CHAIN, LONG_STATUS, PI_OF_FEATURE
+    durations = {}
+    for r in art_table(world, "StatusIntervals"):
+        if r["LeftUtc"] in ("", None):
+            continue
+        durations.setdefault((PI_OF_FEATURE[int(r["Key"].rsplit("-", 1)[1])], r["Status"]), []).append(float(r["DurationDays"]))
+    assert {status for _pi, status in durations} >= set(CHAIN)
+    for (pi, status), days in durations.items():
+        if status != "todo":
+            expected = 2.0 if status == LONG_STATUS[pi] else 1.0
+            assert all(abs(d - expected) < 1e-6 for d in days), (pi, status, days)
+
+
+@then("la feuille IterationCharts a ses 5 graphiques avec une série pour l'ART et une par équipe")
+def _art_charts(world):
+    ws = world["wb"].Worksheets(S.of(D.ITERATION_CHARTS_SHEET))
+    assert {co.Name for co in ws.ChartObjects()} == {s.name for s in D.ITERATION_CHARTS}
+    for spec in D.ITERATION_CHARTS:
+        chart = ws.ChartObjects(spec.name).Chart
+        assert [chart.SeriesCollection(n).Name for n in range(1, chart.SeriesCollection().Count + 1)] == ["ART", "team-1", "team-2", "team-3"], spec.name
+
+
+@then("chaque graphique montre pour l'ART les chiffres calculés à la main")
+def _art_chart_values(world):
+    from art_oracle import ART_ROWS
+    ws = world["wb"].Worksheets(S.of(D.ITERATION_CHARTS_SHEET))
+    for spec, position in (("features_engaged", 0), ("features_added", 1), ("features_deferred", 2), ("features_released", 3),
+                           ("features_carried_over", 5)):
+        values = [int(v) for v in ws.ChartObjects(spec).Chart.SeriesCollection(1).Values]
+        assert values == [counts[position] for counts in ART_ROWS.values()], spec
+    sheets.export_charts(world["wb"], INTER_DIR / "art_metrics_charts")                # the PNG files, to look at the charts
+
+
+scenarios("../features/art_metrics_excel.feature")

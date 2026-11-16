@@ -54,8 +54,13 @@ under its title, as in the workbook:
 5. Flow Efficiency - active time / (active + wait)
 6. Flow Distribution - items done by work type (team of the selector)
 7. Flow Predictability
-8. Feature Predictability - features done by the end of the PI / features planned
+8. Feature Predictability - features released in the PI / features engaged at its start
 9. Flow Load - items in process at the end of each day
+
+The sheet IterationCharts_from_excel holds 5 more charts, the Features of the ART iteration by iteration (the ART, then one series
+per team of the Features). They are optional for the page; if you copy them, keep their titles: "Features engaged at the start of each
+iteration", "Features added to the PI during each iteration", "Features deferred out of the PI during each iteration", "Features
+released in each iteration", "Features carried over to the next iteration".
 
 Under each image, copy the note the workbook shows under the chart ("N of M points are not computable ...").
 

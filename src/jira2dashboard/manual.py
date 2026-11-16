@@ -126,18 +126,24 @@ def manual(mandatory: tuple[str, ...]) -> list[tuple[str, str]]:
             f"At the end the sheets {ITEMFLOW}, {S.of('DailyLoad')}, {METRICS}, {S.of('PIMetrics')}, {S.of('ChartData')} and the charts are rebuilt to the size of "
             "the new data. Run it as often as needed.",
             f"The charts are in the sheet {CHARTS}, right of the Dashboard. Its cell B2: the team of the Flow Distribution chart.",
-            f"Feature Predictability, per PI of the sheet {PIS}: the Features done before the end of the PI over the Features "
-            "planned in it (their PI field). A cancelled Feature stays planned, not done. It needs FeatureTypes, the PI field "
-            f"(PIField) and the sheet {PIS}. A PI that Features carry but the sheet {PIS} lacks comes after them, not computable "
-            f"(it has no end date): add it to the sheet {PIS}. Flow Predictability, the SAFe measure on the business value of the "
-            "PI objectives, stays not computable: Jira does not hold the PI objectives.",
+            f"Feature Predictability, per PI of the sheet {PIS}: the Features released in the PI over the Features engaged in it at "
+            "its start, read in the history of the PI field (the start of the first iteration of the PI): a Feature deferred later "
+            "(its PI field emptied or moved) stays planned, a cancelled one stays planned, not done, and a Feature added after the "
+            "start is outside the ratio. PredictabilityMode B counts the added Features too (the ratio can pass 100 %). It needs "
+            f"FeatureTypes, the PI field (PIField), the sheet {PIS} and iterations that cover the PI. A PI that Features carry but "
+            f"the sheet {PIS} lacks comes after them, not computable (it has no dates): add it to the sheet {PIS}. Flow "
+            "Predictability, the SAFe measure on the business value of the PI objectives, stays not computable: Jira does not hold "
+            "the PI objectives.",
+            f"The sheet {S.of('IterationFeatures')} gives, per iteration, PI and team (the ART, then the teams of the Features: the "
+            "Team field), the Features engaged at its start, added, deferred, released and carried over; the PI figures are sums of "
+            f"it. Its charts are in the sheet {S.of('IterationCharts')}.",
             f'A status that starts with "Stopped" gives the error, with its code (J2D-...): read it to the support. The sheet {S.of("ErrorCodes")} '
             'says what each code means and what to check. The local log tells more (below).',
         ]),
         ("Results", [
             f'{METRICS}: one row per iteration and team. A figure that cannot be computed reads "not computable", never 0.',
-            f"{S.of('PIMetrics')}: one row per PI of the sheet {PIS}, with its dates, the Features planned in it, those done before its "
-            f"end and Feature Predictability; then one row per PI of a Feature missing from the sheet {PIS}, without dates.",
+            f"{S.of('PIMetrics')}: one row per PI of the sheet {PIS}, with its dates, the Features engaged in it at its start, those "
+            f"released in it and Feature Predictability; then one row per PI of a Feature missing from the sheet {PIS}, without dates.",
             f"{DATACHECKS}: the 29 data checks DC01-DC29, with Items and OK, KO or not computable. To see the work items, "
             f"filter the table ItemFlow (sheet {ITEMFLOW}) on its column DCxx = 1.",
             f"Do not edit the sheets {S.of('FlowFormulas')}, {S.of('ChartSpec')} and {S.of('ChecksSpec')}: they describe the formulas, the charts and "

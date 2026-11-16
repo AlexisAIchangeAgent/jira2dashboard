@@ -15,6 +15,7 @@ Private mIssues As Collection, mNames As Object, mToken As String, mPage As Long
 Private mKeys As Collection, mIdToKey As Object, mRaw As Collection, mNextChunk As Long
 Private mPhase As Long                  ' 0 no job, 1 search, 2 changelogs, 3 issue rows, 4 intervals, 5 write
 Private mRows As Collection, mLinks As Collection, mChanges As Collection, mMoved As Object, mIntervals As Collection
+Private mPiChanges As Collection                                  ' the changes of the PI field (Config.PIField), from the changelogs
 Private mIds As Variant, mBlocksType As String, mRowNext As Long, mWfNext As Long
 Public gRowBatch As Long                ' issues per step of phase 3 (0: ROW_BATCH); a test sets a small one
 Private Const ROW_BATCH As Long = 100   ' about 20 ms per batch on the development machine: a step stays short
@@ -266,7 +267,7 @@ Public Sub ExtractJobStart(ByVal cfg As Object, ByVal jql As String, ByVal workT
     Set mWsIntervals = wsIntervals: Set mWsLinks = wsLinks: Set mWsChangelog = wsChangelog: Set mChangelog = Nothing: Set mUserFields = Nothing
     Set mIssues = New Collection: Set mNames = CreateObject("Scripting.Dictionary"): mToken = "": mPage = 0
     Set mKeys = Nothing: Set mIdToKey = Nothing: Set mRaw = New Collection: mNextChunk = 1: ResetDateKey
-    Set mRows = Nothing: Set mLinks = Nothing: Set mChanges = Nothing: Set mMoved = Nothing: Set mIntervals = Nothing
+    Set mRows = Nothing: Set mLinks = Nothing: Set mChanges = Nothing: Set mMoved = Nothing: Set mIntervals = Nothing: Set mPiChanges = Nothing
     mRowNext = 1: mWfNext = 0
     mPhase = 1
 End Sub
@@ -350,7 +351,7 @@ Public Sub ExtractJobAbort()
     ' parsed pages and changelogs, and the connection (it holds the Authorization header).
     mPhase = 0
     Set mIssues = Nothing: Set mKeys = Nothing: Set mRaw = Nothing: Set mIdToKey = Nothing: Set mNames = Nothing
-    Set mRows = Nothing: Set mLinks = Nothing: Set mChanges = Nothing: Set mMoved = Nothing: Set mIntervals = Nothing
+    Set mRows = Nothing: Set mLinks = Nothing: Set mChanges = Nothing: Set mMoved = Nothing: Set mIntervals = Nothing: Set mPiChanges = Nothing
     Set mCfg = Nothing: Set mSettings = Nothing: Set mChangelog = Nothing: Set mWsChangelog = Nothing: Set mUserFields = Nothing
     Set mWsProjects = Nothing: Set mWsWorkflows = Nothing: Set mWsIssues = Nothing: Set mWsIntervals = Nothing: Set mWsLinks = Nothing
 End Sub
@@ -362,6 +363,7 @@ Private Sub RowsInit()
     LogBegin "raw sheets: status changes"
     Set mChanges = StatusChangesFromChangelog(mRaw, mIdToKey, skipped, shapes)
     Set mMoved = KeyChangeCounts(mRaw, mIdToKey)
+    Set mPiChanges = PiChangesFromChangelog(mRaw, mIdToKey, Setting(mSettings, "PIField"))     ' the history of the PI field
     LogEnd "raw sheets: status changes: " & mChanges.Count
     LogSkippedDates skipped, shapes                                    ' J2D-DATA-003, only when some were left out
     Set mChangelog = ChangelogRows(mRaw, mIdToKey, mUserFields)                      ' the sheet Changelog: every item, texts cut
@@ -420,6 +422,18 @@ Private Sub IntervalsStep()
     mWfNext = mWfNext + 1
 End Sub
 
+Private Function PiRows() As Collection
+    ' The stretches of the PI field of every issue (flow/pi_history.py): its creation date and current PI from the rows of Issues, its
+    ' changes from the changelog. Computed once, at the write.
+    Dim info As Object, row As Variant
+    Set info = CreateObject("Scripting.Dictionary")
+    For Each row In mRows
+        info(row(0)) = Array(row(5), row(12))
+    Next row
+    Set PiRows = PiIntervalRows(info, mPiChanges)
+    Set mPiChanges = Nothing
+End Function
+
 Private Sub WriteRawSheets()
     ' The clearing of the old sheets and the writing of the new ones, without flicker and without a recalculation per change.
     Dim calcMode As Long, screen As Boolean, num As Long, desc As String
@@ -446,6 +460,10 @@ Private Sub WriteRawSheetsCore()
         ClearFlowSheets ThisWorkbook
         LogEnd "raw sheets: clear the old results"
     End If
+    Dim piStretches As Collection
+    LogBegin "raw sheets: PI intervals"
+    Set piStretches = PiRows()                                              ' before mRows is freed: it holds the creation date and the PI
+    LogEnd "raw sheets: PI intervals: " & piStretches.Count
     LogBegin "raw sheets: write Issues " & mRows.Count
     WriteTable mWsIssues, Array("Key", "Id", "Project", "Type", "WorkType", "CreatedUtc", "Status", "Parent", "StatusCategory", _
                                 "ResolvedUtc", "FixVersions", "StoryPoints", "PI", "BV", "TeamValue", "SprintState", _
@@ -457,6 +475,9 @@ Private Sub WriteRawSheetsCore()
                                    "DurationDays", "IsOpen", "ChangeId", "Check"), mIntervals
     Set mIntervals = Nothing
     LogEnd "raw sheets: write StatusIntervals"
+    LogBegin "raw sheets: write PIIntervals " & piStretches.Count
+    WriteTable SheetNamed("PIIntervals"), PiIntervalsHeader(), piStretches
+    LogEnd "raw sheets: write PIIntervals"
     If Not mWsLinks Is Nothing Then
         LogBegin "raw sheets: write IssueLinks " & mLinks.Count
         WriteTable mWsLinks, Array("Blocker", "Blocked"), mLinks

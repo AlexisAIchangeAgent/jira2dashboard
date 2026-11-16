@@ -17,7 +17,8 @@ D = dt.datetime(2026, 11, 14, 9, 30, 0)
 
 def test_every_raw_column_has_a_rule_in_sheet_order():
     """A new column of a raw sheet forces a decision about its type."""
-    wanted = {"Issues": F.ISSUES, "StatusIntervals": F.INTERVALS_RAW, "IssueLinks": ("Blocker", "Blocked"), "Changelog": F.CHANGELOG_RAW}
+    wanted = {"Issues": F.ISSUES, "StatusIntervals": F.INTERVALS_RAW, "IssueLinks": ("Blocker", "Blocked"), "Changelog": F.CHANGELOG_RAW,
+              "PIIntervals": F.PIINTERVALS_RAW}
     for table, columns in wanted.items():
         assert tuple(r.column for r in T.RAW_TYPES if r.table == table) == tuple(columns), table
 

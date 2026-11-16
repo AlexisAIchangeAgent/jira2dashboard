@@ -18,9 +18,9 @@ SHEET_CHECKS = "ChecksSpec"
 FORMULAS_HEADER = ("Table", "Column", "Formula")
 CHECKS_HEADER = C.DATACHECKS_KEYS
 CHARTS_HEADER = ("Name", "Title", "ChartType", "AxisFormat", "SeriesNames", "PointFormula", "NoteFormula",
-                 "AnchorRow", "AnchorColumn", "Rows", "Columns", "Axis", "Band")
+                 "AnchorRow", "AnchorColumn", "Rows", "Columns", "Axis", "Band", "Sheet")
 
-CONTROL_NAMES = ("AsOfUtc", "cfg_FlowLoadMode", "cfg_TransitionsLast", "cfg_PIsLast")   # the control cells (sheet Controls, column B)
+CONTROL_NAMES = ("AsOfUtc", "cfg_FlowLoadMode", "cfg_TransitionsLast", "cfg_PIsLast", "cfg_PredictabilityMode")   # the control cells (sheet Controls, column B)
 
 
 def formula_rows() -> list[tuple[str, str, str]]:
@@ -38,11 +38,16 @@ def formula_rows() -> list[tuple[str, str, str]]:
     rows += [("DataChecks", key, "") for key in C.DATACHECKS_KEYS]
     rows += [("DataChecks", name, text) for name, text in C.DATACHECKS_COLUMNS]
     rows += [("Metrics", key, "") for key in F.METRICS_KEYS]
+    rows += [("PIIntervals", key, "") for key in F.PIINTERVALS_RAW]
+    rows += [("PIIntervals", name, text) for name, text in F.PIINTERVAL_HELPERS]
+    rows += [("IterationFeatures", key, "") for key in F.ITERATIONFEATURES_KEYS]
+    rows += [("IterationFeatures", name, text) for name, text in F.ITERATIONFEATURES_COLUMNS]
     rows += [("PIMetrics", key, "") for key in F.PIMETRICS_KEYS]
     rows += [("PIMetrics", name, text) for name, text in F.PIMETRICS_COLUMNS]
     rows += [("Metrics", name, text) for name, text in F.METRICS_COLUMNS]
     rows += [("Controls", CONTROL_NAMES[0], F.AS_OF_CELL), ("Controls", CONTROL_NAMES[1], F.MODE_CELL),
-             ("Controls", CONTROL_NAMES[2], F.TRANSITIONS_LAST_CELL), ("Controls", CONTROL_NAMES[3], F.PIS_LAST_CELL)]
+             ("Controls", CONTROL_NAMES[2], F.TRANSITIONS_LAST_CELL), ("Controls", CONTROL_NAMES[3], F.PIS_LAST_CELL),
+             ("Controls", CONTROL_NAMES[4], F.PREDICTABILITY_MODE_CELL)]
     rows += [("Dashboard", "ProgramTeam", ART), ("Dashboard", "AllTeams", D.ALL_TEAMS),
              ("Dashboard", "SelectorCell", D.SELECTOR_CELL), ("Dashboard", "NoPI", D.NO_PI)]
     return rows
@@ -55,25 +60,37 @@ def check_rows() -> list[tuple[str, ...]]:
 
 
 def chart_rows() -> list[tuple]:
+    """One row per chart. The charts of the sheet IterationCharts come before the daily curve: its block of ChartData is the
+    longest (one row per day), so it stays last."""
     rows = []
-    for index, spec in enumerate(D.CHARTS):
-        if spec.axis == D.DAY_AXIS:
-            point = D.day_point("{iteration}", "{name}")                # {iteration} is the day here
-            series = ""
-        elif spec.axis == D.PI_AXIS:
-            point = D.pi_point("{iteration}")                           # {iteration} is the PI here; one series, ART
-            series = ",".join(D.series_names(spec))
-        elif spec.series == D.TEAMS:
-            point = D.team_point(spec.column, "{iteration}", "{name}")
-            series = ""
-        else:
-            point = D.bucket_point("{series}", "{iteration}")
-            series = ",".join(D.series_names(spec))
-        row, column = D.chart_anchor(index)
-        rows.append((spec.name, spec.title, spec.chart_type, spec.axis_format or "", series, point,
-                     D.note_formula("{range}", spec.reason), row, column, D.ROWS_PER_CHART, D.COLUMNS_PER_CHART,
-                     spec.axis, D.band_text(spec)))
+    for index, spec in enumerate(D.CHARTS[:-1]):
+        rows.append(_chart_row(index, spec, D.CHARTS_SHEET))
+    for index, spec in enumerate(D.ITERATION_CHARTS):
+        rows.append(_chart_row(index, spec, D.ITERATION_CHARTS_SHEET))
+    rows.append(_chart_row(len(D.CHARTS) - 1, D.CHARTS[-1], D.CHARTS_SHEET))
     return rows
+
+
+def _chart_row(index: int, spec: D.ChartSpec, sheet: str) -> tuple:
+    if sheet == D.ITERATION_CHARTS_SHEET:
+        point = D.iteration_point(spec.column, "{iteration}", "{name}")      # one series per team of the Features
+        series = ""
+    elif spec.axis == D.DAY_AXIS:
+        point = D.day_point("{iteration}", "{name}")                # {iteration} is the day here
+        series = ""
+    elif spec.axis == D.PI_AXIS:
+        point = D.pi_point("{iteration}")                           # {iteration} is the PI here; one series, ART
+        series = ",".join(D.series_names(spec))
+    elif spec.series == D.TEAMS:
+        point = D.team_point(spec.column, "{iteration}", "{name}")
+        series = ""
+    else:
+        point = D.bucket_point("{series}", "{iteration}")
+        series = ",".join(D.series_names(spec))
+    row, column = D.chart_anchor(index)
+    return (spec.name, spec.title, spec.chart_type, spec.axis_format or "", series, point,
+            D.note_formula("{range}", spec.reason), row, column, D.ROWS_PER_CHART, D.COLUMNS_PER_CHART,
+            spec.axis, D.band_text(spec), sheet)
 
 
 def team_names(project_rows: list[tuple[str, str, str]]) -> list[str]:

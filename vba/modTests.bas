@@ -53,7 +53,7 @@ Private Function TestNames() As Variant
         "T_HttpNetworkAndCancel", "T_RetryExhausted", "T_ChangelogChunks", "T_IssueRows", "T_WriteTable", "T_StatusIntervals", "T_IntervalsUnreadableDate", "T_StatusChangesUnreadableDate", "T_ChangelogRows", "T_UserFieldIds", "T_DateShape", "T_ParseJiraDateEpoch", "T_DateKind", "T_IsPlausibleDate", "T_FindDateKey", "T_ChangelogDateKey", "T_SkippedDatesWarning", "T_SheetName", "T_ProposeFromSheets", "T_ProposeIterations", "T_ReadSprints", "T_ProposeKindOf", "T_ProposeValuesNotAdmin", "T_HealthFields", "T_CellKind", "T_FitsType", "T_ShapeOfCell", "T_TypeHints", "T_TypeProblems", "T_TypeEmptyTable", "T_TypeBlocks", "T_TypeFillLines", "T_WireTypes", _
         "T_StatusChanges", "T_RetryDelay", "T_SafeAccess", "T_FilesUtf8", "T_StringifyBadObject", _
         "T_TooManyPages", "T_BackgroundExport", "T_TextNotConverted", "T_ParamsTables", "T_ParamsOnWorkbook", _
-        "T_TrimWhite", "T_ConfigSheet", "T_MandatoryConfig", "T_Locked", "T_ProxyDetect", "T_ProxyScript", "T_ProjectsSheet", "T_ParseMoment", "T_ExtractFlowData", "T_ExtractJob", "T_ExtractCheckFields", "T_FlowBuild", "T_BaseUrlHttps", "T_Log", "T_LogInputsAndTimes", "T_StatusParts", "T_ErrorCodes", "T_LogHintAndOpen", "T_StepsSheet", "T_RovoPrompt", "T_RovoCsv", _
+        "T_TrimWhite", "T_ConfigSheet", "T_MandatoryConfig", "T_Locked", "T_PiIntervals", "T_ProxyDetect", "T_ProxyScript", "T_ProjectsSheet", "T_ParseMoment", "T_ExtractFlowData", "T_ExtractJob", "T_ExtractCheckFields", "T_FlowBuild", "T_BaseUrlHttps", "T_Log", "T_LogInputsAndTimes", "T_StatusParts", "T_ErrorCodes", "T_LogHintAndOpen", "T_StepsSheet", "T_RovoPrompt", "T_RovoCsv", _
         "T_JiraConfig", "T_AbortExtraction", "T_Utf8Oracle", "T_Utf8Invalid", "T_Base64Oracle")
 End Function
 
@@ -317,6 +317,62 @@ Public Sub T_Locked()
     Check "locked", "the support code", "612", "J2D-SYS-003", ErrorCode(num, desc)
     Check "locked", "the same file, whatever the case", "C:\A\b.xlsm", True, SameFile("C:\A\b.xlsm", "c:\a\B.XLSM")
     Check "locked", "another folder is another file", "C:\A\b.xlsm", False, SameFile("C:\A\b.xlsm", "C:\Downloads\b.xlsm")
+End Sub
+
+Private Function PiRaw(ByVal key As String, ByVal id As String, ByVal created As String, ByVal fieldId As String, _
+                       ByVal fromText As String, ByVal toText As String) As Variant
+    ' A row of the changelog as JiraChangelogChunk gives it: key, change id, created, ..., fieldId, ..., fromString, ..., toString.
+    PiRaw = Array(key, id, created, "", "", fieldId, "PI", "custom", Empty, fromText, Empty, toText)
+End Function
+
+Private Function PiText(ByVal rows As Collection) As String
+    ' "key|PI|from|to" per stretch, "open" for no end, joined with ";" (dates as yyyy-mm-dd).
+    Dim r As Variant, out As String
+    For Each r In rows
+        out = out & IIf(Len(out) > 0, ";", "") & r(0) & "|" & r(1) & "|" & Format$(r(2), "yyyy-mm-dd") & "|" & _
+              IIf(IsEmpty(r(3)), "open", Format$(r(3), "yyyy-mm-dd"))
+    Next r
+    PiText = out
+End Function
+
+Private Function PiStretches(ByVal changes As Variant, ByVal currentPi As String) As String
+    ' The stretches of F-1, created on 2026-01-01, whose current PI is currentPi, after the changelog rows `changes` of the field PIF.
+    Dim idToKey As Object, raw As New Collection, info As Object, c As Variant
+    Set idToKey = CreateObject("Scripting.Dictionary")
+    For Each c In changes
+        raw.Add c
+    Next c
+    Set info = CreateObject("Scripting.Dictionary")
+    info("F-1") = Array(DateSerial(2026, 1, 1), currentPi)
+    PiStretches = PiText(PiIntervalRows(info, PiChangesFromChangelog(raw, idToKey, "PIF")))
+End Function
+
+Public Sub T_PiIntervals()
+    ' The PI field of an issue through time (python: flow/pi_history.py, tests/unit/test_pi_history.py): the same cases.
+    Dim raw As New Collection, idToKey As Object, kept As Collection
+    Check "pi", "no change: the current PI from the creation", "PI-1", "F-1|PI-1|2026-01-01|open", PiStretches(Array(), "PI-1")
+    Check "pi", "the value before the first change is its from", "none to PI-2 on 01-05", "F-1|PI-2|2026-01-05|open", _
+          PiStretches(Array(PiRaw("F-1", "1", "2026-01-05T00:00:00.000+0000", "PIF", "", "PI-2")), "PI-2")
+    Check "pi", "a PI moved ends the stretch, the end is the start of the next", "PI-3 to PI-5 on 01-03", _
+          "F-1|PI-3|2026-01-01|2026-01-03;F-1|PI-5|2026-01-03|open", _
+          PiStretches(Array(PiRaw("F-1", "1", "2026-01-03T00:00:00.000+0000", "PIF", "PI-3", "PI-5")), "PI-5")
+    Check "pi", "a PI emptied ends the stretch and opens none", "PI-1 to empty on 01-03", "F-1|PI-1|2026-01-01|2026-01-03", _
+          PiStretches(Array(PiRaw("F-1", "1", "2026-01-03T00:00:00.000+0000", "PIF", "PI-1", "")), "")
+    Check "pi", "two changes in one second: by their id as a number (9 before 10)", "10 then 9 given", _
+          "F-1|PI-1|2026-01-01|2026-01-03;F-1|PI-3|2026-01-03|open", _
+          PiStretches(Array(PiRaw("F-1", "10", "2026-01-03T00:00:00.000+0000", "PIF", "PI-2", "PI-3"), _
+                            PiRaw("F-1", "9", "2026-01-03T00:00:00.000+0000", "PIF", "PI-1", "PI-2")), "PI-3")
+    Check "pi", "a change that writes the PI it had joins the stretch", "PI-1 to PI-1", "F-1|PI-1|2026-01-01|open", _
+          PiStretches(Array(PiRaw("F-1", "1", "2026-01-03T00:00:00.000+0000", "PIF", "PI-1", "PI-1")), "PI-1")
+    Check "pi", "blanks around a PI are dropped", " PI-1 ", "F-1|PI-1|2026-01-05|open", _
+          PiStretches(Array(PiRaw("F-1", "1", "2026-01-05T00:00:00.000+0000", "PIF", "  ", " PI-1 ")), "PI-1")
+    Set idToKey = CreateObject("Scripting.Dictionary")
+    raw.Add PiRaw("F-1", "1", "not a date", "PIF", "PI-1", "PI-2")
+    raw.Add PiRaw("F-1", "2", "2026-01-03T00:00:00.000+0000", "other", "a", "b")
+    raw.Add PiRaw("F-1", "3", "2026-01-04T00:00:00.000+0000", "PIF", "PI-2", "PI-3")
+    Set kept = PiChangesFromChangelog(raw, idToKey, "PIF")
+    Check "pi", "only the field of PIField with a readable date is kept", "3 rows", "1|3", kept.Count & "|" & kept(1)(1)
+    Check "pi", "no PIField: no change", "empty", 0, PiChangesFromChangelog(raw, idToKey, "").Count
 End Sub
 
 Public Sub SetPacUrl(ByVal url As String)
@@ -1127,7 +1183,7 @@ Private Sub FlowRaw(ByVal withStory As Boolean, Optional ByVal featurePis As Var
     If Not IsMissing(featurePis) Then
         For i = 0 To UBound(featurePis)
             issues.Add Array("TTT-" & (i + 2), CStr(20 + i), "TTT", "Feature", "Feature", t0, "Nouveau", Empty, "new", Empty, Empty, _
-                             Empty, featurePis(i), Empty, Empty, Empty, Empty, Empty, 0, Empty, Empty, 0)
+                             Empty, featurePis(i), Empty, IIf(i Mod 2 = 0, "team-b", "team-a"), Empty, Empty, Empty, 0, Empty, Empty, 0)
             ivs.Add Array("TTT-" & (i + 2), "Feature", 1, "Nouveau", "Backlog", t0, Empty, 4, True, CStr(20 + i), "")
         Next i
     End If
@@ -1143,6 +1199,12 @@ Private Sub FlowRaw(ByVal withStory As Boolean, Optional ByVal featurePis As Var
     WriteTable ThisWorkbook.Worksheets(SheetName("IssueLinks")), Array("Blocker", "Blocked"), New Collection
     WriteTable ThisWorkbook.Worksheets(SheetName("StatusIntervals")), Array("Key", "Workflow", "Seq", "Status", "Category", "EnteredUtc", _
         "LeftUtc", "DurationDays", "IsOpen", "ChangeId", "Check"), ivs
+    Dim info As Object, issueRow As Variant                              ' the PI field of each issue from its creation (no change)
+    Set info = CreateObject("Scripting.Dictionary")
+    For Each issueRow In issues
+        info(issueRow(0)) = Array(issueRow(5), issueRow(12))
+    Next issueRow
+    WriteTable ThisWorkbook.Worksheets(SheetName("PIIntervals")), PiIntervalsHeader(), PiIntervalRows(info, New Collection)
 End Sub
 
 Private Sub FlowIterations(ByVal start1 As Variant, ByVal end1 As Variant, Optional ByVal second As Boolean = False)
@@ -1171,6 +1233,15 @@ Private Function FlowBuildError() As Long
     On Error Resume Next
     BuildFlowSheetsIn ThisWorkbook
     FlowBuildError = Err.Number - vbObjectError
+    Err.Clear
+End Function
+
+Private Function IterationCell(ByVal column As String, ByVal row As Long) As String
+    ' A cell of the table IterationFeatures as text; "?" when it cannot be read or holds an error (a test must never stop on a dialog).
+    Dim v As Variant
+    On Error Resume Next
+    v = ThisWorkbook.Worksheets(SheetName("IterationFeatures")).ListObjects("IterationFeatures").ListColumns(column).DataBodyRange.Cells(row, 1).Value2
+    If Err.Number <> 0 Then IterationCell = "?" Else If IsError(v) Then IterationCell = "?" Else IterationCell = CStr(v)
     Err.Clear
 End Function
 
@@ -1274,6 +1345,14 @@ Public Sub T_FlowBuild()
           TableRows("PIMetrics") & "|" & wb.Worksheets(SheetName("PIMetrics")).Range("A4").Value & "|" & wb.Worksheets(SheetName("PIMetrics")).Range("D4").Value & _
           "|" & wb.Worksheets(SheetName("PIMetrics")).Range("C4").Value & "|" & wb.Worksheets(SheetName("PIMetrics")).Range("F4").Value & "|" & _
           wb.Worksheets(SheetName("PIMetrics")).Range("A5").Value & "|" & AxisEnds(dash.ChartObjects("feature_predictability").Chart, False)
+    ' IterationFeatures: one row per iteration, PI that holds its start and team (the ART, then the teams of the Features, alphabetical)
+    Check "flowbuild", "IterationFeatures: 1 iteration x 3 teams, in order, in the PI that holds its start", "ART, team-a, team-b", _
+          "3|ART|team-a|team-b|PI#01-2026", TableRows("IterationFeatures") & "|" & IterationCell("Team", 1) & "|" & IterationCell("Team", 2) & "|" & _
+          IterationCell("Team", 3) & "|" & IterationCell("PI", 3)
+    Check "flowbuild", "IterationFeatures: nothing engaged in PI#01-2026 (its only Feature has the PI of 2027), the baseline is the start of P1", "P1", _
+          "0|0|0|" & CLng(DateSerial(2026, 10, 1)), IterationCell("Engaged", 1) & "|" & IterationCell("Released", 2) & "|" & IterationCell("CarryOver", 3) & "|" & _
+          IterationCell("Baseline", 1)
+    Check "flowbuild", "PIIntervals: one row per Feature with a PI, helpers from ItemFlow", "6 features + 1 story", "7", TableRows("PIIntervals")
     FlowRaw False
     wb.Worksheets(SheetName("PIs")).Range("A2:C3").ClearContents
     ' Excel left in manual mode by the user: the build gives the mode back and still ends with every figure calculated

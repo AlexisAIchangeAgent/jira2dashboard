@@ -72,7 +72,7 @@ CHARTS = (
     ChartSpec("flow_predictability", "Flow Predictability", "FlowPredictability", XL_LINE_MARKERS, "0%",
               reason="it needs the PI objectives, which are not in Jira", band=(0.8, 1.0)),
     # AL's variant (2026-11-12): the Features done before the end of the PI over the Features planned in it (flow/metrics.py)
-    ChartSpec("feature_predictability", "Feature Predictability - features done by the end of the PI / features planned",
+    ChartSpec("feature_predictability", "Feature Predictability - features released in the PI / features engaged at its start",
               None, XL_COLUMN_CLUSTERED, "0%", series=ART_SERIES, axis=PI_AXIS, band=(0.8, 1.0),
               reason="no feature planned in the PI, or the PI is not in the sheet PIs"),
     ChartSpec("flow_load_daily", "Flow Load - items in process at the end of each day", None, XL_LINE, axis=DAY_AXIS,

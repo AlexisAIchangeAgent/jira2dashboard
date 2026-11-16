@@ -223,6 +223,15 @@ def test_the_changelog_columns_are_those_of_the_vba_header():
     assert tuple(re.findall(r'"(\w+)"', body)) == CHANGELOG_RAW
 
 
+def test_the_pi_intervals_columns_are_those_of_the_vba_header():
+    import re
+    from pathlib import Path
+    from jira2dashboard.flow.formulas import PIINTERVALS_RAW
+    text = (Path(__file__).resolve().parents[2] / "vba" / "modFlow.bas").read_text(encoding="ascii")
+    body = text.split("Public Function PiIntervalsHeader() As Variant")[1].split("End Function")[0]
+    assert tuple(re.findall(r'"(\w+)"', body)) == PIINTERVALS_RAW
+
+
 def test_the_changelog_hides_every_field_jira_types_as_a_user_and_the_mentions_in_the_texts():
     items = [("10", {"id": "h1", "created": "2026-10-02T12:00:00.000+0200"},
               {"fieldId": "customfield_10050", "field": "Product owner", "fieldtype": "custom", "from": "acc-9", "fromString": "Mary Martin",

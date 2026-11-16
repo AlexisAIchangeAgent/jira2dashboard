@@ -36,8 +36,9 @@ def test_a_formula_fits_in_a_cell():
 
 def test_one_chart_row_per_chart_with_the_tokens_the_vba_replaces():
     rows = B.chart_rows()
-    assert [r[0] for r in rows] == [c.name for c in D.CHARTS]
-    for name, title, kind, axis, series, point, note, row, column, height, width, day_or_iteration, band in rows:
+    assert [r[0] for r in rows] == [c.name for c in D.CHARTS[:-1] + D.ITERATION_CHARTS + D.CHARTS[-1:]]   # the daily curve stays last
+    assert [r[13] for r in rows] == [D.CHARTS_SHEET] * 8 + [D.ITERATION_CHARTS_SHEET] * 5 + [D.CHARTS_SHEET]
+    for name, title, kind, axis, series, point, note, row, column, height, width, day_or_iteration, band, sheet in rows:
         assert "{iteration}" in point and "{range}" in note
         if day_or_iteration == D.PI_AXIS:                    # one fixed series (ART), its point names neither
             assert series == "ART" and "{series}" not in point and "{name}" not in point, name

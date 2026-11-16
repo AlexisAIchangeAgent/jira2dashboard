@@ -163,7 +163,7 @@ def test_a_wrong_type_is_a_warning_with_its_code_and_two_info_lines_and_stops_no
     import types
     row = ("ABC-1", "10001", "5", 1761134538011, "1761134538011", "status", "Status", "jira", "1", "To Do", "2", "Done")
     caplog.set_level(logging.INFO, logger="jira2dashboard.extract")
-    report = X.log_column_types(types.SimpleNamespace(rows=[], links=[], changelog=[row]), [])
+    report = X.log_column_types(types.SimpleNamespace(rows=[], links=[], changelog=[row], flow=[]), [])
     assert [p.name for p in report.problems] == ["Changelog.CreatedUtc"]
     records = [(r.levelname, r.getMessage()) for r in caplog.records]
     assert ("WARNING", "J2D-DATA-004 | Changelog.CreatedUtc | expected datetime | found number | source histories[].created | "

@@ -29,7 +29,8 @@ def read_table(wb, sheet: str, name: str) -> tuple[list[str], list[list]]:
 def error_cells(wb) -> dict[str, int]:
     """How many cells of each flow table show an Excel error, by column (a typo in a formula shows here)."""
     found: dict[str, int] = {}
-    for name in ("StatusIntervals", "ItemFlow", "DailyLoad", "Metrics", "DataChecks", "IssueLinks", "FillRates"):
+    for name in ("StatusIntervals", "ItemFlow", "DailyLoad", "Metrics", "PIIntervals", "IterationFeatures", "PIMetrics", "DataChecks",
+                 "IssueLinks", "FillRates"):
         header, rows = read_table(wb, name, name)
         for row in rows:
             for column, value in zip(header, row):
@@ -49,7 +50,7 @@ ROVO_LOAD_MACRO = "modActions.BtnLoadRovoCsv"
 def write_blueprint(wb, dash=None, button_macro: str | None = None) -> None:
     """The sheets Issues, StatusIntervals, IssueLinks (empty, raw data comes from the extraction), FlowFormulas, ChartSpec and
     ChecksSpec (read by modFlowBuild), RawTypesSpec (read by modHealth) and the frame of the Dashboard (`dash`: an existing sheet, or a new one)."""
-    for name in ("Issues", "StatusIntervals", "IssueLinks", "Changelog"):
+    for name in ("Issues", "StatusIntervals", "IssueLinks", "Changelog", "PIIntervals"):
         R.add_sheet_after_last(wb, name)
     for name, header, rows in ((B.SHEET_FORMULAS, B.FORMULAS_HEADER, B.formula_rows()),
                                (B.SHEET_CHARTS, B.CHARTS_HEADER, B.chart_rows()),
@@ -98,6 +99,11 @@ def write_dashboard_frame(wb, dash, button_macro: str | None = None) -> None:
     charts.Range("A:R").ColumnWidth = 11
     charts.Range(D.SELECTOR_CELL).Value = D.ALL_TEAMS
     wb.Names.Add(D.SELECTOR, f"={S.of(D.CHARTS_SHEET)}!" + charts.Range(D.SELECTOR_CELL).Address)
+    features = wb.Worksheets.Add(None, charts)          # the Features of the ART iteration by iteration (table IterationFeatures)
+    features.Name = S.of(D.ITERATION_CHARTS_SHEET)
+    features.Range("A1").Value = "Features per iteration - charts (the ART, then one series per team of the Features)"
+    features.Range("A1").Font.Bold = True
+    features.Range("A:R").ColumnWidth = 11
     dash.Activate()
     if button_macro:
         R.add_progress_bar(dash, D.BAR_CELL, D.BUTTON_WIDTH, D.BAR_HEIGHT)
@@ -127,16 +133,18 @@ def write_manual(wb, dash, mandatory: tuple[str, ...]) -> None:
 
 
 def export_charts(wb, folder) -> dict[str, str]:
-    """Save every chart of the sheet Charts as <name>.png in `folder`; returns {chart name: file}."""
+    """Save every chart of the sheets Charts and IterationCharts as <name>.png in `folder`; returns {chart name: file}."""
     folder.mkdir(parents=True, exist_ok=True)
-    dash, files = wb.Worksheets(S.of(D.CHARTS_SHEET)), {}
-    dash.Activate()
-    for spec in D.CHARTS:
-        target = folder / f"{spec.name}.png"
-        chart_object = dash.ChartObjects(spec.name)
-        chart_object.Activate()                 # a chart that is off the visible part of the sheet exports as an empty file
-        if not chart_object.Chart.Export(str(target.resolve()), "PNG"):
-            raise OSError(f"Excel could not export the chart {spec.name}")
-        files[spec.name] = str(target)
-    dash.Range("A1").Select()
+    files = {}
+    for sheet, specs in ((D.CHARTS_SHEET, D.CHARTS), (D.ITERATION_CHARTS_SHEET, D.ITERATION_CHARTS)):
+        dash = wb.Worksheets(S.of(sheet))
+        dash.Activate()
+        for spec in specs:
+            target = folder / f"{spec.name}.png"
+            chart_object = dash.ChartObjects(spec.name)
+            chart_object.Activate()                 # a chart that is off the visible part of the sheet exports as an empty file
+            if not chart_object.Chart.Export(str(target.resolve()), "PNG"):
+                raise OSError(f"Excel could not export the chart {spec.name}")
+            files[spec.name] = str(target)
+        dash.Range("A1").Select()
     return files

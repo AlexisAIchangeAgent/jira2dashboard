@@ -103,12 +103,15 @@ def test_the_vba_names_the_same_sheet_of_charts_and_the_same_status_rows():
 
 
 def test_the_feature_predictability_point_is_a_gap_without_a_planned_feature_or_a_pi():
-    """AL's variant (2026-11-12): done before the end of the PI / planned (the PI field); #N/A when nothing is planned."""
+    """AL's variant (2026-11-12): released in the PI / engaged at its start (the history of the PI field, summed from the rows of
+    IterationFeatures); #N/A when nothing is planned."""
     text = d.pi_point("$A6")
     assert "XLOOKUP($A6,PIMetrics[PI],PIMetrics[FeaturePredictability]" in text and "NA()" in text
     assert {"PI", "FeaturePredictability"} <= set(f.TABLES["PIMetrics"])
     planned, done, ratio = (dict(f.PIMETRICS_COLUMNS)[c] for c in ("FeaturesPlanned", "FeaturesDone", "FeaturePredictability"))
-    assert planned == "=COUNTIFS(ItemFlow[IsFeature],1,ItemFlow[PI],[@PI])"
-    assert 'ItemFlow[DoneUtc],"<"&([@End]-' in done and '"not computable"' in ratio
+    assert "SUMIFS(IterationFeatures[Engaged]" in planned and 'IterationFeatures[Team],"ART"' in planned
+    assert "COUNTIFS(ItemFlow[IsFeature],1,ItemFlow[PI],[@PI])" in planned          # a PI the sheet lacks: the PI field as it is now
+    assert "IterationFeatures[ReleasedPlanned]" in done and "IterationFeatures[Released]" in done and 'cfg_PredictabilityMode="B"' in done
+    assert '"not computable"' in ratio
     start, end = (dict(f.PIMETRICS_COLUMNS)[c] for c in ("Start", "End"))
     assert "PIs_from_user!$B:$B" in start and "PIs_from_user!$C:$C" in end and all("DATEVALUE(v)" in t for t in (start, end))   # CSV dates are text

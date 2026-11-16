@@ -38,12 +38,30 @@ def pi_intervals(issue: FlowIssue) -> list[PIInterval]:
         current, since = _clean(change.to_value), max(change.at, since)
     if current:
         out.append(PIInterval(issue.key, current, since, None))
+    return _merged(out)
+
+
+def _merged(intervals: list[PIInterval]) -> list[PIInterval]:
+    """One stretch where the same PI is carried without a break (a change that writes the PI it already had splits nothing): the
+    workbook counts the stretches, so a Feature must not have two touching ones."""
+    out: list[PIInterval] = []
+    for interval in intervals:
+        if out and out[-1].pi == interval.pi and out[-1].end == interval.start:
+            out[-1] = PIInterval(interval.key, interval.pi, out[-1].start, interval.end)
+        else:
+            out.append(interval)
     return out
 
 
-def pi_at(intervals: list[PIInterval], moment: dt.datetime) -> str | None:
-    """The PI carried at `moment` (the end of a stretch is excluded, its start included); None when none, or before creation."""
+def interval_at(intervals: list[PIInterval], moment: dt.datetime) -> PIInterval | None:
+    """The stretch that holds `moment` (the end of a stretch is excluded, its start included); None when none, or before creation."""
     for interval in intervals:
         if interval.start <= moment and (interval.end is None or moment < interval.end):
-            return interval.pi
+            return interval
     return None
+
+
+def pi_at(intervals: list[PIInterval], moment: dt.datetime) -> str | None:
+    """The PI carried at `moment`; None when none, or before creation."""
+    found = interval_at(intervals, moment)
+    return found.pi if found else None

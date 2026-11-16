@@ -101,7 +101,14 @@ CHANGELOG_RULES = _rules("Changelog", [
     ("To", "text", False, "histories[].items[].to"),
     ("ToString", "text", False, "histories[].items[].toString"),
 ])
-RAW_TYPES: tuple[Rule, ...] = tuple(ISSUES_RULES + INTERVALS_RULES + LINKS_RULES + CHANGELOG_RULES)
+PI_INTERVALS_RULES = _rules("PIIntervals", [          # no PIField, no stretch: every column may be empty
+    ("Key", "key", False, "computed"),
+    ("PI", "text", False, "computed: histories[].items[].toString"),
+    ("FromUtc", "datetime", False, "computed: Issues.CreatedUtc or histories[].created"),
+    ("ToUtc", "datetime", False, "computed: histories[].created"),
+    ("IsOpen", "boolean", False, "computed"),
+])
+RAW_TYPES: tuple[Rule, ...] = tuple(ISSUES_RULES + INTERVALS_RULES + LINKS_RULES + CHANGELOG_RULES + PI_INTERVALS_RULES)
 SPEC_SHEET = "RawTypesSpec"
 SPEC_HEADER = ("Table", "Column", "Type", "Code", "Required", "Source", "Allowed")
 

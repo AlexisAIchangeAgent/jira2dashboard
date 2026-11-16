@@ -12,6 +12,7 @@ Private Const XL_YES As Long = 1
 Private Const XL_CALC_MANUAL As Long = -4135
 Private Const XL_CALC_AUTOMATIC As Long = -4105
 Private Const CHARTS_SHEET As String = "Charts"      ' the sheet of the charts, made at build (flow/dashboard_spec.CHARTS_SHEET)
+Private Const ITERATION_CHARTS_SHEET As String = "IterationCharts"   ' the charts of the Features per iteration (dashboard_spec.ITERATION_CHARTS_SHEET)
 Private Const BAND_MARKER As Long = -4115             ' xlMarkerStyleDash, a long bar (flow/dashboard_spec.BAND_MARKER)
 
 Public Function SheetExists(ByVal wb As Object, ByVal name As String) As Boolean
@@ -44,7 +45,7 @@ Public Sub ClearFlowSheets(ByVal wb As Object)
     Cov "FLB03"
     Dim nm As Variant
     DeleteDerived wb
-    For Each nm In Array("Issues", "StatusIntervals", "IssueLinks", "Changelog")
+    For Each nm In Array("Issues", "StatusIntervals", "IssueLinks", "Changelog", "PIIntervals")
         If SheetExists(wb, CStr(nm)) Then
             UnlistAll wb.Worksheets(SheetName(CStr(nm)))
             wb.Worksheets(SheetName(CStr(nm))).Cells.Clear
@@ -55,16 +56,18 @@ End Sub
 Private Sub DeleteDerived(ByVal wb As Object)
     Cov "FLB04"
     Dim nm As Variant, i As Long, alerts As Boolean
-    If SheetExists(wb, CHARTS_SHEET) Then                 ' the charts and the notes under them; the sheet and its selector stay
-        For i = wb.Worksheets(SheetName(CHARTS_SHEET)).ChartObjects.Count To 1 Step -1
-            wb.Worksheets(SheetName(CHARTS_SHEET)).ChartObjects(i).Delete
-        Next i
-        wb.Worksheets(SheetName(CHARTS_SHEET)).Range("A4:R400").ClearContents
-    End If
+    For Each nm In Array(CHARTS_SHEET, ITERATION_CHARTS_SHEET)
+        If SheetExists(wb, CStr(nm)) Then                 ' the charts and the notes under them; the sheet and its selector stay
+            For i = wb.Worksheets(SheetName(CStr(nm))).ChartObjects.Count To 1 Step -1
+                wb.Worksheets(SheetName(CStr(nm))).ChartObjects(i).Delete
+            Next i
+            wb.Worksheets(SheetName(CStr(nm))).Range("A4:R400").ClearContents
+        End If
+    Next nm
     alerts = Application.DisplayAlerts
     Application.DisplayAlerts = False
     On Error GoTo Restore
-    For Each nm In Array("ChartData", "ItemFlow", "DailyLoad", "Metrics", "PIMetrics", "DataChecks", "FillRates", "Controls")
+    For Each nm In Array("ChartData", "ItemFlow", "DailyLoad", "Metrics", "IterationFeatures", "PIMetrics", "DataChecks", "FillRates", "Controls")
         If SheetExists(wb, CStr(nm)) Then wb.Worksheets(SheetName(CStr(nm))).Delete
     Next nm
 Restore:
@@ -218,7 +221,7 @@ Private Sub LoadPlan(ByVal wb As Object, ByRef spec As Object, ByRef teams As Co
     Dim nm As Variant
     RequireDynamicArrays
     For Each nm In Array("FlowFormulas", "ChartSpec", "ChecksSpec", "Config", "Iterations", "PIs", "Projects", "Workflows", _
-                         "Transitions", "Dashboard", CHARTS_SHEET, "Issues", "StatusIntervals", "IssueLinks")
+                         "Transitions", "Dashboard", CHARTS_SHEET, ITERATION_CHARTS_SHEET, "Issues", "StatusIntervals", "IssueLinks", "PIIntervals")
         If Not SheetExists(wb, CStr(nm)) Then
             Err.Raise vbObjectError + 705, "BuildFlowSheets", "Sheet " & SheetName(CStr(nm)) & " is missing: rebuild the workbook with scripts\run.ps1 build."
         End If
@@ -269,7 +272,8 @@ Private Sub BuildAll(ByVal wb As Object, ByVal spec As Object, ByVal teams As Co
     Cov "FLB16"
     Dim wsI As Object, wsS As Object, wsF As Object, wsD As Object, wsM As Object, wsC As Object, wsL As Object, wsR As Object
     Dim loI As Object, loS As Object, loF As Object, loD As Object, loM As Object, loC As Object, loL As Object, loR As Object
-    Dim wsP As Object, loP As Object, pis As Collection
+    Dim wsP As Object, loP As Object, pis As Collection, wsQ As Object, loQ As Object, wsT As Object, loT As Object
+    Dim featureTeams As Collection, keys As Collection
     LogBegin "flow sheets: prepare"
     DeleteDerived wb
     Set wsI = wb.Worksheets(SheetName("Issues")): Set wsS = wb.Worksheets(SheetName("StatusIntervals"))
@@ -277,17 +281,23 @@ Private Sub BuildAll(ByVal wb As Object, ByVal spec As Object, ByVal teams As Co
     PrepareRaw wsS, spec("StatusIntervals")
     Set wsL = wb.Worksheets(SheetName("IssueLinks"))
     PrepareRaw wsL, spec("IssueLinks")
+    Set wsQ = wb.Worksheets(SheetName("PIIntervals"))
+    PrepareRaw wsQ, spec("PIIntervals")
     Dim issues As Long, checks As Long, fills As Long
     issues = UsedRows(wsI)
     BuildControls wb, spec
     LogEnd "flow sheets: prepare"
     LogBegin "flow sheets: keys"
     Set wsF = AddSheet(wb, "ItemFlow"): Set wsD = AddSheet(wb, "DailyLoad"): Set wsM = AddSheet(wb, "Metrics")
-    Set wsC = AddSheet(wb, "DataChecks"): Set wsR = AddSheet(wb, "FillRates"): Set wsP = AddSheet(wb, "PIMetrics")
+    Set wsC = AddSheet(wb, "DataChecks"): Set wsR = AddSheet(wb, "FillRates"): Set wsT = AddSheet(wb, "IterationFeatures")
+    Set wsP = AddSheet(wb, "PIMetrics")
     Set pis = PiNames(wb, SettingOf(spec, "Dashboard", "NoPI"))
+    Set featureTeams = FeatureTeamNames(wb, SettingOf(spec, "Dashboard", "ProgramTeam"))
+    Set keys = IterationFeatureKeys(wb, iterations, featureTeams)
     WriteDailyKeys wsD, iterations, teams
     WriteMetricKeys wsM, iterations, teams
     WritePiKeys wsP, pis
+    WriteIterationFeatureKeys wsT, keys
     checks = WriteCheckKeys(wsC, wb.Worksheets(SheetName("ChecksSpec")))
     fills = WriteFillKeys(wsR, spec("FillFields"), wb, teams)
     LogEnd "flow sheets: keys"
@@ -301,6 +311,8 @@ Private Sub BuildAll(ByVal wb As Object, ByVal spec As Object, ByVal teams As Co
     Set loC = CreateTable(wsC, "DataChecks", spec("DataChecks"), checks)
     Set loL = CreateTable(wsL, "IssueLinks", spec("IssueLinks"), UsedRows(wsL))
     Set loR = CreateTable(wsR, "FillRates", spec("FillRates"), fills)
+    Set loQ = CreateTable(wsQ, "PIIntervals", spec("PIIntervals"), UsedRows(wsQ))
+    Set loT = CreateTable(wsT, "IterationFeatures", spec("IterationFeatures"), keys.Count)
     Set loP = CreateTable(wsP, "PIMetrics", spec("PIMetrics"), pis.Count)
     LogEnd "flow sheets: tables"
     LogBegin "flow sheets: formulas StatusIntervals"
@@ -324,14 +336,23 @@ Private Sub BuildAll(ByVal wb As Object, ByVal spec As Object, ByVal teams As Co
     LogBegin "flow sheets: formulas Metrics"
     FillFormulas loM, spec("Metrics")
     LogEnd "flow sheets: formulas Metrics"
+    LogBegin "flow sheets: formulas PIIntervals"
+    FillFormulas loQ, spec("PIIntervals")
+    LogEnd "flow sheets: formulas PIIntervals"
+    LogBegin "flow sheets: formulas IterationFeatures"
+    FillFormulas loT, spec("IterationFeatures")
+    LogEnd "flow sheets: formulas IterationFeatures"
     LogBegin "flow sheets: formulas PIMetrics"
     FillFormulas loP, spec("PIMetrics")
     LogEnd "flow sheets: formulas PIMetrics"
     wsD.Columns(1).NumberFormat = "yyyy-mm-dd"
     wsM.Range(wsM.Columns(2), wsM.Columns(3)).NumberFormat = "yyyy-mm-dd"
     wsP.Range(wsP.Columns(2), wsP.Columns(3)).NumberFormat = "yyyy-mm-dd"
+    wsT.Range(wsT.Columns(2), wsT.Columns(3)).NumberFormat = "yyyy-mm-dd"
+    wsT.Columns(6).NumberFormat = "yyyy-mm-dd"                                 ' Baseline
+    wsQ.Range(wsQ.Columns(3), wsQ.Columns(4)).NumberFormat = "yyyy-mm-dd hh:mm:ss"
     wsP.Columns(6).NumberFormat = "0%"
-    BuildCharts wb, spec, teams, iterations, pis                       ' its steps: "flow sheets: charts: ..." (one per chart)
+    BuildCharts wb, spec, teams, featureTeams, iterations, pis         ' its steps: "flow sheets: charts: ..." (one per chart)
 End Sub
 
 Private Sub BuildControls(ByVal wb As Object, ByVal spec As Object)
@@ -405,6 +426,76 @@ Private Sub WriteMetricKeys(ByVal ws As Object, ByVal iterations As Collection, 
         Next t
     Next p
     ws.Range(ws.Cells(2, 1), ws.Cells(r + 1, 4)).Value = data
+End Sub
+
+Private Function FeatureTeamNames(ByVal wb As Object, ByVal programTeam As String) As Collection
+    ' The ART as a whole, then the teams the Features name in their Team field (flow/iteration_features.feature_teams): the distinct
+    ' TeamValue of the Features (type in FeatureTypes) of the sheet Issues, alphabetical (binary order, as Python sorted).
+    Cov "FLB44"
+    Dim out As New Collection, wsI As Object, last As Long, types As Variant, teamValues As Variant, features As Object, t As Variant
+    Dim names As New Collection, seen As Object, r As Long, v As String, i As Long
+    out.Add programTeam
+    Set FeatureTeamNames = out
+    Set wsI = wb.Worksheets(SheetName("Issues"))
+    last = UsedRows(wsI)
+    If last < 1 Then Exit Function
+    Set features = CreateObject("Scripting.Dictionary")
+    Set seen = CreateObject("Scripting.Dictionary")
+    For Each t In Split(ConfigValue(wb.Worksheets(SheetName("Config")), "FeatureTypes"), ",")
+        If Len(TrimWhite(CStr(t))) > 0 Then features(TrimWhite(CStr(t))) = True
+    Next t
+    types = IssueColumn(wsI, "Type", last)
+    teamValues = IssueColumn(wsI, "TeamValue", last)
+    For r = 1 To last
+        v = TrimWhite(CStr(teamValues(r, 1) & ""))
+        If Len(v) > 0 And v <> programTeam And features.Exists(CStr(types(r, 1) & "")) And Not seen.Exists(v) Then
+            Cov "FLB45"
+            seen(v) = True
+            For i = 1 To names.Count
+                If StrComp(v, CStr(names(i)), vbBinaryCompare) < 0 Then Exit For
+            Next i
+            If i > names.Count Then names.Add v Else names.Add v, , i
+        End If
+    Next r
+    For i = 1 To names.Count
+        out.Add names(i)
+    Next i
+End Function
+
+Private Function IterationFeatureKeys(ByVal wb As Object, ByVal iterations As Collection, ByVal featureTeams As Collection) As Collection
+    ' One row per iteration, PI that holds its start (the sheet PIs: Start <= iteration start < End; none = one row with an empty PI) and
+    ' team of the Features: Array(label, start, end, team, PI). The counts are the formulas of the table IterationFeatures.
+    Cov "FLB46"
+    Dim out As New Collection, pisSheet As New Collection, p As Variant, q As Variant, holders As Collection, t As Long, s As Variant, e As Variant
+    For Each q In ReadTable(wb.Worksheets(SheetName("PIs")))
+        s = SerialOf(q("Start")): e = SerialOf(q("End"))
+        If Len(Trim$(CStr(q("PI") & ""))) > 0 And Not IsEmpty(s) And Not IsEmpty(e) Then pisSheet.Add Array(Trim$(CStr(q("PI"))), s, e)
+    Next q
+    For Each p In iterations
+        Set holders = New Collection
+        For Each q In pisSheet
+            If q(1) <= p(1) And p(1) < q(2) Then holders.Add q(0)
+        Next q
+        If holders.Count = 0 Then Cov "FLB47": holders.Add ""
+        For Each q In holders
+            For t = 1 To featureTeams.Count
+                out.Add Array(CStr(p(0)), p(1), p(2), CStr(featureTeams(t)), CStr(q))
+            Next t
+        Next q
+    Next p
+    Set IterationFeatureKeys = out
+End Function
+
+Private Sub WriteIterationFeatureKeys(ByVal ws As Object, ByVal keys As Collection)
+    ' Iteration-label | IterationStart | IterationEnd | Team | PI, as values (a formula typed in a table column fills the whole column).
+    Cov "FLB48"
+    Dim r As Long, data() As Variant
+    ReDim data(1 To keys.Count, 1 To 5)
+    For r = 1 To keys.Count
+        data(r, 1) = AsText(CStr(keys(r)(0))): data(r, 2) = keys(r)(1): data(r, 3) = keys(r)(2): data(r, 4) = AsText(CStr(keys(r)(3)))
+        If Len(CStr(keys(r)(4))) > 0 Then data(r, 5) = AsText(CStr(keys(r)(4)))
+    Next r
+    ws.Range(ws.Cells(2, 1), ws.Cells(keys.Count + 1, 5)).Value = data
 End Sub
 
 Private Function WriteCheckKeys(ByVal ws As Object, ByVal wsSpec As Object) As Long
@@ -491,8 +582,8 @@ End Function
 
 ' --- the dashboard: ChartData (one block of formulas per chart) and the charts -----------------------------------
 
-Private Sub BuildCharts(ByVal wb As Object, ByVal spec As Object, ByVal teams As Collection, ByVal iterations As Collection, _
-                        ByVal pis As Collection)
+Private Sub BuildCharts(ByVal wb As Object, ByVal spec As Object, ByVal teams As Collection, ByVal featureTeams As Collection, _
+                        ByVal iterations As Collection, ByVal pis As Collection)
     Cov "FLB21"
     Dim data As Object, dash As Object, row As Variant, index As Long, stride As Long
     Set dash = wb.Worksheets(SheetName(CHARTS_SHEET))               ' a sheet of their own: on the Dashboard they hid its cells
@@ -502,7 +593,12 @@ Private Sub BuildCharts(ByVal wb As Object, ByVal spec As Object, ByVal teams As
     WriteSelectorList wb, dash, data, spec, teams
     LogEnd "flow sheets: charts: selector"
     For Each row In ReadTable(wb.Worksheets(SheetName("ChartSpec")))
-        BuildChart dash, data, row, 1 + index * (stride + 4), teams, iterations, pis
+        If CStr(row("Sheet")) = ITERATION_CHARTS_SHEET Then
+            Cov "FLB43"                                              ' the Features per iteration: their own sheet and the teams of the Features
+            BuildChart wb.Worksheets(SheetName(ITERATION_CHARTS_SHEET)), data, row, 1 + index * (stride + 4), featureTeams, iterations, pis
+        Else
+            BuildChart dash, data, row, 1 + index * (stride + 4), teams, iterations, pis
+        End If
         index = index + 1
     Next row
 End Sub

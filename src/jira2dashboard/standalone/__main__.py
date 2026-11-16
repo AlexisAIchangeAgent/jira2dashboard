@@ -26,7 +26,7 @@ from pathlib import Path
 from jira2dashboard.cli.args import parser
 from jira2dashboard.flow import dashboard_spec as D
 from jira2dashboard.flow import raw_types
-from jira2dashboard.flow.formulas import CHANGELOG_RAW, INTERVALS_RAW, ISSUES
+from jira2dashboard.flow.formulas import CHANGELOG_RAW, INTERVALS_RAW, ISSUES, PIINTERVALS_RAW
 from jira2dashboard.flow.model import UNCLASSIFIED
 from jira2dashboard.params.model import ParamsError
 from jira2dashboard.paths import RELEASE_DIR
@@ -167,7 +167,8 @@ def log_column_types(extract, intervals) -> raw_types.TypeReport:
     started = time.monotonic()
     log.info("BEGIN column types")
     report = raw_types.check({"Issues": (ISSUES, extract.rows), "StatusIntervals": (INTERVALS_RAW, intervals),
-                              "IssueLinks": (("Blocker", "Blocked"), extract.links), "Changelog": (CHANGELOG_RAW, extract.changelog)})
+                              "IssueLinks": (("Blocker", "Blocked"), extract.links), "Changelog": (CHANGELOG_RAW, extract.changelog),
+                              "PIIntervals": (PIINTERVALS_RAW, R.piinterval_rows(extract.flow))})
     for level, text in raw_types.log_lines(report):
         (log.warning if level == "WARN" else log.info)("%s", text)
     log.info("END column types%s", took(started))
@@ -256,6 +257,7 @@ def run(args, formatter: Scrubbed, collected: Collected, sleep=time.sleep, detec
         Sheet(S.of("DailyLoad"), R.DAILY_LOAD, R.dailyload_rows(results, first, end)),
         Sheet(S.of("Issues"), ISSUES, extract.rows),
         Sheet(S.of("StatusIntervals"), INTERVALS_RAW, intervals),
+        Sheet(S.of("PIIntervals"), PIINTERVALS_RAW, R.piinterval_rows(extract.flow)),
         Sheet(S.of("IssueLinks"), ("Blocker", "Blocked"), extract.links),
         Sheet(S.of("Changelog"), CHANGELOG_RAW, extract.changelog),
         Sheet(ERRORS_SHEET, ("TimeUtc", "Level", "Message"), collected.rows),

@@ -15,6 +15,7 @@ from jira2dashboard.flow.checks import CHECKS, PER_ISSUE, FillRate, fill_rates, 
 from jira2dashboard.flow.itemflow import ItemFlow, item_flow
 from jira2dashboard.flow.iteration_features import IterationFeatures, iteration_features
 from jira2dashboard.flow.load import ONE_DAY, daily_load, snapshot_days
+from jira2dashboard.flow.pi_history import pi_intervals
 from jira2dashboard.flow.metrics import (BUCKETS, PIPredictability, TeamIterationMetrics, pi_predictability,
                                          team_iteration_metrics)
 from jira2dashboard.flow.model import NOT_COMPUTABLE, UNMAPPED, WORK_TYPES, FlowIssue
@@ -106,8 +107,13 @@ def _figure(value):
 
 def iterationfeatures_rows(results: Results) -> list[tuple]:
     """The rows of IterationFeatures (flow/iteration_features.py), in the column order of the table."""
-    return [(r.iteration, r.start, r.end, r.team, r.pi or None, r.engaged, r.added, r.deferred, r.released, r.released_planned,
-             r.released_added, r.carry_over) for r in results.iteration_features]
+    return [(r.iteration, r.start, r.end, r.team, r.pi or None, r.baseline, r.engaged, r.added, r.deferred, r.released,
+             r.released_planned, r.released_added, r.carry_over) for r in results.iteration_features]
+
+
+def piinterval_rows(issues: list[FlowIssue]) -> list[tuple]:
+    """The rows of PIIntervals (formulas.PIINTERVALS_RAW): every stretch in which an issue carried a PI, from its history."""
+    return [(i.key, i.pi, i.start, i.end, i.end is None) for issue in issues for i in pi_intervals(issue)]
 
 
 def pimetrics_rows(results: Results, s: RunSettings) -> list[tuple]:

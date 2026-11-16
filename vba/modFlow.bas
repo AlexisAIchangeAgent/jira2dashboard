@@ -132,6 +132,105 @@ Public Function KeyChangeCounts(ByVal changelogRows As Collection, ByVal idToKey
     Set KeyChangeCounts = out
 End Function
 
+Public Function PiIntervalsHeader() As Variant
+    ' The columns of the sheet PIIntervals (python: formulas.PIINTERVALS_RAW).
+    PiIntervalsHeader = Array("Key", "PI", "FromUtc", "ToUtc", "IsOpen")
+End Function
+
+Public Function PiChangesFromChangelog(ByVal changelogRows As Collection, ByVal idToKey As Object, ByVal piField As String) As Collection
+    ' Keeps the items of the field piField (Config.PIField; python: mapping.pi_changes). Output rows: Array(issueKey, changeId, createdUtc,
+    ' fromString, toString), the texts as Jira sent them. A change whose date cannot be read is left out; no PIField: none.
+    Cov "FLW18"
+    Dim out As New Collection, r As Variant, key As String, at As Variant
+    Set PiChangesFromChangelog = out
+    If Len(piField) = 0 Then Exit Function
+    For Each r In changelogRows
+        If CStr(r(5) & "") = piField Then
+            at = ParseJiraDate(r(2))
+            If Not IsEmpty(at) Then
+                Cov "FLW19"
+                key = CStr(r(0) & "")
+                If idToKey.Exists(key) Then key = idToKey(key)
+                out.Add Array(key, r(1), at, r(9), r(11))
+            End If
+        End If
+    Next r
+End Function
+
+Public Function PiIntervalRows(ByVal issueInfo As Object, ByVal changes As Collection) As Collection
+    ' The PI field of each issue through time (python: flow/pi_history.pi_intervals). issueInfo: key -> Array(createdUtc, current PI).
+    ' changes: the rows of PiChangesFromChangelog. Output rows: Array(key, pi, fromUtc, toUtc or Empty, isOpen): one per stretch in which the
+    ' issue carried a PI, the end excluded; the first value is what the first change left (its from), else the current value.
+    Cov "FLW20"
+    Dim byIssue As Object, ch As Variant, key As Variant, out As New Collection
+    Set byIssue = CreateObject("Scripting.Dictionary")
+    For Each ch In changes
+        If issueInfo.Exists(ch(0)) Then
+            If Not byIssue.Exists(ch(0)) Then byIssue.Add ch(0), New Collection
+            byIssue(ch(0)).Add ch
+        End If
+    Next ch
+    For Each key In issueInfo.Keys
+        If byIssue.Exists(key) Then
+            AddPiIntervals out, CStr(key), issueInfo(key), SortPiChanges(byIssue(key))
+        Else
+            AddPiIntervals out, CStr(key), issueInfo(key), New Collection
+        End If
+    Next key
+    Set PiIntervalRows = out
+End Function
+
+Private Sub AddPiIntervals(ByVal out As Collection, ByVal key As String, ByVal info As Variant, ByVal changes As Collection)
+    Dim current As String, since As Variant, ch As Variant
+    If changes.Count = 0 Then
+        current = TrimWhite(CStr(info(1) & ""))
+    Else
+        current = TrimWhite(CStr(changes(1)(3) & ""))
+    End If
+    since = info(0)
+    For Each ch In changes
+        If Len(current) > 0 And ch(2) > since Then AddStretch out, key, current, since, ch(2)
+        current = TrimWhite(CStr(ch(4) & ""))
+        If ch(2) > since Then Cov "FLW22": since = ch(2)
+    Next ch
+    If Len(current) > 0 Then Cov "FLW23": AddStretch out, key, current, since, Empty
+End Sub
+
+Private Sub AddStretch(ByVal out As Collection, ByVal key As String, ByVal pi As String, ByVal fromUtc As Variant, ByVal toUtc As Variant)
+    ' One stretch; it joins the one before when the same PI is carried without a break (the workbook counts stretches).
+    Dim prev As Variant
+    If out.Count > 0 Then
+        prev = out(out.Count)
+        If CStr(prev(0)) = key And CStr(prev(1)) = pi And Not IsEmpty(prev(3)) Then
+            If prev(3) = fromUtc Then
+                Cov "FLW24"
+                fromUtc = prev(2)
+                out.Remove out.Count
+            End If
+        End If
+    End If
+    out.Add Array(key, pi, fromUtc, toUtc, IsEmpty(toUtc))
+End Sub
+
+Private Function SortPiChanges(ByVal changes As Collection) As Collection
+    ' Insertion sort by date, then by change id as a number (shorter first, then text: python model.change_order), stable.
+    Dim sorted As New Collection, ch As Variant, i As Long, placed As Boolean
+    For Each ch In changes
+        placed = False
+        For i = 1 To sorted.Count
+            If PiChangeBefore(ch, sorted(i)) Then sorted.Add ch, Before:=i: placed = True: Exit For
+        Next i
+        If Not placed Then sorted.Add ch
+    Next ch
+    Set SortPiChanges = sorted
+End Function
+
+Private Function PiChangeBefore(ByVal a As Variant, ByVal b As Variant) As Boolean
+    If a(2) <> b(2) Then PiChangeBefore = (a(2) < b(2)): Exit Function
+    If Len(CStr(a(1))) <> Len(CStr(b(1))) Then Cov "FLW21": PiChangeBefore = (Len(CStr(a(1))) < Len(CStr(b(1)))): Exit Function
+    PiChangeBefore = (StrComp(CStr(a(1)), CStr(b(1)), vbBinaryCompare) < 0)
+End Function
+
 Public Function BuildStatusIntervals(ByVal issueInfo As Object, ByVal statusChanges As Collection, _
                                      ByVal asOfUtc As Date, ByVal categories As Object) As Collection
     ' issueInfo: key -> Array(createdUtc, currentStatus).  categories: status -> "Active" / "Wait" / "Done" / "Removed" / "Backlog" (unknown = "Unclassified").

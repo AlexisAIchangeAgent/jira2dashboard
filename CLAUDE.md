@@ -113,14 +113,35 @@ python.log). `tests/unit/test_claude_hooks.py` and `test_claude_skills.py` test 
   `modFlowBuild.BuildFlowSheetsIn` rebuilds all tables, formulas and charts from those sheets, sized to the new data.
   Add a metric or check by editing the plan, not VBA.
 - **Feature Predictability (AL's decision, 2026-11-12).** A variant of Flow Predictability, whose SAFe definition (business
-  value of the PI objectives, `docs/` section 2.2) stays as a chart, not computable. Per PI of the sheet `PIs`, for the ART:
-  the Features (`FeatureTypes`) done before the end of the PI (`DoneUtc` < `End`) over the Features planned in it (PI field
-  = the PI); a cancelled Feature stays planned, not done; nothing planned = a gap. Then the valid PIs (`PI#XX-YYYY`) that
-  Features carry but `PIs` lacks, by year then number, not computable (no end date) so the RTE sees them (AL, 2026-11-12;
-  `modFlowBuild.FeaturePis`). The manual-test copy declares both PIs of the generator. Reference `flow/metrics.feature_predictability`,
-  table `PIMetrics` (one row per PI, `formulas.PIMETRICS_COLUMNS`; keys `modFlowBuild.PiNames`), chart point
-  `dashboard_spec.pi_point` (a lookup in that table; axis `pi`), SVG in `charts_svg`; the data-check scenario compares the
-  table and the chart with the reference, the standalone scenario its sheet `PIMetrics`.
+  value of the PI objectives, `docs/` section 2.2) stays as a chart, not computable. **Since 2026-11-16 (AL) a PI is judged on
+  what was ENGAGED at its start, read in the changelog of the PI field, not on the PI field as it is now** (a Feature deferred
+  later, PI emptied or moved, would leave the denominator; one added later would inflate it). Per PI of the sheet `PIs`, for the
+  ART: planned = the Features (`FeatureTypes`) that carry the PI at the start of its first iteration (the baseline), done =
+  released in an iteration of the PI (`PredictabilityMode` A, default: among the planned; B: also the added); a cancelled Feature
+  stays planned, not done; nothing planned = a gap. Both come from the table `IterationFeatures` (one row per iteration x PI that
+  holds its start x team: the ART, then the teams of the Features = their Team field; Engaged, Added, Deferred, Released,
+  ReleasedPlanned, ReleasedAdded, CarryOver, with Engaged(next) = CarryOver), itself counted by COUNTIFS on `PIIntervals` (raw,
+  written from the changelog by `modFlow.PiIntervalRows`: one row per stretch in which an issue carried a PI, touching stretches of
+  the same PI merged). Reference `flow/pi_history.py`, `flow/iteration_features.py`, `flow/metrics.pi_predictability`; a PI with no
+  iteration has no baseline (a gap). Existing metrics keep Features under the team ART; `FeatureTeam` is for this table only. Then
+  the valid PIs (`PI#XX-YYYY`) that Features carry but `PIs` lacks, by year then number, not computable, counted by the PI field as
+  it is now (AL, 2026-11-12; `modFlowBuild.FeaturePis`). The manual-test copy declares both PIs of the generator (its Features are
+  created before the PIs start, in the generator, so that they are engaged). Table `PIMetrics` (`formulas.PIMETRICS_COLUMNS`; keys
+  `modFlowBuild.PiNames`), chart point `dashboard_spec.pi_point`, the 5 charts of the sheet `IterationCharts`
+  (`dashboard_spec.ITERATION_CHARTS`, `ChartSpec` column `Sheet`) and their SVG in `charts_svg`. Known and left: a Feature done in
+  an iteration where it left the PI and came back counts twice in the workbook (`iteration_features._flags`; pinned by no scenario).
+  Names are not escaped: a team or a PI name with `*`, `?`, `~` or a leading `=`, `<`, `>` is read as a wildcard or an operator by
+  `COUNTIFS`, which also ignores case and trims only the ends by `TRIM` (Excel) / `TrimWhite` (VBA) / `.strip()` (Python) differently
+  for inner double spaces and non-breaking spaces; a team named `(none)` would match the Features without a team (`PIIntervals.FeatureTeam`).
+  The PI figures are sums of iteration rows: PIs and iterations that do not tile each other (an iteration that starts outside every PI,
+  a Feature done after the last iteration of its PI) leave figures out; the PIs of the manual-test copy share one window, so each
+  iteration has a row per PI.
+- **Scenario `art-metrics` (AL, 2026-11-16).** `mock-jira --scenario art-metrics` / `mock-workbook --scenario art-metrics`
+  (`mockjira/art_metrics.py`, `scenarios.py`): 25 Features of the Program project over 4 PIs (`PI-1`..`PI-4`, 126 days, 6 iterations of
+  21 days, no gap), workflow `program-workflow` (Jira side; the sheets keep `Feature`), PI field history and the Iteration field in the
+  changelog/fields (`FieldChange`), 3 teams in the Team field, deferrals (PI emptied or moved to `PI-5`) and ft-25 added during PI-4. Every
+  expected number is typed BY HAND in `tests/art_oracle.py` (oracle L0): unit tests, `art_metrics.feature` (Python path) and
+  `art_metrics_excel.feature` (the real workbook, also against the reference cell by cell) compare to it, never only to `flow/`.
 - **Python reference as oracle.** `flow/` (`intervals.py`, `itemflow.py`, `load.py`, `metrics.py`, `checks.py`) is a pure
   Python implementation of the same metrics and data checks. The scenarios in `tests/features/flow_excel.feature` run the
   real delivered workbook against the fake Jira and compare Excel with this reference **cell by cell** (Flow Load modes A
@@ -134,7 +155,10 @@ python.log). `tests/unit/test_claude_hooks.py` and `test_claude_skills.py` test 
   `A3`, Load settings CSV `A5`, Read the Jira configuration `A7`, Propose values from Jira `A9`, Extract `A11`, Cancel `A13` (cells in `dashboard_spec`). A
   final status is `Title | Name: value | ...`: `A16` (name `dashStatus`) shows the title and `A17:B36` one row per field (`modText.StatusParts`, `modActions.ShowProgress`; `ProgressSnapshot` rebuilds the line from the
   cells for the tests). The 9 charts, their notes and the team selector `B2` (name `dashTeam`) are on the sheet `Charts`, made
-  at build after the Dashboard (`CHARTS_SHEET` of `modFlowBuild`/`modActions` = `dashboard_spec.CHARTS_SHEET`, a test pins it).
+  at build after the Dashboard (`CHARTS_SHEET` of `modFlowBuild`/`modActions` = `dashboard_spec.CHARTS_SHEET`, a test pins it). The 5
+  charts of the Features per iteration are on the sheet `IterationCharts` (right after `Charts`; `ChartSpec` has a column `Sheet`, the
+  rows of `IterationCharts` come BEFORE the daily curve: its block of `ChartData` is the longest, so it stays last; the helper
+  `chart_blocks` of the Excel steps follows that order).
 - **User manual.** `src/jira2dashboard/manual.py` (pure text) is written by `flow/sheets.write_manual` at the delivery
   build: the first steps on the Dashboard from T1, and the sheet `Manual`. Update it when a button, sheet or step changes.
 - **Extraction (VBA).** `modHttp` (WinHTTP, proxy with Windows auth, retries; `modProxy` finds the proxy of the Windows
@@ -383,6 +407,17 @@ then `mermaid.parse`), and check every `](#anchor)` link against the headings.
   `wevtutil /q:`): prefix the command with `MSYS_NO_PATHCONV=1`.
 - The PowerShell tool is slow here (CIM / event-log queries time out): use Bash `tasklist` for processes.
 - Reading PowerShell output from Python (`Get-Help`, the scripts): `encoding="oem", errors="replace"`, not UTF-8.
+- **A Bash call with a heredoc that holds apostrophes (French text, VBA comments, `\'`) can fail with "unexpected EOF while looking for
+  matching `'`" and apply NOTHING** (2026-11-16, several times): write the edit script with the Write tool into the scratchpad, then run it
+  (`python3 <path>`); a heredoc whose body is plain code with no apostrophe is fine. Also never name a test module like another one of
+  `tests/` (`tests/steps/test_art_metrics.py` vs `tests/unit/test_art_metrics.py` broke the collection: "imported module has this
+  `__file__`"): the Python-path steps are `test_art_metrics_python.py`.
+- **A VBA error in a `T_` test or in the build of a test workbook opens the dialog "Microsoft Visual Basic" and hangs `vba-tests`** (no
+  `summary:` line; the log ends at a `BEGIN`): stop that Excel by its PID (title + start time of the run), read the end of
+  `out\inter\logs\vba-tests.log`. The cause on 2026-11-16: `PrepareRaw` of the new raw sheet `PIIntervals` found it empty because the
+  `FlowRaw` fixture of `T_FlowBuild` did not write it: a new raw table needs its fixture written by hand in `modTests`.
+- A local variable must not have the name of a procedure of the same module (`piRows` hid `PiRows`: VBA ignores case); a check of a test that
+  reads Excel cells goes through a function that returns "?" on an error or an error value (`IterationCell`, as `AxisEnds`).
 - Edit scripts with quotes, `\r\n` or backslashes (Windows paths in Markdown): write a `.py` file with the Write tool and
   run it, not a Bash heredoc (a heredoc turned `tests\\features` into a form feed in a Markdown file).
   Pattern: `assert s.count(old) == 1` before each replace, write with `newline="\n"`, run with `.venv/Scripts/python.exe`.
