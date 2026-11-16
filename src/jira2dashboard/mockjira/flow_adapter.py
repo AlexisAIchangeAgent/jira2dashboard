@@ -1,7 +1,7 @@
 """The fake Jira's issues as flow-metric inputs: what the extraction plus the sheets Projects and Workflows give."""
 import datetime as dt
 
-from jira2dashboard.flow.model import ART, Change, FlowIssue
+from jira2dashboard.flow.model import ART, Change, FlowIssue, PIChange
 from jira2dashboard.mockjira.dataset import Dataset, Issue
 from jira2dashboard.params.model import ParamSheet, load_all
 
@@ -22,7 +22,7 @@ def _day(value: dt.date | None) -> dt.datetime | None:
 def to_flow_issues(dataset: Dataset, sheets: list[ParamSheet] | None = None) -> list[FlowIssue]:
     """Program issues are reported under the team ART and follow the Feature workflow; every other project
     follows the Team workflow and reports under its team name (sheet Projects)."""
-    projects = {row[0]: (row[1], row[2]) for s in (sheets or load_all()) if s.name == "Projects" for row in s.rows}
+    projects = {row[0]: (row[1], row[2]) for s in (sheets or dataset.sheets or load_all()) if s.name == "Projects" for row in s.rows}
     out = []
     for issue in dataset.issues:
         role, team = projects[issue.project]
@@ -41,5 +41,7 @@ def to_flow_issues(dataset: Dataset, sheets: list[ParamSheet] | None = None) -> 
             sprint_state=sprint.state if sprint else "", sprint_start=sprint.start if sprint else None,
             sprint_end=sprint.end if sprint else None, sprint_count=len(issue.sprints),
             target_start=_day(issue.target_start), target_end=_day(issue.target_end), blocks=issue.blocks,
-            key_changes=len(issue.key_changes)))
+            key_changes=len(issue.key_changes),
+            pi_changes=tuple(PIChange(c.id, c.at, c.from_string, c.to_string) for c in issue.field_changes
+                             if c.field_id == dataset.fields.pi)))
     return out

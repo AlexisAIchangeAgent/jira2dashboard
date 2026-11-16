@@ -26,6 +26,7 @@ empty here, and **`ApiToken` must stay empty** (a test refuses a token in this f
 | ProxyWindowsAuth | Yes | Yes | False | Yes = answer the proxy's Windows authentication with the Windows session. No = never send it |
 | IsUserProjectAdmin | True | True | False | True = you are an administrator of the Jira projects: the button Propose values from Jira reads the full workflows (statuses, transitions, initial status). False = it reads only the statuses and their categories (the right to browse the projects is enough). Anything but True, Yes or 1 counts as False |
 | FlowLoadMode | A | A | True | A = a ticket counts from its first start until it is done or removed, except while in a Backlog status. B = only from its last start (after the last return to backlog) |
+| PredictabilityMode | A | A | True | Feature Predictability of a PI. A = the Features released in the PI among those engaged in it at its start (the commitment: a Feature added later is outside the ratio). B = also the Features added to the PI after its start and released (the ratio can pass 100 %) |
 | AsOf |  | 2026-11-03 18:00 | True | UTC date and time of the extraction, for example 2026-11-03 18:00. Open statuses run up to it. Required to extract: the macro stops with a message if it is empty |
 | TimeoutSeconds | 60 | 60 | False | Connect, send and receive time limit of one request, in seconds |
 | MaxRetries | 4 | 4 | False | Retries after a 429 or a server error (5xx), so 5 attempts at most |

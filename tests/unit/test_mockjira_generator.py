@@ -98,5 +98,9 @@ def test_custom_field_ids_are_a_parameter():
     assert {f["id"] for f in ds.fields.catalog()} >= {"customfield_20001", "customfield_20002", "customfield_20003"}
 
 
-def test_issues_are_created_between_since_and_as_of(dataset):
-    assert all(dt.datetime(2026, 6, 1) <= i.created <= dataset.as_of for i in dataset.issues)
+def test_issues_are_created_between_since_and_as_of_but_features_wait_in_the_backlog_before_the_pis_start(dataset):
+    since = dt.datetime(2026, 6, 1)
+    assert all(since <= i.created <= dataset.as_of for i in dataset.issues if i.type != "Feature")
+    features = [i for i in dataset.issues if i.type == "Feature"]
+    assert all(since - dt.timedelta(days=60) <= i.created < since + dt.timedelta(days=150) for i in features)
+    assert any(i.created < since for i in features)                  # engaged when a PI starts: Feature Predictability

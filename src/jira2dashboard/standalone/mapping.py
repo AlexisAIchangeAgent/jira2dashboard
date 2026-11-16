@@ -11,7 +11,7 @@ from dataclasses import dataclass, field
 
 from jira2dashboard.flow.formulas import CHANGELOG_PERSON_FIELDS, CHANGELOG_TEXT_MAX
 from jira2dashboard.flow.intervals import build_intervals
-from jira2dashboard.flow.model import ART, Change, FlowIssue, Rules, change_order
+from jira2dashboard.flow.model import ART, Change, FlowIssue, PIChange, Rules, change_order
 
 _NUMBER_TEXT = re.compile(r"[0-9.+-]+")
 _LEADING_NUMBER = re.compile(r"[+-]?(\d+\.?\d*|\.\d+)")
@@ -302,6 +302,21 @@ def status_changes(items, id_to_key: dict[str, str]) -> dict[str, list[Change]]:
     return out
 
 
+def pi_changes(items, id_to_key: dict[str, str], pi_field: str) -> dict[str, list[PIChange]]:
+    """{key: changes of the PI field} from the items whose fieldId is Config.PIField (the Changelog sheet holds the same items):
+    what each issue had before and after each change, texts as Jira sent them. No PIField: none."""
+    out: dict[str, list[PIChange]] = {}
+    if not pi_field:
+        return out
+    for issue_id, history, item in items:
+        if item.get("fieldId") == pi_field:
+            at = parse_jira_date(history.get("created"))
+            if at is not None:
+                out.setdefault(id_to_key.get(issue_id, issue_id), []).append(
+                    PIChange(str(history.get("id")), at, item.get("fromString"), item.get("toString")))
+    return out
+
+
 def date_shape(value) -> str:
     """What a value that is not a date looks like, with none of its content (the log must not hold what Jira answered):
     the type, then each digit as 9, each letter as A or a, any other ASCII character as it is, 40 characters at most.
@@ -371,7 +386,7 @@ def program_project(projects: list[tuple[str, str, str]]) -> str:
 
 
 def flow_issue(row: tuple, changes: list[Change], projects: list[tuple[str, str, str]], blocks: tuple[str, ...],
-               fix_versions: tuple[str, ...]) -> FlowIssue:
+               fix_versions: tuple[str, ...], pi_history: list[PIChange] = ()) -> FlowIssue:
     """The issue as the flow reference reads it: Program issues follow the Feature workflow and report under ART,
     the others follow the Team workflow under the team of their project (sheet Projects)."""
     (key, _id, project, type_, work_type, created, status, parent, category, resolved, _versions, points, pi, value,
@@ -385,7 +400,7 @@ def flow_issue(row: tuple, changes: list[Change], projects: list[tuple[str, str,
                      story_points=points, pi=pi, business_value=value, team_value=team_value,
                      sprint_state=sprint_state or "", sprint_start=sprint_start, sprint_end=sprint_end,
                      sprint_count=sprint_count, target_start=target_start, target_end=target_end, blocks=blocks,
-                     key_changes=key_changes)
+                     key_changes=key_changes, pi_changes=tuple(pi_history))
 
 
 def interval_checks(issue: FlowIssue) -> list[str]:
@@ -435,6 +450,7 @@ def extracted(issues: list[dict], changelog_pages: list[dict], ids: FieldIds, pr
     id_to_key = {str(i.get("id")): i.get("key") for i in issues}
     items = changelog_items(changelog_pages)
     changes, moved = status_changes(items, id_to_key), key_change_counts(items, id_to_key)
+    pi_history = pi_changes(items, id_to_key, ids.pi)
     links = block_links(issues, link_type)
     program = program_project(projects)
     ordered = sorted(issues, key=lambda i: ((i.get("fields") or {}).get("project") or {}).get("key") != program)
@@ -447,7 +463,7 @@ def extracted(issues: list[dict], changelog_pages: list[dict], ids: FieldIds, pr
         rows.append(row)
         blocks = tuple(blocked_by.get(row[0], ()))
         flow.append(flow_issue(row, changes.get(row[0], []), projects, blocks,
-                               versions_of(issue.get("fields") or {})))
+                               versions_of(issue.get("fields") or {}), pi_history.get(row[0], [])))
     date_key = date_key_of(changelog_pages)
     return Extract(rows, flow, links, len(items), *unreadable_status_dates(items), changelog_rows(items, id_to_key, user_fields),
                    date_key, wire_lines(issues, items, ids, date_key[0]))

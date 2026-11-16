@@ -32,7 +32,7 @@ from jira2dashboard.params.model import ParamsError
 from jira2dashboard.paths import RELEASE_DIR
 from jira2dashboard.standalone import jira_api as J
 from jira2dashboard.standalone import results as R
-from jira2dashboard.standalone.charts_svg import chart_pictures
+from jira2dashboard.standalone.charts_svg import chart_pictures, iteration_chart_pictures
 from jira2dashboard.standalone.http_winhttp import JiraClient, WinHttp, took
 from jira2dashboard.standalone.mapping import FieldIds, extracted, interval_rows
 from jira2dashboard.standalone.params_book import read_params, run_settings
@@ -226,12 +226,13 @@ def run(args, formatter: Scrubbed, collected: Collected, sleep=time.sleep, detec
     first, end = R.iteration_span(settings.iterations)
     pictures = chart_pictures(results.metrics, results.teams, [p.name for p in settings.iterations], results.loads,
                               R.days_of(first, end), args.team, results.predictability)
+    feature_pictures = iteration_chart_pictures(results.iteration_features, [p.name for p in settings.iterations])
     log.info("END results: %d items, %d metrics rows, %d charts%s", len(results.items), len(results.metrics),
-             len(pictures), took(step))
+             len(pictures) + len(feature_pictures), took(step))
     run_rows = [
         ("Made by", "jira2dashboard, Python path without VBA (scripts\\run.ps1 extract): values, no formula"),
         ("Started (UTC)", started_at), ("Workbook read", str(workbook.resolve())), ("Jira", base), ("JQL", jql),
-        ("Proxy", proxy.mode), ("AsOf (UTC)", settings.as_of), ("FlowLoadMode", settings.mode),
+        ("Proxy", proxy.mode), ("AsOf (UTC)", settings.as_of), ("FlowLoadMode", settings.mode), ("PredictabilityMode", settings.predictability_mode),
         ("Iterations", f"{len(settings.iterations)}: {settings.iterations[0].name} to {settings.iterations[-1].name}"),
         ("Issues", len(extract.rows)), ("Changelog items", extract.changelog_items),
         ("Status intervals", len(intervals)), ("Blocking links", len(extract.links)),
@@ -246,6 +247,9 @@ def run(args, formatter: Scrubbed, collected: Collected, sleep=time.sleep, detec
               pictures=pictures, pictures_per_row=D.CHARTS_PER_ROW),
         Sheet(S.of("Metrics"), R.METRICS, R.metrics_rows(results, settings)),
         Sheet(S.of("PIMetrics"), R.PI_METRICS, R.pimetrics_rows(results, settings)),
+        Sheet(S.of("IterationFeatures"), R.ITERATION_FEATURES, R.iterationfeatures_rows(results)),
+        Sheet(S.of("IterationCharts"), rows=[("The Features of the ART iteration by iteration, drawn by Python (SVG pictures).",)],
+              pictures=feature_pictures, pictures_per_row=D.CHARTS_PER_ROW),
         Sheet(S.of("DataChecks"), R.DATA_CHECKS, R.data_check_rows(results.flags, results.fill, settings.checks)),
         Sheet(S.of("FillRates"), R.FILL_RATES, R.fillrates_rows(results.fill)),
         Sheet(S.of("ItemFlow"), R.ITEMFLOW, R.itemflow_rows(results, extract.rows, extract.flow, settings.projects)),

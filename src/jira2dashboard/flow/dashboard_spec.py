@@ -79,6 +79,17 @@ CHARTS = (
               reason="the day is after the as-of date"),          # last: its block has one row per day, not per iteration
 )
 
+# The sheet IterationCharts (AL, 2026-11-16): the Features of the ART iteration by iteration (table IterationFeatures), one series per
+# team of the Features plus the ART as a whole; the PI figures of Feature Predictability are summed from these counts.
+ITERATION_CHARTS_SHEET = "IterationCharts"
+ITERATION_CHARTS = (
+    ChartSpec("features_engaged", "Features engaged at the start of each iteration", "Engaged", XL_COLUMN_CLUSTERED),
+    ChartSpec("features_added", "Features added to the PI during each iteration", "Added", XL_COLUMN_CLUSTERED),
+    ChartSpec("features_deferred", "Features deferred out of the PI during each iteration", "Deferred", XL_COLUMN_CLUSTERED),
+    ChartSpec("features_released", "Features released in each iteration", "Released", XL_COLUMN_CLUSTERED),
+    ChartSpec("features_carried_over", "Features carried over to the next iteration", "CarryOver", XL_COLUMN_CLUSTERED),
+)
+
 COLUMNS_PER_CHART, ROWS_PER_CHART = 8, 18       # size of the area of a chart on the sheet Charts
 CHART_SPACING = 20                              # rows between two charts (chart, then its note)
 CHARTS_PER_ROW = 2
@@ -106,6 +117,13 @@ def day_point(day_cell: str, team_cell: str) -> str:
     COUNTIFS and SUMIFS, not an array lookup: one point per day and team would scan the whole table each time."""
     keys = f"DailyLoad[Date],{day_cell},DailyLoad[Team],{team_cell}"
     return f'=IF(COUNTIFS({keys},DailyLoad[Load],">=0")=0,NA(),SUMIFS(DailyLoad[Load],{keys}))'
+
+
+def iteration_point(column: str, iteration_cell: str, team_cell: str) -> str:
+    """One point of a chart of IterationCharts: the count of IterationFeatures for this iteration and team (the rows of the PIs that
+    hold the iteration are added: a Feature carries one PI at a time)."""
+    return (f"=SUMIFS(IterationFeatures[{column}],IterationFeatures[[Iteration-label]],{iteration_cell},"
+            f"IterationFeatures[Team],{team_cell})")
 
 
 def pi_point(pi_cell: str) -> str:

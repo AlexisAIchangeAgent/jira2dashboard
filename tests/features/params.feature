@@ -25,12 +25,12 @@ Fonctionnalité: Paramètres écrits dans le classeur
   Scénario: Les paramètres de connexion, de proxy et de filtre sont dans la feuille Config
     Soit les fichiers de paramètres du dépôt
     Quand je les charge
-    Alors la feuille "Config" a 28 lignes
+    Alors la feuille "Config" a 29 lignes
 
   Scénario: La feuille Config dit quels paramètres sont obligatoires
     Soit les fichiers de paramètres du dépôt
     Quand je les charge
-    Alors les paramètres obligatoires de la feuille Config sont "BaseUrl, Email, ApiToken, FlowLoadMode, AsOf, FeatureTypes, BlocksLinkType, FillRateThreshold"
+    Alors les paramètres obligatoires de la feuille Config sont "BaseUrl, Email, ApiToken, FlowLoadMode, PredictabilityMode, AsOf, FeatureTypes, BlocksLinkType, FillRateThreshold"
 
   Scénario: Une valeur de Mandatory autre que True ou False est refusée
     Soit les fichiers de paramètres du dépôt

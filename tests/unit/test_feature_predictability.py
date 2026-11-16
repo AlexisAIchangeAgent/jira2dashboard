@@ -1,6 +1,8 @@
-"""Feature Predictability, the variant of Flow Predictability AL chose (2026-11-12): for each PI, the Features done before
-the end of the PI over the Features planned in it (their PI field is that PI). A Feature cancelled stays planned, not done;
-one done after the end of its PI is not done for that PI. ART only: one ratio per PI. Hand-written cases, results by hand.
+"""Feature Predictability, the variant of Flow Predictability AL chose (2026-11-12): for each PI, the Features released in it
+over the Features engaged in it at its start (their PI field, read in its history). A Feature cancelled stays planned, not done;
+one done after the end of its PI is not done for that PI; one deferred out of the PI (PI field emptied or moved) after the start is
+still planned; one added after the start is not planned (mode B counts it as done). ART only: one ratio per PI, from the rows
+of IterationFeatures: the iterations tile the PIs here. Hand-written cases, results by hand.
 """
 import dataclasses
 
@@ -8,13 +10,17 @@ from conftest import FLOW_AS_OF, at, flow_issue
 from jira2dashboard.flow.checks import CheckSettings
 from jira2dashboard.flow.itemflow import item_flow
 from jira2dashboard.flow.metrics import PIPredictability, feature_predictability
-from jira2dashboard.flow.model import NOT_COMPUTABLE, Rules
+from jira2dashboard.flow.model import NOT_COMPUTABLE, Iteration, PIChange, Rules
 
 FEATURE_FLOW = [("10-02", "En analyse"), ("10-03", "Prêt"), ("10-04", "Planifié"), ("10-05", "En développement"),
                 ("10-08", "En test / recette"), ("10-09", "À déployer")]
 SETTINGS = CheckSettings(feature_types=frozenset({"Feature"}),
                          pis={"PI#01-2026": (at("10-01"), at("10-20")), "PI#02-2026": (at("10-20"), at("11-30")),
                               "PI#03-2026": (at("12-01"), at("12-31"))})
+
+
+ITERATIONS = [Iteration("I1", at("10-01"), at("10-20")), Iteration("I2", at("10-20"), at("11-30")),
+              Iteration("I3", at("12-01"), at("12-31"))]          # one iteration per PI
 
 
 def feature(key, pi, moves, type_="Feature"):
@@ -36,7 +42,7 @@ def cases():
 def test_each_pi_gives_its_features_done_before_its_end_over_its_features_planned():
     issues = cases()
     items = [item_flow(issue, FLOW_AS_OF, Rules.from_params()) for issue in issues]
-    assert feature_predictability(issues, items, SETTINGS) == [
+    assert feature_predictability(issues, items, SETTINGS, ITERATIONS) == [
         PIPredictability("PI#01-2026", planned=4, done=1, ratio=0.25),       # F-1 of F-1..F-4 (F-2 late, F-3 cancelled, F-4 open)
         PIPredictability("PI#02-2026", planned=1, done=1, ratio=1.0),
         PIPredictability("PI#03-2026", planned=0, done=0, ratio=NOT_COMPUTABLE),        # nothing planned: a gap, never 0
@@ -56,7 +62,7 @@ def test_a_pi_that_features_carry_but_the_sheet_lacks_is_shown_after_them_not_co
         feature("S-2", "PI#06-2026", FEATURE_FLOW, "Story"),                         # not a Feature type
     ]
     items = [item_flow(issue, FLOW_AS_OF, Rules.from_params()) for issue in issues]
-    rows = feature_predictability(issues, items, SETTINGS)
+    rows = feature_predictability(issues, items, SETTINGS, ITERATIONS)
     assert [p.pi for p in rows[:3]] == list(SETTINGS.pis) and rows[1].planned == 2
     assert rows[3:] == [PIPredictability("PI#04-2026", planned=2, done=None, ratio=NOT_COMPUTABLE),
                         PIPredictability("PI#01-2027", planned=1, done=None, ratio=NOT_COMPUTABLE)]
@@ -66,11 +72,11 @@ def test_without_any_pi_in_the_sheet_the_pis_of_the_features_are_listed():
     issues = cases()
     items = [item_flow(issue, FLOW_AS_OF, Rules.from_params()) for issue in issues]
     no_sheet = CheckSettings(feature_types=frozenset({"Feature"}))
-    assert feature_predictability(issues, items, no_sheet) == [
+    assert feature_predictability(issues, items, no_sheet, ITERATIONS) == [
         PIPredictability("PI#01-2026", planned=4, done=None, ratio=NOT_COMPUTABLE),
         PIPredictability("PI#02-2026", planned=1, done=None, ratio=NOT_COMPUTABLE)]
     no_pi = [dataclasses.replace(issue, pi=None) for issue in issues]
-    assert feature_predictability(no_pi, items, no_sheet) == []                 # nothing to show: the row NO_PI
+    assert feature_predictability(no_pi, items, no_sheet, ITERATIONS) == []                 # nothing to show: the row NO_PI
 
 
 def test_pimetrics_rows_are_the_table_of_the_workbook_one_row_per_pi_or_the_row_no_pi():
@@ -86,3 +92,24 @@ def test_pimetrics_rows_are_the_table_of_the_workbook_one_row_per_pi_or_the_row_
     assert rows == [("PI#01-2026", start, end, 4, 1, 0.25), ("PI#04-2026", None, None, 2, None, NOT_COMPUTABLE)]
     assert len(rows[0]) == len(F.TABLES["PIMetrics"])
     assert R.pimetrics_rows(SimpleNamespace(predictability=[]), s) == [(D.NO_PI, None, None, 0, None, NOT_COMPUTABLE)]
+
+
+def test_a_feature_deferred_after_the_start_stays_planned_and_one_added_after_it_is_not_planned():
+    """The pitfall of the current PI field: F-3 had its PI field emptied on 10-10 and F-4 was moved to PI 3: both were engaged in
+    PI 1 at its start, so PI 1 plans F-1..F-4 (4), whatever the field says today. F-5 got the PI on 10-12: added, not planned."""
+    issues = [
+        feature("F-1", "PI#01-2026", FEATURE_FLOW + [("10-10", "Terminé")]),
+        feature("F-2", "PI#01-2026", FEATURE_FLOW + [("10-15", "Terminé")]),
+        dataclasses.replace(feature("F-3", None, FEATURE_FLOW[:3]),
+                            pi_changes=(PIChange("1", at("10-10"), "PI#01-2026", None),)),
+        dataclasses.replace(feature("F-4", "PI#03-2026", FEATURE_FLOW[:3]),
+                            pi_changes=(PIChange("1", at("10-10"), "PI#01-2026", "PI#03-2026"),)),
+        dataclasses.replace(feature("F-5", "PI#01-2026", FEATURE_FLOW + [("10-16", "Terminé")]),
+                            pi_changes=(PIChange("1", at("10-12"), None, "PI#01-2026"),)),
+    ]
+    items = [item_flow(issue, FLOW_AS_OF, Rules.from_params()) for issue in issues]
+    committed = feature_predictability(issues, items, SETTINGS, ITERATIONS)
+    assert committed[0] == PIPredictability("PI#01-2026", planned=4, done=2, ratio=0.5)           # F-1, F-2 of F-1..F-4
+    counted = feature_predictability(issues, items, SETTINGS, ITERATIONS, "B")
+    assert counted[0] == PIPredictability("PI#01-2026", planned=4, done=3, ratio=0.75)             # + F-5, added and released
+    assert sum(1 for i in issues if i.pi == "PI#01-2026") == 3                                    # the field today: F-1, F-2, F-5

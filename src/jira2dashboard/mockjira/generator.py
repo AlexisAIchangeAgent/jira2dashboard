@@ -116,10 +116,14 @@ def _decorate(issues: list[Issue], seed: int, as_of: dt.datetime, teams: dict[st
     """Team, sprints, target dates, fix versions and "blocks" links, from a second random stream so that the status
     histories of a seed stay what they were. Most issues are clean; a share has gaps (no team, no sprint, ...)."""
     rng = random.Random(seed + 7919)
+    backlog = random.Random(seed + 104729)                  # a stream of its own: the draws above and below stay what they were
     keys_by_project: dict[str, list[str]] = defaultdict(list)
     out: list[Issue] = []
     for item in issues:
         is_feature = item.type == "Feature"
+        if is_feature:                                      # a Feature sits in the backlog before the PIs start (PI planning),
+            item = dataclasses.replace(item, created=item.created - dt.timedelta(days=backlog.randint(30, 60)))   # so it is
+            # engaged at the start of its PI: Feature Predictability counts what was engaged then
         sprints: tuple[Sprint, ...] = ()
         if not is_feature and rng.random() < 0.8:
             first = int((item.created - FIRST_SPRINT).days // SPRINT_DAYS) + 1

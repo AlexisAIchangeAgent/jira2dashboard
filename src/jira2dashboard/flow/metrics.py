@@ -5,8 +5,9 @@ from dataclasses import dataclass
 
 from jira2dashboard.flow.checks import CheckSettings, valid_pi
 from jira2dashboard.flow.itemflow import ItemFlow
+from jira2dashboard.flow.iteration_features import IterationFeatures, iteration_features
 from jira2dashboard.flow.load import ONE_DAY, in_process_at, snapshot_days
-from jira2dashboard.flow.model import NOT_COMPUTABLE, UNMAPPED, WORK_TYPES, FlowIssue, Iteration
+from jira2dashboard.flow.model import ART, NOT_COMPUTABLE, UNMAPPED, WORK_TYPES, FlowIssue, Iteration
 
 BUCKETS = WORK_TYPES + (UNMAPPED,)
 
@@ -89,8 +90,8 @@ def flow_metrics(items: list[ItemFlow], iterations: list[Iteration], mode: str,
 class PIPredictability:
     """Feature Predictability of one PI, for the ART: the Features done before the end of the PI over those planned in it."""
     pi: str
-    planned: int                           # Features whose PI field is this PI, whatever their status
-    done: int | None                       # among them, done (DoneUtc) before the end of the PI; None: no end date
+    planned: int                           # Features engaged in this PI at its baseline, whatever their status since
+    done: int | None                       # released in an iteration of the PI (mode A: among the planned); None: no end date
     ratio: float | str                     # done / planned; NOT_COMPUTABLE when nothing is planned or the end is unknown
 
 
@@ -98,25 +99,33 @@ def _pi_order(pi: str) -> tuple[str, str]:
     return pi[6:], pi[3:5]                 # PI#XX-YYYY: by year, then number
 
 
-def feature_predictability(issues: list[FlowIssue], items: list[ItemFlow], settings: CheckSettings) -> list[PIPredictability]:
+def pi_predictability(rows: list[IterationFeatures], issues: list[FlowIssue], settings: CheckSettings,
+                      mode: str = "A") -> list[PIPredictability]:
     """The variant of Flow Predictability chosen by AL (2026-11-12): Flow Predictability itself needs the business value of the
-    PI objectives, which Jira does not hold (docs section 2.2). One row per PI of the sheet PIs, in its order. Planned = a
-    Feature (type in FeatureTypes) whose PI field is that PI; a cancelled one stays planned, not done. Done = its DoneUtc is
-    before the end of the PI (the end is excluded, as for an iteration): a Feature done later is not done for that PI.
-    Then one row per PI that Features carry but the sheet lacks (AL, 2026-11-12), by year then number: without an end date
-    it is not computable, but the RTE sees it. Only a valid PI (PI#XX-YYYY) counts: a malformed one is for DC17 and DC29."""
-    done_at = {item.key: item.done for item in items}
+    PI objectives, which Jira does not hold (docs section 2.2). One row per PI of the sheet PIs, in its order, from the rows of the
+    ART in IterationFeatures (iteration_features.py), whatever the PI field says today: planned = the Features engaged at the
+    baseline (the start of the first iteration of the PI), so a Feature deferred later is still planned and a cancelled one stays
+    planned, not done. Done = released in an iteration of the PI: mode A counts the planned ones only (the commitment), mode B also
+    those added after the baseline (the ratio can pass 100 %). A PI with no iteration has no baseline: nothing planned, a gap.
+    Then one row per PI that Features carry but the sheet lacks (AL, 2026-11-12), by year then number: without an end date it is
+    not computable, but the RTE sees it (the PI field as it is now). Only a valid PI (PI#XX-YYYY) counts: a malformed one is for
+    DC17 and DC29."""
     features = [i for i in issues if i.type in settings.feature_types]
-
-    def planned_in(pi: str) -> list[str]:
-        return [i.key for i in features if (i.pi or "").strip() == pi]
-
     out = []
-    for pi, (_start, end) in settings.pis.items():
-        planned = planned_in(pi)
-        done = [key for key in planned if done_at.get(key) is not None and done_at[key] < end]
-        out.append(PIPredictability(pi, len(planned), len(done), len(done) / len(planned) if planned else NOT_COMPUTABLE))
+    for pi in settings.pis:
+        mine = sorted((r for r in rows if r.team == ART and r.pi == pi), key=lambda r: r.start)
+        planned = mine[0].engaged if mine else 0
+        done = sum(r.released if mode == "B" else r.released_planned for r in mine)
+        out.append(PIPredictability(pi, planned, done, done / planned if planned else NOT_COMPUTABLE))
     in_sheet = {pi.upper() for pi in settings.pis}           # MATCH and COUNTIFS of the workbook ignore the case
     missing = {i.pi for i in features if valid_pi(i.pi) and i.pi.upper() not in in_sheet}
-    out += [PIPredictability(pi, len(planned_in(pi)), None, NOT_COMPUTABLE) for pi in sorted(missing, key=_pi_order)]
+    out += [PIPredictability(pi, sum(1 for i in features if (i.pi or "").strip() == pi), None, NOT_COMPUTABLE)
+            for pi in sorted(missing, key=_pi_order)]
     return out
+
+
+def feature_predictability(issues: list[FlowIssue], items: list[ItemFlow], settings: CheckSettings,
+                           iterations: list[Iteration] | tuple = (), mode: str = "A") -> list[PIPredictability]:
+    """Feature Predictability per PI (pi_predictability) from the Features and the iterations."""
+    rows = iteration_features(issues, items, list(iterations), settings.pis, settings.feature_types)
+    return pi_predictability(rows, issues, settings, mode)

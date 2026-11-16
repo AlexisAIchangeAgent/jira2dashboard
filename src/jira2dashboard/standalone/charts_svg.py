@@ -9,6 +9,7 @@ import math
 from xml.sax.saxutils import escape
 
 from jira2dashboard.flow import dashboard_spec as D
+from jira2dashboard.flow.iteration_features import IterationFeatures
 from jira2dashboard.flow.metrics import BUCKETS, PIPredictability, TeamIterationMetrics
 from jira2dashboard.flow.model import NOT_COMPUTABLE
 from jira2dashboard.standalone.xlsx_write import Picture
@@ -155,6 +156,20 @@ def distribution(metrics: list[TeamIterationMetrics], iterations: list[str], tea
             else:
                 out[bucket].append(sum(m.velocity * m.distribution_done[bucket] for m in rows if m.velocity) / done)
     return out
+
+
+def iteration_chart_pictures(rows: list[IterationFeatures], iterations: list[str]) -> list[Picture]:
+    """The charts of dashboard_spec.ITERATION_CHARTS: the Features per iteration, a series for the ART then one per team of the
+    Features, as the workbook (a point adds the rows of the PIs that hold the iteration). Counts: a gap would be a mistake."""
+    teams = list(dict.fromkeys(r.team for r in rows))
+    column = {"Engaged": "engaged", "Added": "added", "Deferred": "deferred", "Released": "released", "CarryOver": "carry_over"}
+    pictures = []
+    for spec in D.ITERATION_CHARTS:
+        series = {team: [float(sum(getattr(r, column[spec.column]) for r in rows if r.iteration == it and r.team == team))
+                         for it in iterations] for team in teams}
+        svg = draw(spec.title, iterations, series, KINDS[spec.chart_type], False, None, "")
+        pictures.append(Picture(spec.name, spec.title, svg, WIDTH, HEIGHT))
+    return pictures
 
 
 def chart_pictures(metrics: list[TeamIterationMetrics], teams: list[str], iterations: list[str],

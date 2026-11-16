@@ -250,7 +250,7 @@ def _results(world):
     expected_checks = [tuple(None if v == "" else v for v in row)
                        for row in R.data_check_rows(ref["flags"], ref["fill"], ref["settings"])]
     assert [tuple(r.values()) for r in got["DataChecks"]] == expected_checks
-    pis = feature_predictability(ref["issues"], items, ref["settings"])
+    pis = feature_predictability(ref["issues"], items, ref["settings"], ref["iterations"])
     assert [r["PI"] for r in got["PIMetrics"]] == [p.pi for p in pis] and any(p.planned for p in pis)
     for p, row in zip(pis, got["PIMetrics"]):
         wrong += [("PIMetrics", p.pi, c, row[c], v) for c, v in (("FeaturesPlanned", p.planned), ("FeaturesDone", p.done),
@@ -271,7 +271,7 @@ def _charts(world):
     with zipfile.ZipFile(world["out"]) as package:
         names = package.namelist()
         drawing = package.read("xl/drawings/drawing1.xml").decode("utf-8")
-    assert sum(1 for n in names if n.endswith(".svg")) == len(D.CHARTS)
+    assert sum(1 for n in names if n.endswith(".svg")) == len(D.CHARTS) + len(D.ITERATION_CHARTS)        # + the sheet IterationCharts
     assert all(f'name="{spec.name}"' in drawing for spec in D.CHARTS)
     assert [s["Item"] for s in sheets(world)["Run"]][:1] == ["Made by"]
 

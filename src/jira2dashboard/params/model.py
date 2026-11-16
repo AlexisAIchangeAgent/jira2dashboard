@@ -41,7 +41,7 @@ class ParamSheet:
 
 
 CONFIG_PARAMETERS = ("BaseUrl", "Email", "ApiToken", "Filter", "WorkTypeField", "ProxyServer", "ProxyBypass",
-                     "ProxyWindowsAuth", "IsUserProjectAdmin", "FlowLoadMode", "AsOf", "TimeoutSeconds", "MaxRetries", "ParentRequiredTypes",
+                     "ProxyWindowsAuth", "IsUserProjectAdmin", "FlowLoadMode", "PredictabilityMode", "AsOf", "TimeoutSeconds", "MaxRetries", "ParentRequiredTypes",
                      "FeatureTypes", "SubTaskTypes", "PointsRequiredTypes", "StoryPointsField", "BusinessValueField",
                      "PIField", "TeamField", "SprintField", "TargetStartField", "TargetEndField", "BlocksLinkType",
                      "FillRateThreshold", "LogLevel", "OpenLogOnError")
@@ -218,6 +218,8 @@ def _check_config(sheet: ParamSheet, problems: list[str]) -> None:
         problems.append(f"Config: OpenLogOnError must be Yes or No, got {values.get('OpenLogOnError')!r}")
     if values.get("FlowLoadMode") not in ("A", "B"):
         problems.append(f"Config: FlowLoadMode must be A or B, got {values.get('FlowLoadMode')!r}")
+    if values.get("PredictabilityMode") not in ("A", "B"):
+        problems.append(f"Config: PredictabilityMode must be A or B, got {values.get('PredictabilityMode')!r}")
     as_of = values.get("AsOf")
     if as_of and _parse_moment(as_of) is None:
         problems.append(f"Config: AsOf must be a UTC date or date and time such as 2026-11-03 18:00, got {as_of!r}")

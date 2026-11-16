@@ -26,7 +26,7 @@ EPOCH = dt.datetime(1899, 12, 30)
 WHITE = " \t\r\n "                                # what the VBA TrimWhite removes around a pasted value
 YES = ("yes", "oui", "true", "vrai", "1")             # modParams.IsYes
 DEFAULTS = {"ProxyWindowsAuth": "Yes", "TimeoutSeconds": "60", "MaxRetries": "4", "FlowLoadMode": "A",
-            "LogLevel": "Steps", "OpenLogOnError": "Yes"}
+            "PredictabilityMode": "A", "LogLevel": "Steps", "OpenLogOnError": "Yes"}
 
 
 def is_yes(value) -> bool:
@@ -138,6 +138,8 @@ def config_problems(config: ParamSheet) -> list[str]:
     values, problems = config_values(config), []
     if values["FlowLoadMode"].strip().upper() not in ("A", "B"):
         problems.append(f"Config: FlowLoadMode must be A or B, got {values['FlowLoadMode']!r}")
+    if values["PredictabilityMode"].strip().upper() not in ("A", "B"):
+        problems.append(f"Config: PredictabilityMode must be A or B, got {values['PredictabilityMode']!r}")
     threshold = values["FillRateThreshold"]
     if threshold and not (threshold.isdecimal() and 0 <= int(threshold) <= 100):
         problems.append(f"Config: FillRateThreshold must be a whole number between 0 and 100, got {threshold!r}")
@@ -172,6 +174,7 @@ class RunSettings:
     blocks_link_type: str
     as_of: dt.datetime
     mode: str                          # FlowLoadMode, A or B
+    predictability_mode: str           # PredictabilityMode, A or B (Feature Predictability: the commitment only, or also the added)
     iterations: list[Iteration]
     projects: list[tuple[str, str, str]]   # Project | Role | Team
     rules: Rules
@@ -211,6 +214,7 @@ def run_settings(sheets: list[ParamSheet]) -> RunSettings:
     return RunSettings(
         sheets=sheets, connection=connection, filter=values["Filter"], work_type_field=values["WorkTypeField"],
         fields={name: values[name] for name in FIELD_PARAMETERS}, blocks_link_type=values["BlocksLinkType"],
-        as_of=as_of, mode=values["FlowLoadMode"].strip().upper(), iterations=iterations,
+        as_of=as_of, mode=values["FlowLoadMode"].strip().upper(),
+        predictability_mode=values["PredictabilityMode"].strip().upper(), iterations=iterations,
         projects=[tuple(row) for row in by_name["Projects"].rows],
         rules=Rules.from_params(sheets), moves=Moves.from_params(sheets), checks=CheckSettings.from_params(sheets))

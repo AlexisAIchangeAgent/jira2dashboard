@@ -11,30 +11,8 @@ from jira2dashboard.mockjira import api, art_metrics as scenario_module
 from jira2dashboard.mockjira.scenarios import get
 from jira2dashboard.params.model import project_keys
 
-# --- AL's calendar: [Start, End), PIs of 18 weeks, iterations of 3 weeks, no gap -------------------------------------------------
-PIS = {"PI-1": ("2025-01-01", "2025-05-07"), "PI-2": ("2025-05-07", "2025-09-10"),
-       "PI-3": ("2025-09-10", "2026-01-14"), "PI-4": ("2026-01-14", "2026-05-20")}
-ITERATION_STARTS = {
-    "IT-1-1": "2025-01-01", "IT-1-2": "2025-01-22", "IT-1-3": "2025-02-12", "IT-1-4": "2025-03-05", "IT-1-5": "2025-03-26", "IT-1-6": "2025-04-16",
-    "IT-2-1": "2025-05-07", "IT-2-2": "2025-05-28", "IT-2-3": "2025-06-18", "IT-2-4": "2025-07-09", "IT-2-5": "2025-07-30", "IT-2-6": "2025-08-20",
-    "IT-3-1": "2025-09-10", "IT-3-2": "2025-10-01", "IT-3-3": "2025-10-22", "IT-3-4": "2025-11-12", "IT-3-5": "2025-12-03", "IT-3-6": "2025-12-24",
-    "IT-4-1": "2026-01-14", "IT-4-2": "2026-02-04", "IT-4-3": "2026-02-25", "IT-4-4": "2026-03-18", "IT-4-5": "2026-04-08", "IT-4-6": "2026-04-29"}
-AS_OF = dt.datetime(2026, 5, 20)
-
-# --- AL's history: where each Feature is released or deferred, and who owns it -----------------------------------------------------
-RELEASED = {1: "IT-1-1", 2: "IT-1-2", 3: "IT-1-3", 4: "IT-1-4", 5: "IT-1-5", 6: "IT-1-6",
-            7: "IT-2-1", 8: "IT-2-2", 9: "IT-2-3", 10: "IT-2-4", 11: "IT-2-5",
-            16: "IT-3-4", 17: "IT-3-4", 18: "IT-3-6",
-            19: "IT-4-1", 20: "IT-4-2", 21: "IT-4-3", 22: "IT-4-5", 25: "IT-4-6"}
-DEFERRED = {12: "IT-2-6", 13: "IT-3-1", 14: "IT-3-2", 15: "IT-3-3", 23: "IT-4-4", 24: "IT-4-6"}
-PI_AFTER_DEFERRAL = {12: None, 13: "PI-5", 14: None, 15: "PI-5", 23: None, 24: "PI-5"}
-ENGAGED_AT_START = {"PI-1": range(1, 7), "PI-2": range(7, 13), "PI-3": range(13, 19), "PI-4": range(19, 25)}      # ft-25 comes later
-TEAM = {1: "team-1", 2: "team-1", 3: "team-2", 4: "team-2", 5: "team-3", 6: "team-3",
-        7: "team-1", 8: "team-2", 9: "team-3", 10: "team-1", 11: "team-2", 12: "team-3",
-        13: "team-1", 14: "team-2", 15: "team-3", 16: "team-1", 17: "team-2", 18: "team-3",
-        19: "team-1", 20: "team-2", 21: "team-3", 22: "team-1", 23: "team-2", 24: "team-3", 25: "team-1"}
-LONG_STATUS = {"PI-1": "testing", "PI-2": "analyzing", "PI-3": "doing", "PI-4": "ready2deploy"}      # 2 days, every other status 1 day
-CHAIN = ["analyzing", "ready4PI", "doing", "ready2test", "testing", "ready2deploy", "deploying"]
+from art_oracle import (AS_OF, CHAIN, DEFERRED, ENGAGED_AT_START, ITERATION_STARTS, LONG_STATUS, PI_AFTER_DEFERRAL, PI_OF_FEATURE,
+                        PIS, RELEASED, TEAM)
 
 
 def day(text: str) -> dt.datetime:
@@ -44,10 +22,6 @@ def day(text: str) -> dt.datetime:
 def iteration_of(moment: dt.datetime) -> str:
     starts = sorted((day(start), label) for label, start in ITERATION_STARTS.items())
     return [label for start, label in starts if start <= moment][-1]
-
-
-def pi_of_feature(number: int) -> str:
-    return next(pi for pi, numbers in ENGAGED_AT_START.items() if number in numbers) if number != 25 else "PI-4"
 
 
 @pytest.fixture(scope="module")
@@ -127,7 +101,7 @@ def test_each_deferred_feature_is_deferred_during_its_iteration_and_keeps_its_it
 @pytest.mark.parametrize("number", range(1, 26))
 def test_every_status_lasts_one_day_but_the_long_one_of_the_pi(features, number):
     issue = features[number]
-    long_status = LONG_STATUS[pi_of_feature(number)]
+    long_status = LONG_STATUS[PI_OF_FEATURE[number]]
     assert issue.initial_status == "todo"
     chain = [c for c in issue.changes if c.to_status in CHAIN]
     assert [c.to_status for c in chain] == CHAIN[:len(chain)] and len(chain) in (3, 7)              # released: all 7, deferred: up to doing
@@ -169,7 +143,7 @@ def test_the_pi_field_after_a_deferral_and_the_current_value_is_the_last_change(
         last = max((c for c in issue.field_changes), key=lambda c: c.at)
         assert last.to_string == after and last.at == at_status(issue, "deferred")           # same instant as the move to deferred
     for number in set(RELEASED) - {25}:                                           # a released Feature keeps its PI
-        assert features[number].pi == pi_of_feature(number)
+        assert features[number].pi == PI_OF_FEATURE[number]
 
 
 def test_the_pi_is_set_before_its_pi_starts(features):

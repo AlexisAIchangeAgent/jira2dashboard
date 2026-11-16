@@ -46,6 +46,16 @@ class Change:
     to_status: str
 
 
+@dataclass(frozen=True)
+class PIChange:
+    """A change of the PI field of an issue: the changelog item whose fieldId is Config.PIField, texts as Jira sent them
+    (None when the field was empty before or was emptied)."""
+    id: str
+    at: dt.datetime
+    from_value: str | None
+    to_value: str | None
+
+
 def change_order(change: Change) -> tuple:
     """The order of the changes of an issue: by date, and for two changes in the same second (the milliseconds are dropped) by
     their id as a number (9 before 10: a text sort would put 10 first), which is the order Jira gave them in (the VBA keeps
@@ -80,6 +90,7 @@ class FlowIssue:
     target_end: dt.datetime | None = None
     blocks: tuple[str, ...] = ()   # keys of the issues that this issue blocks
     key_changes: int = 0           # moves between projects
+    pi_changes: tuple[PIChange, ...] = ()          # history of the PI field (what the PI was before each change)
 
 
 @dataclass(frozen=True)

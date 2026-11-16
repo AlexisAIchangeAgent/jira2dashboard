@@ -189,6 +189,11 @@ PIMETRICS_COLUMNS = (
                               "[@FeaturesDone]/[@FeaturesPlanned])"),
 )
 
+# The table IterationFeatures (flow/iteration_features.py): one row per iteration, PI and team; the keys are written by VBA,
+# the other columns are the counts of Features (the formulas come with the workbook table, the Python path writes values).
+ITERATIONFEATURES_KEYS = ("Iteration-label", "IterationStart", "IterationEnd", "Team")
+ITERATIONFEATURES_NAMES = ("PI", "Engaged", "Added", "Deferred", "Released", "ReleasedPlanned", "ReleasedAdded", "CarryOver")
+
 # --- control cells of the Metrics sheet: the as-of date and the Flow Load mode, read from Config ------------
 
 CONFIG_VALUE = 'INDEX(Config_from_user!$B:$B,MATCH("{name}",Config_from_user!$A:$A,0))'

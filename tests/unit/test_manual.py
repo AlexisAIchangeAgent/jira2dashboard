@@ -26,8 +26,8 @@ def test_the_first_steps_name_the_mandatory_values_typed_at_the_client():
 def test_the_manual_lists_the_mandatory_parameters_it_is_given():
     rows = manual.manual(MANDATORY)
     assert f"The mandatory parameters: {', '.join(MANDATORY)}." in [text for _kind, text in rows]
-    assert MANDATORY == ("BaseUrl", "Email", "ApiToken", "FlowLoadMode", "AsOf", "FeatureTypes", "BlocksLinkType",
-                         "FillRateThreshold")
+    assert MANDATORY == ("BaseUrl", "Email", "ApiToken", "FlowLoadMode", "PredictabilityMode", "AsOf", "FeatureTypes",
+                         "BlocksLinkType", "FillRateThreshold")
 
 
 def test_the_manual_has_a_heading_per_section_and_one_per_button():
