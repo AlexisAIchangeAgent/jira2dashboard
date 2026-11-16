@@ -8,7 +8,7 @@ import hashlib
 import json
 
 from jira2dashboard.mockjira import jql
-from jira2dashboard.mockjira.dataset import Dataset, Issue
+from jira2dashboard.mockjira.dataset import Dataset, FieldChange, Issue
 from jira2dashboard.mockjira.errors import ApiError
 
 DEFAULT_PAGE = 50                   # /search/jql default maxResults
@@ -54,7 +54,7 @@ def _all_fields(issue: Issue, ds: Dataset, tz: int) -> dict:
     catalog, ids = ds.catalog, ds.fields
     key, category = catalog.jira_category(issue.workflow, issue.status)
     resolution = ds.resolution(issue)
-    return {
+    return ({ids.iteration: issue.iteration} if ids.iteration else {}) | {
         "summary": issue.summary,
         "status": {"id": catalog.ids.get(issue.status, "0"), "name": issue.status,
                    "statusCategory": {"key": key, "name": category}},
@@ -174,8 +174,14 @@ def _key_item(issue: Issue) -> dict:
             "fromString": f"OLD-{issue.number}", "to": None, "toString": issue.key}
 
 
+def _field_item(change) -> dict:
+    """The item of a change of a text field: the texts are in fromString / toString, from and to are null (a text field)."""
+    return {"field": change.field, "fieldtype": "custom", "fieldId": change.field_id, "from": None,
+            "fromString": change.from_string, "to": None, "toString": change.to_string}
+
+
 def bulk_changelog(ds: Dataset, body: dict, *, tz: int, bulk_clamp: int, date: tuple[str, str] = ("created", "ms")) -> dict:
-    """POST /rest/api/3/changelog/bulkfetch: the status histories, oldest change first, paged by token. `date` = (the key that
+    """POST /rest/api/3/changelog/bulkfetch: the histories (status, key moves, changes of a field), oldest change first, paged by token. `date` = (the key that
     holds the date of a history, its format "ms" or "iso"): the real Jira sends `created` as milliseconds; the others are what
     Atlassian could change one day (the tool finds the date by its value)."""
     refs = body.get("issueIdsOrKeys")
@@ -190,6 +196,7 @@ def bulk_changelog(ds: Dataset, body: dict, *, tz: int, bulk_clamp: int, date: t
     histories = [(i, c) for i in issues for c in i.changes] if not field_ids or "status" in field_ids else []
     if not field_ids or "issuekey" in field_ids:        # moves between projects: the key changed
         histories += [(i, _KeyMove(f"{i.id}k{n}", at)) for i in issues for n, at in enumerate(i.key_changes, start=1)]
+    histories += [(i, c) for i in issues for c in i.field_changes if not field_ids or c.field_id in field_ids]
     histories.sort(key=lambda pair: (pair[1].at, int(pair[0].id), pair[1].id))   # by date, then smallest issue id
     fingerprint = _fingerprint(sorted(str(r) for r in refs), field_ids)
     token = body.get("nextPageToken")
@@ -201,6 +208,7 @@ def bulk_changelog(ds: Dataset, body: dict, *, tz: int, bulk_clamp: int, date: t
             "id": change.id, date[0]: _epoch_ms(change.at) if date[1] == "ms" else jira_time(change.at, tz),
             "author": {"accountId": change.author_id, "displayName": change.author},
             "items": [_key_item(issue) if isinstance(change, _KeyMove) else
+                      _field_item(change) if isinstance(change, FieldChange) else
                       {"field": "status", "fieldtype": "jira", "fieldId": "status",
                        "from": ds.catalog.ids.get(change.from_status, "0"), "fromString": change.from_status,
                        "to": ds.catalog.ids.get(change.to_status, "0"), "toString": change.to_status}],

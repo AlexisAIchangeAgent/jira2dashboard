@@ -29,6 +29,7 @@ class FieldIds:
     sprint: str = "customfield_10020"
     target_start: str = "customfield_10401"
     target_end: str = "customfield_10402"
+    iteration: str | None = None       # the Iteration field of a scenario that has one (art-metrics); None = no such field
 
     def catalog(self) -> list[dict]:
         """GET /rest/api/3/field: system and custom fields (id, name, custom, schema)."""
@@ -37,7 +38,8 @@ class FieldIds:
 
         def custom(fid, name, kind):
             return {"id": fid, "name": name, "custom": True, "schema": {"type": kind, "customId": int(fid.split("_")[1])}}
-        return [
+        extra = [custom(self.iteration, "Iteration", "string")] if self.iteration else []
+        return extra + [
             system("summary", "Summary", "string"), system("status", "Status", "status"),
             system("issuetype", "Issue Type", "issuetype"), system("project", "Project", "project"),
             system("created", "Created", "datetime"), system("updated", "Updated", "datetime"),
@@ -89,6 +91,20 @@ class Change:
 
 
 @dataclass(frozen=True)
+class FieldChange:
+    """A change of a text field other than the status (the PI field, say): a history of its own. Jira sends the texts in
+    fromString / toString (from and to are null); an emptied field has toString null."""
+    id: str
+    at: dt.datetime
+    field_id: str
+    field: str                         # the name shown in the history
+    from_string: str | None
+    to_string: str | None
+    author: str = "Ann Martin"
+    author_id: str = "acc-ann"
+
+
+@dataclass(frozen=True)
 class Sprint:
     """A sprint an issue belongs to (the Sprint field holds the sprints of the issue, oldest first)."""
     id: int
@@ -126,6 +142,8 @@ class Issue:
     blocks: tuple[str, ...] = ()       # keys of the issues that this issue blocks (issue links of type Blocks)
     key_changes: tuple[dt.datetime, ...] = ()      # moves between projects (the key changed)
     resolution_override: tuple[dt.datetime | None] | None = None    # anomaly: (resolved at,) or (None,) = no resolution date
+    field_changes: tuple[FieldChange, ...] = ()    # history of the other fields; the current value is the last one (art-metrics)
+    iteration: str | None = None                   # value of the Iteration field (FieldIds.iteration)
 
     @property
     def status(self) -> str:
@@ -146,6 +164,8 @@ class Dataset:
     as_of: dt.datetime
     catalog: StatusCatalog = field(default_factory=StatusCatalog.from_params)
     fields: FieldIds = field(default_factory=FieldIds)
+    sheets: tuple[ParamSheet, ...] | None = None          # a scenario's own parameter sheets (None = params/*.md)
+    workflow_names: dict[str, str] = field(default_factory=dict)    # workflow of the sheets -> its name in Jira
 
     def __post_init__(self):
         keys = [i.key for i in self.issues]
@@ -172,6 +192,16 @@ class Dataset:
         if category not in ("Done", "Removed"):
             return None
         return ("Done" if category == "Done" else "Won't Do", issue.updated)
+
+
+@dataclass(frozen=True)
+class Scenario:
+    """A named case of the fake Jira (mockjira/scenarios.py): its issues, and what a client would type in the workbook for it
+    (the PIs, the iterations; the parameter sheets are in dataset.sheets)."""
+    name: str
+    dataset: Dataset
+    pis: tuple                         # flow.model.Iteration, in order
+    iterations: tuple                  # flow.model.Iteration, in order
 
 
 def issue(key: str, *, moves: tuple[tuple[str, str], ...] = (), created: str = "2026-10-01T09:00",

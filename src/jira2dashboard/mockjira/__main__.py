@@ -12,6 +12,7 @@ import time
 from jira2dashboard.cli.args import parser as new_parser
 from jira2dashboard.mockjira.anomalies import with_anomalies
 from jira2dashboard.mockjira.dataset import Dataset, FieldIds
+from jira2dashboard.mockjira import scenarios
 from jira2dashboard.mockjira.generator import generate
 from jira2dashboard.mockjira.server import MOCK_EMAIL, MOCK_TOKEN, MockJira
 from jira2dashboard.params.model import project_keys
@@ -22,6 +23,7 @@ examples:
   scripts\\run.ps1 mock-jira                            1200 issues on http://127.0.0.1:8099
   scripts\\run.ps1 mock-jira --anomalies --issues 150   a small fake Jira with the known data anomalies
   scripts\\run.ps1 mock-jira --no-auth --port 8100      any account accepted, on another port
+  scripts\\run.ps1 mock-jira --scenario art-metrics     only the 25 Features of the scenario art-metrics (known history)
 """
 
 
@@ -36,6 +38,9 @@ def parse(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--bv-field", default=FieldIds.business_value, help="id of the Business Value field")
     parser.add_argument("--sp-field", default=FieldIds.story_points, help="id of the Story Points field")
     parser.add_argument("--pi-field", default=FieldIds.pi, help="id of the PI field")
+    parser.add_argument("--scenario", choices=sorted(scenarios.SCENARIOS), default=None,
+                        help="serve a named case with a known history instead of generated data (--issues, --seed, "
+                             "--projects, --anomalies and the field options are then ignored)")
     parser.add_argument("--anomalies", action="store_true",
                         help="add the known data-quality cases of the tests, so that the data checks find something")
     parser.add_argument("--email", default=MOCK_EMAIL, help=f"account accepted (default {MOCK_EMAIL})")
@@ -49,6 +54,8 @@ def parse(argv: list[str] | None = None) -> argparse.Namespace:
 
 
 def dataset_for(args: argparse.Namespace) -> Dataset:
+    if args.scenario:
+        return scenarios.get(args.scenario).dataset
     fields = FieldIds(story_points=args.sp_field, business_value=args.bv_field, pi=args.pi_field)
     projects = tuple(p.strip() for p in args.projects.split(",") if p.strip())
     dataset = generate(seed=args.seed, issues=args.issues, projects=projects, fields=fields)
@@ -68,7 +75,8 @@ def main(argv: list[str] | None = None) -> int:
         return 1
     try:
         extra = " with the known anomalies" if args.anomalies else ""
-        print(f"Fake Jira: {len(dataset.issues)} issues in {', '.join(dataset.projects())}{extra} (seed {args.seed}).")
+        origin = f"scenario {args.scenario}" if args.scenario else f"seed {args.seed}"
+        print(f"Fake Jira: {len(dataset.issues)} issues in {', '.join(dataset.projects())}{extra} ({origin}).")
         print(f"  BaseUrl : {jira.base_url}")
         print("  Auth    : " + ("none checked" if credentials is None else f"Basic, email {args.email}, token {args.token}"))
         print(f"  Fields  : story points {fields.story_points}, business value {fields.business_value}, PI {fields.pi}")

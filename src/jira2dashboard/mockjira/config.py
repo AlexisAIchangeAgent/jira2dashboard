@@ -89,7 +89,7 @@ def project_statuses(ds: Dataset, key: str, sheets: list[ParamSheet] | None = No
     """GET /rest/api/3/project/{key}/statuses: the statuses of each issue type, with the Jira status category."""
     if key not in ds.projects():
         raise _error(404, f"No project could be found with key '{key}'.")
-    params = _sheets(sheets)
+    params = _sheets(sheets or ds.sheets)
     answer = []
     for name in _issue_types(ds, key):
         workflow = _workflow_of(ds, key, name)
@@ -115,7 +115,7 @@ def workflows_preview(ds: Dataset, body: dict, sheets: list[ParamSheet] | None =
     key = next((k for k in ds.projects() if project_id(ds, k) == str(body["projectId"])), None)
     if key is None:
         raise _error(404, "The previews were not found.")
-    params = _sheets(sheets)
+    params = _sheets(sheets or ds.sheets)
     by_workflow: dict[str, list[str]] = {}
     for name in _issue_types(ds, key):
         if ISSUE_TYPES[name][0] in type_ids:
@@ -154,7 +154,8 @@ def _workflow_json(ds: Dataset, workflow: str, type_ids: list[str], pid: str, pa
         if row[6] == 1:                                 # a free status is reachable from any status: a GLOBAL transition
             transitions.append({"id": str(10 * len(transitions) + 1), "name": row[2], "type": "GLOBAL", "links": [],
                                 "toStatusReference": ref(workflow, row[2])})
-    return {"id": f"wf-{workflow.lower()}", "name": workflow, "description": "", "scope": {"type": "GLOBAL"},
+    name = ds.workflow_names.get(workflow, workflow)                # a scenario names its workflow in Jira (program-workflow)
+    return {"id": f"wf-{name.lower()}", "name": name, "description": "", "scope": {"type": "GLOBAL"},
             "queryContext": [{"project": pid, "issueTypes": type_ids}], "statuses": status_refs,
             "transitions": transitions}
 

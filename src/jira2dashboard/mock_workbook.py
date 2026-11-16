@@ -21,7 +21,8 @@ from jira2dashboard.cli.args import parser
 from jira2dashboard.excel import com
 from jira2dashboard.flow.model import Iteration
 from jira2dashboard.mockjira.anomalies import PI, PI_WINDOW
-from jira2dashboard.mockjira.dataset import FieldIds
+from jira2dashboard.mockjira import scenarios
+from jira2dashboard.mockjira.dataset import FieldIds, Scenario
 from jira2dashboard.mockjira.generator import AS_OF, SINCE
 from jira2dashboard.mockjira.generator import PIS as GENERATED_PIS
 from jira2dashboard.mockjira.server import MOCK_EMAIL, MOCK_TOKEN
@@ -63,13 +64,19 @@ def iterations(first: dt.datetime = SINCE, as_of: dt.datetime = AS_OF, days: int
     return iterations
 
 
-def params_book(url: str, values: dict[str, str] | None = None) -> list[Sheet]:
+def scenario_config(scenario: Scenario | None, url: str) -> dict[str, str]:
+    """config_values for the fake Jira at `url`: the generated data, or the fields and reference date of a scenario."""
+    return config_values(url) if scenario is None else config_values(url, scenario.dataset.fields, scenario.dataset.as_of)
+
+
+def params_book(url: str, values: dict[str, str] | None = None, scenario: Scenario | None = None) -> list[Sheet]:
     """The parameter sheets of params/*.md filled for the fake Jira at `url`, as sheets of an xlsx (no Excel): Config
     with config_values (and `values` over them), the iterations in Iterations and PIS in PIs, as
-    dates. What the Python extraction reads from a filled workbook."""
-    filled = config_values(url) | (values or {})
+    dates. What the Python extraction reads from a filled workbook. A scenario brings its own PIs, iterations, Workflows
+    and Transitions."""
+    filled = scenario_config(scenario, url) | (values or {})
     out = []
-    for sheet in load_all():
+    for sheet in (load_all() if scenario is None else scenario.dataset.sheets):
         rows = list(sheet.rows)
         if sheet.name == "FieldMapping":
             continue
@@ -77,13 +84,16 @@ def params_book(url: str, values: dict[str, str] | None = None) -> list[Sheet]:
             value = sheet.header.index("Value")
             rows = [row[:value] + (filled.get(row[0], row[value]),) + row[value + 1:] for row in rows]
         elif sheet.name in ("Iterations", "PIs"):
-            rows = [(p.name, p.start, p.end) for p in (iterations() if sheet.name == "Iterations" else PIS)]
+            dated = iterations() if sheet.name == "Iterations" else PIS
+            if scenario is not None:
+                dated = scenario.iterations if sheet.name == "Iterations" else scenario.pis
+            rows = [(p.name, p.start, p.end) for p in dated]
         out.append(Sheet(S.of(sheet.name), sheet.header, rows))
     return out
 
 
-def write_params_book(path: Path, url: str, values: dict[str, str] | None = None) -> Path:
-    return write_xlsx(path, params_book(url, values))
+def write_params_book(path: Path, url: str, values: dict[str, str] | None = None, scenario: Scenario | None = None) -> Path:
+    return write_xlsx(path, params_book(url, values, scenario))
 
 
 def csv_value(value) -> str:
@@ -93,17 +103,17 @@ def csv_value(value) -> str:
     return "" if value is None else str(value)
 
 
-def rovo_csv(port: int = 8099) -> str:
+def rovo_csv(port: int = 8099, scenario: Scenario | None = None) -> str:
     """The answer Rovo would give for the fake Jira, in the CSV the button Load settings CSV reads (rovo_prompt.CSV_COLUMNS):
     the Config values of config_values but the connection (rovo_prompt.PROTECTED, never loaded from a CSV), then every row
     of the sheets the prompt asks for (rovo_prompt.SHEET_RULES), with a BOM as Excel writes a UTF-8 CSV."""
     out = io.StringIO()
     writer = csv.writer(out, lineterminator="\r\n")
     writer.writerow(RP.CSV_COLUMNS)
-    for name, value in config_values(base_url(port)).items():
+    for name, value in scenario_config(scenario, base_url(port)).items():
         if name not in RP.PROTECTED:
             writer.writerow((S.of("Config"), "", name, value, CSV_NOTE))
-    for sheet in params_book(base_url(port)):
+    for sheet in params_book(base_url(port), scenario=scenario):
         if S.logical(sheet.name) in RP.SHEET_RULES:
             for number, row in enumerate(sheet.rows, start=1):
                 for column, value in zip(sheet.header, row):
@@ -127,12 +137,22 @@ def write_config(ws, values: dict[str, str]) -> None:
         ws.Cells(rows[name], 2).Value = com.as_cell(value)
 
 
-def fill_copy(path: Path, url: str) -> None:
+def write_rows(ws, rows) -> None:
+    """The rows of a parameter sheet (Workflows, Transitions) under its header; the rows of an earlier run are cleared first."""
+    ws.Range("A2:H200").ClearContents()
+    com.write_block(ws, 2, 1, [list(row) for row in rows])
+
+
+def fill_copy(path: Path, url: str, scenario: Scenario | None = None) -> None:
     with com.excel_session() as app:
         wb = com.open_without_macros(app, path)
-        write_config(wb.Worksheets(S.of("Config")), config_values(url))
-        write_iterations(wb.Worksheets(S.of("Iterations")), iterations())
-        write_iterations(wb.Worksheets(S.of("PIs")), PIS)
+        write_config(wb.Worksheets(S.of("Config")), scenario_config(scenario, url))
+        write_iterations(wb.Worksheets(S.of("Iterations")), iterations() if scenario is None else scenario.iterations)
+        write_iterations(wb.Worksheets(S.of("PIs")), PIS if scenario is None else scenario.pis)
+        if scenario is not None:                                      # its own workflow and moves
+            for sheet in scenario.dataset.sheets:
+                if sheet.name in ("Workflows", "Transitions"):
+                    write_rows(wb.Worksheets(S.of(sheet.name)), sheet.rows)
         wb.Save()
         wb.Close(False)
         del wb, app                                                   # release every COM proxy before Excel quits
@@ -159,6 +179,8 @@ def parse(argv: list[str] | None = None):
     p.add_argument("--workbook", default=str(RELEASE_DIR / "jira2dashboard.xlsm"),
                    help="the workbook to copy (default out\\release\\jira2dashboard.xlsm); it is never changed")
     p.add_argument("--port", type=int, default=8099, help="port of the fake Jira on 127.0.0.1 (default 8099)")
+    p.add_argument("--scenario", choices=sorted(scenarios.SCENARIOS), default=None,
+                   help="fill the copy for a scenario of the fake Jira (mock-jira --scenario): its calendar, workflow and fields")
     return p.parse_args(argv)
 
 
@@ -175,13 +197,15 @@ def main(argv: list[str] | None = None) -> int:
         print(f"mock-workbook: close {COPY.name} first (it is still open in Excel)")
         return 1
     url = base_url(args.port)
-    fill_copy(COPY, url)
+    scenario = scenarios.get(args.scenario) if args.scenario else None
+    fill_copy(COPY, url) if scenario is None else fill_copy(COPY, url, scenario)
     time.sleep(SETTLE_S)
     if not holds_the_fill(COPY, url):
         print(f"mock-workbook: {com.lost_message(COPY, 'the address of the fake Jira in the sheet Config')}")
         return 1
     print(f"mock-workbook: {COPY}")
-    (COPY.parent / CSV_NAME).write_bytes(rovo_csv(args.port).encode("utf-8"))
+    csv_text = rovo_csv(args.port) if scenario is None else rovo_csv(args.port, scenario)
+    (COPY.parent / CSV_NAME).write_bytes(csv_text.encode("utf-8"))
     print(f"mock-workbook: {COPY.parent / CSV_NAME} (to try Load settings CSV; type the connection by hand)")
     return 0
 
