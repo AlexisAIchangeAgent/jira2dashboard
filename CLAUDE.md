@@ -55,7 +55,9 @@ A release holds the workbook only (AL, 2026-11-12: no zip of the code); the "Sou
 release (they cannot be removed) leave out the `export-ignore` paths of `.gitattributes` (CLAUDE.md, `archive/`,
 `.claude/`, `.venv/`); `tests/unit/test_release_contents.py` pins the list. `-Publish` is outward-facing: ask AL first.
 Releases: the version is `vX.Y.Z` only (`v0.0.0-dryrun` is refused) and the number is AL's choice. The dry run
-(`release.ps1 -Version v0.0.0`) needs a clean tree, builds with Excel and leaves `out\release\<version>`: delete it afterwards.
+(`release.ps1 -Version v0.0.0`) needs a clean tree, builds with Excel and leaves `out\release\<version>`: delete it afterwards
+(only that dry-run folder: a real release keeps its `out\release\<version>`, whose `notes.md` holds the SHA-256 and MD5). The release body
+starts with `(commit <40 hex>)`: take the MD5 to note here from the line ending `bytes)` or from `md5sum out\release\<version>\jira2dashboard.xlsm`, never "the first 32 hex".
 `-Publish` also needs HEAD == origin/main and `gh` logged in. Only `v0.5.0` (2026-11-13, commit e01327b), `v0.5.1` (d67e42f), `v0.5.2` (f541e99), `v0.6.0` (57b0d79), `v0.7.0` (2026-11-14, commit cc01848) and `v0.7.1` (2026-11-14, commit db81283) and `v0.8.0` (2026-11-15, commit 5ea633c) and `v0.8.1` (2026-11-15, commit d2035ab: the buttons stop with J2D-SYS-003 when the workbook is locked) and `v0.9.0` (2026-11-16, commit 209f229: Feature Predictability from the PI field history, IterationFeatures and IterationCharts, scenario art-metrics) and `v0.9.1` (2026-11-17, commit 4722b9d: a Program-only ART needs no Team project, text of the Manual; MD5 bbb9220ad709404142953179307b2443) and `v0.10.0` (2026-11-17, commit 41269f9: the value above the Velocity bars and notes under the charts with gaps, the chart Cycle time by status and the table PIStatusTime; MD5 e3612463f3aee8235f7ea64d572d16fd) exist on GitHub: AL removed the
 releases and the tags `v0.1.0` to `v0.4.0` (2026-11-13, they were 2026-11-06, 878807e, 31c9574, f0bbf32). Their numbers are never used again; the next one is above `v0.10.0`.
 A clone may keep old tags (`git fetch --tags`): `version.py` stamps the commit, never `git describe`.
@@ -162,10 +164,10 @@ python.log). `tests/unit/test_claude_hooks.py` and `test_claude_skills.py` test 
   `-Scenario art-metrics -Run` (nothing to click: `mock-workbook --scenario art-metrics --run` serves it in-process, extracts with the
   macros, exports the charts to `out\manual_test\charts\art_metrics\`, saves the copy with its results, closes Excel, opens the page);
   `start-mock.ps1 -Scenario NAME` is the fake Jira alone. The page `index.html` of `charts\art_metrics` opens with the report **expected
-  (worked out by hand) / obtained (workbook)**: 112 figures (PI predictability, IterationFeatures of the ART and of each team, Velocity,
-  Flow Time, Flow Efficiency), the sections that differ open and the lines that differ first (`tests/art_report.py`, pure `sections` /
+  (worked out by hand) / obtained (workbook)**: 140 figures (PI predictability, IterationFeatures of the ART and of each team, Velocity,
+  Flow Time, Flow Efficiency, Cycle time by status), the sections that differ open and the lines that differ first (`tests/art_report.py`, pure `sections` /
   `render`, `report_for_workbook` reads the tables through COM; the oracle stays in `tests/art_oracle.py`). The Excel test writes it
-  and asserts "all 112 are OK"; `--run` loads it from `tests/` by path (`mock_workbook.report_builder`, none outside a checkout). `ps1` ports: `$ScenarioPort` must equal `Scenario.port` (a test pins it).
+  and asserts "all 140 are OK"; `--run` loads it from `tests/` by path (`mock_workbook.report_builder`, none outside a checkout). `ps1` ports: `$ScenarioPort` must equal `Scenario.port` (a test pins it).
 - **Cycle time by status (AL, 2026-11-17).** The chart `pi_status_time` (stacked 100 % columns, PI on the X axis, one colour per status) and the
   table `PIStatusTime` (sheet `PIStatusTime_from_excel`: PI | Status | Start | End | Items | TotalDays | AverageDays | Share) show where the cycle
   time of the Features goes, to find the statuses that take most of it. A PI = the Features RELEASED in it (DoneUtc in [Start, End) of the sheet
@@ -339,6 +341,19 @@ tables rather than code blocks for lists, never the word "client" nor the vendor
 Mermaid for the workflows. Check a Mermaid edit with the real parser (`npm i mermaid jsdom` in the scratchpad,
 then `mermaid.parse`), and check every `](#anchor)` link against the headings.
 
+## Adding a derived table or a chart
+
+1. Python: the formulas (`flow/formulas.py`: `*_COLUMNS` + `TABLES`), the reference (`flow/<name>.py`) with a hand-typed oracle in `tests/art_oracle.py`,
+   the chart spec (`dashboard_spec.CHARTS`, before the daily curve), `blueprint.formula_rows` / `_chart_row`.
+2. A new sheet name in the THREE lists (`sheet_names.EXCEL`, `modText.EXCEL_SHEETS`, `flow/sheets.error_cells`), then `modHealth` (cells in error),
+   `DeleteDerived` and `BuildAll` of `modFlowBuild`.
+3. Python path: `standalone/results.py` (+ its `Sheet(...)` in `__main__`) and `charts_svg.chart_pictures` (a new SERIES branch goes BEFORE the PI-axis one).
+4. Pinned numbers: `test_run_vba_tests_pure` (markers, `FLB` range), `T_FlowBuild` ("N charts"), `test_blueprint` (`[CHARTS_SHEET] * n`), `test_dashboard_spec`
+   (the chart list), `chart_blocks` / `_series` / the "== N" check of `tests/steps/test_flow_excel.py`, "N charts" in README, `manual.py`,
+   `rovo/confluence_flow_metrics_page.md`, `tests/art_report.py` (the figure count).
+5. Then `build` before `manual-test -Run`, `vba-reviewer` before `vba-tests`, and the generic `flow_excel.feature` compares the new table with the
+   reference cell by cell (check that its data holds real figures, not only gaps).
+
 ## Adding a data check
 
 1. `flow/checks.py`: a `Check` row in `CHECKS` and the rule in `run_checks` (`_status_history`, `_field_checks`,
@@ -472,6 +487,8 @@ then `mermaid.parse`), and check every `](#anchor)` link against the headings.
   which `python.exe` called with `2>&1 | Show-Line` does not do. Assert the text, not the absence of decoration.
 - `Windows fatal exception: code 0x800706be` (or `0x800706ba`) printed after Excel scenarios is teardown noise, also in
   green runs: only the test result counts.
+- **While a change adds `Cov` markers,** the hook `bas_guard` prints "VBA guard tests failed" after each `.bas` edit until
+  `test_run_vba_tests_pure` pins the new marker total and `FLB`/`MEX`... range: expected; finish the edits, then update those two numbers.
 - **Look at a chart:** `start-mock.ps1 -Port 8100`, a scratch copy of `out\release\jira2dashboard.xlsm` filled by
   `mock_workbook.fill_copy(copy, base_url(8100))`, `modActions.ExtractAndCompute`, then in the same session Activate the
   ChartObject, `Chart.Export` to the scratchpad and Read the PNG; `stop-mock.ps1 -Port 8100` after (8099 may be AL's).
