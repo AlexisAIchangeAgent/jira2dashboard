@@ -44,6 +44,8 @@ def formula_rows() -> list[tuple[str, str, str]]:
     rows += [("IterationFeatures", name, text) for name, text in F.ITERATIONFEATURES_COLUMNS]
     rows += [("PIMetrics", key, "") for key in F.PIMETRICS_KEYS]
     rows += [("PIMetrics", name, text) for name, text in F.PIMETRICS_COLUMNS]
+    rows += [("PIStatusTime", key, "") for key in F.PISTATUSTIME_KEYS]
+    rows += [("PIStatusTime", name, text) for name, text in F.PISTATUSTIME_COLUMNS]
     rows += [("Metrics", name, text) for name, text in F.METRICS_COLUMNS]
     rows += [("Controls", CONTROL_NAMES[0], F.AS_OF_CELL), ("Controls", CONTROL_NAMES[1], F.MODE_CELL),
              ("Controls", CONTROL_NAMES[2], F.TRANSITIONS_LAST_CELL), ("Controls", CONTROL_NAMES[3], F.PIS_LAST_CELL),
@@ -78,6 +80,9 @@ def _chart_row(index: int, spec: D.ChartSpec, sheet: str) -> tuple:
     elif spec.axis == D.DAY_AXIS:
         point = D.day_point("{iteration}", "{name}")                # {iteration} is the day here
         series = ""
+    elif spec.series == D.STATUS_SERIES:
+        point = D.status_point("{iteration}", "{name}")              # {iteration} is the PI here; one series per status
+        series = D.STATUSES_TOKEN                                    # the statuses come from the sheet Workflows when the charts are built
     elif spec.axis == D.PI_AXIS:
         point = D.pi_point("{iteration}")                           # {iteration} is the PI here; one series, ART
         series = ",".join(D.series_names(spec))

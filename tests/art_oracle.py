@@ -61,3 +61,11 @@ CURRENT_PI = {"PI-1": 6, "PI-2": 5, "PI-3": 3, "PI-4": 5}      # what reading th
 VELOCITY = {label: sum(1 for released in RELEASED.values() if released == label) for label in ITERATION_STARTS}
 FLOW_TIME_DAYS = 8                                              # 7 statuses of 1 day, one of them lasting 2 days
 FLOW_EFFICIENCY = {"PI-1": 5 / 8, "PI-2": 5 / 8, "PI-3": 5 / 8, "PI-4": 4 / 8}      # Active: analyzing, doing, testing, deploying
+
+# --- where the cycle time goes: the Features RELEASED in each PI (by release date), time in each Active / Wait status -----------------
+# ft-1..6 in PI-1, ft-7..11 in PI-2 (ft-12 is deferred), ft-16, 17, 18 in PI-3, ft-19..22 and ft-25 in PI-4 (ft-25 carries PI-4 and is released in IT-4-6).
+PI_ITEMS = {"PI-1": 6, "PI-2": 5, "PI-3": 3, "PI-4": 5}
+# average days per item in each status: 1 day, 2 days for the long status of the PI (the same for every item of the PI): 8 days in all
+STATUS_AVERAGE_DAYS = {pi: {status: 2.0 if status == LONG_STATUS[pi] else 1.0 for status in CHAIN} for pi in PIS}
+# share of the cycle time: the long status 2/8 = 25 %, each of the six others 1/8 = 12.5 %
+STATUS_SHARE = {pi: {status: 0.25 if status == LONG_STATUS[pi] else 0.125 for status in CHAIN} for pi in PIS}

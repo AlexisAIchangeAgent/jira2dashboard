@@ -144,6 +144,10 @@ def manual(mandatory: tuple[str, ...]) -> list[tuple[str, str]]:
             f'{METRICS}: one row per iteration and team. A figure that cannot be computed reads "not computable", never 0.',
             f"{S.of('PIMetrics')}: one row per PI of the sheet {PIS}, with its dates, the Features engaged in it at its start, those "
             f"released in it and Feature Predictability; then one row per PI of a Feature missing from the sheet {PIS}, without dates.",
+            f"{S.of('PIStatusTime')}: where the cycle time of the Features goes. For each PI of the sheet {PIS} and each Active or Wait status of the "
+            "Feature workflow: the Features released in the PI, the average days each spent in the status, and its share of the total (the "
+            "statuses of a PI add up to 100 %). The chart Cycle time by status stacks these shares, one bar per PI: the biggest block "
+            "is the status that takes most of the cycle time.",
             f"{DATACHECKS}: the 29 data checks DC01-DC29, with Items and OK, KO or not computable. To see the work items, "
             f"filter the table ItemFlow (sheet {ITEMFLOW}) on its column DCxx = 1.",
             f"Do not edit the sheets {S.of('FlowFormulas')}, {S.of('ChartSpec')} and {S.of('ChecksSpec')}: they describe the formulas, the charts and "

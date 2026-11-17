@@ -166,6 +166,19 @@ python.log). `tests/unit/test_claude_hooks.py` and `test_claude_skills.py` test 
   Flow Time, Flow Efficiency), the sections that differ open and the lines that differ first (`tests/art_report.py`, pure `sections` /
   `render`, `report_for_workbook` reads the tables through COM; the oracle stays in `tests/art_oracle.py`). The Excel test writes it
   and asserts "all 112 are OK"; `--run` loads it from `tests/` by path (`mock_workbook.report_builder`, none outside a checkout). `ps1` ports: `$ScenarioPort` must equal `Scenario.port` (a test pins it).
+- **Cycle time by status (AL, 2026-11-17).** The chart `pi_status_time` (stacked 100 % columns, PI on the X axis, one colour per status) and the
+  table `PIStatusTime` (sheet `PIStatusTime_from_excel`: PI | Status | Start | End | Items | TotalDays | AverageDays | Share) show where the cycle
+  time of the Features goes, to find the statuses that take most of it. A PI = the Features RELEASED in it (DoneUtc in [Start, End) of the sheet
+  PIs, not excluded from flow time); the statuses = the Active and Wait statuses of the Feature workflow in the ROW order of the sheet
+  Workflows (not `Order`, empty for a free status; Unclassified is left out); TotalDays = the time those Features spent in the status from their
+  StartUtc (included) to their DoneUtc (excluded), the window of `ItemFlow.ActiveDays/WaitDays` (so the totals of a PI add up to the Active + Wait
+  days of the same Features: a test asserts it); Average = Total / Items; Share = Total / the total of the statuses of the PI. The helper columns
+  of `StatusIntervals` (`ItemRow`, `ItemStart`, `ItemDone`, `ItemExcluded`, `InCycle`) feed it. Reference `flow/pi_status_time.py`, hand-typed oracle
+  `tests/art_oracle.PI_ITEMS/STATUS_AVERAGE_DAYS/STATUS_SHARE` (Items 6, 5, 3, 5: ft-25 is released in PI-4; 1 day per status, 2 for the long one = 25 %),
+  hard cases (a Feature crossing a PI, a status visited twice, a backlog return, reopened, half-open window) in `tests/unit/test_pi_status_time.py`.
+  VBA: `modFlowBuild.StatusNames` (the series of the chart: its plan `SeriesNames` is the token `{statuses}`, read from Workflows at the build),
+  `SelectorColumn` (the selector list sits right of the widest ChartData block: teams, Feature teams or statuses), `WritePiStatusKeys`.
+  Python path: sheet `PIStatusTime`, SVG chart. The report of the scenario art-metrics has a 6th section (140 figures).
 - **Python reference as oracle.** `flow/` (`intervals.py`, `itemflow.py`, `load.py`, `metrics.py`, `checks.py`) is a pure
   Python implementation of the same metrics and data checks. The scenarios in `tests/features/flow_excel.feature` run the
   real delivered workbook against the fake Jira and compare Excel with this reference **cell by cell** (Flow Load modes A
@@ -178,7 +191,7 @@ python.log). `tests/unit/test_claude_hooks.py` and `test_claude_skills.py` test 
 - **Dashboard and Charts.** Top left, one under the other (AL's order): the progress bar `A2`, the buttons Prompt for Rovo
   `A3`, Load settings CSV `A5`, Read the Jira configuration `A7`, Propose values from Jira `A9`, Extract `A11`, Cancel `A13` (cells in `dashboard_spec`). A
   final status is `Title | Name: value | ...`: `A16` (name `dashStatus`) shows the title and `A17:B36` one row per field (`modText.StatusParts`, `modActions.ShowProgress`; `ProgressSnapshot` rebuilds the line from the
-  cells for the tests). The 9 charts, their notes and the team selector `B2` (name `dashTeam`) are on the sheet `Charts`, made
+  cells for the tests). The 10 charts, their notes and the team selector `B2` (name `dashTeam`) are on the sheet `Charts`, made
   at build after the Dashboard (`CHARTS_SHEET` of `modFlowBuild`/`modActions` = `dashboard_spec.CHARTS_SHEET`, a test pins it). The 5
   charts of the Features per iteration are on the sheet `IterationCharts` (right after `Charts`; `ChartSpec` has a column `Sheet`, the
   rows of `IterationCharts` come BEFORE the daily curve: its block of `ChartData` is the longest, so it stays last; the helper
@@ -201,7 +214,7 @@ python.log). `tests/unit/test_claude_hooks.py` and `test_claude_skills.py` test 
   WinHTTP COM object (`http_winhttp`: same proxy, Windows auth and retry rules as `modHttp`; body read from
   ResponseBody as UTF-8; injectable sleep) after `proxy.py` (ctypes port of `modProxy`), maps the JSON like
   `modExtract`/`modFlow` (`mapping`, oracle: `test_mapping` against `flow_adapter`), computes with `flow/`
-  (`results`, same column names as `formulas.TABLES`), draws the 9 charts as SVG (`charts_svg`) and writes values +
+  (`results`, same column names as `formulas.TABLES`), draws the 10 charts as SVG (`charts_svg`) and writes values +
   pictures with zipfile (`xlsx_write`: SVG with a blank PNG fallback, Excel 365 shows msoGraphic). Keep it in step
   with the VBA when an extraction rule changes. Its log (`logs\python.log` next to the workbook, as the VBA log) is complete on
   purpose (AL's choice): status, call, Jira's message, tracebacks; never the token nor the Authorization header

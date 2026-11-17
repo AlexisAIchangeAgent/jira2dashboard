@@ -53,7 +53,7 @@ Private Function TestNames() As Variant
         "T_HttpNetworkAndCancel", "T_RetryExhausted", "T_ChangelogChunks", "T_IssueRows", "T_WriteTable", "T_StatusIntervals", "T_IntervalsUnreadableDate", "T_StatusChangesUnreadableDate", "T_ChangelogRows", "T_UserFieldIds", "T_DateShape", "T_ParseJiraDateEpoch", "T_DateKind", "T_IsPlausibleDate", "T_FindDateKey", "T_ChangelogDateKey", "T_SkippedDatesWarning", "T_SheetName", "T_ProposeFromSheets", "T_ProposeIterations", "T_ReadSprints", "T_ProposeKindOf", "T_ProposeValuesNotAdmin", "T_HealthFields", "T_CellKind", "T_FitsType", "T_ShapeOfCell", "T_TypeHints", "T_TypeProblems", "T_TypeEmptyTable", "T_TypeBlocks", "T_TypeFillLines", "T_WireTypes", _
         "T_StatusChanges", "T_RetryDelay", "T_SafeAccess", "T_FilesUtf8", "T_StringifyBadObject", _
         "T_TooManyPages", "T_BackgroundExport", "T_TextNotConverted", "T_ParamsTables", "T_ParamsOnWorkbook", _
-        "T_TrimWhite", "T_ConfigSheet", "T_MandatoryConfig", "T_Locked", "T_PiIntervals", "T_ProxyDetect", "T_ProxyScript", "T_ProjectsSheet", "T_ParseMoment", "T_ExtractFlowData", "T_ExtractJob", "T_ExtractCheckFields", "T_FlowBuild", "T_BaseUrlHttps", "T_Log", "T_LogInputsAndTimes", "T_StatusParts", "T_ErrorCodes", "T_LogHintAndOpen", "T_StepsSheet", "T_RovoPrompt", "T_RovoCsv", _
+        "T_TrimWhite", "T_ConfigSheet", "T_MandatoryConfig", "T_Locked", "T_PiIntervals", "T_ProxyDetect", "T_ProxyScript", "T_ProjectsSheet", "T_StatusNames", "T_ParseMoment", "T_ExtractFlowData", "T_ExtractJob", "T_ExtractCheckFields", "T_FlowBuild", "T_BaseUrlHttps", "T_Log", "T_LogInputsAndTimes", "T_StatusParts", "T_ErrorCodes", "T_LogHintAndOpen", "T_StepsSheet", "T_RovoPrompt", "T_RovoCsv", _
         "T_JiraConfig", "T_AbortExtraction", "T_Utf8Oracle", "T_Utf8Invalid", "T_Base64Oracle")
 End Function
 
@@ -481,6 +481,44 @@ Public Sub T_ConfigSheet()
     Check "config", "the real Config sheet keeps client values empty", "BaseUrl", "", ConfigValue(wsReal, "BaseUrl")
     Check "config", "the real Config sheet defaults", "ProxyWindowsAuth", "Yes", ConfigValue(wsReal, "ProxyWindowsAuth")
     Check "config", "JiraConfigFromWorkbook reads the sheet", "MaxRetries", 4, JiraConfigFromWorkbook()("MaxRetries")
+End Sub
+
+Private Function JoinNames(ByVal names As Collection) As String
+    ' "|a|b|c": the names of a collection as text, whatever its size (a check must not raise on a short list).
+    Dim i As Long
+    For i = 1 To names.Count
+        JoinNames = JoinNames & "|" & CStr(names(i))
+    Next i
+End Function
+
+Public Sub T_StatusNames()
+    ' The stack of the chart Cycle time by status: the Active and Wait statuses of the Feature workflow, in the order of the sheet rows.
+    Dim ws As Object, rows As New Collection, names As Collection
+    Set ws = ThisWorkbook.Worksheets("TestScratch")
+    rows.Add Array("Team", 1, "Nouveau", "Backlog", 1, 0, 0)
+    rows.Add Array("Team", 2, "Doing", "Active", 0, 0, 0)
+    rows.Add Array("Feature", Null, "Free", "Active", 0, 0, 1)             ' no Order: it keeps its place in the sheet
+    rows.Add Array("feature", 2, "Lower", "Active", 0, 0, 0)               ' spelled otherwise: the loaders refuse it, it feeds no interval
+    rows.Add Array("Feature", 2, "Review", "Wait", 0, 0, 0)
+    rows.Add Array("Feature", 3, "Done", "Done", 0, 1, 0)
+    rows.Add Array("Feature", 1, "Todo", "Backlog", 1, 0, 0)
+    rows.Add Array("Feature", 4, "Build", "Active", 0, 0, 0)
+    rows.Add Array("Feature", 5, "", "Active", 0, 0, 0)                    ' no status name: left out
+    WriteTable ws, Array("Workflow", "Order", "Status", "Category", "IsStart", "IsEnd", "IsFree"), rows
+    Set names = StatusNames(ws)
+    Check "statusnames", "the Active and Wait statuses of the Feature workflow, in the order of the rows", "Free, Review, Build", "3|Free|Review|Build", _
+          names.Count & JoinNames(names)
+    ws.Cells.Clear
+    Set rows = New Collection
+    rows.Add Array("Team", 1, "Doing", "Active", 1, 0, 0)
+    WriteTable ws, Array("Workflow", "Order", "Status", "Category", "IsStart", "IsEnd", "IsFree"), rows
+    Set names = StatusNames(ws)
+    Check "statusnames", "no Active or Wait status in the Feature workflow gives one placeholder", "Team only", "1|(no status)", names.Count & JoinNames(names)
+    ws.Cells.Clear
+    Check "statusnames", "the selector list is right of the widest block: the teams", "9 teams, 4 Feature teams, 6 statuses", 13, SelectorColumn(9, 4, 6)
+    Check "statusnames", "the selector list is right of the widest block: the statuses", "3 teams, 2 Feature teams, 12 statuses", 16, SelectorColumn(3, 2, 12)
+    Check "statusnames", "the selector list is right of the widest block: the teams of the Features", "3 teams, 12 Feature teams, 4 statuses", 16, SelectorColumn(3, 12, 4)
+    Check "statusnames", "the selector list starts at column 10 at least", "2 teams, 1 Feature team, 3 statuses", 10, SelectorColumn(2, 1, 3)
 End Sub
 
 Public Sub T_ProjectsSheet()
@@ -1282,7 +1320,7 @@ Public Sub T_FlowBuild()
     Check "flowbuild", "Issues and StatusIntervals become tables", "2 + 3 rows", "2|3", TableRows("Issues") & "|" & TableRows("StatusIntervals")
     Check "flowbuild", "DailyLoad: one row per day and team", "28 days x 9", 28 * teams, TableRows("DailyLoad")
     Check "flowbuild", "Metrics: one row per iteration and team", "2 iterations x 9", 2 * teams, TableRows("Metrics")
-    Check "flowbuild", "nine charts, on the sheet Charts", "Charts", 9, dash.ChartObjects.Count
+    Check "flowbuild", "ten charts, on the sheet Charts", "Charts", 10, dash.ChartObjects.Count
     Check "flowbuild", "and none on the Dashboard", "Dashboard", 0, wb.Worksheets(SheetName("Dashboard")).ChartObjects.Count
     Check "flowbuild", "DataChecks: one row per check of ChecksSpec", "29 checks", 29, TableRows("DataChecks")
     Check "flowbuild", "DataChecks: the first check, and the check that needs a field is not computable", "DC01 / DC11", "DC01|OK|not computable", _
@@ -1293,6 +1331,10 @@ Public Sub T_FlowBuild()
     Check "flowbuild", "the Velocity chart writes the value above the bars of its first series (a 0 has no bar), the Flow Time chart does not", "labels", "yes|no", _
           IIf(dash.ChartObjects("velocity").Chart.SeriesCollection(1).HasDataLabels, "yes", "no") & "|" & _
           IIf(dash.ChartObjects("flow_time").Chart.SeriesCollection(1).HasDataLabels, "yes", "no")
+    Check "flowbuild", "the Cycle time chart has one series per Active or Wait status of the Feature workflow, stacked at 100 %", "series|type", _
+          StatusNames(wb.Worksheets(SheetName("Workflows"))).Count & "|53", _
+          dash.ChartObjects("pi_status_time").Chart.SeriesCollection.Count & "|" & dash.ChartObjects("pi_status_time").Chart.ChartType
+    Check "flowbuild", "the table PIStatusTime has one row per PI and status", "PIs x statuses", TableRows("PIMetrics") * StatusNames(wb.Worksheets(SheetName("Workflows"))).Count, TableRows("PIStatusTime")
     Check "flowbuild", "one series per work type in the Distribution chart", "flow_distribution", 5, dash.ChartObjects("flow_distribution").Chart.SeriesCollection.Count
     Check "flowbuild", "the Predictability chart has two more series: the 80-100 % band", "Predictability", teams + 2, dash.ChartObjects("flow_predictability").Chart.SeriesCollection.Count
     Check "flowbuild", "the daily Flow Load curve has one series per team and one point per day", "28 days", teams & "|" & 28, _
@@ -1327,7 +1369,7 @@ Public Sub T_FlowBuild()
     Check "flowbuild", "smaller data: StatusIntervals", "1 interval", 1, TableRows("StatusIntervals")
     Check "flowbuild", "smaller data: FillRates follows the issue types", "3 x 9 x 1", 27, TableRows("FillRates")
     Check "flowbuild", "the sheets are the same", "count", sheetCount, wb.Worksheets.Count
-    Check "flowbuild", "still nine charts", "Charts", 9, dash.ChartObjects.Count
+    Check "flowbuild", "still ten charts", "Charts", 10, dash.ChartObjects.Count
     Check "flowbuild", "an unknown team in the selector goes back to All teams", "Nowhere", "All teams", dash.Range("B2").Value
     dash.Range("B2").Value = "AAA"
     wb.Worksheets(SheetName("PIs")).Range("A2:C3").Value = PiRows()                 ' two PIs: the PI axis lists them in order

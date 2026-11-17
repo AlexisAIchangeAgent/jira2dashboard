@@ -41,6 +41,15 @@ Fonctionnalité: Le scénario art-metrics du faux Jira donne, dans le classeur l
     Et chaque graphique par équipe de la feuille Charts n'a que la série ART
 
   @excel
+  Scénario: Le temps de cycle par statut de chaque PI est celui calculé à la main et celui du calcul de référence
+    Soit le faux Jira du scénario art-metrics
+    Et le classeur à livrer rempli pour ce scénario
+    Quand j'extrais et calcule
+    Alors la table PIStatusTime donne pour chaque PI ses Features livrées, la durée moyenne et la part de chaque statut calculées à la main
+    Et la table PIStatusTime est celle du calcul de référence et ses totaux sont les jours actifs et d'attente des mêmes Features
+    Et le graphique Cycle time by status empile les parts des statuts de chaque PI
+
+  @excel
   Scénario: Une itération sans livraison montre sa vélocité à 0 et la note sous les graphiques dit pourquoi
     Soit le faux Jira du scénario art-metrics
     Et le classeur à livrer rempli pour ce scénario

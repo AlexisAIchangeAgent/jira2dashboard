@@ -86,10 +86,10 @@ RUN  user machine, Excel + VBA
         |  3. rebuild         modFlowBuild, from the plan sheets
         v
   Controls, ItemFlow, DailyLoad, Metrics,                   computed sheets (formulas)
-  PIMetrics, FillRates, DataChecks, ChartData
+  PIMetrics, PIStatusTime, FillRates, DataChecks, ChartData
         |
         v
-  Dashboard: buttons, status cell A16 and its rows; Charts: 9 charts
+  Dashboard: buttons, status cell A16 and its rows; Charts: 10 charts
 
 
 FALLBACK  Python, no VBA
@@ -107,11 +107,11 @@ Excel tables keep the logical names (`Config`, `Issues[Key]`); `sheet_names.py` 
 
 | Sheets | Content | Written by |
 |---|---|---|
-| `Dashboard_from_excel`, `Manual_from_excel`, `Charts_from_excel` | Progress bar and buttons stacked in `A2:A14`, status `A16` and one row per field under it; user manual; the 9 charts and their team `B2` | build |
+| `Dashboard_from_excel`, `Manual_from_excel`, `Charts_from_excel` | Progress bar and buttons stacked in `A2:A14`, status `A16` and one row per field under it; user manual; the 10 charts and their team `B2` | build |
 | `ErrorCodes_from_excel`, `Steps_from_excel` | The support codes (what each means and what to check); the steps of the last run | build, VBA |
 | `Config_from_user`, `Projects_from_user`, `Iterations_from_user`, `PIs_from_user`, `Workflows_from_user`, `Transitions_from_user`, `FieldMapping_from_user` | Parameters | build, then user |
 | `Issues_from_Jira`, `StatusIntervals_from_Jira`, `IssueLinks_from_Jira` | Raw data (values) | VBA |
-| `Controls_from_excel`, `ItemFlow_from_excel`, `DailyLoad_from_excel`, `Metrics_from_excel`, `PIMetrics_from_excel`, `IterationFeatures_from_excel`, `IterationCharts_from_excel`, `FillRates_from_excel`, `DataChecks_from_excel`, `ChartData_from_excel` | Results (formulas) | VBA |
+| `Controls_from_excel`, `ItemFlow_from_excel`, `DailyLoad_from_excel`, `Metrics_from_excel`, `PIMetrics_from_excel`, `PIStatusTime_from_excel`, `IterationFeatures_from_excel`, `IterationCharts_from_excel`, `FillRates_from_excel`, `DataChecks_from_excel`, `ChartData_from_excel` | Results (formulas) | VBA |
 | `FlowFormulas_from_excel`, `ChartSpec_from_excel`, `ChecksSpec_from_excel`, `RawTypesSpec_from_excel` | The plan. Do not edit. | build |
 | `JiraIssueTypes_from_Jira`, `JiraStatuses_from_Jira`, `JiraWorkflows_from_Jira`, `JiraTransitions_from_Jira`, `JiraFields_from_Jira` | Proposals read from Jira (workflows and moves end with the column Project) | VBA |
 | `RovoPromptSpec_from_excel`, `RovoPrompt_from_excel` | The text behind the button Prompt for Rovo, and the prompt it writes (a CSV answer is asked: Sheet, Row, Column, Value, Note); the button Load settings CSV loads that answer into Config and the parameter sheets | Python (spec), VBA |
@@ -248,7 +248,7 @@ When the macros cannot run, Python does their work:
 
 - It reads the parameter sheets of the **saved** workbook, then Jira, with the same proxy, retries and error numbers
   as the macros.
-- It writes values only: `Run`, `Charts` (9 SVG charts), `Metrics`, `PIMetrics`, `DataChecks`, `FillRates`, `ItemFlow`,
+- It writes values only: `Run`, `Charts` (10 SVG charts), `Metrics`, `PIMetrics`, `PIStatusTime`, `DataChecks`, `FillRates`, `ItemFlow`,
   `DailyLoad`, `Issues`, `StatusIntervals`, `IssueLinks`, `Errors`, and the parameters with `ApiToken` masked.
 - On failure nothing is written. Differences from the workbook: no `Metrics` row for a team without items;
   `DailyLoad` stops at `AsOf`.

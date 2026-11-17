@@ -9,6 +9,7 @@ from jira2dashboard.flow.metrics import PIPredictability
 from jira2dashboard.flow import dashboard_spec as D
 from jira2dashboard.flow.metrics import BUCKETS, TeamIterationMetrics
 from jira2dashboard.flow.model import NOT_COMPUTABLE
+from jira2dashboard.flow.pi_status_time import PIStatusTime
 from jira2dashboard.standalone import charts_svg as C
 
 SVG = "{http://www.w3.org/2000/svg}"
@@ -87,7 +88,7 @@ def test_the_eight_charts_of_the_dashboard():
     assert [p.name for p in pictures] == [spec.name for spec in D.CHARTS]
     feature = next(p for p in pictures if p.name == "feature_predictability")
     assert "PI#01-2026" in texts(feature.svg) and "PI#02-2026" in texts(feature.svg)        # one bar per PI, a gap for PI 2
-    assert C.chart_pictures(rows, teams, iterations, loads, days, "ART")[-2].name == "feature_predictability"
+    assert C.chart_pictures(rows, teams, iterations, loads, days, "ART")[-3].name == "feature_predictability"
     for picture in pictures:
         ElementTree.fromstring(picture.svg)
     by_name = {p.name: p for p in pictures}
@@ -114,3 +115,16 @@ def test_the_velocity_note_counts_the_points_that_are_0_as_the_workbook_does():
     series = {"ART": [1, 0, 0, 2], "team": [0, 1, 0, 0]}
     assert C.gaps_note(series, "", zeros=True) == "5 of 8 points are 0 - no item was done (no bar)"
     assert C.gaps_note({"ART": [1, 2]}, "", zeros=True) == "0 of 2 points are 0 - no item was done (no bar)"      # always written
+
+
+def test_the_cycle_time_by_status_chart_stacks_the_shares_of_each_pi_and_leaves_a_gap_for_a_pi_without_release():
+    rows = [PIStatusTime("PI-1", "doing", 2, 4.0, 2.0, 0.5), PIStatusTime("PI-1", "testing", 2, 4.0, 2.0, 0.5),
+            PIStatusTime("PI-2", "doing", 0, 0, NOT_COMPUTABLE, NOT_COMPUTABLE), PIStatusTime("PI-2", "testing", 0, 0, NOT_COMPUTABLE, NOT_COMPUTABLE)]
+    metrics_rows = [metrics("I1", "ART", 1, median=2.5)]
+    pictures = {p.name: p for p in C.chart_pictures(metrics_rows, ["ART"], ["I1"], {"ART": {}}, [dt.datetime(2026, 10, 1)], "ART", (), rows)}
+    picture = pictures["pi_status_time"]
+    ElementTree.fromstring(picture.svg)
+    found = texts(picture.svg)
+    assert "PI-1" in found and "PI-2" in found and "doing" in found and "testing" in found       # the PIs on the X axis, a legend of statuses
+    assert "100%" in found                                                                          # a 100 % scale
+    assert "2 of 4 points are not computable (gaps) - no Feature was released in the PI, or the PI is not in the sheet PIs" in found

@@ -16,6 +16,7 @@ from jira2dashboard.flow.itemflow import ItemFlow, item_flow
 from jira2dashboard.flow.iteration_features import IterationFeatures, iteration_features
 from jira2dashboard.flow.load import ONE_DAY, daily_load, snapshot_days
 from jira2dashboard.flow.pi_history import pi_intervals
+from jira2dashboard.flow.pi_status_time import PIStatusTime, feature_statuses, pi_status_time
 from jira2dashboard.flow.metrics import (BUCKETS, PIPredictability, TeamIterationMetrics, pi_predictability,
                                          team_iteration_metrics)
 from jira2dashboard.flow.model import NOT_COMPUTABLE, UNMAPPED, WORK_TYPES, FlowIssue
@@ -29,6 +30,7 @@ ITEMFLOW = ("Key", "Project", "Type", "WorkType", "Role", "Workflow", "Team", "C
 DAILY_LOAD = F.TABLES["DailyLoad"]
 METRICS = F.TABLES["Metrics"]
 PI_METRICS = F.TABLES["PIMetrics"]
+PI_STATUS_TIME = F.TABLES["PIStatusTime"]
 ITERATION_FEATURES = F.ITERATIONFEATURES_KEYS + F.ITERATIONFEATURES_NAMES
 FILL_RATES = F.TABLES["FillRates"]
 DATA_CHECKS = F.TABLES["DataChecks"]
@@ -45,6 +47,7 @@ class Results:
     fill: list[FillRate]
     predictability: list[PIPredictability]   # Feature Predictability per PI of the sheet PIs (ART)
     iteration_features: list[IterationFeatures]   # the Features per iteration, PI and team: what the PI figures are summed from
+    status_time: list[PIStatusTime]           # where the cycle time of the Features goes, status by status, PI by PI
 
 
 def iteration_span(iterations) -> tuple[dt.datetime, dt.datetime]:
@@ -59,10 +62,13 @@ def compute(issues: list[FlowIssue], s: RunSettings) -> Results:
     flags = run_checks(issues, s.as_of, s.rules, s.moves, s.checks)
     fill = fill_rates(issues, s.checks, sorted({i.team for i in issues}), sorted({i.type for i in issues}))
     rows = iteration_features(issues, items, s.iterations, s.checks.pis, s.checks.feature_types)
+    predictability = pi_predictability(rows, issues, s.checks, s.predictability_mode)
+    pi_names = [p.pi for p in predictability] or [D.NO_PI]               # the keys of PIMetrics, also those of PIStatusTime
+    status_time = pi_status_time(items, feature_statuses(s.sheets) or [D.NO_STATUS], pi_names, s.checks.pis)
     return Results(items, flags, teams,
                    [team_iteration_metrics(items, team, iteration, s.mode, s.as_of) for iteration in s.iterations for team in teams],
                    {team: daily_load(items, s.mode, team, first, end, s.as_of) for team in teams}, fill,
-                   pi_predictability(rows, issues, s.checks, s.predictability_mode), rows)
+                   predictability, rows, status_time)
 
 
 def _bucket(work_type) -> str:
@@ -109,6 +115,12 @@ def iterationfeatures_rows(results: Results) -> list[tuple]:
     """The rows of IterationFeatures (flow/iteration_features.py), in the column order of the table."""
     return [(r.iteration, r.start, r.end, r.team, r.pi or None, r.baseline, r.engaged, r.added, r.deferred, r.released,
              r.released_planned, r.released_added, r.carry_over) for r in results.iteration_features]
+
+
+def pistatustime_rows(results: Results, s: RunSettings) -> list[tuple]:
+    """The rows of PIStatusTime (formulas.PISTATUSTIME_COLUMNS), one per PI of PIMetrics and Active / Wait status of the Feature workflow."""
+    return [(r.pi, r.status, *s.checks.pis.get(r.pi, (None, None)), r.items, r.total_days, r.average_days, r.share)
+            for r in results.status_time]
 
 
 def piinterval_rows(issues: list[FlowIssue]) -> list[tuple]:

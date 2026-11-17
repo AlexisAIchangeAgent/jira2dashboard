@@ -11,7 +11,7 @@ METRICS_COLUMNS = set(f.TABLES["Metrics"])
 def test_one_chart_per_flow_metric():
     assert [c.name for c in d.CHARTS] == ["velocity", "flow_time", "flow_time_p85", "flow_load", "flow_efficiency",
                                            "flow_distribution", "flow_predictability", "feature_predictability",
-                                           "flow_load_daily"]
+                                           "pi_status_time", "flow_load_daily"]
     assert len({c.name for c in d.CHARTS}) == len(d.CHARTS)
 
 
@@ -19,6 +19,9 @@ def test_every_chart_draws_a_column_of_the_metrics_table():
     for chart in d.CHARTS:
         if chart.axis == d.DAY_AXIS:
             assert chart.column is None and {"Date", "Team", "Load"} <= set(f.TABLES["DailyLoad"])
+        elif chart.series == d.STATUS_SERIES:                 # the statuses come from the sheet Workflows, the shares from PIStatusTime
+            assert chart.column is None and chart.axis == d.PI_AXIS and d.series_names(chart) is None
+            assert {"PI", "Status", "Share"} <= set(f.TABLES["PIStatusTime"]) and chart.chart_type == d.XL_COLUMN_STACKED_100
         elif chart.axis == d.PI_AXIS:
             assert chart.column is None and d.series_names(chart) == ("ART",)
             assert {"IsFeature", "PI", "DoneUtc"} <= set(f.TABLES["ItemFlow"]) and "FeaturePredictability" in f.TABLES["PIMetrics"]

@@ -553,6 +553,23 @@ def _feature_predictability(world):
     assert any(p.planned > 0 for p in expected), expected                   # the PI of the anomalies holds Features
 
 
+@then("la table PIStatusTime reproduit la référence Python sur les données générées")
+def _pi_status_time_generated(world):
+    """The cycle time by status on generated data (the Feature workflow of params/workflows.md, the PIs of the anomalies): the table
+    against flow/pi_status_time, cell by cell, and some PI really has released Features (else it would compare gaps with gaps)."""
+    from jira2dashboard.flow.pi_status_time import feature_statuses, pi_status_time
+    got = table_dicts(world["wb"], "PIStatusTime")
+    names = [row["PI"] for row in table_dicts(world["wb"], "PIMetrics")]
+    statuses = feature_statuses(load_all())
+    expected = pi_status_time(world["items"], statuses, names, world["settings"].pis)
+    assert [(r["PI"], r["Status"]) for r in got] == [(e.pi, e.status) for e in expected]
+    for row, ref in zip(got, expected):
+        for column, attribute in (("Items", "items"), ("TotalDays", "total_days"), ("AverageDays", "average_days"), ("Share", "share")):
+            value = getattr(ref, attribute)
+            assert (row[column] == value) if value == NOT_COMPUTABLE else same_point(row[column], value), (ref.pi, ref.status, column, row[column], value)
+    assert any(isinstance(e.items, int) and e.items > 0 and e.total_days > 0 for e in expected), expected[:4]
+
+
 @then("la table DataChecks et les colonnes DC de ItemFlow reproduisent les contrôles de la référence Python")
 def _data_checks(world):
     expected, settings = expected_flags(world), world["settings"]
@@ -641,7 +658,7 @@ def chart_blocks(wb, world):
         if spec in D.ITERATION_CHARTS:
             continue                                           # the Features per iteration: checked on their own sheet
         n = days if spec.axis == D.DAY_AXIS else len(pis) if spec.axis == D.PI_AXIS else iterations
-        top, count = D.block_top(index, stride), len(D.series_names(spec) or team_names())
+        top, count = D.block_top(index, stride), len(D.series_names(spec) or (status_names() if spec.series == D.STATUS_SERIES else team_names()))
         grid = ws.Range(ws.Cells(top + 1, 1), ws.Cells(top + 1 + n, 1 + count + (2 if spec.band else 0))).Value2
         blocks[spec.name] = ([grid[0][c] for c in range(1, count + 1)], [grid[r][0] for r in range(1, n + 1)],
                              [list(grid[r][1:count + 1]) for r in range(1, n + 1)])
@@ -649,6 +666,12 @@ def chart_blocks(wb, world):
             blocks[spec.name + ".band"] = ([grid[0][count + 1], grid[0][count + 2]], blocks[spec.name][1],
                                            [list(grid[r][count + 1:]) for r in range(1, n + 1)])
     return blocks
+
+
+def status_names():
+    """The series of the Cycle time by status chart: the Active and Wait statuses of the Feature workflow (modFlowBuild.StatusNames)."""
+    from jira2dashboard.flow.pi_status_time import feature_statuses
+    return feature_statuses(load_all())
 
 
 def team_names():
@@ -709,7 +732,7 @@ def _sizes(world):
     assert size["StatusIntervals"] == sum(len(item.intervals) for item in world["items"])
     assert size["DailyLoad"] == (iterations[-1].end - iterations[0].start).days * len(teams)
     assert size["Metrics"] == len(iterations) * len(teams)
-    assert wb.Worksheets(S.of(D.CHARTS_SHEET)).ChartObjects().Count == len(D.CHARTS) == 9
+    assert wb.Worksheets(S.of(D.CHARTS_SHEET)).ChartObjects().Count == len(D.CHARTS) == 10
     assert wb.Worksheets(S.of("Dashboard")).ChartObjects().Count == 0                  # nothing hides the Dashboard
     names = [sheet.Name for sheet in wb.Worksheets]
     assert len(names) == len(set(names)), names
@@ -1669,6 +1692,51 @@ def chart_note(world, name):
     ws = world["wb"].Worksheets(S.of(D.CHARTS_SHEET))
     row, column = D.chart_anchor([s.name for s in D.CHARTS].index(name))
     return str(ws.Cells(row + D.ROWS_PER_CHART, column).Value)
+
+
+@then("la table PIStatusTime donne pour chaque PI ses Features livrées, la durée moyenne et la part de chaque statut calculées à la main")
+def _art_status_time(world):
+    from art_oracle import CHAIN, PI_ITEMS, PIS, STATUS_AVERAGE_DAYS, STATUS_SHARE
+    rows = art_table(world, "PIStatusTime")
+    assert [(r["PI"], r["Status"]) for r in rows] == [(pi, s) for pi in PIS for s in CHAIN]              # PI order, then the order of Workflows
+    assert {r["PI"]: int(r["Items"]) for r in rows} == PI_ITEMS                                           # the item set, not only the shares
+    assert all(art_close(r["AverageDays"], STATUS_AVERAGE_DAYS[r["PI"]][r["Status"]]) for r in rows), rows[:3]
+    assert all(art_close(r["Share"], STATUS_SHARE[r["PI"]][r["Status"]]) for r in rows), rows[:3]
+    assert all(r["Start"] and r["End"] for r in rows)                                                     # the dates come from the sheet PIs
+
+
+@then("la table PIStatusTime est celle du calcul de référence et ses totaux sont les jours actifs et d'attente des mêmes Features")
+def _art_status_time_reference(world):
+    from jira2dashboard.flow.pi_status_time import feature_statuses, pi_status_time, released_in
+    scenario, ds = world["scenario"], world["scenario"].dataset
+    rules = Rules.from_params(list(ds.sheets))
+    items = [item_flow(i, ds.as_of, rules) for i in to_flow_issues(ds)]
+    windows = {p.name: (p.start, p.end) for p in scenario.pis}
+    expected = pi_status_time(items, feature_statuses(ds.sheets), list(windows), windows)
+    got = art_table(world, "PIStatusTime")
+    assert [(r["PI"], r["Status"]) for r in got] == [(e.pi, e.status) for e in expected]
+    for row, ref in zip(got, expected):
+        for column, attribute in (("Items", "items"), ("TotalDays", "total_days"), ("AverageDays", "average_days"), ("Share", "share")):
+            value = getattr(ref, attribute)
+            assert (row[column] == value) if value == NOT_COMPUTABLE else art_close(row[column], value), (ref.pi, ref.status, column, row[column], value)
+    flow = {r["Key"]: r for r in art_table(world, "ItemFlow")}
+    for pi, window in windows.items():                                           # the invariant: the statuses add up to Active + Wait days
+        mine = released_in(items, window)
+        wanted = sum(flow[i.key]["ActiveDays"] + flow[i.key]["WaitDays"] for i in mine)
+        assert art_close(sum(r["TotalDays"] for r in got if r["PI"] == pi), wanted), pi
+
+
+@then("le graphique Cycle time by status empile les parts des statuts de chaque PI")
+def _art_status_chart(world):
+    from art_oracle import CHAIN, PIS, STATUS_SHARE
+    ws = world["wb"].Worksheets(S.of(D.CHARTS_SHEET))
+    chart = ws.ChartObjects("pi_status_time").Chart
+    assert chart.ChartType == D.XL_COLUMN_STACKED_100                                            # PIs on the X axis, shares stacked to 100 %
+    assert [chart.SeriesCollection(n).Name for n in range(1, chart.SeriesCollection().Count + 1)] == CHAIN
+    for n, status in enumerate(CHAIN, start=1):
+        assert [float(v) for v in chart.SeriesCollection(n).Values] == [STATUS_SHARE[pi][status] for pi in PIS], status
+    assert list(chart.SeriesCollection(1).XValues) == list(PIS)
+    assert chart_note(world, "pi_status_time") == f"0 of {len(CHAIN) * len(PIS)} points are not computable (gaps) - {D.PI_STATUS_REASON}"
 
 
 @then("le graphique Velocity écrit la valeur au-dessus des barres de l'ART et sa note compte 6 points à 0")

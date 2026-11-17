@@ -12,6 +12,7 @@ from jira2dashboard.flow import dashboard_spec as D
 from jira2dashboard.flow.iteration_features import IterationFeatures
 from jira2dashboard.flow.metrics import BUCKETS, PIPredictability, TeamIterationMetrics
 from jira2dashboard.flow.model import NOT_COMPUTABLE
+from jira2dashboard.flow.pi_status_time import PIStatusTime
 from jira2dashboard.standalone.xlsx_write import Picture
 
 WIDTH, HEIGHT = 640, 380
@@ -181,7 +182,8 @@ def iteration_chart_pictures(rows: list[IterationFeatures], iterations: list[str
 
 def chart_pictures(metrics: list[TeamIterationMetrics], teams: list[str], iterations: list[str],
                    loads: dict[str, dict[dt.datetime, int]], days: list[dt.datetime],
-                   team: str = D.ALL_TEAMS, predictability: list[PIPredictability] = ()) -> list[Picture]:
+                   team: str = D.ALL_TEAMS, predictability: list[PIPredictability] = (),
+                   status_time: list[PIStatusTime] = ()) -> list[Picture]:
     """The charts of dashboard_spec.CHARTS, in its order. `predictability`: Feature Predictability per PI (one row, a gap,
     when there is no PI, as in the workbook)."""
     by_key = {(m.iteration, m.team): m for m in metrics}
@@ -194,6 +196,10 @@ def chart_pictures(metrics: list[TeamIterationMetrics], teams: list[str], iterat
         if spec.axis == D.DAY_AXIS:
             categories = [f"{d:%m-%d}" for d in days]
             series = {t: [loads[t].get(d) for d in days] for t in teams}
+        elif spec.series == D.STATUS_SERIES:                       # one bar per PI of PIStatusTime, one colour per status
+            categories = list(dict.fromkeys(r.pi for r in status_time)) or [D.NO_PI]
+            series = {status: [_number(r.share) for r in status_time if r.status == status]
+                      for status in dict.fromkeys(r.status for r in status_time)}
         elif spec.axis == D.PI_AXIS:
             categories = [p.pi for p in predictability] or [D.NO_PI]
             series = {name: [_number(p.ratio) for p in predictability] or [None] for name in D.series_names(spec)}

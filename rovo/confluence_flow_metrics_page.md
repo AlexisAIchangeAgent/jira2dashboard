@@ -45,7 +45,7 @@ Then for each PI, create a child page titled `Flow metrics <PI>`, with these sec
 | Id | Title | Severity | Items | Result |
 |---|---|---|---|---|
 
-**Charts:** the 9 charts of the `Charts` sheet as images. Set the team picker to "All teams" first. Put each chart
+**Charts:** the 10 charts of the `Charts` sheet as images. Set the team picker to "All teams" first. Put each chart
 under its title, as in the workbook:
 1. Velocity - items done per iteration
 2. Flow Time - median, in days
@@ -55,7 +55,9 @@ under its title, as in the workbook:
 6. Flow Distribution - items done by work type (team of the selector)
 7. Flow Predictability
 8. Feature Predictability - features released in the PI / features engaged at its start
-9. Flow Load - items in process at the end of each day
+9. Cycle time by status - share of the average cycle time of the Features released in each PI (one colour per status: the tallest
+   ones are the statuses where the Features spend most of their time)
+10. Flow Load - items in process at the end of each day
 
 The sheet IterationCharts_from_excel holds 5 more charts, the Features of the ART iteration by iteration (the ART, then one series
 per team of the Features). They are optional for the page; if you copy them, keep their titles: "Features engaged at the start of each

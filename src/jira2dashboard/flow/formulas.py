@@ -52,6 +52,14 @@ INTERVAL_HELPERS = (
                 f'{bounded("Transitions", "B", TRANSITIONS_LAST)},[@PrevStatus],'
                 f'{bounded("Transitions", "C", TRANSITIONS_LAST)},[@Status])>0,SUMIFS(Workflows_from_user!$G:$G,Workflows_from_user!$A:$A,[@Workflow],'
                 'Workflows_from_user!$C:$C,[@Status])>0),0,1))'),
+    # PIStatusTime: the time of a Feature in each Active / Wait status, between its StartUtc (included) and its DoneUtc (excluded), the
+    # window of ItemFlow.ActiveDays / WaitDays; 0 for an interval of an item that is not done, has no valid start or is excluded from flow time
+    ("ItemRow", f"=MATCH([@Key],{IF_}[Key],0)"),                       # one lookup per interval, the three columns below read it
+    ("ItemStart", f"=INDEX({IF_}[StartUtc],[@ItemRow])"),
+    ("ItemDone", f"=INDEX({IF_}[DoneUtc],[@ItemRow])"),
+    ("ItemExcluded", f"=INDEX({IF_}[Excluded],[@ItemRow])"),
+    ("InCycle", f'=IF(AND(OR([@Category]="Active",[@Category]="Wait"),[@ItemStart]<>"",[@ItemDone]<>"",[@ItemExcluded]=0),'
+                f"IF(AND([@EnteredUtc]>=[@ItemStart]-{HALF},[@EnteredUtc]<[@ItemDone]-{HALF}),1,0),0)"),
 )
 
 
@@ -195,6 +203,24 @@ PIMETRICS_COLUMNS = (
                               "[@FeaturesDone]/[@FeaturesPlanned])"),
 )
 
+# --- the table PIStatusTime: where the cycle time of the Features goes, status by status, PI by PI (AL, 2026-11-17) -------------
+# One row per PI (the keys of PIMetrics) and per Active / Wait status of the Feature workflow (VBA writes the keys: modFlowBuild.StatusNames, in
+# the order of the sheet Workflows). Items = the Features released in the PI (DoneUtc in [Start, End), not excluded from flow time);
+# TotalDays = the time those items spent in the status (StatusIntervals[InCycle]); AverageDays = TotalDays / Items; Share = TotalDays /
+# the total of the statuses of the PI. A PI without dates or without a released Feature is not computable. Reference: flow/pi_status_time.py.
+PISTATUSTIME_KEYS = ("PI", "Status")
+_PI_DONE = f'ItemFlow[DoneUtc],">="&([@Start]-{HALF}),ItemFlow[DoneUtc],"<"&([@End]-{HALF})'
+PISTATUSTIME_COLUMNS = (
+    ("Start", _pi_date("B")),
+    ("End", _pi_date("C")),
+    ("Items", f'=IF(AND(ISNUMBER([@Start]),ISNUMBER([@End])),COUNTIFS(ItemFlow[Workflow],"Feature",{_PI_DONE},ItemFlow[Excluded],0),{_NC})'),
+    ("TotalDays", f'=IF(ISNUMBER([@Items]),SUMIFS({SI}[DurationDays],{SI}[Workflow],"Feature",{SI}[Status],[@Status],{SI}[InCycle],1,'
+                  f'{SI}[ItemDone],">="&([@Start]-{HALF}),{SI}[ItemDone],"<"&([@End]-{HALF})),{_NC})'),
+    ("AverageDays", f"=IF(ISNUMBER([@Items]),IF([@Items]=0,{_NC},[@TotalDays]/[@Items]),{_NC})"),
+    ("Share", f"=IF(ISNUMBER([@Items]),IF([@Items]=0,{_NC},IF(SUMIFS(PIStatusTime[TotalDays],PIStatusTime[PI],[@PI])>0,"
+              f"[@TotalDays]/SUMIFS(PIStatusTime[TotalDays],PIStatusTime[PI],[@PI]),{_NC})),{_NC})"),
+)
+
 # --- PIIntervals: the PI field of each issue through time (raw: modFlow.PiIntervalRows; reference: flow/pi_history.py) --------
 # One row per stretch in which an issue carried a PI: FromUtc included, ToUtc excluded (empty = still: IsOpen). The helpers give each
 # row the Feature flag, the team of the Feature (the Team field; "(none)" when empty) and when it was done (far away when not).
@@ -274,4 +300,5 @@ TABLES = {
     "PIIntervals": PIINTERVALS_RAW + tuple(name for name, _ in PIINTERVAL_HELPERS),
     "IterationFeatures": ITERATIONFEATURES_KEYS + ITERATIONFEATURES_NAMES,
     "PIMetrics": PIMETRICS_KEYS + tuple(name for name, _ in PIMETRICS_COLUMNS),
+    "PIStatusTime": PISTATUSTIME_KEYS + tuple(name for name, _ in PISTATUSTIME_COLUMNS),
 }

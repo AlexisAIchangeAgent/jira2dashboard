@@ -5,7 +5,8 @@ Pure but for `report_for_workbook`, which reads the workbook through COM. The or
 """
 import html
 
-from art_oracle import (ART_ROWS, DONE_A, DONE_B, FLOW_EFFICIENCY, FLOW_TIME_DAYS, PIS, PLANNED, TEAM_ROWS, VELOCITY)
+from art_oracle import (ART_ROWS, CHAIN, DONE_A, DONE_B, FLOW_EFFICIENCY, FLOW_TIME_DAYS, PI_ITEMS, PIS, PLANNED, STATUS_AVERAGE_DAYS,
+                        STATUS_SHARE, TEAM_ROWS, VELOCITY)
 from jira2dashboard.flow.model import NOT_COMPUTABLE
 
 ART_COLUMNS = ("Engaged", "Added", "Deferred", "Released", "ReleasedAdded", "CarryOver")
@@ -73,11 +74,16 @@ def sections(tables: dict[str, list[dict]], mode: str = "A") -> list[tuple[str, 
                             (show, show, percent)))
         else:
             flow.append(row(label, (NOT_COMPUTABLE, NOT_COMPUTABLE), (got.get("FlowTimeMedian"), got.get("FlowEfficiency"))))
+    status_time = by_key(tables["PIStatusTime"], "PI", "Status")
+    cycle = [row(f"{pi} {status}", (PI_ITEMS[pi], STATUS_AVERAGE_DAYS[pi][status], STATUS_SHARE[pi][status]),
+                 tuple(status_time.get((pi, status), {}).get(c) for c in ("Items", "AverageDays", "Share")), (show, show, percent))
+             for pi in PIS for status in CHAIN]
     return [("Feature Predictability of each PI", predictability),
             (f"Features of the ART per iteration ({' / '.join(ART_COLUMNS)})", per_iteration),
             (f"Features of each team, PI-3 and PI-4 ({' / '.join(TEAM_COLUMNS)})", per_team),
             ("Velocity of the ART per iteration (Features released)", velocity),
-            ("Flow Time median / p85 (days) and Flow Efficiency of the ART per iteration", flow)]
+            ("Flow Time median / p85 (days) and Flow Efficiency of the ART per iteration", flow),
+            ("Cycle time by status, per PI (Features released / average days per Feature / share of the cycle time)", cycle)]
 
 
 def render(found: list[tuple[str, list[tuple]]]) -> str:
@@ -115,7 +121,7 @@ def report_for_workbook(wb) -> str:
     """Read the tables of the open workbook and return the HTML report (COM)."""
     from jira2dashboard.flow import sheets
     tables = {}
-    for name in ("PIMetrics", "IterationFeatures", "Metrics"):
+    for name in ("PIMetrics", "IterationFeatures", "Metrics", "PIStatusTime"):
         header, body = sheets.read_table(wb, name, name)
         tables[name] = [dict(zip(header, r)) for r in body]
     return render(sections(tables, predictability_mode(wb)))

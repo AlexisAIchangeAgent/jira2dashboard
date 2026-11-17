@@ -32,6 +32,9 @@ BUTTON_WIDTH, BUTTON_HEIGHT, BAR_HEIGHT = 190, 26, 14
 XL_COLUMN_CLUSTERED, XL_LINE_MARKERS, XL_COLUMN_STACKED_100, XL_LINE = 51, 65, 53, 4
 
 TEAMS, BUCKET_SERIES, ART_SERIES = "team", "bucket", "art"     # one series per team, per work type, or ART alone
+STATUS_SERIES = "status"                       # one series per Active / Wait status of the Feature workflow (read from the sheet Workflows)
+NO_STATUS = "(no status)"                      # the one status of PIStatusTime when the Feature workflow has no Active or Wait status (modFlowBuild.NO_STATUS)
+STATUSES_TOKEN = "{statuses}"                  # the plan column SeriesNames of such a chart: modFlowBuild.BuildChart replaces it by StatusNames
 ITERATION_AXIS, DAY_AXIS, PI_AXIS = "iteration", "day", "pi"   # one point per iteration (table Metrics), per day (table
 #                                                                 DailyLoad) or per PI (rows of the sheet PIs)
 NO_PI = "(no PI in the sheet PIs)"                             # the one row of a PI chart while the sheet PIs is empty
@@ -65,6 +68,7 @@ STEPS_CELL = "T1"           # the first steps (manual.first_steps), right of the
 # AL, 2026-11-17: an iteration where nothing was done (every Feature deferred, say) has Velocity 0 (no bar) and no Flow Time or Flow
 # Efficiency (a gap: never 0, never a guess). The value is written above the bar and the note under the chart says why.
 NO_ITEM_DONE = "no item was done in these iterations, so there is nothing to measure"
+PI_STATUS_REASON = "no Feature was released in the PI, or the PI is not in the sheet PIs"
 ZERO_NOTE = "no item was done (no bar)"
 
 CHARTS = (
@@ -82,6 +86,11 @@ CHARTS = (
     ChartSpec("feature_predictability", "Feature Predictability - features released in the PI / features engaged at its start",
               None, XL_COLUMN_CLUSTERED, "0%", series=ART_SERIES, axis=PI_AXIS, band=(0.8, 1.0),
               reason="no feature planned in the PI, or the PI is not in the sheet PIs"),
+    # AL, 2026-11-17: where the cycle time goes. One bar per PI, one colour per status; the bars add up to 100 %. The purpose is to
+    # see the statuses that take most of it (flow/pi_status_time.py, table PIStatusTime).
+    ChartSpec("pi_status_time", "Cycle time by status - share of the average cycle time of the Features released in each PI", None,
+              XL_COLUMN_STACKED_100, "0%", series=STATUS_SERIES, axis=PI_AXIS,
+              reason=PI_STATUS_REASON),
     ChartSpec("flow_load_daily", "Flow Load - items in process at the end of each day", None, XL_LINE, axis=DAY_AXIS,
               reason="the day is after the as-of date"),          # last: its block has one row per day, not per iteration
 )
@@ -137,6 +146,13 @@ def pi_point(pi_cell: str) -> str:
     """One point of the Feature Predictability chart (ART): the FeaturePredictability of the PI of the row in the table
     PIMetrics (formulas.PIMETRICS_COLUMNS), or #N/A when it is not computable (no Feature planned in the PI)."""
     return (f'=LET(v,XLOOKUP({pi_cell},PIMetrics[PI],PIMetrics[FeaturePredictability],""),'
+            "IF(ISNUMBER(v),v,NA()))")
+
+
+def status_point(pi_cell: str, name_cell: str) -> str:
+    """One point of the Cycle time by status chart: the Share of the status (the series name, in the header cell) in the PI of the row,
+    from the table PIStatusTime (formulas.PISTATUSTIME_COLUMNS), or #N/A when it is not computable (no Feature released in the PI)."""
+    return (f"=LET(v,XLOOKUP(1,(PIStatusTime[PI]={pi_cell})*(PIStatusTime[Status]={name_cell}),PIStatusTime[Share],\"\"),"
             "IF(ISNUMBER(v),v,NA()))")
 
 

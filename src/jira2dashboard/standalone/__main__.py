@@ -5,7 +5,7 @@
 2. Finds the proxy (ProxyServer, or the Windows settings when it is empty), then reads Jira with WinHTTP, as the VBA
    does: the search of the projects (and Filter), page after page, then the changelogs.
 3. Computes the data and the results with the Python reference: Issues, StatusIntervals, IssueLinks, ItemFlow,
-   DailyLoad, Metrics, PIMetrics, FillRates, DataChecks, and the 9 charts of the workbook as SVG pictures.
+   DailyLoad, Metrics, PIMetrics, FillRates, DataChecks, and the 10 charts of the workbook as SVG pictures.
 4. Writes them as values (no formula, no VBA) in jira2dashboard.xlsx, next to the workbook read (or --out), with the
    sheets Run (what was done) and Errors (the warnings of the run) and the parameters used (ApiToken masked).
 Nothing is written when Jira fails or a parameter is missing: the previous file stays as it was.
@@ -226,7 +226,7 @@ def run(args, formatter: Scrubbed, collected: Collected, sleep=time.sleep, detec
     results = R.compute(extract.flow, settings)
     first, end = R.iteration_span(settings.iterations)
     pictures = chart_pictures(results.metrics, results.teams, [p.name for p in settings.iterations], results.loads,
-                              R.days_of(first, end), args.team, results.predictability)
+                              R.days_of(first, end), args.team, results.predictability, results.status_time)
     feature_pictures = iteration_chart_pictures(results.iteration_features, [p.name for p in settings.iterations])
     log.info("END results: %d items, %d metrics rows, %d charts%s", len(results.items), len(results.metrics),
              len(pictures) + len(feature_pictures), took(step))
@@ -248,6 +248,7 @@ def run(args, formatter: Scrubbed, collected: Collected, sleep=time.sleep, detec
               pictures=pictures, pictures_per_row=D.CHARTS_PER_ROW),
         Sheet(S.of("Metrics"), R.METRICS, R.metrics_rows(results, settings)),
         Sheet(S.of("PIMetrics"), R.PI_METRICS, R.pimetrics_rows(results, settings)),
+        Sheet(S.of("PIStatusTime"), R.PI_STATUS_TIME, R.pistatustime_rows(results, settings)),
         Sheet(S.of("IterationFeatures"), R.ITERATION_FEATURES, R.iterationfeatures_rows(results)),
         Sheet(S.of("IterationCharts"), rows=[("The Features of the ART iteration by iteration, drawn by Python (SVG pictures).",)],
               pictures=feature_pictures, pictures_per_row=D.CHARTS_PER_ROW),
