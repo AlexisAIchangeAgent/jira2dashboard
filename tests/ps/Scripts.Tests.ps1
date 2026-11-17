@@ -375,6 +375,21 @@ Describe "start-mock.ps1" {
         Test-Path (Pid-File $global:Port) | Should Be $true
         Assert-MockCalled Start-Process -Scope It -Times 1 -ParameterFilter { $WindowStyle -eq "Minimized" -and ($ArgumentList -contains "--anomalies") -and ($ArgumentList -contains "mock-jira") }
     }
+    It "-Scenario serves only that scenario: no generated issue, no anomaly, its own port 8101 when none is given" {
+        Set-Fake "netstat"
+        Fake-Server $true
+        $r = Invoke-Script "start-mock.ps1" -Named @{ Port = $global:Port; Scenario = "art-metrics" }
+        $r.Code | Should Be 0
+        $r.Out | Should Match "only the scenario art-metrics, no generated issue, no anomaly"
+        Assert-MockCalled Start-Process -Scope It -Times 1 -ParameterFilter { ($ArgumentList -contains "--scenario") -and ($ArgumentList -contains "art-metrics") -and -not ($ArgumentList -contains "--anomalies") -and -not ($ArgumentList -contains "--issues") }
+    }
+    It "-Scenario without -Port uses the port of the scenario instance, 8101, not 8099" {
+        Set-Fake "netstat"
+        $global:Listen = $false
+        Mock Start-Process { $global:Window }
+        $r = Invoke-Script "start-mock.ps1" -Named @{ Scenario = "art-metrics"; Hidden = $true }
+        Assert-MockCalled Start-Process -Scope It -Times 1 -ParameterFilter { ($ArgumentList -join " ") -match "--port 8101 --scenario art-metrics" }
+    }
     It "-Hidden starts it with no window" {
         Set-Fake "netstat"
         Fake-Server $true
@@ -577,6 +592,41 @@ Describe "manual-test.ps1" {
         (Calls)[0] | Should Be "stop-mock -Port 8100"
         (Calls)[1] | Should Be "run mock-workbook --workbook C:\Downloads\x.xlsm --port 8100"
         (Calls)[2] | Should Be "start-mock -Port 8100"
+    }
+    It "-Scenario is its own instance: its port 8101, its copy in its own folder, the fake Jira started for that scenario only" {
+        $r = Invoke-Script "manual-test.ps1" -Named @{ Workbook = "x.xlsm"; Scenario = "art-metrics" }
+        $r.Code | Should Be 0
+        (Calls)[0] | Should Be "stop-mock -Port 8101"
+        (Calls)[1] | Should Be "run mock-workbook --workbook x.xlsm --port 8101 --scenario art-metrics"
+        (Calls)[2] | Should Be "start-mock -Port 8101 -Scenario art-metrics"
+        Assert-MockCalled Start-Process -Scope It -Times 1 -ParameterFilter { ($ArgumentList -join " ") -match "manual_test.art-metrics.jira2dashboard4art-metrics.xlsm" }
+    }
+    It "-Scenario with -Python extracts on the copy of the scenario and opens the xlsx of its folder" {
+        $r = Invoke-Script "manual-test.ps1" -Named @{ Workbook = "x.xlsm"; Scenario = "art-metrics"; Python = $true }
+        $r.Code | Should Be 0
+        (Calls)[-1] | Should Match "^run extract --workbook .*manual_test.art-metrics.jira2dashboard4art-metrics.xlsm$"
+        Assert-MockCalled Start-Process -Scope It -Times 1 -ParameterFilter { ($ArgumentList -join " ") -match "manual_test.art-metrics.jira2dashboard.xlsx" }
+    }
+    It "-Scenario -Run extracts unattended in the copy step, starts no fake Jira of its own and opens the page of the charts" {
+        $r = Invoke-Script "manual-test.ps1" -Named @{ Workbook = "x.xlsm"; Scenario = "art-metrics"; Run = $true }
+        $r.Code | Should Be 0
+        (Calls | ForEach-Object { ($_ -split " ")[0] }) -join "," | Should Be "stop-mock,run"
+        (Calls)[1] | Should Be "run mock-workbook --workbook x.xlsm --port 8101 --scenario art-metrics --run"
+        Assert-MockCalled Start-Process -Scope It -Times 1 -ParameterFilter { $FilePath -match "charts.art_metrics.index.html" }
+        $r.Out | Should Match "ran alone, nothing to click"
+    }
+    It "-Run without -Scenario is refused before anything is stopped or started" {
+        $r = Invoke-Script "manual-test.ps1" -Named @{ Run = $true }
+        $r.Code | Should Be 1
+        $r.Out | Should Match "J2D-SCR-052"
+        (Calls).Count | Should Be 0
+    }
+    It "-Scenario -Run names the unattended run when it fails" {
+        $global:MockWbExit = 1
+        $r = Invoke-Script "manual-test.ps1" -Named @{ Workbook = "x.xlsm"; Scenario = "art-metrics"; Run = $true }
+        $r.Code | Should Be 1
+        $r.Out | Should Match "J2D-SCR-053"
+        Assert-MockCalled Start-Process -Scope It -Times 0
     }
     It "-Python runs the extraction on the copy and opens the xlsx, no macro" {
         $r = Invoke-Script "manual-test.ps1" -Named @{ Python = $true }

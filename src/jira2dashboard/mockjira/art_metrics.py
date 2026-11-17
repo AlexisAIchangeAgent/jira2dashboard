@@ -18,12 +18,16 @@ from dataclasses import dataclass
 
 from jira2dashboard.flow.model import Iteration
 from jira2dashboard.mockjira.dataset import Dataset, FieldChange, FieldIds, ParamSheet, Scenario, StatusCatalog, issue
-from jira2dashboard.params.model import load_all, project_keys
+from jira2dashboard.params.model import load_all
 
 NAME = "art-metrics"
+PORT = 8101                                             # its own fake Jira instance: the generic one (8099) can run beside it
 START = dt.datetime(2025, 1, 1)
 PI_WEEKS, ITERATION_WEEKS, PI_COUNT = 18, 3, 4
-FIELDS = FieldIds(iteration="customfield_10500")
+PROGRAM = "TTT"                                         # the one project: the Program that holds the Features
+# only the fields the scenario uses: no story points, business value, sprint or target dates (not in its catalog, not in its issues)
+FIELDS = FieldIds(story_points=None, business_value=None, sprint=None, target_start=None, target_end=None,
+                  iteration="customfield_10500")
 JIRA_WORKFLOW = "program-workflow"
 WORKFLOW = "Feature"                                    # the workflow value of the parameter sheets (params/model.py)
 TODO, DONE, DEFERRED = "todo", "released", "deferred"
@@ -89,16 +93,14 @@ def iterations() -> tuple[Iteration, ...]:
 
 
 def sheets() -> tuple[ParamSheet, ...]:
-    """params/*.md with the Feature workflow replaced by program-workflow (the Team workflow stays: the parameters need it)."""
-    out = []
-    for sheet in load_all():
-        rows = sheet.rows
-        if sheet.name == "Workflows":
-            rows = tuple(r for r in rows if r[0] != WORKFLOW) + WORKFLOW_ROWS
-        elif sheet.name == "Transitions":
-            rows = tuple(r for r in rows if r[0] != WORKFLOW) + TRANSITION_ROWS
-        out.append(ParamSheet(sheet.name, sheet.header, tuple(rows)))
-    return tuple(out)
+    """The parameter sheets of the scenario, in the order of the workbook. Projects, Iterations, PIs, Workflows and Transitions are
+    its own (built here: the Program project only, its calendar, the Feature workflow only: no Team project, no Team workflow, nothing
+    of params/*.md). Config and FieldMapping are the product's own list of parameters and extract columns: they come from params/."""
+    own = {"Projects": ((PROGRAM, "Program", None),),
+           "Iterations": tuple((i.name, f"{i.start:%Y-%m-%d}", f"{i.end:%Y-%m-%d}") for i in iterations()),
+           "PIs": tuple((p.name, f"{p.start:%Y-%m-%d}", f"{p.end:%Y-%m-%d}") for p in pis()),
+           "Workflows": WORKFLOW_ROWS, "Transitions": TRANSITION_ROWS}
+    return tuple(ParamSheet(sheet.name, sheet.header, own.get(sheet.name, sheet.rows)) for sheet in load_all())
 
 
 def _stamp(moment: dt.datetime) -> str:
@@ -135,10 +137,10 @@ def _feature(plan: Plan, project: str, all_iterations: tuple[Iteration, ...], al
 
 
 def scenario() -> Scenario:
-    project = project_keys()[0]                                                       # the Program project
+    project = PROGRAM
     all_pis, all_iterations = pis(), iterations()
     own = sheets()
     issues = tuple(_feature(plan, project, all_iterations, all_pis, FIELDS) for plan in PLANS)
     dataset = Dataset(issues, all_pis[-1].end, catalog=StatusCatalog.from_params(list(own)), fields=FIELDS, sheets=own,
                       workflow_names={WORKFLOW: JIRA_WORKFLOW})
-    return Scenario(NAME, dataset, all_pis, all_iterations)
+    return Scenario(NAME, dataset, all_pis, all_iterations, port=PORT)

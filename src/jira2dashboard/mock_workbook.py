@@ -4,6 +4,8 @@ The copy, out\\manual_test\\jira2dashboard4manualtest.xlsm, gets what a client w
 account, reference date and custom field ids of the fake Jira of `run.ps1 mock-jira`; 14-day iterations in Iterations;
 the two PIs of the fake data in PIs. The workbook given is never changed: the one to deliver keeps its client values
 empty. out\\manual_test is never emptied by clean, build or vba-tests; the copy is rewritten at each run.
+With --scenario the copy is the one of that scenario alone, in out/manual_test/<scenario>/: its own Projects, Workflows,
+Transitions, Iterations and PIs (nothing of params/*.md), its fake Jira on its own port; --run also extracts and exports its charts.
 Next to it, rovo_mock_jira.csv: the same configuration as Rovo would answer it (the CSV of the button Load settings CSV), to
 try that button by hand. The connection (address, account, token, proxy) is not in it: the button never loads it.
 """
@@ -19,15 +21,16 @@ from jira2dashboard import rovo_prompt as RP
 from jira2dashboard import sheet_names as S
 from jira2dashboard.cli.args import parser
 from jira2dashboard.excel import com
+from jira2dashboard.flow import dashboard_spec as D
 from jira2dashboard.flow.model import Iteration
 from jira2dashboard.mockjira.anomalies import PI, PI_WINDOW
 from jira2dashboard.mockjira import scenarios
 from jira2dashboard.mockjira.dataset import FieldIds, Scenario
 from jira2dashboard.mockjira.generator import AS_OF, SINCE
 from jira2dashboard.mockjira.generator import PIS as GENERATED_PIS
-from jira2dashboard.mockjira.server import MOCK_EMAIL, MOCK_TOKEN
+from jira2dashboard.mockjira.server import MOCK_EMAIL, MOCK_TOKEN, MockJira
 from jira2dashboard.params.model import load_all
-from jira2dashboard.paths import MANUAL_TEST_DIR, RELEASE_DIR
+from jira2dashboard.paths import CHARTS_DIR, MANUAL_TEST_DIR, RELEASE_DIR
 from jira2dashboard.standalone.params_book import read_params
 from jira2dashboard.standalone.xlsx_write import Sheet, write_xlsx
 
@@ -51,7 +54,19 @@ def base_url(port: int) -> str:
 def config_values(url: str, fields: FieldIds = FieldIds(), as_of: dt.datetime = AS_OF) -> dict[str, str]:
     """Parameter -> value of the Config sheet, for the fake Jira at `url`."""
     return {"BaseUrl": url, "Email": MOCK_EMAIL, "ApiToken": MOCK_TOKEN, "AsOf": f"{as_of:%Y-%m-%d %H:%M}",
-            "WorkTypeField": fields.work_type} | {name: getattr(fields, attr) for name, attr in FIELD_IDS.items()}
+            "WorkTypeField": fields.work_type or ""} | {name: getattr(fields, attr) or "" for name, attr in FIELD_IDS.items()}
+
+
+def copy_path(scenario: Scenario | None = None) -> Path:
+    """The copy to open: the generic one, or the one of a scenario in its own folder out\\manual_test\\<scenario>\\ (a separate
+    instance: its logs, its Rovo CSV and its results are not mixed with the generic copy)."""
+    if scenario is None:
+        return COPY
+    return COPY.parent / scenario.name / f"jira2dashboard4{scenario.name}.xlsm"
+
+
+def csv_path(scenario: Scenario | None = None) -> Path:
+    return COPY.parent / CSV_NAME if scenario is None else copy_path(scenario).parent / f"rovo_{scenario.name}.csv"
 
 
 def iterations(first: dt.datetime = SINCE, as_of: dt.datetime = AS_OF, days: int = 14) -> list[Iteration]:
@@ -143,16 +158,22 @@ def write_rows(ws, rows) -> None:
     com.write_block(ws, 2, 1, [list(row) for row in rows])
 
 
+def fill_workbook(wb, url: str, scenario: Scenario | None = None) -> None:
+    """What a client types, into the open workbook `wb`: Config, Iterations, PIs; for a scenario also its own Projects, Workflows and
+    Transitions (the default rows of the delivered workbook are replaced: nothing of them stays). Used by the copy and by the tests."""
+    write_config(wb.Worksheets(S.of("Config")), scenario_config(scenario, url))
+    write_iterations(wb.Worksheets(S.of("Iterations")), iterations() if scenario is None else list(scenario.iterations))
+    write_iterations(wb.Worksheets(S.of("PIs")), PIS if scenario is None else list(scenario.pis))
+    if scenario is not None:
+        for sheet in scenario.dataset.sheets:
+            if sheet.name in ("Projects", "Workflows", "Transitions"):
+                write_rows(wb.Worksheets(S.of(sheet.name)), sheet.rows)
+
+
 def fill_copy(path: Path, url: str, scenario: Scenario | None = None) -> None:
     with com.excel_session() as app:
         wb = com.open_without_macros(app, path)
-        write_config(wb.Worksheets(S.of("Config")), scenario_config(scenario, url))
-        write_iterations(wb.Worksheets(S.of("Iterations")), iterations() if scenario is None else scenario.iterations)
-        write_iterations(wb.Worksheets(S.of("PIs")), PIS if scenario is None else scenario.pis)
-        if scenario is not None:                                      # its own workflow and moves
-            for sheet in scenario.dataset.sheets:
-                if sheet.name in ("Workflows", "Transitions"):
-                    write_rows(wb.Worksheets(S.of(sheet.name)), sheet.rows)
+        fill_workbook(wb, url, scenario)
         wb.Save()
         wb.Close(False)
         del wb, app                                                   # release every COM proxy before Excel quits
@@ -178,10 +199,65 @@ def parse(argv: list[str] | None = None):
     p = parser("scripts\\run.ps1 mock-workbook", __doc__, EXAMPLES)
     p.add_argument("--workbook", default=str(RELEASE_DIR / "jira2dashboard.xlsm"),
                    help="the workbook to copy (default out\\release\\jira2dashboard.xlsm); it is never changed")
-    p.add_argument("--port", type=int, default=8099, help="port of the fake Jira on 127.0.0.1 (default 8099)")
+    p.add_argument("--port", type=int, default=None,
+                   help="port of the fake Jira on 127.0.0.1 (default 8099; a scenario has its own: 8101 for art-metrics)")
     p.add_argument("--scenario", choices=sorted(scenarios.SCENARIOS), default=None,
-                   help="fill the copy for a scenario of the fake Jira (mock-jira --scenario): its calendar, workflow and fields")
+                   help="fill the copy for a scenario of the fake Jira (mock-jira --scenario): its calendar, projects, workflow and "
+                        "fields, in its own copy out\\manual_test\\<scenario>\\jira2dashboard4<scenario>.xlsm")
+    p.add_argument("--run", action="store_true",
+                   help="with --scenario: also run it unattended (serve it, extract with the macros of the copy, export the charts "
+                        "as SVG and PNG with an index.html, save the copy with its results, close Excel)")
     return p.parse_args(argv)
+
+
+def status_of(wb) -> str:
+    """What the run left in the workbook, for the log of the run: the rows of the table Issues and the Dashboard headline; "?" when
+    it cannot be read (a COM failure here must not hide the run's own result)."""
+    try:
+        rows = wb.Worksheets(S.of("Issues")).ListObjects("Issues").ListRows.Count
+        return f"{rows} issue(s) in the sheet {S.of('Issues')}, status {wb.Names(D.STATUS).RefersToRange.Value}"
+    except Exception:
+        return "?"
+
+
+def run_scenario(copy: Path, scenario: Scenario, port: int, *, serve=MockJira, session=com.excel_session, export=None, status=status_of) -> int:
+    """The scenario alone, unattended, in one process: the fake Jira of the scenario (this process, nothing else listens), the copy
+    opened in a hidden Excel with its macros, the extraction (modActions.ExtractAndCompute, synchronous), the charts exported to
+    out/manual_test/charts/<scenario> (SVG, PNG, index.html), the copy saved WITH its results. Excel and the fake Jira are
+    always closed. The hooks (serve, session, export, status) let the tests run it without Excel."""
+    if export is None:
+        from jira2dashboard.flow import sheets               # the COM side: only the unattended run needs it
+        export = sheets.export_charts_to_look_at
+    jira = serve(scenario.dataset, port=port, credentials=(MOCK_EMAIL, MOCK_TOKEN)).start()
+    try:
+        with session() as app:
+            app.AutomationSecurity = com.MSO_AUTOMATION_SECURITY_LOW
+            wb = app.Workbooks.Open(str(copy.resolve()))
+            try:
+                app.Run(f"'{wb.Name}'!modActions.ExtractAndCompute")
+                print(f"mock-workbook: extraction done: {status(wb)}")
+                export(wb, scenario.name.replace("-", "_"))
+                wb.Save()
+            finally:
+                wb.Close(False)
+    finally:
+        jira.stop()
+    return 0
+
+
+def port_of(args, scenario: Scenario | None) -> int:
+    """The port asked for, else the one of the scenario (its own fake Jira instance), else 8099."""
+    return args.port if args.port is not None else (8099 if scenario is None else scenario.port)
+
+
+def fresh_folder(folder: Path, keep: Path) -> None:
+    """The folder of a scenario before a run: the results of the previous run (xlsx of the Python path, old CSV) go, the logs stay."""
+    for old in folder.iterdir() if folder.is_dir() else ():
+        if old.is_file() and old != keep:
+            try:
+                old.unlink()
+            except OSError:
+                pass                                              # a file Excel still holds: it is rewritten or ignored
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -190,23 +266,35 @@ def main(argv: list[str] | None = None) -> int:
     if not source.is_file():
         print(f"mock-workbook: no workbook {source}: run scripts\\run.ps1 build first")
         return 1
-    COPY.parent.mkdir(parents=True, exist_ok=True)
-    try:
-        shutil.copyfile(source, COPY)
-    except PermissionError:
-        print(f"mock-workbook: close {COPY.name} first (it is still open in Excel)")
-        return 1
-    url = base_url(args.port)
+    if args.run and not args.scenario:
+        print("mock-workbook: --run needs --scenario (the unattended run is the one of a scenario)")
+        return 2
     scenario = scenarios.get(args.scenario) if args.scenario else None
-    fill_copy(COPY, url) if scenario is None else fill_copy(COPY, url, scenario)
-    time.sleep(SETTLE_S)
-    if not holds_the_fill(COPY, url):
-        print(f"mock-workbook: {com.lost_message(COPY, 'the address of the fake Jira in the sheet Config')}")
+    copy = copy_path(scenario)
+    copy.parent.mkdir(parents=True, exist_ok=True)
+    if scenario is not None:
+        fresh_folder(copy.parent, copy)
+    try:
+        shutil.copyfile(source, copy)
+    except PermissionError:
+        print(f"mock-workbook: close {copy.name} first (it is still open in Excel)")
         return 1
-    print(f"mock-workbook: {COPY}")
-    csv_text = rovo_csv(args.port) if scenario is None else rovo_csv(args.port, scenario)
-    (COPY.parent / CSV_NAME).write_bytes(csv_text.encode("utf-8"))
-    print(f"mock-workbook: {COPY.parent / CSV_NAME} (to try Load settings CSV; type the connection by hand)")
+    port = port_of(args, scenario)
+    url = base_url(port)
+    fill_copy(copy, url) if scenario is None else fill_copy(copy, url, scenario)
+    time.sleep(SETTLE_S)
+    if not holds_the_fill(copy, url):
+        print(f"mock-workbook: {com.lost_message(copy, 'the address of the fake Jira in the sheet Config')}")
+        return 1
+    print(f"mock-workbook: {copy}")
+    csv_text = rovo_csv(port) if scenario is None else rovo_csv(port, scenario)
+    csv_file = csv_path(scenario)
+    csv_file.write_bytes(csv_text.encode("utf-8"))
+    print(f"mock-workbook: {csv_file} (to try Load settings CSV; type the connection by hand)")
+    if args.run:
+        run_scenario(copy, scenario, port)
+        print(f"mock-workbook: the copy holds its results: {copy}")
+        print(f"mock-workbook: the charts: {CHARTS_DIR / scenario.name.replace('-', '_') / 'index.html'}")
     return 0
 
 

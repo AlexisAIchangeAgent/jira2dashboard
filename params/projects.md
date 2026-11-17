@@ -6,6 +6,7 @@ change it in the workbook, never in code.
 
 Exactly one project is the **Program** (the train, it holds the Features). The others are **Team** projects
 (Stories, Tasks, Sub-tasks); `Team` is the team name shown in the metrics (used by the team split and by DC14).
+An ART of Features only needs no Team project (and then no `Team` workflow).
 
 The keys below are the anonymised keys of the existing extraction script (the first one is the Program).
 Replace them with the real keys in the workbook.

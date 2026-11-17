@@ -351,3 +351,48 @@ def test_open_log_on_error_defaults_to_yes_and_must_be_yes_or_no(params_copy):
     with pytest.raises(ParamsError) as err:
         model.load_all(params_copy)
     assert "OpenLogOnError must be Yes or No" in str(err.value)
+
+
+# --- an ART without Team projects: the Program and the Feature workflow are enough (AL, 2026-11-17, scenario art-metrics) -----
+
+def _feature_only(workflows):
+    return model.ParamSheet("Workflows", ("Workflow", "Order", "Status", "Category", "IsStart", "IsEnd", "IsFree"),
+                            tuple(r for r in workflows.rows if r[0] == "Feature"))
+
+
+def _projects(*rows):
+    return model.ParamSheet("Projects", ("Project", "Role", "Team"), tuple(rows))
+
+
+def test_a_program_without_team_projects_and_with_the_feature_workflow_only_is_valid():
+    real = model.load_all()
+    sheets = {"Projects": _projects(("TTT", "Program", None)), "Workflows": _feature_only(sheet(real, "Workflows"))}
+    assert model.shape_problems(sheets) == []
+
+
+def test_a_team_project_still_needs_the_team_workflow():
+    real = model.load_all()
+    sheets = {"Projects": _projects(("TTT", "Program", None), ("AAA", "Team", "AAA")),
+              "Workflows": _feature_only(sheet(real, "Workflows"))}
+    assert model.shape_problems(sheets) == ["Workflows: workflow 'Team' has no status"]
+
+
+def test_the_feature_workflow_is_always_needed():
+    real = model.load_all()
+    team_only = model.ParamSheet("Workflows", sheet(real, "Workflows").header, tuple(r for r in sheet(real, "Workflows").rows if r[0] == "Team"))
+    sheets = {"Projects": _projects(("TTT", "Program", None)), "Workflows": team_only}
+    assert model.shape_problems(sheets) == ["Workflows: workflow 'Feature' has no status"]
+
+
+def test_without_a_projects_sheet_both_workflows_stay_required():
+    real = model.load_all()
+    assert model.shape_problems({"Workflows": _feature_only(sheet(real, "Workflows"))}) == ["Workflows: workflow 'Team' has no status"]
+
+
+def test_a_listed_team_workflow_is_still_checked_without_team_projects():
+    real = model.load_all()
+    broken = model.ParamSheet("Workflows", sheet(real, "Workflows").header,
+                              tuple(r for r in sheet(real, "Workflows").rows if r[0] == "Feature")
+                              + (("Team", 1, "Nouveau", "Backlog", 0, 0, 0),))
+    sheets = {"Projects": _projects(("TTT", "Program", None)), "Workflows": broken}
+    assert any("workflow 'Team' needs exactly one IsStart" in p for p in model.shape_problems(sheets))

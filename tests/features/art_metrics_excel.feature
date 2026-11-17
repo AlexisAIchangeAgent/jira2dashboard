@@ -33,6 +33,14 @@ Fonctionnalité: Le scénario art-metrics du faux Jira donne, dans le classeur l
     Et chaque statut dure en moyenne 1 jour, 2 jours pour le statut long du PI de la Feature
 
   @excel
+  Scénario: Le classeur ne contient que les données du scénario, aucune équipe ni aucun workflow des paramètres par défaut
+    Soit le faux Jira du scénario art-metrics
+    Et le classeur à livrer rempli pour ce scénario
+    Quand j'extrais et calcule
+    Alors la feuille Projects ne contient que le projet du programme, et les feuilles Workflows et Transitions que le workflow Feature
+    Et chaque graphique par équipe de la feuille Charts n'a que la série ART
+
+  @excel
   Scénario: Les 5 graphiques de la feuille IterationCharts montrent les chiffres de la table
     Soit le faux Jira du scénario art-metrics
     Et le classeur à livrer rempli pour ce scénario

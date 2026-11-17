@@ -6,7 +6,8 @@ Meaning of the columns and decisions: `docs/safe-flow-metrics-and-data-checks.md
 A test keeps this table consistent with the statuses table of that document.
 
 `Order` is the position in the normal flow; `-` means none. `Category`: Active, Wait, Done, Removed, Backlog or
-Unclassified. `IsStart`, `IsEnd`, `IsFree` are 0 or 1.
+Unclassified. `IsStart`, `IsEnd`, `IsFree` are 0 or 1. The `Feature` workflow is always needed; the `Team` workflow
+only when the sheet Projects has a Team project.
 
 | Workflow | Order | Status | Category | IsStart | IsEnd | IsFree |
 |---|---|---|---|---|---|---|

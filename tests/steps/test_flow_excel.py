@@ -1528,13 +1528,7 @@ def _art_jira(world, jira_server):
 @given("le classeur à livrer rempli pour ce scénario")
 def _art_workbook(world, flow_workbook):
     wb = world["wb"] = flow_workbook["wb"]
-    scenario = world["scenario"]
-    mock_workbook.write_config(wb.Worksheets(S.of("Config")), mock_workbook.scenario_config(scenario, world["jira"].base_url))
-    mock_workbook.write_iterations(wb.Worksheets(S.of("Iterations")), list(scenario.iterations))
-    mock_workbook.write_iterations(wb.Worksheets(S.of("PIs")), list(scenario.pis))
-    for sheet in scenario.dataset.sheets:
-        if sheet.name in ("Workflows", "Transitions"):
-            mock_workbook.write_rows(wb.Worksheets(S.of(sheet.name)), sheet.rows)
+    mock_workbook.fill_workbook(wb, world["jira"].base_url, world["scenario"])             # the same code as the copy of manual-test.ps1
 
 
 @when("j'extrais et calcule")
@@ -1650,6 +1644,24 @@ def _art_durations(world):
         if status != "todo":
             expected = 2.0 if status == LONG_STATUS[pi] else 1.0
             assert all(abs(d - expected) < 1e-6 for d in days), (pi, status, days)
+
+
+@then("la feuille Projects ne contient que le projet du programme, et les feuilles Workflows et Transitions que le workflow Feature")
+def _art_only_its_own_parameters(world):
+    projects = [r for r in sheet_rows(world["wb"], "Projects") if any(r.values())]
+    assert [(r["Project"], r["Role"]) for r in projects] == [("TTT", "Program")]
+    for name, column in (("Workflows", "Workflow"), ("Transitions", "Workflow")):
+        assert {r[column] for r in sheet_rows(world["wb"], name) if any(r.values())} == {"Feature"}, name
+
+
+@then("chaque graphique par équipe de la feuille Charts n'a que la série ART")
+def _art_only_the_art_series(world):
+    ws = world["wb"].Worksheets(S.of(D.CHARTS_SHEET))
+    team_charts = [s for s in D.CHARTS if s.series == D.TEAMS and s.band is None]
+    assert team_charts
+    for spec in team_charts:
+        chart = ws.ChartObjects(spec.name).Chart
+        assert [chart.SeriesCollection(n).Name for n in range(1, chart.SeriesCollection().Count + 1)] == ["ART"], spec.name
 
 
 @then("la feuille IterationCharts a ses 5 graphiques avec une série pour l'ART et une par équipe")

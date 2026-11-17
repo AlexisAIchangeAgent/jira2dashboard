@@ -138,3 +138,205 @@ def test_the_messages_of_the_com_layer_carry_codes_of_the_table():
     target = Path("C:/x/out/release/jira2dashboard.xlsm")
     assert com.MISSING_CODE in com.missing_message(target, "after the save") and "jira2dashboard.xlsm" in com.missing_message(target, "x")
     assert com.LOST_CODE in com.lost_message(target, "the change")
+
+
+# --- a scenario is a separate instance: its own port, its own folder, its own copy (AL, 2026-11-17) ------------------------
+
+def test_a_scenario_has_its_own_port_folder_and_copy_so_the_generic_manual_test_is_left_alone():
+    from jira2dashboard.mockjira.scenarios import get
+    scenario = get("art-metrics")
+    assert scenario.port == 8101 != 8099
+    assert M.copy_path(None) == M.COPY and M.csv_path(None) == M.COPY.parent / M.CSV_NAME
+    copy = M.copy_path(scenario)
+    assert (copy.parent.parent, copy.parent.name, copy.name) == (M.COPY.parent, "art-metrics", "jira2dashboard4art-metrics.xlsm")
+    assert M.csv_path(scenario) == copy.parent / "rovo_art-metrics.csv"
+
+
+def test_the_scripts_use_the_port_of_the_scenario():
+    from pathlib import Path
+    from jira2dashboard.mockjira.scenarios import get
+    scripts = Path(__file__).resolve().parents[2] / "scripts"
+    for name in ("manual-test.ps1", "start-mock.ps1"):
+        assert f"$ScenarioPort = {get('art-metrics').port}" in (scripts / name).read_text(encoding="utf-8"), name
+
+
+def test_fill_workbook_writes_the_parameter_sheets_of_a_scenario_Projects_included(monkeypatch):
+    from jira2dashboard.mockjira.scenarios import get
+    scenario, calls = get("art-metrics"), []
+
+    class Book:
+        def Worksheets(self, name):
+            return name
+    for fn in ("write_config", "write_iterations", "write_rows"):
+        monkeypatch.setattr(M, fn, lambda ws, data, fn=fn: calls.append((fn, ws, data)))
+    M.fill_workbook(Book(), "http://x", scenario)
+    written = {ws: data for fn, ws, data in calls}
+    assert [fn for fn, _ws, _d in calls].count("write_rows") == 3
+    assert written[S.of("Projects")] == (("TTT", "Program", None),)
+    assert {r[0] for r in written[S.of("Workflows")]} == {"Feature"} and {r[0] for r in written[S.of("Transitions")]} == {"Feature"}
+    assert len(written[S.of("Iterations")]) == 24 and [p.name for p in written[S.of("PIs")]] == ["PI-1", "PI-2", "PI-3", "PI-4"]
+
+
+def test_fill_workbook_without_a_scenario_writes_config_iterations_and_pis_only(monkeypatch):
+    calls = []
+
+    class Book:
+        def Worksheets(self, name):
+            return name
+    for fn in ("write_config", "write_iterations", "write_rows"):
+        monkeypatch.setattr(M, fn, lambda ws, data, fn=fn: calls.append(fn))
+    M.fill_workbook(Book(), "http://x")
+    assert calls == ["write_config", "write_iterations", "write_iterations"]
+
+
+def test_main_writes_the_copy_of_a_scenario_in_its_own_folder(tmp_path, monkeypatch, capsys):
+    from jira2dashboard.standalone.xlsx_write import write_xlsx
+    source = tmp_path / "jira2dashboard.xlsm"
+    source.write_bytes(b"x")
+    monkeypatch.setattr(M, "COPY", tmp_path / "out" / M.COPY_NAME)
+    monkeypatch.setattr(M, "SETTLE_S", 0)
+    seen = {}
+
+    def fill(path, url, scenario=None):
+        seen["url"] = url
+        write_xlsx(path, M.params_book(url, scenario=scenario))
+    monkeypatch.setattr(M, "fill_copy", fill)
+    assert M.main(["--workbook", str(source), "--scenario", "art-metrics"]) == 0
+    folder = tmp_path / "out" / "art-metrics"
+    assert (folder / "jira2dashboard4art-metrics.xlsm").is_file() and (folder / "rovo_art-metrics.csv").is_file()
+    assert seen["url"] == "http://127.0.0.1:8101"                                 # the port of the scenario, not 8099
+    assert not (tmp_path / "out" / M.COPY_NAME).exists()                          # the generic copy is not touched
+    assert "rovo_art-metrics.csv" in capsys.readouterr().out
+
+
+# --- --run: the scenario alone, unattended: serve it, extract with the macros of the copy, export the charts, save, close ------
+
+class FakeJira:
+    def __init__(self, calls):
+        self.calls = calls
+
+    def start(self):
+        self.calls.append("jira start")
+        return self
+
+    def stop(self):
+        self.calls.append("jira stop")
+
+
+class FakeBook:
+    Name = "copy.xlsm"
+
+    def __init__(self, calls, fail=False):
+        self.calls, self.fail = calls, fail
+
+    def Save(self):
+        self.calls.append("save")
+
+    def Close(self, save):
+        self.calls.append(f"close save={save}")
+
+    class Names:
+        pass
+
+
+def fake_session(calls, fail=False):
+    import contextlib
+
+    class App:
+        AutomationSecurity = 0
+
+        class Workbooks:
+            @staticmethod
+            def Open(path):
+                calls.append(f"open {path.rsplit(chr(92), 1)[-1]}")
+                return FakeBook(calls)
+
+        @staticmethod
+        def Run(macro):
+            calls.append(f"run {macro}")
+            if fail:
+                raise RuntimeError("macro failed")
+
+    @contextlib.contextmanager
+    def session():
+        calls.append("excel start")
+        try:
+            yield App()
+        finally:
+            calls.append("excel quit")
+    return session
+
+
+def run_with_fakes(tmp_path, fail=False):
+    from jira2dashboard.mockjira.scenarios import get
+    calls, exported = [], []
+    copy = tmp_path / "copy.xlsm"
+    copy.write_bytes(b"x")
+    result = None
+    try:
+        result = M.run_scenario(copy, get("art-metrics"), 8101, serve=lambda ds, **o: FakeJira(calls),
+                                session=fake_session(calls, fail), export=lambda wb, name: exported.append(name) or calls.append("export"),
+                                status=lambda wb: "Done | Issues: 25")
+    except RuntimeError:
+        pass
+    return result, calls, exported
+
+
+def test_run_serves_the_scenario_extracts_exports_saves_and_closes_in_that_order(tmp_path):
+    result, calls, exported = run_with_fakes(tmp_path)
+    assert result == 0 and exported == ["art_metrics"]                                   # the charts folder: charts\art_metrics
+    assert calls == ["jira start", "excel start", "open copy.xlsm", "run 'copy.xlsm'!modActions.ExtractAndCompute", "export", "save",
+                     "close save=False", "excel quit", "jira stop"]
+
+
+def test_run_stops_the_fake_jira_and_excel_even_when_the_macro_fails(tmp_path):
+    result, calls, exported = run_with_fakes(tmp_path, fail=True)
+    assert result is None and exported == []                                             # the error reached the caller
+    assert calls[-3:] == ["close save=False", "excel quit", "jira stop"] and "save" not in calls
+
+
+def test_run_needs_a_scenario(tmp_path, capsys):
+    source = tmp_path / "jira2dashboard.xlsm"
+    source.write_bytes(b"x")
+    assert M.main(["--workbook", str(source), "--run"]) == 2
+    assert "--run needs --scenario" in capsys.readouterr().out
+
+
+def test_the_status_of_a_run_counts_the_issues_and_gives_the_headline_and_never_raises():
+    class Rows:
+        Count = 25
+
+    class Table:
+        ListRows = Rows
+
+    class Sheet:
+        @staticmethod
+        def ListObjects(name):
+            return Table
+
+    class Cell:
+        RefersToRange = type("R", (), {"Value": "Ready"})
+
+    class Book:
+        @staticmethod
+        def Worksheets(name):
+            return Sheet
+
+        @staticmethod
+        def Names(name):
+            return Cell
+    assert M.status_of(Book()) == f"25 issue(s) in the sheet {S.of('Issues')}, status Ready"
+    assert M.status_of(object()) == "?"
+
+
+def test_a_scenario_folder_loses_the_results_of_the_last_run_but_keeps_its_logs(tmp_path):
+    (tmp_path / "logs").mkdir()
+    (tmp_path / "logs" / "jira2dashboard.log").write_text("RUN")
+    (tmp_path / "jira2dashboard.xlsx").write_text("old results")
+    (tmp_path / "rovo_art-metrics.csv").write_text("old")
+    keep = tmp_path / "jira2dashboard4art-metrics.xlsm"
+    keep.write_text("copy")
+    M.fresh_folder(tmp_path, keep)
+    assert sorted(p.name for p in tmp_path.iterdir()) == ["jira2dashboard4art-metrics.xlsm", "logs"]
+    assert (tmp_path / "logs" / "jira2dashboard.log").exists()
+    M.fresh_folder(tmp_path / "missing", keep)                                    # no folder yet: nothing to do

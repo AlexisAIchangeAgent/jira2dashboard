@@ -143,6 +143,8 @@ SCRIPT_ROWS = (
     ("J2D-SCR-041", "scenario: the workbook given does not exist", "A wrong -Workbook path", "Check the path", "The path"),
     ("J2D-SCR-042", "scenario: the extraction wrote no .xlsx", "The Python extraction failed silently", "Read python.log", "python.log"),
     ("J2D-SCR-043", "scenario: the .xlsx is empty", "The extraction stopped while writing", "Read python.log", "python.log"),
+    ("J2D-SCR-052", "manual-test: -Run without -Scenario", "-Run is the unattended run of one scenario", "Give a scenario: manual-test.ps1 -Scenario art-metrics -Run", "manual-test.log"),
+    ("J2D-SCR-053", "manual-test: the unattended run of the scenario failed", "Excel or the extraction failed (a VBA dialog, a crash, the fake Jira port taken)", "Read the lines above and the VBA log in out\\manual_test\\<scenario>\\logs; run without -Run to click and see", "manual-test.log"),
     ("J2D-SCR-050", "bootstrap: a step failed", "See the step marked FAILED in the summary", "Read bootstrap.log from the line of the failed step", "bootstrap.log"),
     ("J2D-SCR-051", "bootstrap: the workbook is missing after the build", "An endpoint protection removed the new .xlsm (see J2D-SYS-012)", "Look in the quarantine of the endpoint protection, ask for an allow-list on out\release", "bootstrap.log"),
 )

@@ -150,6 +150,18 @@ python.log). `tests/unit/test_claude_hooks.py` and `test_claude_skills.py` test 
   changelog/fields (`FieldChange`), 3 teams in the Team field, deferrals (PI emptied or moved to `PI-5`) and ft-25 added during PI-4. Every
   expected number is typed BY HAND in `tests/art_oracle.py` (oracle L0): unit tests, `art_metrics.feature` (Python path) and
   `art_metrics_excel.feature` (the real workbook, also against the reference cell by cell) compare to it, never only to `flow/`.
+  **A scenario is a SEPARATE INSTANCE with only its own data (AL, 2026-11-17).** Its parameter sheets are built from its own text
+  (`art_metrics.sheets()`): Projects = the Program `TTT` alone (no Team project: the legends of its charts show `ART`, never `AAA`...),
+  Workflows and Transitions = the Feature workflow alone, its own Iterations and PIs; only Config and FieldMapping (the product's list of
+  parameters and columns) come from `params/`. Its `FieldIds` keep only the fields it uses (PI, Team, Work type, Iteration; the others are
+  `None`: not in `/field`, not in the issues, empty in its Config). The product rule was relaxed for it (`params/model.shape_problems`):
+  the Team workflow is needed only when a Team project exists, and a Team project is no longer required. Its fake Jira listens on its own
+  port (`Scenario.port` = 8101; the generic one keeps 8099, both can run), its copy is `out\manual_test\art-metrics\jira2dashboard4art-metrics.xlsm`
+  (own `logs\`, own Rovo CSV; `mock_workbook.copy_path`, `fill_workbook` is the one writer of the parameter sheets, also used by the Excel
+  steps). **Run it alone:** `scripts\manual-test.ps1 -Scenario art-metrics` (fake Jira + copy + Excel, you click; `-Python` = no macro) or
+  `-Scenario art-metrics -Run` (nothing to click: `mock-workbook --scenario art-metrics --run` serves it in-process, extracts with the
+  macros, exports the charts to `out\manual_test\charts\art_metrics\`, saves the copy with its results, closes Excel, opens the page);
+  `start-mock.ps1 -Scenario NAME` is the fake Jira alone. `ps1` ports: `$ScenarioPort` must equal `Scenario.port` (a test pins it).
 - **Python reference as oracle.** `flow/` (`intervals.py`, `itemflow.py`, `load.py`, `metrics.py`, `checks.py`) is a pure
   Python implementation of the same metrics and data checks. The scenarios in `tests/features/flow_excel.feature` run the
   real delivered workbook against the fake Jira and compare Excel with this reference **cell by cell** (Flow Load modes A

@@ -13,13 +13,18 @@ USE CASES
   A fake Jira to click on            .\scripts\start-mock.ps1                       (then open the workbook: scripts\manual-test.ps1 does both)
   A small one, on another port       .\scripts\start-mock.ps1 -Port 8100 -Issues 150
   From a test or a script            .\scripts\start-mock.ps1 -Hidden               (no window; stop it with stop-mock.ps1)
+  Only one scenario, nothing else    .\scripts\start-mock.ps1 -Scenario art-metrics   (its own fake Jira on port 8101, none of the generated data)
   Port already held                  it says so and starts nothing: choose another -Port
   It stopped at once                 run .\scripts\run.ps1 mock-jira --port <port> to see the error
   Where is the log                   scripts\logs\start-mock.log (last run only)
 
 
 .PARAMETER Port
-Port of the fake Jira, on 127.0.0.1. Default 8099.
+Port of the fake Jira, on 127.0.0.1. Default 8099, or 8101 with -Scenario (its own instance, beside the generic one).
+
+.PARAMETER Scenario
+Serve only this named scenario of the fake Jira (run.ps1 mock-jira --scenario), for example art-metrics: its own issues, projects,
+workflow and fields, no generated issue and no known anomaly. -Issues is ignored.
 
 .PARAMETER Issues
 Number of generated issues, before the known anomalies are added. Default 1200.
@@ -32,6 +37,10 @@ No window at all (used by the tests). Without it the window is minimized and sho
 Fake Jira on http://127.0.0.1:8099 with 1200 issues and the known anomalies.
 
 .EXAMPLE
+.\scripts\start-mock.ps1 -Scenario art-metrics
+Only the 25 Features of the scenario art-metrics, on http://127.0.0.1:8101. Stop it with .\scripts\stop-mock.ps1 -Port 8101.
+
+.EXAMPLE
 .\scripts\start-mock.ps1 -Port 8100 -Issues 150
 A smaller fake Jira on another port. Stop it with .\scripts\stop-mock.ps1 -Port 8100.
 .PARAMETER Help
@@ -39,8 +48,9 @@ Show this help. --help and -? do the same.
 #>
 [CmdletBinding(PositionalBinding = $false)]
 param(
-    [int]$Port = 8099,
+    [int]$Port = 0,
     [int]$Issues = 1200,
+    [string]$Scenario = "",
     [switch]$Hidden,
     [switch]$Help,
     [Parameter(ValueFromRemainingArguments = $true)][string[]]$Rest = @()
@@ -48,6 +58,8 @@ param(
 if ($Help -or $Rest -contains "--help") { Get-Help $PSCommandPath -Detailed; exit 0 }
 if ($Rest.Count -gt 0) { Write-Host "start-mock: J2D-SCR-001 - unknown argument $($Rest -join ' '). See .\scripts\start-mock.ps1 --help"; exit 2 }
 $ErrorActionPreference = "Stop"
+$ScenarioPort = 8101                                  # a scenario is its own instance: the generic fake Jira (8099) can run beside it
+if ($Port -eq 0) { $Port = if ($Scenario) { $ScenarioPort } else { 8099 } }
 
 # Log of this run (last run only): scripts\logs\start-mock.log. A log failure never stops the script.
 # Called by another script of this folder that already writes a log ($J2D_LogOwner, seen through the calling scope):
@@ -108,8 +120,8 @@ if (Answers $Port) { Fail "J2D-SCR-030" "port $Port is held by another program: 
 
 $run = Join-Path $PSScriptRoot "run.ps1"
 $style = if ($Hidden) { "Hidden" } else { "Minimized" }
-$arguments = @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "`"$run`"", "mock-jira", "--port", $Port,
-               "--issues", $Issues, "--anomalies")
+$arguments = @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "`"$run`"", "mock-jira", "--port", $Port)
+if ($Scenario) { $arguments += @("--scenario", $Scenario) } else { $arguments += @("--issues", $Issues, "--anomalies") }
 $window = Start-Process powershell -ArgumentList $arguments -WindowStyle $style -PassThru
 New-Item -ItemType Directory -Force (Split-Path -Parent $pidFile) | Out-Null
 Set-Content -Path $pidFile -Value ("{0} {1}" -f $window.Id, $window.StartTime.ToFileTimeUtc()) -Encoding Ascii
@@ -126,7 +138,8 @@ while (-not (Answers $Port)) {
     }
     Start-Sleep -Milliseconds 300
 }
-Write-Host "start-mock: fake Jira on http://127.0.0.1:$Port ($Issues issues and the known anomalies)."
+if ($Scenario) { Write-Host "start-mock: fake Jira on http://127.0.0.1:$Port (only the scenario $Scenario, no generated issue, no anomaly)." }
+else { Write-Host "start-mock: fake Jira on http://127.0.0.1:$Port ($Issues issues and the known anomalies)." }
 Show-Interpreter $Port
 Write-Host "start-mock: stop it with .\scripts\stop-mock.ps1 -Port $Port"
 exit 0

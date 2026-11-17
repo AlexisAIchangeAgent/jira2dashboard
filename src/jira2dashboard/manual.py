@@ -74,7 +74,7 @@ def manual(mandatory: tuple[str, ...]) -> list[tuple[str, str]]:
             "ApiToken stays in clear in this sheet: empty it before you send the workbook to anyone.",
         ]),
         (f"Sheets {PROJECTS}, {ITERATIONS} and {PIS}", [
-            "Projects: Project, Role, Team. Exactly one project is the Program (the features); the others are Team.",
+            "Projects: Project, Role, Team. Exactly one project is the Program (the features); the others are Team (none for an ART of Features only).",
             "Iterations: Iteration-label, Start, End (the end is excluded). They are the short cycles inside a PI, for example 6 of "
             "3 weeks in a PI of 18 weeks, and the iterations of the charts. Column Example shows the form of each value.",
             "PIs: PI, Start, End, with names such as PI#01-2026 (data check DC18).",

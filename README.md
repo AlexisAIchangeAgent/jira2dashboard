@@ -161,9 +161,9 @@ directly, without `cmd /c` or `2>&1`.
 | `setup.ps1` | Creates `.venv`, installs `requirements.txt` (pywin32 and the test tools) | `-Proxy` |
 | `activate.ps1` | Optional: activates `.venv` in the console (dot-source it) | none |
 | `run.ps1` | Runs a command (table below) | `<command> [options]` |
-| `start-mock.ps1` | Starts the fake Jira (`mock@example.com` / `mock-token`), prints the `python.exe` that serves it | `-Port`, `-Issues`, `-Hidden` |
+| `start-mock.ps1` | Starts the fake Jira (`mock@example.com` / `mock-token`), prints the `python.exe` that serves it; `-Scenario` serves only that scenario (port 8101) | `-Port`, `-Issues`, `-Scenario`, `-Hidden` |
 | `stop-mock.ps1` | Stops the fake Jira these scripts started, nothing else | `-Port` |
-| `manual-test.ps1` | Writes `out\manual_test\jira2dashboard4manualtest.xlsm`, starts the fake Jira, opens the copy | `-Workbook`, `-Port`, `-Python` |
+| `manual-test.ps1` | Writes `out\manual_test\jira2dashboard4manualtest.xlsm`, starts the fake Jira, opens the copy; `-Scenario art-metrics` runs that scenario alone (own fake Jira on 8101, own copy in `out\manual_test\art-metrics\`), `-Run` extracts and opens the page of the charts | `-Workbook`, `-Port`, `-Python`, `-Scenario`, `-Run` |
 | `scenario.ps1` | Plays the whole scenario unattended (fake Jira, filled copy, Python extraction, checks, clean-up); a table of the steps with status and time; `-Excel` adds the macros | `-Workbook`, `-Port`, `-Excel`, `-KeepMock` |
 | `release.ps1` | Builds a release in `out\release\<version>`; `notes.md` has the SHA-256 and MD5 of the workbook; no zip of the code | `-Version`, `-Publish` |
 
@@ -184,8 +184,8 @@ publishes); `activate.cmd` opens a console with `.venv` activated. `_launch.cmd`
 | `vba-tests` | Builds, compiles and runs the VBA tests | `--offline`, `--bisect`, `--out` |
 | `check-machine` | 24 checks: Python, Excel, VBA project access, what Excel writes stays on disk, compile, macro of the built workbook | `--workbook` |
 | `diagnose` | Report to paste into a ticket when the macros are blocked | `--workbook` |
-| `mock-jira` | The fake Jira on `http://127.0.0.1:8099` | `--anomalies`, `--issues`, `--port` |
-| `mock-workbook` | Writes the manual-test copy | `--workbook`, `--port` |
+| `mock-jira` | The fake Jira on `http://127.0.0.1:8099`, or one scenario alone (`--scenario art-metrics`, port 8101) | `--anomalies`, `--issues`, `--port`, `--scenario` |
+| `mock-workbook` | Writes the manual-test copy (with `--scenario`, the copy of that scenario with only its own Projects, Workflows, Iterations and PIs; `--run`: unattended) | `--workbook`, `--port`, `--scenario`, `--run` |
 | `build` | Builds `out\release\jira2dashboard.xlsm` | `--out` (to `out\inter`) |
 | `clean` | Empties `out\inter`, keeps the test caches | none |
 | `extract` | Reads Jira with Python, writes `jira2dashboard.xlsx` | `--workbook`, `--out`, `--team` |

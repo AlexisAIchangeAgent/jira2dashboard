@@ -20,41 +20,38 @@ _JIRA_CATEGORY = {
 
 @dataclass(frozen=True)
 class FieldIds:
-    """Ids of the custom fields in this fake Jira (mock choices: at the client they are read from GET /field)."""
-    story_points: str = "customfield_10016"
-    work_type: str = "customfield_10200"
-    pi: str = "customfield_10300"
-    business_value: str = "customfield_10301"
-    team: str = "customfield_10400"
-    sprint: str = "customfield_10020"
-    target_start: str = "customfield_10401"
-    target_end: str = "customfield_10402"
+    """Ids of the custom fields in this fake Jira (mock choices: at the client they are read from GET /field). A field set to
+    None does not exist in that fake Jira (a scenario keeps only the fields it uses): not in the catalog, not in the issues."""
+    story_points: str | None = "customfield_10016"
+    work_type: str | None = "customfield_10200"
+    pi: str | None = "customfield_10300"
+    business_value: str | None = "customfield_10301"
+    team: str | None = "customfield_10400"
+    sprint: str | None = "customfield_10020"
+    target_start: str | None = "customfield_10401"
+    target_end: str | None = "customfield_10402"
     iteration: str | None = None       # the Iteration field of a scenario that has one (art-metrics); None = no such field
 
     def catalog(self) -> list[dict]:
-        """GET /rest/api/3/field: system and custom fields (id, name, custom, schema)."""
+        """GET /rest/api/3/field: system and custom fields (id, name, custom, schema). A field of this fake Jira set to None is left out."""
         def system(fid, name, kind):
             return {"id": fid, "name": name, "custom": False, "schema": {"type": kind, "system": fid}}
 
         def custom(fid, name, kind):
             return {"id": fid, "name": name, "custom": True, "schema": {"type": kind, "customId": int(fid.split("_")[1])}}
-        extra = [custom(self.iteration, "Iteration", "string")] if self.iteration else []
-        return extra + [
-            system("summary", "Summary", "string"), system("status", "Status", "status"),
-            system("issuetype", "Issue Type", "issuetype"), system("project", "Project", "project"),
-            system("created", "Created", "datetime"), system("updated", "Updated", "datetime"),
-            system("resolution", "Resolution", "resolution"), system("resolutiondate", "Resolved", "datetime"),
-            system("duedate", "Due date", "date"), system("labels", "Labels", "array"),
-            system("fixVersions", "Fix versions", "array"), system("parent", "Parent", "issuelink"),
-            system("priority", "Priority", "priority"), system("assignee", "Assignee", "user"),
-            custom(self.story_points, "Story point estimate", "number"),
-            custom(self.work_type, "Work type", "string"),
-            custom(self.pi, "PI", "string"),
-            custom(self.business_value, "Business Value", "number"),
-            custom(self.team, "Team", "team"), custom(self.sprint, "Sprint", "array"),
-            custom(self.target_start, "Target start", "date"), custom(self.target_end, "Target end", "date"),
-            system("issuelinks", "Linked Issues", "array"),
-        ]
+        found = [(custom, self.iteration, "Iteration", "string")]
+        found += [(system, fid, name, kind) for fid, name, kind in (
+            ("summary", "Summary", "string"), ("status", "Status", "status"), ("issuetype", "Issue Type", "issuetype"),
+            ("project", "Project", "project"), ("created", "Created", "datetime"), ("updated", "Updated", "datetime"),
+            ("resolution", "Resolution", "resolution"), ("resolutiondate", "Resolved", "datetime"),
+            ("duedate", "Due date", "date"), ("labels", "Labels", "array"), ("fixVersions", "Fix versions", "array"),
+            ("parent", "Parent", "issuelink"), ("priority", "Priority", "priority"), ("assignee", "Assignee", "user"))]
+        found += [(custom, self.story_points, "Story point estimate", "number"), (custom, self.work_type, "Work type", "string"),
+                  (custom, self.pi, "PI", "string"), (custom, self.business_value, "Business Value", "number"),
+                  (custom, self.team, "Team", "team"), (custom, self.sprint, "Sprint", "array"),
+                  (custom, self.target_start, "Target start", "date"), (custom, self.target_end, "Target end", "date"),
+                  (system, "issuelinks", "Linked Issues", "array")]
+        return [make(fid, name, kind) for make, fid, name, kind in found if fid]
 
 
 @dataclass(frozen=True)
@@ -202,6 +199,7 @@ class Scenario:
     dataset: Dataset
     pis: tuple                         # flow.model.Iteration, in order
     iterations: tuple                  # flow.model.Iteration, in order
+    port: int = 8099                   # the port of its own fake Jira instance (the generic one keeps 8099)
 
 
 def issue(key: str, *, moves: tuple[tuple[str, str], ...] = (), created: str = "2026-10-01T09:00",

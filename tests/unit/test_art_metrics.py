@@ -78,7 +78,7 @@ def test_the_workflow_is_program_workflow_with_its_categories(scenario):
     assert [(row[2], row[4], row[5], row[6]) for row in feature] == [          # status, IsStart, IsEnd, IsFree
         ("todo", 0, 0, 0), ("analyzing", 1, 0, 0), ("ready4PI", 0, 0, 0), ("doing", 0, 0, 0), ("ready2test", 0, 0, 0),
         ("testing", 0, 0, 0), ("ready2deploy", 0, 0, 0), ("deploying", 0, 0, 0), ("released", 0, 1, 0), ("deferred", 0, 0, 1)]
-    assert any(row[0] == "Team" for row in workflows.rows)                       # the workbook still needs the Team workflow
+    assert not any(row[0] == "Team" for row in workflows.rows)                  # no Team workflow: the scenario has no Team project
 
 
 @pytest.mark.parametrize("number, label", sorted(RELEASED.items()))
@@ -204,3 +204,57 @@ def test_the_mock_jira_command_and_the_workbook_fill_know_the_scenario():
 def test_an_unknown_scenario_lists_the_known_ones():
     with pytest.raises(ValueError, match="art-metrics"):
         get("nothing")
+
+
+# --- the scenario holds ONLY its own data (AL, 2026-11-17): its own parameter sheets and fields, nothing of params/*.md or the generator ---
+
+def test_the_scenario_has_its_own_projects_workflows_and_calendar_and_nothing_else(scenario):
+    from jira2dashboard.params.model import SPECS, shape_problems
+    book = {s.name: s for s in scenario.dataset.sheets}
+    assert list(book) == [spec.name for spec in SPECS]                                           # every sheet, in the workbook order
+    assert book["Projects"].rows == (("TTT", "Program", None),)                                  # no AAA, EEE, ... Team projects
+    assert {r[0] for r in book["Workflows"].rows} == {"Feature"} and {r[0] for r in book["Transitions"].rows} == {"Feature"}
+    assert [(r[0], r[1], r[2]) for r in book["PIs"].rows] == [(n, a[:10], b[:10]) for n, (a, b) in PIS.items()]
+    assert [r[0] for r in book["Iterations"].rows] == list(ITERATION_STARTS) and len(book["Iterations"].rows) == 24
+    assert shape_problems({name: book[name] for name in ("Projects", "Iterations", "PIs", "Workflows", "Transitions")}) == []
+
+
+def test_the_scenario_has_no_team_project_so_the_only_team_of_the_flow_tables_is_the_art(scenario):
+    projects = next(s for s in scenario.dataset.sheets if s.name == "Projects")
+    assert [r for r in projects.rows if r[1] == "Team"] == []
+    assert scenario.dataset.projects() == ["TTT"]
+
+
+def test_the_scenario_fields_are_only_the_ones_it_uses(scenario):
+    ds = scenario.dataset
+    names = {f["name"] for f in ds.fields.catalog() if f["custom"]}
+    assert names == {"Iteration", "Work type", "PI", "Team"}                                      # no story points, value, sprint, targets
+    everything = api._all_fields(ds.issues[0], ds, 0)
+    assert None not in everything and "customfield_10016" not in everything and "customfield_10020" not in everything
+    assert {k for k in everything if k.startswith("customfield")} == {ds.fields.iteration, ds.fields.work_type, ds.fields.pi, ds.fields.team}
+
+
+def test_the_config_of_the_scenario_leaves_the_fields_it_does_not_use_empty():
+    from jira2dashboard import mock_workbook as M
+    scenario_ = get("art-metrics")
+    values = M.scenario_config(scenario_, "http://x")
+    for name in ("StoryPointsField", "BusinessValueField", "SprintField", "TargetStartField", "TargetEndField"):
+        assert values[name] in ("", None), name
+    assert values["PIField"] == scenario_.dataset.fields.pi and values["TeamField"] == scenario_.dataset.fields.team
+
+
+def test_the_mock_jira_in_scenario_mode_never_generates_data(monkeypatch):
+    from jira2dashboard.mockjira import __main__ as main_module
+
+    def forbidden(*a, **k):
+        raise AssertionError("the generator or the anomalies were used")
+    monkeypatch.setattr(main_module, "generate", forbidden)
+    monkeypatch.setattr(main_module, "with_anomalies", forbidden)
+    assert len(main_module.dataset_for(main_module.parse(["--scenario", "art-metrics", "--anomalies", "--issues", "50"])).issues) == 25
+
+
+def test_the_mock_jira_of_a_scenario_listens_on_the_port_of_the_scenario_unless_one_is_given():
+    from jira2dashboard.mockjira.__main__ import parse, port_for
+    assert port_for(parse(["--scenario", "art-metrics"])) == 8101
+    assert port_for(parse(["--scenario", "art-metrics", "--port", "8200"])) == 8200
+    assert port_for(parse([])) == 8099

@@ -23,7 +23,7 @@ examples:
   scripts\\run.ps1 mock-jira                            1200 issues on http://127.0.0.1:8099
   scripts\\run.ps1 mock-jira --anomalies --issues 150   a small fake Jira with the known data anomalies
   scripts\\run.ps1 mock-jira --no-auth --port 8100      any account accepted, on another port
-  scripts\\run.ps1 mock-jira --scenario art-metrics     only the 25 Features of the scenario art-metrics (known history)
+  scripts\\run.ps1 mock-jira --scenario art-metrics     only the 25 Features of the scenario art-metrics (known history), on port 8101
 """
 
 
@@ -31,7 +31,8 @@ def parse(argv: list[str] | None = None) -> argparse.Namespace:
     parser = new_parser("scripts\\run.ps1 mock-jira", __doc__, EXAMPLES)
     parser.add_argument("--issues", type=int, default=1200, help="number of generated issues (default 1200)")
     parser.add_argument("--seed", type=int, default=1, help="seed of the generator: same seed, same data (default 1)")
-    parser.add_argument("--port", type=int, default=8099, help="port on 127.0.0.1 (default 8099)")
+    parser.add_argument("--port", type=int, default=None,
+                        help="port on 127.0.0.1 (default 8099; a scenario has its own: 8101 for art-metrics)")
     parser.add_argument("--projects", default=",".join(project_keys()),
                         help="project keys, comma separated; the FIRST one is the Program (features). "
                              "Default: params/projects.md")
@@ -53,6 +54,13 @@ def parse(argv: list[str] | None = None) -> argparse.Namespace:
     return parser.parse_args(argv)
 
 
+def port_for(args: argparse.Namespace) -> int:
+    """The port asked for, else the one of the scenario (its own instance), else 8099."""
+    if args.port is not None:
+        return args.port
+    return scenarios.get(args.scenario).port if args.scenario else 8099
+
+
 def dataset_for(args: argparse.Namespace) -> Dataset:
     if args.scenario:
         return scenarios.get(args.scenario).dataset
@@ -68,10 +76,10 @@ def main(argv: list[str] | None = None) -> int:
     fields = dataset.fields
     credentials = None if args.no_auth else (args.email, args.token)
     try:
-        jira = MockJira(dataset, port=args.port, credentials=credentials, page_clamp=args.page_clamp,
+        jira = MockJira(dataset, port=port_for(args), credentials=credentials, page_clamp=args.page_clamp,
                         proxy_challenge=args.proxy_challenge).start()
     except OSError as err:                                  # a port that is taken or out of range: tell, no traceback
-        print(f"mock-jira: cannot listen on port {args.port} ({err}). Choose another one with --port.")
+        print(f"mock-jira: cannot listen on port {port_for(args)} ({err}). Choose another one with --port.")
         return 1
     try:
         extra = " with the known anomalies" if args.anomalies else ""

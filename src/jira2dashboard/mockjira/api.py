@@ -54,7 +54,7 @@ def _all_fields(issue: Issue, ds: Dataset, tz: int) -> dict:
     catalog, ids = ds.catalog, ds.fields
     key, category = catalog.jira_category(issue.workflow, issue.status)
     resolution = ds.resolution(issue)
-    return ({ids.iteration: issue.iteration} if ids.iteration else {}) | {
+    fields = ({ids.iteration: issue.iteration} if ids.iteration else {}) | {
         "summary": issue.summary,
         "status": {"id": catalog.ids.get(issue.status, "0"), "name": issue.status,
                    "statusCategory": {"key": key, "name": category}},
@@ -81,6 +81,7 @@ def _all_fields(issue: Issue, ds: Dataset, tz: int) -> dict:
         ids.target_end: issue.target_end.isoformat() if issue.target_end else None,
         "issuelinks": _links_json(issue, ds),
     }
+    return {fid: value for fid, value in fields.items() if fid is not None}        # a field this fake Jira does not have
 
 
 def issue_json(issue: Issue, ds: Dataset, fields: list[str], tz: int, base_url: str) -> dict:
