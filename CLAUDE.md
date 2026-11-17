@@ -458,6 +458,12 @@ then `mermaid.parse`), and check every `](#anchor)` link against the headings.
 - **Look at a chart:** `start-mock.ps1 -Port 8100`, a scratch copy of `out\release\jira2dashboard.xlsm` filled by
   `mock_workbook.fill_copy(copy, base_url(8100))`, `modActions.ExtractAndCompute`, then in the same session Activate the
   ChartObject, `Chart.Export` to the scratchpad and Read the PNG; `stop-mock.ps1 -Port 8100` after (8099 may be AL's).
+- **Look at the charts page** (`out\manual_test\charts\<scenario>\index.html`): the Playwright MCP refuses `file:`. Serve the folder with
+  `( cd out/manual_test/charts && .venv/Scripts/python.exe -m http.server 8123 --bind 127.0.0.1 & )`, open `http://127.0.0.1:8123/<scenario>/index.html`,
+  `browser_take_screenshot` with a `filename` under `C:\dev\jira2dashboard\.playwright-mcp\` (other roots are refused), Read it; then stop the
+  server by its PID, `browser_close`, `rm -rf .playwright-mcp` (the tool leaves that folder in the working directory).
+- **A Bash call that `cd`s away from the repo moves the working directory of the session** (a `cd` into `out\manual_test\charts` put the
+  browser tool's `.playwright-mcp` folder there): start each Bash command with `cd /c/dev/jira2dashboard`, or use a subshell `( cd x && ... )`.
 - **Hung test Excel (VBA error dialog):** run `vba-tests` with `timeout 420`. The Excel to kill is the one whose window
   title is "Microsoft Visual Basic" and whose start time matches the run (`Get-Process EXCEL | Select Id, StartTime,
   MainWindowTitle`), never an older one. Mutation proof of a VBA test: copy the module to `$TEMP`, mutate it with a Python
@@ -482,8 +488,20 @@ then `mermaid.parse`), and check every `](#anchor)` link against the headings.
 - pywin32: `Range.Address` is a property (`cell.Address.replace("$", "")`), not a call with arguments; `ws.Cells(1, n).Value` reads a one-cell range as a scalar.
 - **`test-excel` by groups** (the whole run was killed once for memory, leaving an orphan `EXCEL.EXE`: stop it by PID): `tests/steps/test_build_workbook.py` (2 min),
   `test_macro_check.py` + `test_manual_test.py` (2 min), `test_params.py` + `test_standalone.py` (2 min), `test_flow_excel.py` (7 min, foreground, `timeout 595`).
+  `-k` matches function AND module names: `-k scenario` ran all 26 tests of `test_flow_excel.py` (5 min); the two chart scenarios are
+  `-k "art_metrics or png or PNG or graphiques"` (30 s). Read the `N passed` count: a `-k` that selects nothing or too much looks green.
+- **Calling a `scripts\*.ps1` with optional arguments: do not splat.** A hashtable splat shows as `-Port: 8100` in the Pester fakes
+  (`Calls`), and an array of `"-Port", $p` strings is caught by `$Rest` (J2D-SCR-001). Write the two calls:
+  `if ($Scenario) { & x -Port $Port -Scenario $Scenario } else { & x -Port $Port }`. A default that depends on another parameter is
+  `[int]$Port = 0` then `if ($Port -eq 0) { $Port = ... }` (`$ScenarioPort` = `Scenario.port`, pinned by a test).
+- **Read the parameter sheets of a saved copy without Excel:** `standalone.params_book.read_params(Path(copy))` (a zip read; the keys are the
+  LOGICAL names `Config`, `Projects`, `Iterations`, `PIs`, `Workflows`, `Transitions`, not `PIs_from_user`); `xlsx_read.read_sheets` reads any
+  sheet by its real name. Use it to check what a run left in `out\manual_test\<scenario>\` (the calendar was checked so on 2026-11-17).
 - In an edit script a backslash goes through `chr(92)` or a raw string; after the run `python -m py_compile` the target and
   `grep -cP '[\x00-\x08\x0b-\x1f]'` it (a `\b` in a plain triple-quoted string became a backspace, a `\r\n` a real line break).
+  That grep misses the escape still written in the SOURCE of a Python file: `scripts\run.ps1` typed in a `print` string compiles without a
+  warning (`\r` is valid) and prints a carriage return; only `\m` is flagged (`python -W error -m py_compile file`). Also run
+  `grep -nP '[A-Za-z]\\[rntbvf][A-Za-z]' file`; write such a path with `/`, `chr(92)`, a raw string, or with the Edit tool.
 - `_launch.cmd` traps: a `for` list drops `/?` (wildcard), so it is tested apart; a launcher starts the helper without `call`
   (`call` swallows `/?`); from a test, `cmd /c` needs `.\name.cmd`.
 - After moving code between `.bas` modules: `Private` names (Const, Function) used from the new module break the compile of
