@@ -838,7 +838,7 @@ def _distribution(world):
 
 @then("les graphiques sont exportés en PNG")
 def _png(world):
-    files = sheets.export_charts(world["wb"], INTER_DIR / "dashboard")
+    files = sheets.export_charts_to_look_at(world["wb"], "flow")          # kept in out\manual_test\charts\flow
     assert set(files) == {s.name for s in D.CHARTS + D.ITERATION_CHARTS}
     for path in files.values():
         data = Path(path).read_bytes()
@@ -1669,7 +1669,7 @@ def _art_chart_values(world):
                            ("features_carried_over", 5)):
         values = [int(v) for v in ws.ChartObjects(spec).Chart.SeriesCollection(1).Values]
         assert values == [counts[position] for counts in ART_ROWS.values()], spec
-    sheets.export_charts(world["wb"], INTER_DIR / "art_metrics_charts")                # the PNG files, to look at the charts
+    sheets.export_charts_to_look_at(world["wb"], "art_metrics")          # the PNG files, to look at: out\manual_test\charts\art_metrics
 
 
 scenarios("../features/art_metrics_excel.feature")

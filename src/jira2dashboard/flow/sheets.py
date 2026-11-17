@@ -5,7 +5,11 @@ Dashboard. After each extraction, VBA (modFlowBuild) builds the tables, formulas
 workbook needs no Python to refresh. Here are also the readers the tests use (tables, errors, PNG export).
 """
 
+from pathlib import Path
+
+from jira2dashboard import chart_images as CI
 from jira2dashboard import sheet_names as S
+from jira2dashboard.paths import CHARTS_DIR, REPO_ROOT
 from jira2dashboard.excel import com as R
 from jira2dashboard.flow import blueprint as B
 from jira2dashboard.flow import dashboard_spec as D
@@ -147,4 +151,14 @@ def export_charts(wb, folder) -> dict[str, str]:
                 raise OSError(f"Excel could not export the chart {spec.name}")
             files[spec.name] = str(target)
         dash.Range("A1").Select()
+    return files
+
+
+def export_charts_to_look_at(wb, scenario: str) -> dict[str, str]:
+    """The charts of a test scenario as PNG in `paths.CHARTS_DIR/<scenario>`, kept after `build`: the old ones are removed first
+    and the note `_exported.txt` (time, commit) is written only once every chart is exported."""
+    folder = CHARTS_DIR / scenario
+    CI.prepare(folder)
+    files = export_charts(wb, folder)
+    CI.write_note(folder, scenario, [Path(f).name for f in files.values()], CI.commit_of(REPO_ROOT))
     return files

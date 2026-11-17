@@ -11,4 +11,5 @@ DELIVERED_NAME = "jira2dashboard.xlsm"   # the file name of every delivered work
 RELEASE_DIR = OUT_DIR / "release"       # what is delivered: the workbook of `build`, the release packages
 INTER_DIR = OUT_DIR / "inter"           # everything else: test workbooks, copies, exports (emptied by clean)
 MANUAL_TEST_DIR = OUT_DIR / "manual_test"   # the copy filled for the fake Jira, to try by hand (never cleaned)
-CHILDREN_DIR = PACKAGE_DIR / "testbench" / "children"
+CHARTS_DIR = MANUAL_TEST_DIR / "charts"      # the PNG of the charts exported by the Excel tests, one sub-folder per scenario (never cleaned)
+CHILDREN_DIR =PACKAGE_DIR / "testbench" / "children"
