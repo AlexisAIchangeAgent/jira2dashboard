@@ -54,6 +54,11 @@ h2{font-size:16px;margin:22px 24px 8px}
 .card h3{margin:0 0 8px;font-size:14px}.card a.pic{display:block;background:#fff;border-radius:4px;cursor:zoom-in}
 .card img{display:block;width:100%;height:auto}.links{margin-top:6px;font-size:12px;color:var(--muted)}
 .links a{color:var(--accent);margin-right:10px}
+.verdict{margin:0 24px 8px;font-weight:600}.verdict.ok{color:#1a7f37}.verdict.diff{color:#c62828}
+details.rep{margin:0 24px 10px;background:var(--card);border:1px solid var(--line);border-radius:8px;padding:6px 12px}
+details.rep summary{cursor:pointer;font-weight:600}details.rep table{border-collapse:collapse;margin:8px 0;font-size:13px}
+details.rep th,details.rep td{border-bottom:1px solid var(--line);padding:3px 12px 3px 0;text-align:left;font-variant-numeric:tabular-nums}
+details.rep tr.diff td{color:#c62828;font-weight:600}
 #zoom{position:fixed;inset:0;background:rgba(10,12,16,.92);display:flex;align-items:center;justify-content:center;overflow:hidden;touch-action:none;z-index:9}
 #zoom[hidden]{display:none}#zoom img{max-width:92vw;max-height:84vh;background:#fff;transform-origin:center;cursor:grab;user-select:none}
 #zoom .bar{position:fixed;top:0;left:0;right:0;display:flex;gap:8px;align-items:center;padding:10px 16px;color:#fff}
@@ -89,8 +94,9 @@ _JS = """
 """
 
 
-def index_html(scenario: str, groups: list[tuple[str, list[tuple[str, str]]]], commit: str, now: dt.datetime) -> str:
-    """The page of one scenario. `groups` = [(sheet, [(title, chart name)])]: the image of a chart is `<name>.svg`, with `<name>.png` beside it."""
+def index_html(scenario: str, groups: list[tuple[str, list[tuple[str, str]]]], commit: str, now: dt.datetime, report: str = "") -> str:
+    """The page of one scenario. `groups` = [(sheet, [(title, chart name)])]: the image of a chart is `<name>.svg`, with `<name>.png` beside it.
+    `report` = an HTML fragment (the report expected / obtained of tests/art_report.py) shown above the charts."""
     e = html.escape
     count = sum(len(charts) for _sheet, charts in groups)
     out = [f'<!doctype html><html lang="en"><head><meta charset="utf-8">'
@@ -99,6 +105,8 @@ def index_html(scenario: str, groups: list[tuple[str, list[tuple[str, str]]]], c
            f'<header><h1>Charts of the scenario {e(scenario)}</h1>'
            f'<div class="meta">{count} charts - exported (UTC) {now:%Y-%m-%d %H:%M:%S} - commit {e(commit)} - '
            f'click a chart to zoom (wheel = zoom, drag = move, double click = reset, Esc = close)</div></header>']
+    if report:
+        out.append(f'<h2>Expected (worked out by hand) and obtained (workbook)</h2>{report}')
     for sheet, charts in groups:
         out.append(f'<h2>{e(sheet)}</h2><div class="grid">')
         for title, name in charts:
@@ -114,9 +122,9 @@ def index_html(scenario: str, groups: list[tuple[str, list[tuple[str, str]]]], c
     return "".join(out)
 
 
-def write_index(folder: Path, scenario: str, groups: list[tuple[str, list[tuple[str, str]]]], commit: str) -> Path:
+def write_index(folder: Path, scenario: str, groups: list[tuple[str, list[tuple[str, str]]]], commit: str, report: str = "") -> Path:
     page = folder / INDEX_NAME
-    page.write_text(index_html(scenario, groups, commit, dt.datetime.now(dt.timezone.utc)), encoding="utf-8")
+    page.write_text(index_html(scenario, groups, commit, dt.datetime.now(dt.timezone.utc), report), encoding="utf-8")
     return page
 
 

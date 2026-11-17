@@ -161,7 +161,11 @@ python.log). `tests/unit/test_claude_hooks.py` and `test_claude_skills.py` test 
   steps). **Run it alone:** `scripts\manual-test.ps1 -Scenario art-metrics` (fake Jira + copy + Excel, you click; `-Python` = no macro) or
   `-Scenario art-metrics -Run` (nothing to click: `mock-workbook --scenario art-metrics --run` serves it in-process, extracts with the
   macros, exports the charts to `out\manual_test\charts\art_metrics\`, saves the copy with its results, closes Excel, opens the page);
-  `start-mock.ps1 -Scenario NAME` is the fake Jira alone. `ps1` ports: `$ScenarioPort` must equal `Scenario.port` (a test pins it).
+  `start-mock.ps1 -Scenario NAME` is the fake Jira alone. The page `index.html` of `charts\art_metrics` opens with the report **expected
+  (worked out by hand) / obtained (workbook)**: 112 figures (PI predictability, IterationFeatures of the ART and of each team, Velocity,
+  Flow Time, Flow Efficiency), the sections that differ open and the lines that differ first (`tests/art_report.py`, pure `sections` /
+  `render`, `report_for_workbook` reads the tables through COM; the oracle stays in `tests/art_oracle.py`). The Excel test writes it
+  and asserts "all 112 are OK"; `--run` loads it from `tests/` by path (`mock_workbook.report_builder`, none outside a checkout). `ps1` ports: `$ScenarioPort` must equal `Scenario.port` (a test pins it).
 - **Python reference as oracle.** `flow/` (`intervals.py`, `itemflow.py`, `load.py`, `metrics.py`, `checks.py`) is a pure
   Python implementation of the same metrics and data checks. The scenarios in `tests/features/flow_excel.feature` run the
   real delivered workbook against the fake Jira and compare Excel with this reference **cell by cell** (Flow Load modes A

@@ -1681,7 +1681,10 @@ def _art_chart_values(world):
                            ("features_carried_over", 5)):
         values = [int(v) for v in ws.ChartObjects(spec).Chart.SeriesCollection(1).Values]
         assert values == [counts[position] for counts in ART_ROWS.values()], spec
-    sheets.export_charts_to_look_at(world["wb"], "art_metrics")          # the PNG files, to look at: out\manual_test\charts\art_metrics
+    from art_report import report_for_workbook
+    report = report_for_workbook(world["wb"])                              # expected (by hand) / obtained, shown above the charts
+    assert "figures differ" not in report and "are the ones worked out by hand" in report
+    sheets.export_charts_to_look_at(world["wb"], "art_metrics", report)  # SVG, PNG, index.html in out/manual_test/charts/art_metrics
 
 
 scenarios("../features/art_metrics_excel.feature")

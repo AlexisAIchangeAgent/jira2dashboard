@@ -275,8 +275,8 @@ def run_with_fakes(tmp_path, fail=False):
     result = None
     try:
         result = M.run_scenario(copy, get("art-metrics"), 8101, serve=lambda ds, **o: FakeJira(calls),
-                                session=fake_session(calls, fail), export=lambda wb, name: exported.append(name) or calls.append("export"),
-                                status=lambda wb: "Done | Issues: 25")
+                                session=fake_session(calls, fail), export=lambda wb, name, report="": exported.append((name, report)) or calls.append("export"),
+                                status=lambda wb: "Done | Issues: 25", report=lambda wb: "REPORT")
     except RuntimeError:
         pass
     return result, calls, exported
@@ -284,7 +284,7 @@ def run_with_fakes(tmp_path, fail=False):
 
 def test_run_serves_the_scenario_extracts_exports_saves_and_closes_in_that_order(tmp_path):
     result, calls, exported = run_with_fakes(tmp_path)
-    assert result == 0 and exported == ["art_metrics"]                                   # the charts folder: charts\art_metrics
+    assert result == 0 and exported == [("art_metrics", "REPORT")]                                   # the charts folder: charts\art_metrics
     assert calls == ["jira start", "excel start", "open copy.xlsm", "run 'copy.xlsm'!modActions.ExtractAndCompute", "export", "save",
                      "close save=False", "excel quit", "jira stop"]
 
@@ -340,3 +340,10 @@ def test_a_scenario_folder_loses_the_results_of_the_last_run_but_keeps_its_logs(
     assert sorted(p.name for p in tmp_path.iterdir()) == ["jira2dashboard4art-metrics.xlsm", "logs"]
     assert (tmp_path / "logs" / "jira2dashboard.log").exists()
     M.fresh_folder(tmp_path / "missing", keep)                                    # no folder yet: nothing to do
+
+
+def test_the_report_builder_is_the_one_of_tests_art_report_in_a_checkout_and_none_without_tests(tmp_path, monkeypatch):
+    builder = M.report_builder()
+    assert callable(builder) and builder.__name__ == "report_for_workbook"
+    monkeypatch.setattr(M, "REPO_ROOT", tmp_path)                                 # no tests folder: the report is left out
+    assert M.report_builder() is None

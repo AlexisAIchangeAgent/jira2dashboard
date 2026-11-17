@@ -101,3 +101,10 @@ def test_the_root_page_links_the_scenarios_that_have_a_page(tmp_path):
 
 def test_the_root_page_without_a_scenario_is_not_written(tmp_path):
     assert CI.write_root_index(tmp_path) is None and not (tmp_path / CI.INDEX_NAME).exists()
+
+
+def test_the_page_shows_the_report_above_the_charts_when_there_is_one():
+    page = CI.index_html("art_metrics", GROUPS, "abc1234", NOW, report='<p class="verdict ok">All 112 figures</p>')
+    assert "Expected (worked out by hand) and obtained (workbook)" in page and "All 112 figures" in page
+    assert page.index("All 112 figures") < page.index("<h2>Charts</h2>")
+    assert "Expected (worked out" not in CI.index_html("art_metrics", GROUPS, "abc1234", NOW)

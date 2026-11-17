@@ -157,16 +157,17 @@ def export_charts(wb, folder, also_svg: bool = False) -> dict[str, str]:
     return files
 
 
-def export_charts_to_look_at(wb, scenario: str) -> dict[str, str]:
+def export_charts_to_look_at(wb, scenario: str, report: str = "") -> dict[str, str]:
     """The charts of a test scenario as SVG and PNG in `paths.CHARTS_DIR/<scenario>`, kept after `build`: the old ones are removed
     first; the note `_exported.txt` (time, commit) and the page `index.html` (the dashboard, click = zoom) are written only once
-    every chart is exported; `CHARTS_DIR/index.html` links the scenarios."""
+    every chart is exported (`report` = an HTML fragment shown above the charts: the numbers expected and obtained);
+    `CHARTS_DIR/index.html` links the scenarios."""
     folder = CHARTS_DIR / scenario
     CI.prepare(folder)
     files = export_charts(wb, folder, also_svg=True)
     commit = CI.commit_of(REPO_ROOT)
     CI.write_note(folder, scenario, [Path(f).name for f in files.values()], commit)
     CI.write_index(folder, scenario, [(D.CHARTS_SHEET, [(s.title, s.name) for s in D.CHARTS]),
-                                      (D.ITERATION_CHARTS_SHEET, [(s.title, s.name) for s in D.ITERATION_CHARTS])], commit)
+                                      (D.ITERATION_CHARTS_SHEET, [(s.title, s.name) for s in D.ITERATION_CHARTS])], commit, report)
     CI.write_root_index(CHARTS_DIR)
     return files

@@ -30,7 +30,7 @@ from jira2dashboard.mockjira.generator import AS_OF, SINCE
 from jira2dashboard.mockjira.generator import PIS as GENERATED_PIS
 from jira2dashboard.mockjira.server import MOCK_EMAIL, MOCK_TOKEN, MockJira
 from jira2dashboard.params.model import load_all
-from jira2dashboard.paths import CHARTS_DIR, MANUAL_TEST_DIR, RELEASE_DIR
+from jira2dashboard.paths import CHARTS_DIR, MANUAL_TEST_DIR, RELEASE_DIR, REPO_ROOT
 from jira2dashboard.standalone.params_book import read_params
 from jira2dashboard.standalone.xlsx_write import Sheet, write_xlsx
 
@@ -220,7 +220,26 @@ def status_of(wb) -> str:
         return "?"
 
 
-def run_scenario(copy: Path, scenario: Scenario, port: int, *, serve=MockJira, session=com.excel_session, export=None, status=status_of) -> int:
+def report_builder():
+    """The function that writes the report expected / obtained of a scenario (tests/art_report.py: it holds the numbers worked out by
+    hand, which stay in tests/), or None when this is not a checkout with its tests (the report is then left out)."""
+    import importlib.util
+    import sys
+    path = REPO_ROOT / "tests" / "art_report.py"
+    if not path.is_file():
+        return None
+    sys.path.insert(0, str(path.parent))                         # art_report imports art_oracle, which sits beside it
+    try:
+        spec = importlib.util.spec_from_file_location("art_report", path)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        return module.report_for_workbook
+    finally:
+        sys.path.remove(str(path.parent))
+
+
+def run_scenario(copy: Path, scenario: Scenario, port: int, *, serve=MockJira, session=com.excel_session, export=None, status=status_of,
+                 report=None) -> int:
     """The scenario alone, unattended, in one process: the fake Jira of the scenario (this process, nothing else listens), the copy
     opened in a hidden Excel with its macros, the extraction (modActions.ExtractAndCompute, synchronous), the charts exported to
     out/manual_test/charts/<scenario> (SVG, PNG, index.html), the copy saved WITH its results. Excel and the fake Jira are
@@ -236,7 +255,10 @@ def run_scenario(copy: Path, scenario: Scenario, port: int, *, serve=MockJira, s
             try:
                 app.Run(f"'{wb.Name}'!modActions.ExtractAndCompute")
                 print(f"mock-workbook: extraction done: {status(wb)}")
-                export(wb, scenario.name.replace("-", "_"))
+                text = ""
+                if report is not None and scenario.name == "art-metrics":      # the only scenario whose numbers are worked out by hand
+                    text = report(wb)
+                export(wb, scenario.name.replace("-", "_"), text)
                 wb.Save()
             finally:
                 wb.Close(False)
@@ -292,7 +314,7 @@ def main(argv: list[str] | None = None) -> int:
     csv_file.write_bytes(csv_text.encode("utf-8"))
     print(f"mock-workbook: {csv_file} (to try Load settings CSV; type the connection by hand)")
     if args.run:
-        run_scenario(copy, scenario, port)
+        run_scenario(copy, scenario, port, report=report_builder())
         print(f"mock-workbook: the copy holds its results: {copy}")
         print(f"mock-workbook: the charts: {CHARTS_DIR / scenario.name.replace('-', '_') / 'index.html'}")
     return 0
