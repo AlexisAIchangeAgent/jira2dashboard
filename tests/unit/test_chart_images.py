@@ -25,7 +25,7 @@ def test_clean_keeps_the_chart_images(tmp_path):
 def test_prepare_removes_the_old_png_and_the_note_but_nothing_else(tmp_path):
     folder = tmp_path / "scenario"
     folder.mkdir()
-    for name in ("old_chart.png", CI.NOTE_NAME, "mine.txt"):
+    for name in ("old_chart.png", "old_chart.svg", CI.INDEX_NAME, CI.NOTE_NAME, "mine.txt"):
         (folder / name).write_text("x")
     CI.prepare(folder)
     assert sorted(p.name for p in folder.iterdir()) == ["mine.txt"]
@@ -62,3 +62,42 @@ def test_commit_of_without_git_is_unknown(monkeypatch, tmp_path):
         raise FileNotFoundError("git")
     monkeypatch.setattr(subprocess, "run", no_git)
     assert CI.commit_of(tmp_path) == "unknown"
+
+
+GROUPS = [("Charts", [("Velocity <per iteration>", "velocity"), ("Flow Time", "flow_time")]), ("IterationCharts", [("Engaged", "features_engaged")])]
+NOW = dt.datetime(2026, 11, 17, 9, 5, 7)
+
+
+def test_the_page_shows_every_chart_as_svg_with_its_png_and_a_zoom():
+    page = CI.index_html("art_metrics", GROUPS, "abc1234", NOW)
+    for name in ("velocity", "flow_time", "features_engaged"):
+        assert f'src="{name}.svg"' in page and f'href="{name}.png"' in page and f'href="{name}.svg"' in page
+    assert page.count('class="pic" data-zoom') == 3 and 'id="zoom"' in page and "wheel" in page
+    assert "3 charts" in page and "2026-11-17 09:05:07" in page and "commit abc1234" in page
+    assert "<h2>Charts</h2>" in page and "<h2>IterationCharts</h2>" in page
+
+
+def test_the_page_escapes_what_it_shows_and_loads_nothing_from_outside():
+    page = CI.index_html("<x>", GROUPS, "a&b", NOW)
+    assert "Velocity &lt;per iteration&gt;" in page and "<x>" not in page and "a&amp;b" in page
+    assert "http://" not in page and "https://" not in page and "src=\"//" not in page
+
+
+def test_write_index_puts_the_page_in_the_scenario_folder(tmp_path):
+    page = CI.write_index(tmp_path, "flow", GROUPS, "abc1234")
+    assert page == tmp_path / CI.INDEX_NAME and page.read_text(encoding="utf-8").startswith("<!doctype html>")
+
+
+def test_the_root_page_links_the_scenarios_that_have_a_page(tmp_path):
+    for name in ("flow", "art_metrics"):
+        (tmp_path / name).mkdir()
+        CI.write_index(tmp_path / name, name, GROUPS, "abc1234")
+        CI.write_note(tmp_path / name, name, ["a.png"], "abc1234")
+    (tmp_path / "empty").mkdir()
+    page = CI.write_root_index(tmp_path).read_text(encoding="utf-8")
+    assert 'href="art_metrics/index.html"' in page and 'href="flow/index.html"' in page and "empty" not in page
+    assert page.index("art_metrics/") < page.index("flow/") and "exported (UTC): 20" in page
+
+
+def test_the_root_page_without_a_scenario_is_not_written(tmp_path):
+    assert CI.write_root_index(tmp_path) is None and not (tmp_path / CI.INDEX_NAME).exists()

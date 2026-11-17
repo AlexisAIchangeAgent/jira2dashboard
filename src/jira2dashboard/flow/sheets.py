@@ -136,8 +136,9 @@ def write_manual(wb, dash, mandatory: tuple[str, ...]) -> None:
     ws.Columns("A").ColumnWidth = 120
 
 
-def export_charts(wb, folder) -> dict[str, str]:
-    """Save every chart of the sheets Charts and IterationCharts as <name>.png in `folder`; returns {chart name: file}."""
+def export_charts(wb, folder, also_svg: bool = False) -> dict[str, str]:
+    """Save every chart of the sheets Charts and IterationCharts as <name>.png in `folder` (and <name>.svg, a vector Excel
+    writes itself, with `also_svg`); returns {chart name: png file}."""
     folder.mkdir(parents=True, exist_ok=True)
     files = {}
     for sheet, specs in ((D.CHARTS_SHEET, D.CHARTS), (D.ITERATION_CHARTS_SHEET, D.ITERATION_CHARTS)):
@@ -149,16 +150,23 @@ def export_charts(wb, folder) -> dict[str, str]:
             chart_object.Activate()                 # a chart that is off the visible part of the sheet exports as an empty file
             if not chart_object.Chart.Export(str(target.resolve()), "PNG"):
                 raise OSError(f"Excel could not export the chart {spec.name}")
+            if also_svg and not chart_object.Chart.Export(str(target.with_suffix(".svg").resolve()), "SVG"):
+                raise OSError(f"Excel could not export the chart {spec.name} as SVG")
             files[spec.name] = str(target)
         dash.Range("A1").Select()
     return files
 
 
 def export_charts_to_look_at(wb, scenario: str) -> dict[str, str]:
-    """The charts of a test scenario as PNG in `paths.CHARTS_DIR/<scenario>`, kept after `build`: the old ones are removed first
-    and the note `_exported.txt` (time, commit) is written only once every chart is exported."""
+    """The charts of a test scenario as SVG and PNG in `paths.CHARTS_DIR/<scenario>`, kept after `build`: the old ones are removed
+    first; the note `_exported.txt` (time, commit) and the page `index.html` (the dashboard, click = zoom) are written only once
+    every chart is exported; `CHARTS_DIR/index.html` links the scenarios."""
     folder = CHARTS_DIR / scenario
     CI.prepare(folder)
-    files = export_charts(wb, folder)
-    CI.write_note(folder, scenario, [Path(f).name for f in files.values()], CI.commit_of(REPO_ROOT))
+    files = export_charts(wb, folder, also_svg=True)
+    commit = CI.commit_of(REPO_ROOT)
+    CI.write_note(folder, scenario, [Path(f).name for f in files.values()], commit)
+    CI.write_index(folder, scenario, [(D.CHARTS_SHEET, [(s.title, s.name) for s in D.CHARTS]),
+                                      (D.ITERATION_CHARTS_SHEET, [(s.title, s.name) for s in D.ITERATION_CHARTS])], commit)
+    CI.write_root_index(CHARTS_DIR)
     return files

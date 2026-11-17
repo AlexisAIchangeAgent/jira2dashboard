@@ -83,9 +83,12 @@ never cleaned either; `out\inter` holds the rest (test workbooks, exports, `.cov
 emptied by `build` / `vba-tests` except the caches and `logs` (`src/jira2dashboard/clean.py`). Tests write to `INTER_DIR`, with one
 exception (AL, 2026-11-17): the chart PNG that the Excel scenarios export to be looked at go to `out\manual_test\charts\<scenario>\`
 (`paths.CHARTS_DIR`, `flow/sheets.export_charts_to_look_at`; `flow` = the 9 + 5 charts of `flow_excel.feature`, `art_metrics` = the
-scenario art-metrics), so `build` and `vba-tests` do not erase them. Each run empties the folder first (no PNG of a removed chart) and
-writes `_exported.txt` (UTC time, commit, image list) AFTER the export: no note, or an old time, = the last run did not reach the
-export. Rerun the scenario to refresh: `test-excel tests/steps/test_flow_excel.py -k "art_metrics or png"`.
+scenario art-metrics), so `build` and `vba-tests` do not erase them. Each chart is exported twice: `<name>.png` and `<name>.svg` (Excel
+writes the SVG itself: `Chart.Export(path, "SVG")`, a vector, so a zoom stays sharp). Each run empties the folder first (no image of a
+removed chart) and writes AFTER the export `_exported.txt` (UTC time, commit, image list) and `index.html`, a dashboard of the SVG with a
+click-to-zoom (wheel, drag, Esc; no script or font from outside: `chart_images.index_html`); `out\manual_test\charts\index.html` links the
+scenarios. No note, or an old time, = the last run did not reach the export. Open the page by double-click. Rerun the scenario to
+refresh: `test-excel tests/steps/test_flow_excel.py -k "art_metrics or png"` (the second test is the `flow` one).
 
 Before finishing a change run the full pass: `coverage`, `vba-tests`, `test-excel`, `test-network`, `build`
 (skill `/full-pass`). The Claude config is versioned in `.claude/` (like this file) but left out of the release

@@ -137,7 +137,7 @@ Excel tables keep the logical names (`Config`, `Issues[Key]`); `sheet_names.py` 
 | `docs/`, `rovo/` | Domain references (frozen); Rovo agents and Confluence template |
 | `pyproject.toml`, `requirements.txt` | pytest and coverage settings; the one list of dependencies (pywin32, test tools) |
 | `CLAUDE.md`, `.claude/`, `archive/` | Notes and settings for Claude Code, old probe scripts; left out of GitHub's "Source code" archives |
-| `out/release/`, `out/manual_test/` | Delivered files; manual-test copy; `out/manual_test/charts/<scenario>/` holds the chart PNG of the Excel tests, replaced at each run. Never cleaned. |
+| `out/release/`, `out/manual_test/` | Delivered files; manual-test copy; `out/manual_test/charts/index.html` opens the charts of the Excel tests (SVG, click to zoom, PNG beside), replaced at each run. Never cleaned. |
 | `out/inter/` | Everything else. Emptied by `build`. |
 
 ## 5. Requirements
