@@ -1290,6 +1290,9 @@ Public Sub T_FlowBuild()
     Check "flowbuild", "FillRates: the system fields x teams x issue types (the fields not configured are left out)", "3 x 9 x 2", 54, TableRows("FillRates")
     Check "flowbuild", "IssueLinks is a table even without any link", "rows", 1, TableRows("IssueLinks")
     Check "flowbuild", "one series per team in the Velocity chart", "Velocity", teams, dash.ChartObjects("velocity").Chart.SeriesCollection.Count
+    Check "flowbuild", "the Velocity chart writes the value above the bars of its first series (a 0 has no bar), the Flow Time chart does not", "labels", "yes|no", _
+          IIf(dash.ChartObjects("velocity").Chart.SeriesCollection(1).HasDataLabels, "yes", "no") & "|" & _
+          IIf(dash.ChartObjects("flow_time").Chart.SeriesCollection(1).HasDataLabels, "yes", "no")
     Check "flowbuild", "one series per work type in the Distribution chart", "flow_distribution", 5, dash.ChartObjects("flow_distribution").Chart.SeriesCollection.Count
     Check "flowbuild", "the Predictability chart has two more series: the 80-100 % band", "Predictability", teams + 2, dash.ChartObjects("flow_predictability").Chart.SeriesCollection.Count
     Check "flowbuild", "the daily Flow Load curve has one series per team and one point per day", "28 days", teams & "|" & 28, _

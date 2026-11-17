@@ -50,6 +50,8 @@ class ChartSpec:
     reason: str = ""                # shown under the chart when points are not computable
     axis: str = ITERATION_AXIS         # what a row of the block of ChartData is: an iteration or a day
     band: tuple[float, float] | None = None     # a target band drawn as two constant series (proposal: SAFe 80-100 %)
+    labels: bool = False            # the value above each bar of the first series (the ART), so that a 0 is seen: no bar has no height
+    zeros: bool = False             # the note counts the points that are 0 (no bar) instead of the gaps
 
 
 EXTRACT_CAPTION = "Extract from Jira and compute"     # the captions of the Dashboard buttons (flow/sheets.py)
@@ -60,13 +62,18 @@ ROVO_CAPTION = "Prompt for Rovo"
 ROVO_LOAD_CAPTION = "Load settings CSV"
 STEPS_CELL = "T1"           # the first steps (manual.first_steps), right of the status rows
 
+# AL, 2026-11-17: an iteration where nothing was done (every Feature deferred, say) has Velocity 0 (no bar) and no Flow Time or Flow
+# Efficiency (a gap: never 0, never a guess). The value is written above the bar and the note under the chart says why.
+NO_ITEM_DONE = "no item was done in these iterations, so there is nothing to measure"
+ZERO_NOTE = "no item was done (no bar)"
+
 CHARTS = (
-    ChartSpec("velocity", "Velocity - items done per iteration", "Velocity", XL_COLUMN_CLUSTERED),
-    ChartSpec("flow_time", "Flow Time - median, in days", "FlowTimeMedian", XL_LINE_MARKERS),
-    ChartSpec("flow_time_p85", "Flow Time - 85th percentile, in days", "FlowTimeP85", XL_LINE_MARKERS),
+    ChartSpec("velocity", "Velocity - items done per iteration", "Velocity", XL_COLUMN_CLUSTERED, labels=True, zeros=True),
+    ChartSpec("flow_time", "Flow Time - median, in days", "FlowTimeMedian", XL_LINE_MARKERS, reason=NO_ITEM_DONE),
+    ChartSpec("flow_time_p85", "Flow Time - 85th percentile, in days", "FlowTimeP85", XL_LINE_MARKERS, reason=NO_ITEM_DONE),
     ChartSpec("flow_load", "Flow Load - average items in process", "FlowLoadAverage", XL_LINE_MARKERS),
     ChartSpec("flow_efficiency", "Flow Efficiency - active time / (active + wait)", "FlowEfficiency",
-              XL_COLUMN_CLUSTERED, "0%"),
+              XL_COLUMN_CLUSTERED, "0%", reason=NO_ITEM_DONE),
     ChartSpec("flow_distribution", "Flow Distribution - items done by work type (team of the selector)", None,
               XL_COLUMN_STACKED_100, "0%", series=BUCKET_SERIES),
     ChartSpec("flow_predictability", "Flow Predictability", "FlowPredictability", XL_LINE_MARKERS, "0%",
@@ -148,9 +155,12 @@ def bucket_point(bucket: str, iteration_cell: str) -> str:
     return f'=IFERROR(IF({SELECTOR}="{ALL_TEAMS}",{all_teams},1*{one_team}),NA())'
 
 
-def note_formula(data_range: str, reason: str) -> str:
-    """The text under a chart: how many points are not computable (gaps in the chart)."""
+def note_formula(data_range: str, reason: str, zeros: bool = False) -> str:
+    """The text under a chart: how many points are not computable (gaps in the chart), or with `zeros` how many are 0 (no bar)."""
     because = f'&" - {reason}"' if reason else ""
+    if zeros:
+        return (f'=COUNTIF({data_range},0)&" of "&ROWS({data_range})*COLUMNS({data_range})'
+                f'&" points are 0 - {ZERO_NOTE}"{because}')
     return (f'=SUMPRODUCT(--ISNA({data_range}))&" of "&ROWS({data_range})*COLUMNS({data_range})'
             f'&" points are not computable (gaps)"{because}')
 

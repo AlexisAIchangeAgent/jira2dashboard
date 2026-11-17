@@ -38,7 +38,7 @@ def test_one_chart_row_per_chart_with_the_tokens_the_vba_replaces():
     rows = B.chart_rows()
     assert [r[0] for r in rows] == [c.name for c in D.CHARTS[:-1] + D.ITERATION_CHARTS + D.CHARTS[-1:]]   # the daily curve stays last
     assert [r[13] for r in rows] == [D.CHARTS_SHEET] * 8 + [D.ITERATION_CHARTS_SHEET] * 5 + [D.CHARTS_SHEET]
-    for name, title, kind, axis, series, point, note, row, column, height, width, day_or_iteration, band, sheet in rows:
+    for name, title, kind, axis, series, point, note, row, column, height, width, day_or_iteration, band, sheet, labels in rows:
         assert "{iteration}" in point and "{range}" in note
         if day_or_iteration == D.PI_AXIS:                    # one fixed series (ART), its point names neither
             assert series == "ART" and "{series}" not in point and "{name}" not in point, name
@@ -47,7 +47,7 @@ def test_one_chart_row_per_chart_with_the_tokens_the_vba_replaces():
         assert kind in (D.XL_COLUMN_CLUSTERED, D.XL_LINE_MARKERS, D.XL_COLUMN_STACKED_100, D.XL_LINE)
         assert day_or_iteration in (D.ITERATION_AXIS, D.DAY_AXIS, D.PI_AXIS)
         assert row >= 4 and column >= 1 and height > 0 and width > 0
-    assert len(B.CHARTS_HEADER) == len(rows[0])
+    assert len(B.CHARTS_HEADER) == len(rows[0]) and B.CHARTS_HEADER[-1] == "Labels"
 
 
 def test_the_dashboard_settings_are_in_the_plan():
@@ -62,3 +62,16 @@ def test_teams_are_art_then_the_team_projects_each_once():
     sheet = next(s for s in load_all() if s.name == "Projects")
     teams = B.team_names([tuple(r) for r in sheet.rows])
     assert teams[0] == "ART" and len(teams) == 1 + len(sheet.rows) - 1       # the Program is one row, the others teams
+
+
+def test_only_the_velocity_chart_asks_for_labels_and_counts_zeros_in_its_note():
+    rows = {r[0]: r for r in B.chart_rows()}
+    assert [name for name, r in rows.items() if r[14] == "yes"] == ["velocity"]            # text "yes", never a Boolean
+    assert "COUNTIF(" in rows["velocity"][6] and "points are 0" in rows["velocity"][6]
+    assert all("COUNTIF(" not in r[6] for name, r in rows.items() if name != "velocity")
+
+
+def test_the_charts_of_the_flow_figures_say_why_an_iteration_has_a_gap():
+    rows = {r[0]: r for r in B.chart_rows()}
+    for name in ("flow_time", "flow_time_p85", "flow_efficiency"):
+        assert "no item was done in these iterations" in rows[name][6], name

@@ -1664,6 +1664,29 @@ def _art_only_the_art_series(world):
         assert [chart.SeriesCollection(n).Name for n in range(1, chart.SeriesCollection().Count + 1)] == ["ART"], spec.name
 
 
+def chart_note(world, name):
+    """The text under a chart of the sheet Charts (the cell right below it)."""
+    ws = world["wb"].Worksheets(S.of(D.CHARTS_SHEET))
+    row, column = D.chart_anchor([s.name for s in D.CHARTS].index(name))
+    return str(ws.Cells(row + D.ROWS_PER_CHART, column).Value)
+
+
+@then("le graphique Velocity écrit la valeur au-dessus des barres de l'ART et sa note compte 6 points à 0")
+def _art_velocity_labels(world):
+    from art_oracle import ITERATION_STARTS, VELOCITY
+    ws = world["wb"].Worksheets(S.of(D.CHARTS_SHEET))
+    assert [bool(ws.ChartObjects(spec.name).Chart.SeriesCollection(1).HasDataLabels) for spec in D.CHARTS[:8]] == [spec.labels for spec in D.CHARTS[:8]]
+    assert [s.name for s in D.CHARTS if s.labels] == ["velocity"]                                # the others have no label
+    empty = sum(1 for label in ITERATION_STARTS if VELOCITY[label] == 0)
+    assert empty == 6 and chart_note(world, "velocity") == f"{empty} of {len(ITERATION_STARTS)} points are 0 - {D.ZERO_NOTE}"
+
+
+@then("les graphiques Flow Time et Flow Efficiency ont 6 trous expliqués par l'absence de ticket terminé")
+def _art_gap_notes(world):
+    for name in ("flow_time", "flow_time_p85", "flow_efficiency"):
+        assert chart_note(world, name) == f"6 of 24 points are not computable (gaps) - {D.NO_ITEM_DONE}", name
+
+
 @then("la feuille IterationCharts a ses 5 graphiques avec une série pour l'ART et une par équipe")
 def _art_charts(world):
     ws = world["wb"].Worksheets(S.of(D.ITERATION_CHARTS_SHEET))

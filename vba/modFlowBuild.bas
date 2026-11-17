@@ -780,6 +780,12 @@ Private Sub BuildChart(ByVal dash As Object, ByVal data As Object, ByVal row As 
         s.Values = data.Range(data.Cells(first, 1 + j), data.Cells(last, 1 + j))
         s.XValues = data.Range(data.Cells(first, 1), data.Cells(last, 1))
     Next j
+    If CStr(row("Labels") & "") = "yes" Then
+        Cov "FLB49"                                          ' the value above each bar of the first series (the ART): a 0 has no bar to see
+        stage = "labels"
+        ch.SeriesCollection(1).HasDataLabels = True
+        ch.SeriesCollection(1).DataLabels.Position = 2       ' xlLabelPositionOutsideEnd
+    End If
     If Len(CStr(row("Band"))) > 0 Then
         Cov "FLB34"                                          ' a target band: two constant series, dashed, after the data
         stage = "band"

@@ -54,8 +54,8 @@ def _legend(names: list[str], top: float) -> tuple[list[str], float]:
 
 
 def draw(title: str, categories: list[str], series: dict[str, list[float | None]], kind: str, percent: bool = False,
-         band: tuple[float, float] | None = None, note: str = "") -> str:
-    """An SVG chart: `series` name -> one value per category (None = a gap)."""
+         band: tuple[float, float] | None = None, note: str = "", labels: bool = False) -> str:
+    """An SVG chart: `series` name -> one value per category (None = a gap). `labels`: the value above each bar of the first series."""
     names = list(series)
     legend, legend_height = _legend(names, 0)
     bottom = 34 + legend_height + (16 if note else 0)
@@ -97,6 +97,9 @@ def draw(title: str, categories: list[str], series: dict[str, list[float | None]
                     x = LEFT + slot * i + slot * 0.1 + width * s
                     out.append(f'<rect x="{x:.1f}" y="{y(value):.1f}" width="{width:.1f}" '
                                f'height="{TOP + plot_h - y(value):.1f}" fill="{PALETTE[s % len(PALETTE)]}"/>')
+                    if labels and s == 0:                               # a 0 has no bar: its value is written on the axis
+                        out.append(f'<text x="{x + width / 2:.1f}" y="{y(value) - 3:.1f}" text-anchor="middle" {FONT} '
+                                   f'font-size="10" fill="#333">{_label(value, False)}</text>')
     elif kind == STACKED:
         for i in range(len(categories)):
             base = 0.0
@@ -131,9 +134,13 @@ def draw(title: str, categories: list[str], series: dict[str, list[float | None]
     return "\n".join(out)
 
 
-def gaps_note(series: dict[str, list], reason: str) -> str:
-    """The text under a chart, as the workbook writes it (dashboard_spec.note_formula); empty when there is no gap."""
+def gaps_note(series: dict[str, list], reason: str, zeros: bool = False) -> str:
+    """The text under a chart, as the workbook writes it (dashboard_spec.note_formula); empty when there is no gap.
+    With `zeros` (Velocity): how many points are 0 (no bar), as the workbook counts them."""
     points = [v for column in series.values() for v in column]
+    if zeros:
+        return (f"{sum(1 for v in points if v == 0)} of {len(points)} points are 0 - {D.ZERO_NOTE}"
+                + (f" - {reason}" if reason else ""))
     gaps = sum(1 for v in points if v is None)
     if not gaps:
         return ""
@@ -199,6 +206,6 @@ def chart_pictures(metrics: list[TeamIterationMetrics], teams: list[str], iterat
             series = {t: [_number(getattr(by_key[(p, t)], attribute[spec.column])) if (p, t) in by_key else None
                           for p in iterations] for t in teams}
         svg = draw(title, categories, series, KINDS[spec.chart_type], spec.axis_format == "0%", spec.band,
-                   gaps_note(series, spec.reason))
+                   gaps_note(series, spec.reason, spec.zeros), spec.labels)
         pictures.append(Picture(spec.name, title, svg, WIDTH, HEIGHT))
     return pictures

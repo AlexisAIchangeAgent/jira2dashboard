@@ -182,7 +182,11 @@ python.log). `tests/unit/test_claude_hooks.py` and `test_claude_skills.py` test 
   at build after the Dashboard (`CHARTS_SHEET` of `modFlowBuild`/`modActions` = `dashboard_spec.CHARTS_SHEET`, a test pins it). The 5
   charts of the Features per iteration are on the sheet `IterationCharts` (right after `Charts`; `ChartSpec` has a column `Sheet`, the
   rows of `IterationCharts` come BEFORE the daily curve: its block of `ChartData` is the longest, so it stays last; the helper
-  `chart_blocks` of the Excel steps follows that order).
+  `chart_blocks` of the Excel steps follows that order). **An iteration where nothing was done** (AL, 2026-11-17: every Feature deferred,
+  say) has Velocity 0 (no bar) and Flow Time / Flow Efficiency "not computable" (a gap, never 0): `ChartSpec.labels` (plan column `Labels`,
+  text "yes", `modFlowBuild` FLB49) writes the value above the bars of the first series (the ART) on the Velocity chart only, and the note
+  under the chart says why (`ChartSpec.zeros`: "N of M points are 0 - no item was done (no bar)"; `reason=NO_ITEM_DONE` under Flow Time,
+  p85 and Flow Efficiency; `charts_svg.gaps_note` is the Python twin). `-Run` and `manual-test` use `out\release`: run `build` first after a VBA change.
 - **User manual.** `src/jira2dashboard/manual.py` (pure text) is written by `flow/sheets.write_manual` at the delivery
   build: the first steps on the Dashboard from T1, and the sheet `Manual`. Update it when a button, sheet or step changes.
 - **Extraction (VBA).** `modHttp` (WinHTTP, proxy with Windows auth, retries; `modProxy` finds the proxy of the Windows

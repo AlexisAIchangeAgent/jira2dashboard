@@ -1,5 +1,6 @@
 """The SVG charts of the Python path (pure): what they draw, gaps for "not computable", well-formed SVG."""
 import datetime as dt
+import re
 from xml.etree import ElementTree
 
 import pytest
@@ -100,3 +101,16 @@ def test_counts_get_whole_gridlines():
     labels = texts(C.draw("Velocity", ["I1"], {"ART": [2]}, C.COLUMNS))
     assert "1" in labels and "2" in labels and "0.5" not in labels and "1.5" not in labels
     assert "0.5" in texts(C.draw("Flow Time", ["I1"], {"ART": [1.6]}, C.LINES))
+
+
+def test_labels_write_the_value_above_each_bar_of_the_first_series_even_for_a_zero():
+    svg = C.draw("v", ["a", "b", "c"], {"ART": [2.0, 0.0, 1.0], "team": [1.0, 1.0, 1.0]}, C.COLUMNS, labels=True)
+    texts = re.findall(r'text-anchor="middle"[^>]*font-size="10" fill="#333">([^<]*)<', svg)
+    assert texts == ["2", "0", "1"]                                    # the ART only: the team series has no label
+    assert ">2<" not in C.draw("v", ["a"], {"ART": [2.0]}, C.COLUMNS).replace('fill="#555">2<', "")      # no label unless asked for
+
+
+def test_the_velocity_note_counts_the_points_that_are_0_as_the_workbook_does():
+    series = {"ART": [1, 0, 0, 2], "team": [0, 1, 0, 0]}
+    assert C.gaps_note(series, "", zeros=True) == "5 of 8 points are 0 - no item was done (no bar)"
+    assert C.gaps_note({"ART": [1, 2]}, "", zeros=True) == "0 of 2 points are 0 - no item was done (no bar)"      # always written

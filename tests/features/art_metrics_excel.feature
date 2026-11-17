@@ -41,6 +41,14 @@ Fonctionnalité: Le scénario art-metrics du faux Jira donne, dans le classeur l
     Et chaque graphique par équipe de la feuille Charts n'a que la série ART
 
   @excel
+  Scénario: Une itération sans livraison montre sa vélocité à 0 et la note sous les graphiques dit pourquoi
+    Soit le faux Jira du scénario art-metrics
+    Et le classeur à livrer rempli pour ce scénario
+    Quand j'extrais et calcule
+    Alors le graphique Velocity écrit la valeur au-dessus des barres de l'ART et sa note compte 6 points à 0
+    Et les graphiques Flow Time et Flow Efficiency ont 6 trous expliqués par l'absence de ticket terminé
+
+  @excel
   Scénario: Les 5 graphiques de la feuille IterationCharts montrent les chiffres de la table
     Soit le faux Jira du scénario art-metrics
     Et le classeur à livrer rempli pour ce scénario

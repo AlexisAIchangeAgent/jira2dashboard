@@ -18,7 +18,7 @@ SHEET_CHECKS = "ChecksSpec"
 FORMULAS_HEADER = ("Table", "Column", "Formula")
 CHECKS_HEADER = C.DATACHECKS_KEYS
 CHARTS_HEADER = ("Name", "Title", "ChartType", "AxisFormat", "SeriesNames", "PointFormula", "NoteFormula",
-                 "AnchorRow", "AnchorColumn", "Rows", "Columns", "Axis", "Band", "Sheet")
+                 "AnchorRow", "AnchorColumn", "Rows", "Columns", "Axis", "Band", "Sheet", "Labels")
 
 CONTROL_NAMES = ("AsOfUtc", "cfg_FlowLoadMode", "cfg_TransitionsLast", "cfg_PIsLast", "cfg_PredictabilityMode")   # the control cells (sheet Controls, column B)
 
@@ -89,8 +89,8 @@ def _chart_row(index: int, spec: D.ChartSpec, sheet: str) -> tuple:
         series = ",".join(D.series_names(spec))
     row, column = D.chart_anchor(index)
     return (spec.name, spec.title, spec.chart_type, spec.axis_format or "", series, point,
-            D.note_formula("{range}", spec.reason), row, column, D.ROWS_PER_CHART, D.COLUMNS_PER_CHART,
-            spec.axis, D.band_text(spec), sheet)
+            D.note_formula("{range}", spec.reason, spec.zeros), row, column, D.ROWS_PER_CHART, D.COLUMNS_PER_CHART,
+            spec.axis, D.band_text(spec), sheet, "yes" if spec.labels else "")        # text, not a Boolean ("Vrai" on a French PC)
 
 
 def team_names(project_rows: list[tuple[str, str, str]]) -> list[str]:
