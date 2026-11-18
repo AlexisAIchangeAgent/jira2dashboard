@@ -19,7 +19,7 @@ from jira2dashboard.flow.pi_history import pi_intervals
 from jira2dashboard.flow.pi_status_time import PIStatusTime, feature_statuses, pi_status_time
 from jira2dashboard.flow.metrics import (BUCKETS, PIPredictability, TeamIterationMetrics, pi_predictability,
                                          team_iteration_metrics)
-from jira2dashboard.flow.model import NOT_COMPUTABLE, UNMAPPED, WORK_TYPES, FlowIssue
+from jira2dashboard.flow.model import NOT_COMPUTABLE, OTHER_TYPES, UNMAPPED, WORK_TYPES, FlowIssue
 from jira2dashboard.flow.velocity_check import VelocityCheck, velocity_check
 from jira2dashboard.standalone.params_book import RunSettings
 
@@ -58,12 +58,17 @@ def iteration_span(iterations) -> tuple[dt.datetime, dt.datetime]:
     return min(i.start for i in iterations), max(i.end for i in iterations)
 
 
+def fill_teams(issues: list[FlowIssue]) -> list[str]:
+    """The teams of FillRates: those of the issues but "ART (other types)" (the workbook lists ART and the Team projects)."""
+    return sorted({i.team for i in issues} - {OTHER_TYPES})
+
+
 def compute(issues: list[FlowIssue], s: RunSettings) -> Results:
     items = [item_flow(i, s.as_of, s.rules) for i in issues]
     teams = team_names(s.projects)
     first, end = iteration_span(s.iterations)
     flags = run_checks(issues, s.as_of, s.rules, s.moves, s.checks)
-    fill = fill_rates(issues, s.checks, sorted({i.team for i in issues}), sorted({i.type for i in issues}))
+    fill = fill_rates(issues, s.checks, fill_teams(issues), sorted({i.type for i in issues}))
     rows = iteration_features(issues, items, s.iterations, s.checks.pis, s.checks.feature_types)
     predictability = pi_predictability(rows, issues, s.checks, s.predictability_mode)
     pi_names = [p.pi for p in predictability] or [D.NO_PI]               # the keys of PIMetrics, also those of PIStatusTime
@@ -132,7 +137,7 @@ def velocitycheck_rows(results: Results, s: RunSettings) -> list[tuple]:
     """The rows of VelocityCheck (formulas.VELOCITYCHECK_COLUMNS), one per iteration and team, in the order of Metrics."""
     iterations = {p.name: p for p in s.iterations}
     return [(r.iteration, iterations[r.iteration].start, iterations[r.iteration].end, r.team, r.velocity, r.velocity_features,
-             r.created_done, r.changed_to_end, r.changed_to_end_features, r.reopened_later, r.gap) for r in results.velocity_check]
+             r.other_types, r.created_done, r.changed_to_end, r.changed_to_end_features, r.reopened_later, r.gap) for r in results.velocity_check]
 
 
 def piinterval_rows(issues: list[FlowIssue]) -> list[tuple]:

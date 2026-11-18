@@ -3,6 +3,7 @@
 On the client PC the Velocity of the ART said 60 where Jira's `status CHANGED TO "Terminé" DURING` the iteration said 8. For each iteration and
 team this table gives the figures that tell the causes apart, all read in the intervals of StatusIntervals (the changelog as visits of statuses):
 
+* OtherTypes: on the ART rows, the tickets of the Program that are not Features ("ART (other types)") done in the iteration: what the ART metrics leave out;
 * Velocity: the items of the team done in the iteration (DoneUtc in [Start, End), as the chart); VelocityFeatures: of which the types of
   Config.FeatureTypes (the Program project also holds other types, which Velocity counts);
 * CreatedDone: items that are done in the iteration because they were CREATED in an end status (their first interval, still open): there is
@@ -16,7 +17,7 @@ Excel: the table VelocityCheck (formulas.VELOCITYCHECK_COLUMNS).
 from dataclasses import dataclass
 
 from jira2dashboard.flow.itemflow import ItemFlow
-from jira2dashboard.flow.model import FlowIssue, Iteration, Rules
+from jira2dashboard.flow.model import ART, OTHER_TYPES, FlowIssue, Iteration, Rules
 
 
 @dataclass(frozen=True)
@@ -25,6 +26,7 @@ class VelocityCheck:
     team: str
     velocity: int
     velocity_features: int
+    other_types: int                # the ART rows: tickets of the Program that are not Features, done in the iteration (team "ART (other types)")
     created_done: int
     changed_to_end: int
     changed_to_end_features: int
@@ -35,8 +37,10 @@ class VelocityCheck:
 def velocity_check(issues: list[FlowIssue], items: list[ItemFlow], iteration: Iteration, team: str, rules: Rules,
                    feature_types: frozenset[str]) -> VelocityCheck:
     """One row: `items[n]` is the ItemFlow of `issues[n]`. Counts, so an iteration with nothing gives 0 (never not computable)."""
-    velocity = velocity_features = created = changed = changed_features = reopened = 0
+    velocity = velocity_features = other = created = changed = changed_features = reopened = 0
     for issue, item in zip(issues, items):
+        if team == ART and item.team == OTHER_TYPES and iteration.contains(item.done):
+            other += 1
         if item.team != team:
             continue
         feature = issue.type in feature_types
@@ -52,5 +56,5 @@ def velocity_check(issues: list[FlowIssue], items: list[ItemFlow], iteration: It
                 changed += 1
                 changed_features += feature
                 reopened += not visit.is_open
-    return VelocityCheck(iteration.name, team, velocity, velocity_features, created, changed, changed_features, reopened,
+    return VelocityCheck(iteration.name, team, velocity, velocity_features, other, created, changed, changed_features, reopened,
                          velocity - created - (changed - reopened))

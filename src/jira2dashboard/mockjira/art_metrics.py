@@ -12,6 +12,8 @@ text (tests/unit/test_art_metrics.py types them; nothing is computed from flow/ 
   The PI field of PI-2, PI-3 and PI-4 Features is set the day before their PI starts (history); the Iteration field stays.
 - ft-25 is created during IT-4-2 with PI-4 and IT-4-4 as first values and released in IT-4-6: added after the start of its PI.
 - 3 teams in the Team field: ft-1,2 team-1; ft-3,4 team-2; ft-5,6 team-3, then team-1, 2, 3 in turn within each PI; ft-25 team-1.
+- 3 sub-tasks of the Program (TTT-26, 27 under ft-7, ft-8, done in IT-2-1; TTT-28 under ft-16, done in IT-3-4): not Features, so the ART leaves them out
+  (team "ART (other types)", AL 2026-11-18); every figure of the 25 Features is unchanged.
 """
 import datetime as dt
 from dataclasses import dataclass
@@ -135,11 +137,24 @@ def _feature(plan: Plan, project: str, all_iterations: tuple[Iteration, ...], al
                  pi=current, team=plan.team, iteration=label if not plan.added else "IT-4-4", field_changes=tuple(changes))
 
 
+# Sub-tasks of the Program project (TTT-26.. under Features): tickets that are NOT Features. Config.FeatureTypes = Feature, so the team of the ART does not
+# count them ("ART (other types)"): none of the figures above changes. (key number, parent Feature number, iteration where it is done at 10 d 12 h)
+SUBTASKS = ((26, 7, "IT-2-1"), (27, 8, "IT-2-1"), (28, 16, "IT-3-4"))
+
+
+def _subtask(number: int, parent: int, label: str, project: str, all_iterations: tuple[Iteration, ...]):
+    at = next(i for i in all_iterations if i.name == label).start + RELEASE_DAY
+    moves = ((_stamp(at - dt.timedelta(days=2)), "analyzing"), (_stamp(at - dt.timedelta(days=1)), "doing"), (_stamp(at), DONE))
+    return issue(f"{project}-{number}", moves=moves, created=SETTLED, initial_status=TODO, type="Sub-task", work_type="Autre",
+                 summary=f"sub-task of ft-{parent}", workflow=WORKFLOW, parent=f"{project}-{parent}")
+
+
 def scenario() -> Scenario:
     project = PROGRAM
     all_pis, all_iterations = pis(), iterations()
     own = sheets()
-    issues = tuple(_feature(plan, project, all_iterations, all_pis, FIELDS) for plan in PLANS)
+    issues = tuple(_feature(plan, project, all_iterations, all_pis, FIELDS) for plan in PLANS) + tuple(
+        _subtask(n, parent, label, project, all_iterations) for n, parent, label in SUBTASKS)
     dataset = Dataset(issues, all_pis[-1].end, catalog=StatusCatalog.from_params(list(own)), fields=FIELDS, sheets=own,
                       workflow_names={WORKFLOW: JIRA_WORKFLOW})
     return Scenario(NAME, dataset, all_pis, all_iterations, port=PORT)

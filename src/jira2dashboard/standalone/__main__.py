@@ -205,7 +205,7 @@ def run(args, formatter: Scrubbed, collected: Collected, sleep=time.sleep, detec
     log.info("BEGIN changelogs of %d issues", len(issues))
     pages = client.changelogs([i["key"] for i in issues])
     extract = extracted(issues, pages, FieldIds(settings.work_type_field, settings.fields), settings.projects,
-                        settings.blocks_link_type, client.user_fields())
+                        settings.blocks_link_type, client.user_fields(), settings.checks.feature_types)
     log.info("END Jira: %d issues, %d changelog items, %d links%s", len(extract.rows), extract.changelog_items,
              len(extract.links), took(step))
     key, kind, others = extract.date_key

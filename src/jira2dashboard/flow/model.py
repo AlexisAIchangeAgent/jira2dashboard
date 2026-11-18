@@ -9,6 +9,7 @@ BACKLOG, ACTIVE, WAIT, DONE, REMOVED, UNCLASSIFIED = "Backlog", "Active", "Wait"
 WORK_TYPES = ("Feature", "Enabler", "Defect", "Autre")        # TypeCategorie; anything else counts as Unmapped
 UNMAPPED = "Unmapped"
 ART = "ART"                                                    # team name under which Program features are reported
+OTHER_TYPES = "ART (other types)"                              # the team of the Program tickets that are not Features (sub-tasks...): no ART metric counts them
 MODES = ("A", "B")                                             # FlowLoadMode
 
 
@@ -61,6 +62,13 @@ def change_order(change: Change) -> tuple:
     their id as a number (9 before 10: a text sort would put 10 first), which is the order Jira gave them in (the VBA keeps
     it: modFlow.SortByDate is stable)."""
     return (change.at, len(change.id), change.id)
+
+
+def program_team(type_: str, feature_types: frozenset[str] | None) -> str:
+    """The team of a ticket of the Program project: ART for a Feature (its type is in Config.FeatureTypes), OTHER_TYPES for the rest (AL, 2026-11-18:
+    for a Program the flow metrics look at the Features). `feature_types` None = no filter, every type is a Feature (a caller that does not know the
+    parameter); an empty set = no Feature at all, as the workbook's `IsFeature` column does."""
+    return ART if feature_types is None or type_ in feature_types else OTHER_TYPES
 
 
 @dataclass(frozen=True)

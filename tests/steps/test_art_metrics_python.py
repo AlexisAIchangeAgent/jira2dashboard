@@ -132,6 +132,8 @@ def _status_durations(world):
         if r["LeftUtc"] in (None, ""):
             continue                                                       # the visit still open: todo is behind, deferred has no end
         number = int(r["Key"].rsplit("-", 1)[1])
+        if number > 25:
+            continue                                                       # a sub-task of the Program (not a Feature): its own durations
         durations.setdefault((PI_OF_FEATURE[number], r["Status"]), []).append(float(r["DurationDays"]))
     assert {status for _pi, status in durations} >= set(CHAIN) | {"todo"}
     for (pi, status), days in durations.items():

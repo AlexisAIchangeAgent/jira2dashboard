@@ -125,7 +125,9 @@ def manual(mandatory: tuple[str, ...]) -> list[tuple[str, str]]:
             f"Excel stays usable. At the end, {STATUS_CELL} gives the result and the rows under it its details, one per line "
             "(name in column A, value in column B).",
             f'"{CANCEL_CAPTION}" stops it before the raw sheets are written: the previous results stay.',
-            "When something keeps a figure empty, the status adds a field: Done outside the iterations (add iterations), Without a team, "
+            "When something keeps a figure empty, the status adds a field: Not Features (the tickets of the Program that are not of a type of "
+            "FeatureTypes are in the team ART (other types) of ItemFlow, left out of the ART metrics; if the ART has no Feature, FeatureTypes is "
+            "not the name of Jira), Done outside the iterations (add iterations), Without a team, "
             f"Statuses not in Workflows (add them to {WORKFLOWS}) and Cells in error (Table.Column x n: a formula that fails on your data).",
             f"At the end the sheets {ITEMFLOW}, {S.of('DailyLoad')}, {METRICS}, {S.of('PIMetrics')}, {S.of('ChartData')} and the charts are rebuilt to the size of "
             "the new data. Run it as often as needed.",

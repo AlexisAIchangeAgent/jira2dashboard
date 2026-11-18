@@ -11,7 +11,7 @@ from dataclasses import dataclass, field
 
 from jira2dashboard.flow.formulas import CHANGELOG_PERSON_FIELDS, CHANGELOG_TEXT_MAX
 from jira2dashboard.flow.intervals import build_intervals
-from jira2dashboard.flow.model import ART, Change, FlowIssue, PIChange, Rules, change_order
+from jira2dashboard.flow.model import ART, Change, FlowIssue, PIChange, Rules, change_order, program_team
 
 _NUMBER_TEXT = re.compile(r"[0-9.+-]+")
 _LEADING_NUMBER = re.compile(r"[+-]?(\d+\.?\d*|\.\d+)")
@@ -386,14 +386,15 @@ def program_project(projects: list[tuple[str, str, str]]) -> str:
 
 
 def flow_issue(row: tuple, changes: list[Change], projects: list[tuple[str, str, str]], blocks: tuple[str, ...],
-               fix_versions: tuple[str, ...], pi_history: list[PIChange] = ()) -> FlowIssue:
-    """The issue as the flow reference reads it: Program issues follow the Feature workflow and report under ART,
-    the others follow the Team workflow under the team of their project (sheet Projects)."""
+               fix_versions: tuple[str, ...], pi_history: list[PIChange] = (), feature_types: frozenset[str] | None = None) -> FlowIssue:
+    """The issue as the flow reference reads it: Program issues follow the Feature workflow and report under ART when their type is in
+    `feature_types` (None: every type), under "ART (other types)" otherwise; the others follow the Team workflow under the team of their
+    project (sheet Projects)."""
     (key, _id, project, type_, work_type, created, status, parent, category, resolved, _versions, points, pi, value,
      team_value, sprint_state, sprint_start, sprint_end, sprint_count, target_start, target_end, key_changes) = row
     program = project == program_project(projects)
     team = next(((row_[2] or "").strip() or row_[0] for row_ in projects if row_[0] == project), "")     # an empty Team is the project key
-    return FlowIssue(key=key, team=ART if program else team, type=type_, work_type=work_type,
+    return FlowIssue(key=key, team=program_team(type_, feature_types) if program else team, type=type_, work_type=work_type,
                      workflow="Feature" if program else "Team", created=created, status=status,
                      changes=tuple(changes), parent=parent, resolved=resolved, status_category=category or "",
                      fix_versions=fix_versions,
@@ -445,7 +446,7 @@ class Extract:
 
 
 def extracted(issues: list[dict], changelog_pages: list[dict], ids: FieldIds, projects: list[tuple[str, str, str]],
-              link_type: str, user_fields=frozenset()) -> Extract:
+              link_type: str, user_fields=frozenset(), feature_types: frozenset[str] | None = None) -> Extract:
     """The issues of the search pages with their changelogs. The Program issues come first, as the VBA writes them."""
     id_to_key = {str(i.get("id")): i.get("key") for i in issues}
     items = changelog_items(changelog_pages)
@@ -463,7 +464,7 @@ def extracted(issues: list[dict], changelog_pages: list[dict], ids: FieldIds, pr
         rows.append(row)
         blocks = tuple(blocked_by.get(row[0], ()))
         flow.append(flow_issue(row, changes.get(row[0], []), projects, blocks,
-                               versions_of(issue.get("fields") or {}), pi_history.get(row[0], [])))
+                               versions_of(issue.get("fields") or {}), pi_history.get(row[0], []), feature_types))
     date_key = date_key_of(changelog_pages)
     return Extract(rows, flow, links, len(items), *unreadable_status_dates(items), changelog_rows(items, id_to_key, user_fields),
                    date_key, wire_lines(issues, items, ids, date_key[0]))

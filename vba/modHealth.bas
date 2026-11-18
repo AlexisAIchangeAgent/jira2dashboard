@@ -2,6 +2,8 @@ Option Explicit
 ' What the person should look at after an extraction: fields " | Name: value" for the status cell, each one only when there is
 ' something to see (a clean run adds nothing). They say WHY a figure or a chart is empty, with numbers and the names of the
 ' statuses (the person's own configuration), never a value of a ticket:
+'   Not Features                  tickets of the Program that are not Features (team "ART (other types)" in ItemFlow): left out of the ART metrics;
+'                                 and, when the ART has no Feature at all, that FeatureTypes matches none of them (a type named otherwise in Jira)
 '   Done outside the iterations   tickets whose DoneUtc falls in no iteration of the sheet Iterations (no metric counts them)
 '   Without a team                tickets whose Team is empty (the Team comes from the sheet Projects)
 '   Statuses not in Workflows     statuses of the history that the sheet Workflows lacks (category Unclassified: the Flow
@@ -11,6 +13,8 @@ Option Explicit
 ' Reads the tables of the workbook; never calls Jira, never raises (a status must not hide a finished extraction).
 
 Private Const MAX_NAMES As Long = 5
+Private Const PROGRAM_TEAM As String = "ART"             ' the team of the Features of the Program (flow/model.ART)
+Private Const OTHER_TEAM As String = "ART (other types)"  ' the team of the other tickets of the Program (flow/model.OTHER_TYPES)
 Private Const FILL_LINE_MAX As Long = 270                ' a log line is cut at 300 characters: the fill counts go on a next line (raw_types.FILL_LINE_MAX)
 Private Const BLOCK_ROWS As Long = 2000                  ' rows of a column read at once while the first filled cells are looked for
 Private Const TYPE_SAMPLE As Long = 20                  ' the first filled cells of a column whose kinds the log counts (raw_types.SAMPLE)
@@ -21,7 +25,7 @@ Private Const HALF_SECOND As Double = 0.0000057870370370 ' a day is 1: half a se
 Public Function HealthFields(ByVal wb As Object) As String
     Cov "HLT01"
     On Error GoTo Failed
-    HealthFields = TypeProblems(wb) & OutsideIterations(wb) & WithoutTeam(wb) & UnclassifiedStatuses(wb) & CellsInError(wb)
+    HealthFields = TypeProblems(wb) & NotFeatures(wb) & OutsideIterations(wb) & WithoutTeam(wb) & UnclassifiedStatuses(wb) & CellsInError(wb)
     Exit Function
 Failed:
     Cov "HLT02"
@@ -67,18 +71,64 @@ Private Function InAnIteration(ByVal serial As Double, ByVal starts As Collectio
     Next k
 End Function
 
+Private Function IsOtherTeam(ByVal team As Variant, ByVal r As Long) As Boolean
+    ' True when row r of the column Team (a 2-D array, or Empty) is the team of the Program tickets that are not Features.
+    If IsEmpty(team) Then Exit Function
+    If IsError(team(r, 1)) Then Exit Function
+    IsOtherTeam = (StrComp(TrimWhite(CStr(team(r, 1) & "")), OTHER_TEAM, vbTextCompare) = 0)
+End Function
+
+Private Function NotFeatures(ByVal wb As Object) As String
+    ' The Program tickets that are not Features, and (when the ART has none) a FeatureTypes that matches nothing. Numbers and type names only.
+    Dim team As Variant, typ As Variant, r As Long, nOther As Long, nArt As Long, seen As Object, names As String, n As Long, name As String, wanted As String
+    team = ColumnValues(TableOf(wb, "ItemFlow"), "Team")
+    If IsEmpty(team) Then Exit Function
+    typ = ColumnValues(TableOf(wb, "ItemFlow"), "Type")
+    Set seen = CreateObject("Scripting.Dictionary")
+    For r = 1 To UBound(team, 1)
+        If IsOtherTeam(team, r) Then
+            nOther = nOther + 1
+            If Not IsEmpty(typ) Then
+                If Not IsError(typ(r, 1)) Then
+                    name = TrimWhite(CStr(typ(r, 1) & ""))
+                    If Len(name) > 0 And Not seen.Exists(name) Then
+                        seen(name) = True
+                        n = n + 1
+                        If n <= MAX_NAMES Then names = names & IIf(Len(names) > 0, ", ", "") & name
+                    End If
+                End If
+            End If
+        ElseIf Not IsError(team(r, 1)) Then
+            If StrComp(TrimWhite(CStr(team(r, 1) & "")), PROGRAM_TEAM, vbTextCompare) = 0 Then nArt = nArt + 1
+        End If
+    Next r
+    If nOther = 0 Then Exit Function
+    Cov "HLT59"
+    NotFeatures = " | Not Features: " & nOther & " of " & (nOther + nArt) & " tickets of the Program (team " & OTHER_TEAM & " in " & SheetName("ItemFlow") & _
+                  ", left out of the ART metrics)"
+    If nArt = 0 Then
+        Cov "HLT60"
+        If SheetExists(wb, "Config") Then wanted = ConfigValue(wb.Worksheets(SheetName("Config")), "FeatureTypes")
+        NotFeatures = NotFeatures & " | FeatureTypes """ & wanted & """ matches no ticket of the Program (types read: " & names & IIf(n > MAX_NAMES, ", ...", "") & _
+                      "): type the name of the Feature type of Jira in " & SheetName("Config")
+    End If
+End Function
+
 Private Function OutsideIterations(ByVal wb As Object) As String
-    Dim done As Variant, starts As New Collection, ends As New Collection, row As Variant, s As Variant, e As Variant
+    Dim done As Variant, starts As New Collection, ends As New Collection, row As Variant, s As Variant, e As Variant, team As Variant
     Dim r As Long, nDone As Long, nOut As Long
     If Not SheetExists(wb, "Iterations") Then Exit Function
     done = ColumnValues(TableOf(wb, "ItemFlow"), "DoneUtc")
     If IsEmpty(done) Then Exit Function
+    team = ColumnValues(TableOf(wb, "ItemFlow"), "Team")                       ' the tickets "ART (other types)" feed no metric: not counted here
     For Each row In ReadTable(wb.Worksheets(SheetName("Iterations")))
         s = SerialOf(row("Start")): e = SerialOf(row("End"))
         If Not IsEmpty(s) And Not IsEmpty(e) Then starts.Add s: ends.Add e
     Next row
     For r = 1 To UBound(done, 1)
-        If IsDoneDate(done(r, 1)) Then
+        If IsOtherTeam(team, r) Then
+            Cov "HLT61"
+        ElseIf IsDoneDate(done(r, 1)) Then
             nDone = nDone + 1
             If Not InAnIteration(CDbl(done(r, 1)), starts, ends) Then nOut = nOut + 1
         End If

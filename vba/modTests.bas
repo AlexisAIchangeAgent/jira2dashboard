@@ -50,7 +50,7 @@ Private Function TestNames() As Variant
     TestNames = Array("T_JsonNested", "T_JsonEscapes", "T_JsonEmpty", "T_JsonErrors", "T_JsonRoundTrip", _
         "T_JsonLarge", "T_Base64Auth", "T_UrlEncode", "T_Utf8RoundTrip", "T_JiraDates", "T_FieldToCell", _
         "T_SafeCell", "T_ProjectsJql", "T_SearchUrl", "T_SearchPagination", "T_Retry429", _
-        "T_HttpNetworkAndCancel", "T_RetryExhausted", "T_ChangelogChunks", "T_IssueRows", "T_WriteTable", "T_StatusIntervals", "T_IntervalsUnreadableDate", "T_StatusChangesUnreadableDate", "T_ChangelogRows", "T_UserFieldIds", "T_DateShape", "T_ParseJiraDateEpoch", "T_DateKind", "T_IsPlausibleDate", "T_FindDateKey", "T_ChangelogDateKey", "T_SkippedDatesWarning", "T_SheetName", "T_ProposeFromSheets", "T_ProposeIterations", "T_ReadSprints", "T_TeamNames", "T_ReadLinkTypes", "T_ProposeTypes", "T_ProposeKindOf", "T_ProposeValuesNotAdmin", "T_HealthFields", "T_CellKind", "T_FitsType", "T_ShapeOfCell", "T_TypeHints", "T_TypeProblems", "T_TypeEmptyTable", "T_TypeBlocks", "T_TypeFillLines", "T_WireTypes", _
+        "T_HttpNetworkAndCancel", "T_RetryExhausted", "T_ChangelogChunks", "T_IssueRows", "T_WriteTable", "T_StatusIntervals", "T_IntervalsUnreadableDate", "T_StatusChangesUnreadableDate", "T_ChangelogRows", "T_UserFieldIds", "T_DateShape", "T_ParseJiraDateEpoch", "T_DateKind", "T_IsPlausibleDate", "T_FindDateKey", "T_ChangelogDateKey", "T_SkippedDatesWarning", "T_SheetName", "T_ProposeFromSheets", "T_ProposeIterations", "T_ReadSprints", "T_TeamNames", "T_ReadLinkTypes", "T_ProposeTypes", "T_ProposeKindOf", "T_ProposeValuesNotAdmin", "T_HealthFields", "T_NotFeatures", "T_CellKind", "T_FitsType", "T_ShapeOfCell", "T_TypeHints", "T_TypeProblems", "T_TypeEmptyTable", "T_TypeBlocks", "T_TypeFillLines", "T_WireTypes", _
         "T_StatusChanges", "T_RetryDelay", "T_SafeAccess", "T_FilesUtf8", "T_StringifyBadObject", _
         "T_TooManyPages", "T_BackgroundExport", "T_TextNotConverted", "T_ParamsTables", "T_ParamsOnWorkbook", _
         "T_TrimWhite", "T_ConfigSheet", "T_MandatoryConfig", "T_Locked", "T_PiIntervals", "T_ProxyDetect", "T_ProxyScript", "T_ProjectsSheet", "T_StatusNames", "T_ParseMoment", "T_ExtractFlowData", "T_ExtractJob", "T_ExtractCheckFields", "T_FlowBuild", "T_BaseUrlHttps", "T_Log", "T_LogInputsAndTimes", "T_StatusParts", "T_ErrorCodes", "T_LogHintAndOpen", "T_StepsSheet", "T_RovoPrompt", "T_RovoCsv", _
@@ -2532,6 +2532,46 @@ Private Function HealthBook(ByVal clean As Boolean) As Object
     Application.Calculate
     Set HealthBook = wb
 End Function
+
+Private Function ProgramBook(ByVal withFeatures As Boolean) As Object
+    ' ItemFlow of a Program: Features (team ART) or none, and sub-tasks (team "ART (other types)"), a Config with FeatureTypes, the sheet Iterations.
+    Dim wb As Object, ws As Object, done As Double
+    Set wb = Workbooks.Add
+    done = CDbl(DateSerial(2026, 1, 5))
+    PutRows wb, "Iterations", Array(Array("Iteration-label", "Start", "End"), Array("I1", "2026-01-01", "2026-01-15"))
+    PutRows wb, "Config", Array(Array("Parameter", "Value", "Example", "Mandatory", "Description"), Array("FeatureTypes", "Feature", "Feature", "True", ""))
+    PutRows wb, "ItemFlow", Array(Array("Key", "Type", "Team", "DoneUtc"), _
+        Array("P-1", IIf(withFeatures, "Feature", "Epic"), IIf(withFeatures, "ART", "ART (other types)"), done), _
+        Array("P-2", "Sous-tache", "ART (other types)", done + 1), Array("P-3", "Sous-tache", "ART (other types)", CDbl(DateSerial(2026, 3, 1))), _
+        Array("P-4", "Technique", "ART (other types)", ""))
+    For Each ws In wb.Worksheets
+        If ws.Name = SheetName("ItemFlow") Then ws.ListObjects.Add(1, ws.UsedRange, , 1).Name = "ItemFlow"
+    Next ws
+    Application.DisplayAlerts = False
+    wb.Worksheets(1).Delete
+    Application.DisplayAlerts = True
+    Set ProgramBook = wb
+End Function
+
+Public Sub T_NotFeatures()
+    ' The Program tickets that are not Features are told (count, team, where to find them), and a FeatureTypes that matches nothing is named.
+    Dim wb As Object, text As String
+    Set wb = ProgramBook(True)
+    text = HealthFields(wb)
+    Check "health", "the tickets of the Program that are not Features, among the Program tickets", "3 of 4", True, _
+          InStr(text, " | Not Features: 3 of 4 tickets of the Program (team ART (other types) in ItemFlow_from_excel, left out of the ART metrics)") > 0
+    Check "health", "with a Feature in the ART there is no word about FeatureTypes", "no", False, InStr(text, "FeatureTypes") > 0
+    Check "health", "the done tickets of that team are not counted as outside the iterations", "none", False, InStr(text, "Done outside the iterations") > 0
+    Application.DisplayAlerts = False
+    wb.Close False
+    Set wb = ProgramBook(False)
+    text = HealthFields(wb)
+    Check "health", "no Feature at all: FeatureTypes matches no ticket and the types read are named", "Epic, Sous-tache, Technique", True, _
+          InStr(text, " | Not Features: 4 of 4 tickets of the Program (team ART (other types) in ItemFlow_from_excel, left out of the ART metrics)" & _
+                      " | FeatureTypes ""Feature"" matches no ticket of the Program (types read: Epic, Sous-tache, Technique): type the name of the Feature type of Jira in Config_from_user") > 0
+    wb.Close False
+    Application.DisplayAlerts = True
+End Sub
 
 Public Sub T_HealthFields()
     ' The fields that say why a figure is empty: only when there is something to see, with numbers and status names.

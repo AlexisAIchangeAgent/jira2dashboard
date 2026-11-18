@@ -1,7 +1,8 @@
 """The fake Jira's issues as flow-metric inputs: what the extraction plus the sheets Projects and Workflows give."""
 import datetime as dt
 
-from jira2dashboard.flow.model import ART, Change, FlowIssue, PIChange
+from jira2dashboard.flow.checks import CheckSettings
+from jira2dashboard.flow.model import Change, FlowIssue, PIChange, program_team
 from jira2dashboard.mockjira.dataset import Dataset, Issue
 from jira2dashboard.params.model import ParamSheet, load_all
 
@@ -19,10 +20,15 @@ def _day(value: dt.date | None) -> dt.datetime | None:
     return dt.datetime(value.year, value.month, value.day) if value else None
 
 
-def to_flow_issues(dataset: Dataset, sheets: list[ParamSheet] | None = None) -> list[FlowIssue]:
-    """Program issues are reported under the team ART and follow the Feature workflow; every other project
-    follows the Team workflow and reports under its team name (sheet Projects)."""
-    projects = {row[0]: (row[1], row[2] or row[0]) for s in (sheets or dataset.sheets or load_all()) if s.name == "Projects" for row in s.rows}
+def to_flow_issues(dataset: Dataset, sheets: list[ParamSheet] | None = None,
+                   feature_types: frozenset[str] | None = None) -> list[FlowIssue]:
+    """Program issues follow the Feature workflow and are reported under the team ART when their type is in `feature_types` (None: the parameter
+    FeatureTypes of the sheet Config, as the workbook does), under "ART (other types)" otherwise; every other project follows the Team workflow
+    and reports under its team name (sheet Projects)."""
+    used = list(sheets or dataset.sheets or load_all())
+    if feature_types is None:
+        feature_types = CheckSettings.from_params(used).feature_types
+    projects = {row[0]: (row[1], row[2] or row[0]) for s in used if s.name == "Projects" for row in s.rows}
     out = []
     for issue in dataset.issues:
         role, team = projects[issue.project]
@@ -31,7 +37,7 @@ def to_flow_issues(dataset: Dataset, sheets: list[ParamSheet] | None = None) -> 
         resolution = dataset.resolution(issue)
         sprint = current_sprint(issue)
         out.append(FlowIssue(
-            key=issue.key, team=ART if program else team, type=issue.type, work_type=issue.work_type,
+            key=issue.key, team=program_team(issue.type, feature_types) if program else team, type=issue.type, work_type=issue.work_type,
             workflow=workflow, created=issue.created, status=issue.status,
             changes=tuple(Change(c.id, c.at, c.from_status, c.to_status) for c in issue.changes),
             parent=issue.parent, resolved=resolution[1] if resolution else None,

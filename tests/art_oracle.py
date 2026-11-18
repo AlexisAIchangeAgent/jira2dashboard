@@ -59,6 +59,9 @@ CURRENT_PI = {"PI-1": 6, "PI-2": 5, "PI-3": 3, "PI-4": 5}      # what reading th
 
 # --- the flow metrics of the ART (a Feature counts for the ART) --------------------------------------------------------------
 VELOCITY = {label: sum(1 for released in RELEASED.values() if released == label) for label in ITERATION_STARTS}
+# the 3 sub-tasks of the Program (TTT-26, 27 done in IT-2-1; TTT-28 in IT-3-4) are not Features: team "ART (other types)", counted by no ART figure
+OTHER_TYPES_DONE = {"IT-2-1": 2, "IT-3-4": 1}
+SUBTASKS = ("TTT-26", "TTT-27", "TTT-28")
 FLOW_TIME_DAYS = 8                                              # 7 statuses of 1 day, one of them lasting 2 days
 FLOW_EFFICIENCY = {"PI-1": 5 / 8, "PI-2": 5 / 8, "PI-3": 5 / 8, "PI-4": 4 / 8}      # Active: analyzing, doing, testing, deploying
 

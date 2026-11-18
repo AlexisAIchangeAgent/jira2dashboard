@@ -31,7 +31,7 @@ def scenario():
 
 @pytest.fixture(scope="module")
 def features(scenario):
-    return {i.number: i for i in scenario.dataset.issues}
+    return {i.number: i for i in scenario.dataset.issues if i.type == "Feature"}
 
 
 def at_status(issue, status):
@@ -57,13 +57,19 @@ def test_the_calendar_has_no_gap_and_its_dates_are_the_ones_of_the_text(scenario
     assert scenario.dataset.as_of == AS_OF
 
 
-def test_the_fake_jira_holds_only_the_25_features_of_one_project(scenario):
+def test_the_fake_jira_holds_the_25_features_and_3_sub_tasks_of_one_project(scenario):
     issues = scenario.dataset.issues
-    assert [i.number for i in issues] == list(range(1, 26))
+    assert [i.number for i in issues] == list(range(1, 29))
     assert {i.project for i in issues} == {project_keys()[0]}                                    # the Program project, nothing else
-    assert {(i.type, i.work_type, i.workflow) for i in issues} == {("Feature", "Feature", "Feature")}
-    assert [i.summary for i in issues] == [f"ft-{n}" for n in range(1, 26)]
-    assert [i.key for i in issues] == [f"{project_keys()[0]}-{n}" for n in range(1, 26)]
+    features = [i for i in issues if i.type == "Feature"]
+    assert [i.number for i in features] == list(range(1, 26))
+    assert {(i.type, i.work_type, i.workflow) for i in features} == {("Feature", "Feature", "Feature")}
+    assert [i.summary for i in features] == [f"ft-{n}" for n in range(1, 26)]
+    assert [i.key for i in issues] == [f"{project_keys()[0]}-{n}" for n in range(1, 29)]
+    subtasks = [i for i in issues if i.type == "Sub-task"]                                      # not Features: the ART leaves them out
+    assert [(i.number, i.parent) for i in subtasks] == [(26, "TTT-7"), (27, "TTT-8"), (28, "TTT-16")]
+    assert [i.changes[-1].to_status for i in subtasks] == ["released"] * 3
+    assert [i.changes[-1].at.isoformat() for i in subtasks] == ["2025-05-17T12:00:00", "2025-05-17T12:00:00", "2025-11-22T12:00:00"]    # IT-2-1, IT-2-1, IT-3-4: 10 d 12 h in
 
 
 def test_the_workflow_is_program_workflow_with_its_categories(scenario):
@@ -183,14 +189,14 @@ def test_the_fake_jira_serves_program_workflow_and_its_statuses(scenario):
     assert [names[s["statusReference"]] for s in workflow["statuses"]] == [
         "todo", "analyzing", "ready4PI", "doing", "ready2test", "testing", "ready2deploy", "deploying", "released", "deferred"]
     assert any(t["type"] == "GLOBAL" and names[t["toStatusReference"]] == "deferred" for t in workflow["transitions"])    # the free status
-    [feature] = config.project_statuses(ds, program)
-    assert [s["name"] for s in feature["statuses"]][-1] == "deferred"
+    feature, subtask = config.project_statuses(ds, program)                 # the Feature type and the Sub-task type: the same workflow
+    assert [s["name"] for s in feature["statuses"]][-1] == "deferred" and subtask["name"] == "Sub-task" and subtask["subtask"]
 
 
 def test_the_mock_jira_command_and_the_workbook_fill_know_the_scenario():
     from jira2dashboard import mock_workbook as M
     from jira2dashboard.mockjira.__main__ import dataset_for, parse
-    assert len(dataset_for(parse(["--scenario", "art-metrics"])).issues) == 25
+    assert len(dataset_for(parse(["--scenario", "art-metrics"])).issues) == 25 + 3        # 25 Features and 3 sub-tasks of the Program
     scenario_ = get("art-metrics")
     book = {sheet.name.split("_")[0]: sheet for sheet in M.params_book("http://x", scenario=scenario_)}
     assert [row[0] for row in book["PIs"].rows] == list(PIS)
@@ -250,7 +256,7 @@ def test_the_mock_jira_in_scenario_mode_never_generates_data(monkeypatch):
         raise AssertionError("the generator or the anomalies were used")
     monkeypatch.setattr(main_module, "generate", forbidden)
     monkeypatch.setattr(main_module, "with_anomalies", forbidden)
-    assert len(main_module.dataset_for(main_module.parse(["--scenario", "art-metrics", "--anomalies", "--issues", "50"])).issues) == 25
+    assert len(main_module.dataset_for(main_module.parse(["--scenario", "art-metrics", "--anomalies", "--issues", "50"])).issues) == 25 + 3
 
 
 def test_the_mock_jira_of_a_scenario_listens_on_the_port_of_the_scenario_unless_one_is_given():

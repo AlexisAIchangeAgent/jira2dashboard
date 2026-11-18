@@ -187,6 +187,12 @@ python.log). `tests/unit/test_claude_hooks.py` and `test_claude_skills.py` test 
   has no type filter**), `CreatedDone` (done because CREATED in an IsEnd status: no change in the changelog), `ChangedToEnd` / `ChangedToEndFeatures` (changes into
   IsEnd, one per change), `ReopenedLater`, `Gap` = Velocity - CreatedDone - (ChangedToEnd - ReopenedLater), always 0. Helper `StatusIntervals.ItemIsFeature`.
   Hand-typed cases in `tests/unit/test_velocity_check.py`; `flow_excel.feature` (cell by cell) and `art_metrics_excel.feature` (= the oracle's Velocity).
+- **The ART counts the Features only (AL, 2026-11-18).** `ItemFlow.Team` of a Program ticket is `ART` when its type is in `Config.FeatureTypes`, else `ART (other types)`
+  (`flow/model.OTHER_TYPES`, `program_team`; formula `formulas.ITEMFLOW_COLUMNS` Team; Python `flow_adapter.to_flow_issues` reads FeatureTypes from the sheet Config,
+  `mapping.flow_issue/extracted(feature_types)` from the settings). No metric counts the other team (the teams list is ART + the Team projects), they stay in ItemFlow
+  (findable by key), the data checks and `VelocityCheck.OtherTypes`; `PIStatusTime` reads `Team = ART`, not the workflow; the Python `fill_teams` leaves the other team out.
+  `modHealth.NotFeatures` says `Not Features: N of M` and, when the ART has no Feature, that `FeatureTypes "X" matches no ticket` (the client's type is "Fonctionnalité",
+  the delivered default stays `Feature`). Scenario art-metrics holds 3 Program sub-tasks (TTT-26..28) that no ART figure counts. Sub-tasks of Team projects are still counted.
 - **Python reference as oracle.** `flow/` (`intervals.py`, `itemflow.py`, `load.py`, `metrics.py`, `checks.py`) is a pure
   Python implementation of the same metrics and data checks. The scenarios in `tests/features/flow_excel.feature` run the
   real delivered workbook against the fake Jira and compare Excel with this reference **cell by cell** (Flow Load modes A

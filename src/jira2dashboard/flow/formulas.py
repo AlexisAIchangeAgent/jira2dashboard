@@ -11,6 +11,7 @@ Rules kept here:
 * a blank result is the empty text "", which COUNTIFS / MINIFS / SUMIFS ignore in numeric criteria.
 """
 from jira2dashboard.flow import check_formulas as C
+from jira2dashboard.flow.model import ART, OTHER_TYPES
 from jira2dashboard.flow.refs import (HALF, IF_, IS, PIS_LAST, SI, TRANSITIONS_LAST, bounded, last_row_cell,
                                       row_index)
 
@@ -84,8 +85,10 @@ ITEMFLOW_COLUMNS = (
     ("WorkType", f'=IF(INDEX({IS}[WorkType],{_row_index(IF_)})="","",INDEX({IS}[WorkType],{_row_index(IF_)}))'),
     ("Role", '=IFERROR(INDEX(Projects_from_user!$B:$B,MATCH([@Project],Projects_from_user!$A:$A,0)),"")'),
     ("Workflow", '=IF([@Role]="Program","Feature","Team")'),
-    # the team of a Team project: its column Team, or the project key when that cell is empty (AL, 2026-11-18)
-    ("Team", '=IF([@Role]="Program","ART",IFERROR(IF(INDEX(Projects_from_user!$C:$C,MATCH([@Project],Projects_from_user!$A:$A,0))="",[@Project],'
+    # the team of a ticket of the Program: ART for a Feature (type in Config.FeatureTypes), "ART (other types)" for the rest (sub-tasks...: no metric of
+    # the ART counts them); of a Team project: its column Team, or the project key when that cell is empty (AL, 2026-11-18)
+    ("Team", f'=IF([@Role]="Program",IF({C.in_list("[@Type]", "FeatureTypes")},"{ART}","{OTHER_TYPES}"),'
+             'IFERROR(IF(INDEX(Projects_from_user!$C:$C,MATCH([@Project],Projects_from_user!$A:$A,0))="",[@Project],'
              'INDEX(Projects_from_user!$C:$C,MATCH([@Project],Projects_from_user!$A:$A,0))),""))'),
     ("CreatedUtc", f"=INDEX({IS}[CreatedUtc],{_row_index(IF_)})"),
     ("LastBacklogUtc", f'=MAXIFS({SI}[EnteredUtc],{SI}[Key],[@Key],{SI}[Category],"Backlog")'),
@@ -187,6 +190,9 @@ VELOCITYCHECK_KEYS = METRICS_KEYS
 VELOCITYCHECK_COLUMNS = (
     ("Velocity", f"=COUNTIFS({DONE_IN})"),
     ("VelocityFeatures", f"=COUNTIFS({DONE_IN},{IF_}[IsFeature],1)"),
+    # the tickets of the Program that are not Features, done in the iteration (the ART rows only): the team "ART (other types)" of ItemFlow
+    ("OtherTypes", f'=IF([@Team]="{ART}",COUNTIFS({IF_}[DoneUtc],">="&([@IterationStart]-{HALF}),{IF_}[DoneUtc],"<"&([@IterationEnd]-{HALF}),'
+                   f'{IF_}[Team],"{OTHER_TYPES}"),0)'),
     ("CreatedDone", f"=COUNTIFS({_END_IN},{SI}[Seq],1,{SI}[IsOpen],TRUE)"),
     ("ChangedToEnd", f'=COUNTIFS({_END_IN},{SI}[Seq],">1")'),
     ("ChangedToEndFeatures", f'=COUNTIFS({_END_IN},{SI}[Seq],">1",{SI}[ItemIsFeature],1)'),
@@ -232,8 +238,8 @@ _PI_DONE = f'ItemFlow[DoneUtc],">="&([@Start]-{HALF}),ItemFlow[DoneUtc],"<"&([@E
 PISTATUSTIME_COLUMNS = (
     ("Start", _pi_date("B")),
     ("End", _pi_date("C")),
-    ("Items", f'=IF(AND(ISNUMBER([@Start]),ISNUMBER([@End])),COUNTIFS(ItemFlow[Workflow],"Feature",{_PI_DONE},ItemFlow[Excluded],0),{_NC})'),
-    ("TotalDays", f'=IF(ISNUMBER([@Items]),SUMIFS({SI}[DurationDays],{SI}[Workflow],"Feature",{SI}[Status],[@Status],{SI}[InCycle],1,'
+    ("Items", f'=IF(AND(ISNUMBER([@Start]),ISNUMBER([@End])),COUNTIFS(ItemFlow[Team],"{ART}",{_PI_DONE},ItemFlow[Excluded],0),{_NC})'),
+    ("TotalDays", f'=IF(ISNUMBER([@Items]),SUMIFS({SI}[DurationDays],{SI}[Team],"{ART}",{SI}[Status],[@Status],{SI}[InCycle],1,'
                   f'{SI}[ItemDone],">="&([@Start]-{HALF}),{SI}[ItemDone],"<"&([@End]-{HALF})),{_NC})'),
     ("AverageDays", f"=IF(ISNUMBER([@Items]),IF([@Items]=0,{_NC},[@TotalDays]/[@Items]),{_NC})"),
     ("Share", f"=IF(ISNUMBER([@Items]),IF([@Items]=0,{_NC},IF(SUMIFS(PIStatusTime[TotalDays],PIStatusTime[PI],[@PI])>0,"

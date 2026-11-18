@@ -583,7 +583,8 @@ def _velocity_check_generated(world):
     expected = [velocity_check(issues, world["items"], iterations[r["Iteration-label"]], r["Team"], rules, world["settings"].feature_types)
                 for r in got]
     for row, ref in zip(got, expected):
-        for column, attribute in (("Velocity", "velocity"), ("VelocityFeatures", "velocity_features"), ("CreatedDone", "created_done"),
+        for column, attribute in (("Velocity", "velocity"), ("VelocityFeatures", "velocity_features"), ("OtherTypes", "other_types"),
+                                  ("CreatedDone", "created_done"),
                                   ("ChangedToEnd", "changed_to_end"), ("ChangedToEndFeatures", "changed_to_end_features"),
                                   ("ReopenedLater", "reopened_later"), ("Gap", "gap")):
             assert row[column] == getattr(ref, attribute), (ref.iteration, ref.team, column, row[column], getattr(ref, attribute))
@@ -1682,8 +1683,8 @@ def _art_durations(world):
     from art_oracle import CHAIN, LONG_STATUS, PI_OF_FEATURE
     durations = {}
     for r in art_table(world, "StatusIntervals"):
-        if r["LeftUtc"] in ("", None):
-            continue
+        if r["LeftUtc"] in ("", None) or int(r["Key"].rsplit("-", 1)[1]) > 25:
+            continue                                                  # still open, or a sub-task of the Program (not a Feature)
         durations.setdefault((PI_OF_FEATURE[int(r["Key"].rsplit("-", 1)[1])], r["Status"]), []).append(float(r["DurationDays"]))
     assert {status for _pi, status in durations} >= set(CHAIN)
     for (pi, status), days in durations.items():
@@ -1731,10 +1732,11 @@ def _art_status_time(world):
 @then("la table VelocityCheck donne pour chaque itération de l'ART autant de passages vers l'état de fin que de Features livrées, "
       "sans création ni réouverture")
 def _art_velocity_check(world):
-    from art_oracle import ITERATION_STARTS, VELOCITY
+    from art_oracle import ITERATION_STARTS, OTHER_TYPES_DONE, VELOCITY
     rows = [r for r in art_table(world, "VelocityCheck") if r["Team"] == "ART"]
     assert [r["Iteration-label"] for r in rows] == list(ITERATION_STARTS)
     assert {r["Iteration-label"]: r["Velocity"] for r in rows} == VELOCITY                                # the hand-worked figures
+    assert {r["Iteration-label"]: r["OtherTypes"] for r in rows} == {label: OTHER_TYPES_DONE.get(label, 0) for label in ITERATION_STARTS}   # the sub-tasks
     assert all(r["ChangedToEnd"] == r["Velocity"] == r["VelocityFeatures"] == r["ChangedToEndFeatures"] for r in rows)
     assert all(r["CreatedDone"] == 0 and r["ReopenedLater"] == 0 and r["Gap"] == 0 for r in rows)
     assert sum(r["Velocity"] for r in rows) == sum(VELOCITY.values()) > 0
@@ -1754,9 +1756,19 @@ def _art_velocity_check_reference(world):
     assert got
     for row in got:
         ref = velocity_check(issues, items, iterations[row["Iteration-label"]], row["Team"], rules, types)
-        assert (row["Velocity"], row["VelocityFeatures"], row["CreatedDone"], row["ChangedToEnd"], row["ChangedToEndFeatures"],
-                row["ReopenedLater"], row["Gap"]) == (ref.velocity, ref.velocity_features, ref.created_done, ref.changed_to_end,
+        assert (row["Velocity"], row["VelocityFeatures"], row["OtherTypes"], row["CreatedDone"], row["ChangedToEnd"], row["ChangedToEndFeatures"],
+                row["ReopenedLater"], row["Gap"]) == (ref.velocity, ref.velocity_features, ref.other_types, ref.created_done, ref.changed_to_end,
                                                       ref.changed_to_end_features, ref.reopened_later, ref.gap), (row, ref)
+
+
+@then("les sous-tâches du Program sont dans l'équipe « ART (other types) » et aucun chiffre de l'ART ne les compte")
+def _art_other_types(world):
+    from art_oracle import SUBTASKS
+    flow = {r["Key"]: r for r in art_table(world, "ItemFlow")}
+    assert {key: flow[key]["Team"] for key in SUBTASKS} == {key: "ART (other types)" for key in SUBTASKS}     # findable by key in ItemFlow
+    assert {r["Team"] for k, r in flow.items() if k not in SUBTASKS} == {"ART"}                                # the 25 Features
+    assert all(flow[key]["DoneUtc"] not in ("", None) for key in SUBTASKS)                                    # they are done: left out, not missing
+    assert {r["Team"] for r in art_table(world, "Metrics")} == {"ART"}                                        # no row of metrics for the other team
 
 
 @then("la table PIStatusTime est celle du calcul de référence et ses totaux sont les jours actifs et d'attente des mêmes Features")
