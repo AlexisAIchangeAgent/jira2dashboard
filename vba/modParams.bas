@@ -620,6 +620,30 @@ Public Function FirstInProgress(ByVal initial As String, ByVal moves As Collecti
     Loop
 End Function
 
+Public Function FlowDepths(ByVal initial As String, ByVal moves As Collection) As Object
+    ' status -> the number of moves from the creation status (breadth-first search over moves, Array(from, to)): 0 for the creation status. Empty when there is
+    ' no creation status. Twin of flow/status_rules.flow_depths.
+    Cov "PRM68"
+    Dim out As Object, graph As Object, queue As New Collection, mv As Variant, status As String, target As Variant, head As Long
+    Set out = CreateObject("Scripting.Dictionary")
+    Set FlowDepths = out
+    If Len(initial) = 0 Then Exit Function
+    Set graph = CreateObject("Scripting.Dictionary")
+    For Each mv In moves
+        If Not graph.Exists(CStr(mv(0))) Then Set graph(CStr(mv(0))) = New Collection
+        graph(CStr(mv(0))).Add CStr(mv(1))
+    Next mv
+    out(initial) = 0: queue.Add initial: head = 1
+    Do While head <= queue.Count
+        status = CStr(queue(head)): head = head + 1
+        If graph.Exists(status) Then
+            For Each target In graph(status)
+                If Not out.Exists(CStr(target)) Then out(CStr(target)) = out(status) + 1: queue.Add CStr(target)
+            Next target
+        End If
+    Loop
+End Function
+
 Private Function CellNumber(ByVal cell As Variant, ByRef value As Long) As Boolean
     ' True (and the whole number in value) when a cell of the sheet Workflows is filled.
     If Len(TrimWhite(CStr(cell & ""))) = 0 Then Exit Function

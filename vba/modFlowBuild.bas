@@ -14,6 +14,7 @@ Private Const XL_CALC_AUTOMATIC As Long = -4105
 Private Const CHARTS_SHEET As String = "Charts"      ' the sheet of the charts, made at build (flow/dashboard_spec.CHARTS_SHEET)
 Private Const ITERATION_CHARTS_SHEET As String = "IterationCharts"   ' the charts of the Features per iteration (dashboard_spec.ITERATION_CHARTS_SHEET)
 Private Const STATUSES_TOKEN As String = "{statuses}"   ' SeriesNames of the chart Cycle time by status: its series are StatusNames (dashboard_spec.STATUSES_TOKEN)
+Private Const NO_DEPTH As Long = 1000000                  ' flow/pi_status_time.NO_DEPTH: a status that no transition reaches comes last
 Private Const NO_STATUS As String = "(no status)"        ' the one status of the table PIStatusTime when the Feature workflow has no Active or Wait status (dashboard_spec.NO_STATUS)
 Private Const BAND_MARKER As Long = -4115            ' xlMarkerStyleDash, a long bar (flow/dashboard_spec.BAND_MARKER)
 
@@ -116,23 +117,113 @@ Public Function TeamNames(ByVal wsProjects As Object, ByVal programTeam As Strin
     Set TeamNames = out
 End Function
 
-Public Function StatusNames(ByVal wsWorkflows As Object) As Collection
-    ' The stack of the chart Cycle time by status and the status keys of the table PIStatusTime: the statuses of the Feature workflow whose
-    ' category is Active or Wait, in the ROW order of the sheet Workflows (the sheet has no Order column: its rows are the normal flow). One placeholder
-    ' when there is none, so that the chart and the table still have a row (a gap). Reference: flow/pi_status_time.feature_statuses.
+Public Function StatusNames(ByVal wb As Object) As Collection
+    ' The stack of the chart Cycle time by status and the status keys of the table PIStatusTime: the statuses that the Features (the ART: type in FeatureTypes,
+    ' project of Role Program) visited and whose category is Active or Wait, in the order of the normal flow: by depth in the transitions of the Jira workflow of
+    ' the Feature types (JiraIssueTypes, JiraWorkflows, JiraTransitions; a status without depth comes last), then by the earliest Seq at which a Feature visited it,
+    ' then by name (binary). One placeholder when there is none, so that the chart and the table still have a row (a gap). Reference: flow/pi_status_time.feature_statuses.
+    ' It reads the raw sheets Issues and StatusIntervals (the formulas of the build are not calculated yet).
     Cov "FLB50"
-    ' The texts are compared as they are written, like modParams.StatusCategories and the Python reference (the loaders refuse a Workflow or a
-    ' Category that is not spelled exactly); a status that no row of StatusIntervals can feed would be an empty bar.
-    Dim out As New Collection, row As Variant, category As String, v As String
-    For Each row In ReadTable(wsWorkflows)
-        category = CStr(row("Category") & "")
-        v = CStr(row("Status") & "")
-        If CStr(row("Workflow") & "") = "Feature" And Len(TrimWhite(v)) > 0 Then
-            If category = "Active" Or category = "Wait" Then out.Add v
-        End If
+    Dim out As New Collection, depth As Object, first As Object, program As Object, features As Object, wsI As Object, wsS As Object, lastI As Long, lastS As Long
+    Dim keys As Variant, kinds As Variant, projects As Variant, sKey As Variant, sStatus As Variant, sCat As Variant, sSeq As Variant, isFeature As Object
+    Dim names() As String, n As Long, i As Long, j As Long, r As Long, t As Variant, row As Variant, status As String, cat As String, seq As Long, tmp As String
+    Set first = CreateObject("Scripting.Dictionary")
+    Set isFeature = CreateObject("Scripting.Dictionary")
+    Set program = CreateObject("Scripting.Dictionary")
+    Set features = CreateObject("Scripting.Dictionary")                      ' binary compare: case-sensitive, as FIND in IsFeature
+    For Each row In ReadTable(wb.Worksheets(SheetName("Projects")))
+        If StrComp(TrimWhite(CStr(row("Role") & "")), "Program", vbTextCompare) = 0 Then program(TrimWhite(CStr(row("Project")))) = True
     Next row
+    For Each t In Split(ConfigValue(wb.Worksheets(SheetName("Config")), "FeatureTypes"), ",")
+        If Len(TrimWhite(CStr(t))) > 0 Then features(TrimWhite(CStr(t))) = True
+    Next t
+    Set wsI = wb.Worksheets(SheetName("Issues")): Set wsS = wb.Worksheets(SheetName("StatusIntervals"))
+    lastI = UsedRows(wsI): lastS = UsedRows(wsS)
+    If lastI >= 1 And lastS >= 1 Then
+        keys = IssueColumn(wsI, "Key", lastI): kinds = IssueColumn(wsI, "Type", lastI): projects = IssueColumn(wsI, "Project", lastI)
+        For r = 1 To lastI
+            If program.Exists(CStr(projects(r, 1) & "")) And features.Exists(CStr(kinds(r, 1) & "")) Then isFeature(CStr(keys(r, 1))) = True
+        Next r
+        sKey = IssueColumn(wsS, "Key", lastS): sStatus = IssueColumn(wsS, "Status", lastS): sCat = IssueColumn(wsS, "Category", lastS): sSeq = IssueColumn(wsS, "Seq", lastS)
+        For r = 1 To lastS
+            cat = CStr(sCat(r, 1) & "")
+            If (cat = "Active" Or cat = "Wait") And isFeature.Exists(CStr(sKey(r, 1))) Then
+                status = CStr(sStatus(r, 1) & ""): seq = CLng(Val(CStr(sSeq(r, 1))))
+                If Not first.Exists(status) Then
+                    Cov "FLB58": first(status) = seq
+                ElseIf seq < first(status) Then
+                    Cov "FLB61": first(status) = seq                          ' the earliest position at which a Feature visited it
+                End If
+            End If
+        Next r
+    End If
+    Set depth = FeatureDepths(wb, program, features)
+    n = first.Count
+    If n > 0 Then
+        ReDim names(1 To n)
+        For Each t In first.Keys
+            i = i + 1: names(i) = CStr(t)
+        Next t
+        For i = 2 To n                                                       ' insertion sort on (depth, earliest Seq, name): the order of Python's sorted
+            tmp = names(i): j = i - 1
+            Do While j >= 1
+                If StatusBefore(names(j), tmp, depth, first) Then Exit Do
+                names(j + 1) = names(j): j = j - 1
+            Loop
+            names(j + 1) = tmp
+        Next i
+        For i = 1 To n
+            out.Add names(i)
+        Next i
+    End If
     If out.Count = 0 Then Cov "FLB51": out.Add NO_STATUS
     Set StatusNames = out
+End Function
+
+Private Function StatusBefore(ByVal a As String, ByVal b As String, ByVal depth As Object, ByVal first As Object) As Boolean
+    ' True when status a comes before or with b: depth first (none = last), then the earliest Seq, then the name in binary order.
+    Dim da As Long, db As Long
+    da = NO_DEPTH: db = NO_DEPTH
+    If depth.Exists(a) Then da = depth(a)
+    If depth.Exists(b) Then db = depth(b)
+    If da <> db Then StatusBefore = (da < db): Exit Function
+    If first(a) <> first(b) Then StatusBefore = (first(a) < first(b)): Exit Function
+    StatusBefore = (StrComp(a, b, vbBinaryCompare) <= 0)
+End Function
+
+Private Function FeatureDepths(ByVal wb As Object, ByVal program As Object, ByVal features As Object) As Object
+    ' status -> its smallest depth (moves from the creation status) in the Jira workflows that the Feature types of the Program projects follow
+    ' (flow/jira_workflows.feature_depths). Empty when the sheets of the Jira configuration are not there (Read the Jira configuration was not run).
+    Dim out As Object, names As Object, row As Variant, wf As Variant, initial As String, moves As Collection, d As Object, s As Variant
+    Dim flowRows As Collection, moveRows As Collection
+    Set out = CreateObject("Scripting.Dictionary")
+    Set FeatureDepths = out
+    If Not (SheetExists(wb, "JiraIssueTypes") And SheetExists(wb, "JiraWorkflows") And SheetExists(wb, "JiraTransitions")) Then Exit Function
+    Set names = CreateObject("Scripting.Dictionary")
+    For Each row In ReadTable(wb.Worksheets(SheetName("JiraIssueTypes")))
+        If program.Exists(CStr(row("Project") & "")) And features.Exists(CStr(row("IssueType") & "")) And Len(CStr(row("Workflow") & "")) > 0 Then
+            Cov "FLB59": names(CStr(row("Workflow"))) = True
+        End If
+    Next row
+    Set flowRows = ReadTable(wb.Worksheets(SheetName("JiraWorkflows")))
+    Set moveRows = ReadTable(wb.Worksheets(SheetName("JiraTransitions")))
+    For Each wf In names.Keys
+        initial = "": Set moves = New Collection
+        For Each row In flowRows
+            If CStr(row("Workflow") & "") = CStr(wf) And Val(CStr(row("Initial") & "")) = 1 Then initial = CStr(row("Status") & "")
+        Next row
+        For Each row In moveRows
+            If CStr(row("Workflow") & "") = CStr(wf) Then moves.Add Array(CStr(row("From") & ""), CStr(row("To") & ""))
+        Next row
+        Set d = FlowDepths(initial, moves)
+        For Each s In d.Keys
+            If Not out.Exists(CStr(s)) Then
+                Cov "FLB60": out(CStr(s)) = d(s)
+            ElseIf d(s) < out(CStr(s)) Then
+                Cov "FLB62": out(CStr(s)) = d(s)                              ' the smallest depth of the workflows of the Feature types
+            End If
+        Next s
+    Next wf
 End Function
 
 Public Function SelectorColumn(ByVal teamCount As Long, ByVal featureTeamCount As Long, ByVal statusCount As Long) As Long
@@ -428,7 +519,7 @@ Private Sub BuildAll(ByVal wb As Object, ByVal spec As Object, ByVal teams As Co
     AddSheet wb, "MetricItems"
     AddSheet wb, "Reconciliation"
     Set pis = PiNames(wb, SettingOf(spec, "Dashboard", "NoPI"))
-    Set statuses = StatusNames(wb.Worksheets(SheetName("Workflows")))
+    Set statuses = StatusNames(wb)
     Set featureTeams = FeatureTeamNames(wb, SettingOf(spec, "Dashboard", "ProgramTeam"))
     Set keys = IterationFeatureKeys(wb, iterations, featureTeams)
     WriteDailyKeys wsD, iterations, teams
@@ -695,7 +786,7 @@ Private Function IssueColumn(ByVal wsIssues As Object, ByVal header As String, B
     For col = 1 To lastCol
         If CStr(wsIssues.Cells(1, col).Value) = header Then Exit For
     Next col
-    If col > lastCol Then Err.Raise vbObjectError + 709, "IssueColumn", "The sheet Issues has no column " & header & ": run the extraction again."
+    If col > lastCol Then Err.Raise vbObjectError + 709, "IssueColumn", "The sheet " & wsIssues.Name & " has no column " & header & ": run the extraction again."
     If last = 1 Then
         one(1, 1) = wsIssues.Cells(2, col).Value
         IssueColumn = one

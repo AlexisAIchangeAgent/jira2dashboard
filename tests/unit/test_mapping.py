@@ -64,7 +64,7 @@ def test_the_flow_issues_of_the_json_are_those_of_the_fake_jira():
     extract = M.extracted(issues, pages, ids, PROJECTS, "Blocks")
     got = {i.key: dataclasses.replace(i, changes=tuple(sorted(i.changes, key=lambda c: (c.at, c.id))))
            for i in extract.flow}
-    expected = {i.key: to_second(i) for i in to_flow_issues(dataset)}
+    expected = {i.key: dataclasses.replace(to_second(i), jira_workflow="") for i in to_flow_issues(dataset)}      # the Jira workflow is read apart (standalone/workflows.py)
     assert set(got) == set(expected)
     wrong = [(key, f.name) for key in expected for f in dataclasses.fields(FlowIssue)
              if getattr(got[key], f.name) != getattr(expected[key], f.name)]

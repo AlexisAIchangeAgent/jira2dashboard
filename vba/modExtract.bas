@@ -447,7 +447,7 @@ Private Sub RulesInit()
     Else
         Set starts = CreateObject("Scripting.Dictionary"): Set frees = CreateObject("Scripting.Dictionary")
     End If
-    If starts.Count = 0 Then Cov "MEX17": ReadWorkflowRules mCfg, ProjectKeys(mWsProjects), starts, frees        ' no sheet JiraWorkflows read yet: ask Jira now
+    If starts.Count = 0 Then Cov "MEX17": ReadWorkflowRules mCfg, ProjectKeys(mWsProjects), starts, frees, ThisWorkbook        ' no sheet JiraWorkflows read yet: ask Jira now, and keep its answer
     Set mRules = EffectiveRules(Array("Feature", "Team"), catalog, current, starts, frees, WorkflowExceptions(mWsWorkflows))
     LogEnd "status rules: " & mRules.Count & " rules, " & catalog.Count & " statuses in the catalog"
 End Sub

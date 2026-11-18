@@ -112,6 +112,7 @@ class FlowIssue:
     blocks: tuple[str, ...] = ()   # keys of the issues that this issue blocks
     key_changes: int = 0           # moves between projects
     pi_changes: tuple[PIChange, ...] = ()          # history of the PI field (what the PI was before each change)
+    jira_workflow: str = ""         # the Jira workflow of its project and issue type (JiraIssueTypes); "" = not read (DC28)
 
 
 @dataclass(frozen=True)

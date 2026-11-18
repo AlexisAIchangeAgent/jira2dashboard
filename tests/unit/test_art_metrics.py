@@ -79,12 +79,15 @@ def test_the_workflow_is_program_workflow_with_its_categories(scenario):
     assert {status: ds.catalog.categories[("Feature", status)] for status in expected} == expected
     assert ds.catalog.end_statuses["Feature"] == "released"
     assert ds.workflow_names == {"Feature": "program-workflow"}
-    workflows = next(s for s in ds.sheets if s.name == "Workflows")
+    workflows = next(s for s in ds.jira_sheets if s.name == "Workflows")            # what JIRA defines, in full
     feature = [row for row in workflows.rows if row[0] == "Feature"]
     assert [(row[1], row[3], row[4], row[5]) for row in feature] == [          # status, IsStart, IsEnd, IsFree
         ("todo", 0, 0, 0), ("analyzing", 1, 0, 0), ("ready4PI", 0, 0, 0), ("doing", 0, 0, 0), ("ready2test", 0, 0, 0),
         ("testing", 0, 0, 0), ("ready2deploy", 0, 0, 0), ("deploying", 0, 0, 0), ("released", 0, 1, 0), ("deferred", 0, 0, 1)]
     assert not any(row[0] == "Team" for row in workflows.rows)                  # no Team workflow: the scenario has no Team project
+    exceptions = next(s for s in ds.sheets if s.name == "Workflows")            # the sheet holds what Jira cannot say: the Wait statuses (AL, 2026-11-18)
+    assert exceptions.rows == (("Feature", "ready4PI", "Wait", None, None, None), ("Feature", "ready2test", "Wait", None, None, None),
+                               ("Feature", "ready2deploy", "Wait", None, None, None))
 
 
 @pytest.mark.parametrize("number, label", sorted(RELEASED.items()))
@@ -201,7 +204,7 @@ def test_the_mock_jira_command_and_the_workbook_fill_know_the_scenario():
     book = {sheet.name.split("_")[0]: sheet for sheet in M.params_book("http://x", scenario=scenario_)}
     assert [row[0] for row in book["PIs"].rows] == list(PIS)
     assert len(book["Iterations"].rows) == 24 and book["Iterations"].rows[0][0] == "IT-1-1"
-    assert [row[1] for row in book["Workflows"].rows if row[0] == "Feature"][-1] == "deferred"
+    assert [row[1] for row in book["Workflows"].rows if row[0] == "Feature"] == ["ready4PI", "ready2test", "ready2deploy"]       # the exceptions only
     config = {row[0]: row[1] for row in book["Config"].rows}
     assert config["AsOf"] == "2026-05-20 00:00" and config["PIField"] == scenario_.dataset.fields.pi
     assert "program-workflow" not in str(book["Workflows"].rows)               # the sheets keep the workflow value Feature
@@ -219,7 +222,9 @@ def test_the_scenario_has_its_own_projects_workflows_and_calendar_and_nothing_el
     book = {s.name: s for s in scenario.dataset.sheets}
     assert list(book) == [spec.name for spec in SPECS]                                           # every sheet, in the workbook order
     assert book["Projects"].rows == (("TTT", "Program", None),)                                  # no AAA, EEE, ... Team projects
-    assert {r[0] for r in book["Workflows"].rows} == {"Feature"} and {r[0] for r in book["Transitions"].rows} == {"Feature"}
+    assert {r[0] for r in book["Workflows"].rows} == {"Feature"} and book["Transitions"].rows == ()          # exceptions only: Jira holds the rest
+    jira = {s.name: s for s in scenario.dataset.jira_sheets}
+    assert {r[0] for r in jira["Workflows"].rows} == {"Feature"} and {r[0] for r in jira["Transitions"].rows} == {"Feature"}
     assert [(r[0], r[1], r[2]) for r in book["PIs"].rows] == [(n, a[:10], b[:10]) for n, (a, b) in PIS.items()]
     assert [r[0] for r in book["Iterations"].rows] == list(ITERATION_STARTS) and len(book["Iterations"].rows) == 24
     assert shape_problems({name: book[name] for name in ("Projects", "Iterations", "PIs", "Workflows", "Transitions")}) == []

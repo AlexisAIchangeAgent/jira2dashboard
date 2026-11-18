@@ -14,7 +14,7 @@ from jira2dashboard.flow import check_formulas as C
 from jira2dashboard.flow import reconciliation as R
 from jira2dashboard.flow import trace as T
 from jira2dashboard.flow.model import ART, OTHER_TYPES
-from jira2dashboard.flow.refs import (HALF, IF_, IS, PIS_LAST, SI, TRANSITIONS_LAST, bounded, last_row_cell,
+from jira2dashboard.flow.refs import (HALF, IF_, IS, PIS_LAST, SI, TRANSITIONS_LAST, bounded, jira_range, last_row_cell,
                                       row_index)
 
 RULES_SHEET = "StatusRules_from_excel"       # the effective rules of every status (Jira's, under the exceptions of Workflows_from_user): modExtract writes it
@@ -51,11 +51,18 @@ INTERVAL_HELPERS = (
     ("LeftEff", f'=IF([@LeftUtc]="",{FAR},[@LeftUtc])'),
     ("Counted", "=IF(OR(" + ",".join(f'[@Category]="{c}"' for c in CATEGORIES_IN_PROCESS) + "),1,0)"),
     ("PrevStatus", f'=IF([@Seq]=1,"",INDEX({SI}[Status],{_row_index(SI)}-1))'),
-    # DC28: the move from the previous status is not in Transitions (same workflow) and the status is not free (IsFree)
+    ("JiraWorkflow", f'=IFERROR(INDEX({IF_}[JiraWorkflow],MATCH([@Key],{IF_}[Key],0)),"")'),
+    # DC28: the move from the previous status is allowed by neither the Jira workflow of the ticket (JiraTransitions) nor the sheet Transitions (same
+    # workflow kind) and the status is not free (IsFree). A ticket whose moves nobody knows (no row of Transitions for its kind, no Jira workflow read for it)
+    # is not judged: 0 (flow/checks.Moves.permits)
     ("BadMove", f'=IF([@Seq]=1,0,IF(OR(COUNTIFS({bounded("Transitions", "A", TRANSITIONS_LAST)},[@Workflow],'
                 f'{bounded("Transitions", "B", TRANSITIONS_LAST)},[@PrevStatus],'
-                f'{bounded("Transitions", "C", TRANSITIONS_LAST)},[@Status])>0,SUMIFS(StatusRules_from_excel!$F:$F,StatusRules_from_excel!$A:$A,[@Workflow],'
-                'StatusRules_from_excel!$B:$B,[@Status])>0),0,1))'),
+                f'{bounded("Transitions", "C", TRANSITIONS_LAST)},[@Status])>0,'
+                f'AND([@JiraWorkflow]<>"",COUNTIFS({jira_range("JiraTransitions", "A")},[@JiraWorkflow],{jira_range("JiraTransitions", "B")},[@PrevStatus],'
+                f'{jira_range("JiraTransitions", "C")},[@Status])>0),'
+                'SUMIFS(StatusRules_from_excel!$F:$F,StatusRules_from_excel!$A:$A,[@Workflow],StatusRules_from_excel!$B:$B,[@Status])>0,'
+                f'AND(COUNTIFS({bounded("Transitions", "A", TRANSITIONS_LAST)},[@Workflow])=0,'
+                f'OR([@JiraWorkflow]="",COUNTIFS({jira_range("JiraTransitions", "A")},[@JiraWorkflow])=0))),0,1))'),
     # PIStatusTime: the time of a Feature in each Active / Wait status, between its StartUtc (included) and its DoneUtc (excluded), the
     # window of ItemFlow.ActiveDays / WaitDays; 0 for an interval of an item that is not done, has no valid start or is excluded from flow time
     ("ItemRow", f"=MATCH([@Key],{IF_}[Key],0)"),                       # one lookup per interval, the three columns below read it
@@ -127,7 +134,12 @@ ITEMFLOW_COLUMNS = (
     ("WhyNotInFlowTime", f'=IF([@Excluded]=0,"",TEXTJOIN(", ",TRUE,IF([@Reopened]>0,"{T.REOPENED}",""),IF([@SkippedStart]="Y","{T.NO_START}","")))'),
     ("BoundaryHours", '=IF([@DoneUtc]="","",MIN(MIN(ABS(Metrics[IterationStart]-[@DoneUtc])),MIN(ABS(Metrics[IterationEnd]-[@DoneUtc])))*24)'),
     # data checks: raw fields, helpers and one 0/1 column per check (check_formulas.py, reference in checks.py)
-) + C.ITEMFLOW_CHECK_COLUMNS
+) + C.ITEMFLOW_CHECK_COLUMNS + (
+    # the Jira workflow of the ticket: that of its project and issue type in the sheet JiraIssueTypes ("" when the configuration was not read). It reads Project
+    # and Type only, and StatusIntervals.JiraWorkflow reads it (check DC28)
+    ("JiraWorkflow", f'=IFERROR(INDEX({jira_range("JiraIssueTypes", "C")},MATCH(1,INDEX(({jira_range("JiraIssueTypes", "A")}=[@Project])*'
+                     f'({jira_range("JiraIssueTypes", "B")}=[@Type]),0),0))&"","")'),
+)
 
 # --- DailyLoad: one row per day and team ------------------------------------------------------------------
 

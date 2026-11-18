@@ -21,6 +21,12 @@ def bounded(sheet: str, column: str, last: str) -> str:
     return f"{sheet}!${column}$2:INDEX({sheet}!${column}:${column},{last})"
 
 
+def jira_range(sheet: str, column: str, last: int = 5000) -> str:
+    """A column of a sheet read from Jira (JiraIssueTypes, JiraTransitions: a few hundred rows) from row 2 to row `last`: fixed, never the whole column."""
+    sheet = S.of(sheet)
+    return f"{sheet}!${column}$2:${column}${last}"
+
+
 def last_row_cell(sheet: str) -> str:
     """The formula of a control cell: the last row with a text in column A of `sheet` (2 when the sheet has no row)."""
     return f'=MAX(2,IFERROR(MATCH(REPT("z",255),{S.of(sheet)}!$A:$A),2))'

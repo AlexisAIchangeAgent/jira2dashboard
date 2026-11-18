@@ -163,6 +163,8 @@ class Dataset:
     fields: FieldIds = field(default_factory=FieldIds)
     sheets: tuple[ParamSheet, ...] | None = None          # a scenario's own parameter sheets (None = params/*.md)
     workflow_names: dict[str, str] = field(default_factory=dict)    # workflow of the sheets -> its name in Jira
+    jira_sheets: tuple[ParamSheet, ...] | None = None     # what Jira itself defines: the sheets Workflows and Transitions IN FULL (statuses with their
+                                                          # categories, moves); None = `sheets` (a scenario whose sheets hold exceptions only sets it)
 
     def __post_init__(self):
         keys = [i.key for i in self.issues]

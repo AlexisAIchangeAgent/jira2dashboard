@@ -54,7 +54,8 @@ ROVO_LOAD_MACRO = "modActions.BtnLoadRovoCsv"
 def write_blueprint(wb, dash=None, button_macro: str | None = None) -> None:
     """The sheets Issues, StatusIntervals, IssueLinks (empty, raw data comes from the extraction), FlowFormulas, ChartSpec and
     ChecksSpec (read by modFlowBuild), RawTypesSpec (read by modHealth) and the frame of the Dashboard (`dash`: an existing sheet, or a new one)."""
-    for name in ("Issues", "StatusIntervals", "IssueLinks", "Changelog", "PIIntervals", "StatusRules"):
+    for name in ("Issues", "StatusIntervals", "IssueLinks", "Changelog", "PIIntervals", "StatusRules",
+                 "JiraIssueTypes", "JiraWorkflows", "JiraTransitions"):          # the formulas read the three Jira sheets: they exist (empty) from the build
         R.add_sheet_after_last(wb, name)
     for name, header, rows in ((B.SHEET_FORMULAS, B.FORMULAS_HEADER, B.formula_rows()),
                                (B.SHEET_CHARTS, B.CHARTS_HEADER, B.chart_rows()),

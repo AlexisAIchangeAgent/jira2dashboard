@@ -69,6 +69,25 @@ def first_in_progress(initial: str | None, moves: Iterable[tuple[str, str]], cat
     return None
 
 
+def flow_depths(initial: str | None, moves: Iterable[tuple[str, str]]) -> dict[str, int]:
+    """The number of moves from the status of creation to each status that the transitions reach (breadth-first search): 0 for the creation status, 1
+    for the next ones... It orders the statuses of a workflow as the normal flow goes (the stack of the chart Cycle time by status). A status that no
+    transition reaches (a free one, reached from anywhere) has no depth. VBA twin: modParams.FlowDepths."""
+    if not initial:
+        return {}
+    graph: dict[str, list[str]] = {}
+    for source, target in moves:
+        graph.setdefault(source, []).append(target)
+    depth, queue = {initial: 0}, deque([initial])
+    while queue:
+        status = queue.popleft()
+        for target in graph.get(status, ()):
+            if target not in depth:
+                depth[target] = depth[status] + 1
+                queue.append(target)
+    return depth
+
+
 def _applying(exceptions: list[Exception_], kind: str, status: str) -> list[Exception_]:
     """The exceptions of a status for a workflow, the most precise last (a row of the workflow beats a row of both)."""
     mine = [e for e in exceptions if e.status == status and e.workflow in (None, kind)]

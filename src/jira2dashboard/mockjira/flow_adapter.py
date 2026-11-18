@@ -2,7 +2,9 @@
 import datetime as dt
 
 from jira2dashboard.flow.checks import CheckSettings
-from jira2dashboard.flow.model import Change, FlowIssue, PIChange, program_team
+from jira2dashboard.flow.jira_workflows import JiraWorkflows
+from jira2dashboard.flow.model import Change, FlowIssue, PIChange, Rules, program_team
+from jira2dashboard.flow.status_rules import first_in_progress
 from jira2dashboard.mockjira.dataset import Dataset, Issue
 from jira2dashboard.params.model import ParamSheet, load_all
 
@@ -47,7 +49,42 @@ def to_flow_issues(dataset: Dataset, sheets: list[ParamSheet] | None = None,
             sprint_state=sprint.state if sprint else "", sprint_start=sprint.start if sprint else None,
             sprint_end=sprint.end if sprint else None, sprint_count=len(issue.sprints),
             target_start=_day(issue.target_start), target_end=_day(issue.target_end), blocks=issue.blocks,
-            key_changes=len(issue.key_changes),
+            key_changes=len(issue.key_changes), jira_workflow=dataset.workflow_names.get(issue.workflow, issue.workflow),
             pi_changes=tuple(PIChange(c.id, c.at, c.from_string, c.to_string) for c in issue.field_changes
                              if c.field_id == dataset.fields.pi)))
     return out
+
+
+def jira_workflows(dataset: Dataset) -> JiraWorkflows:
+    """What the fake Jira says about the workflows of this dataset (its definition in full: the sheets of `jira_sheets`): what the sheets JiraIssueTypes,
+    JiraWorkflows and JiraTransitions hold after the workbook reads the configuration."""
+    jira = {sheet.name: sheet for sheet in (dataset.jira_sheets or dataset.sheets or load_all())}
+    categories = {}                                              # status -> the key of its Jira category (the first workflow that has it)
+    for (workflow, status), _cat in dataset.catalog.categories.items():
+        categories.setdefault(status, dataset.catalog.jira_category(workflow, status)[0])
+    initial, starts, free, moves = {}, set(), set(), set()
+    for kind in sorted({row[0] for row in jira["Workflows"].rows}):
+        rows = [row for row in jira["Workflows"].rows if row[0] == kind]
+        name = dataset.workflow_names.get(kind, kind)
+        edges = [(source, target) for wf, source, target in jira["Transitions"].rows if wf == kind]
+        initial[name] = rows[0][1]                               # the first row is the status of creation
+        moves |= {(name, source, target) for source, target in edges}
+        start = first_in_progress(rows[0][1], edges, categories)
+        if start:
+            starts.add(start)
+        free |= {row[1] for row in rows if row[5] == 1}
+    projects = {i.project for i in dataset.issues}
+    workflow_of = {(i.project, i.type): dataset.workflow_names.get(i.workflow, i.workflow) for i in dataset.issues if i.project in projects}
+    return JiraWorkflows(initial, frozenset(moves), frozenset(starts), frozenset(free), workflow_of)
+
+
+def jira_rules(dataset: Dataset) -> Rules:
+    """The status rules the workbook ends up with for this dataset: what the fake Jira defines (the catalog of the statuses, the category of the
+    current status of each ticket, the start of each workflow by its transitions, the free statuses) under the exceptions of the sheet Workflows."""
+    own = list(dataset.sheets or load_all())
+    categories = {}
+    for (workflow, status), _cat in dataset.catalog.categories.items():
+        categories.setdefault(status, dataset.catalog.jira_category(workflow, status)[0])
+    current = {i.status: categories[i.status] for i in dataset.issues if i.status in categories}
+    info = jira_workflows(dataset)
+    return Rules.from_params(own, categories, current, set(info.starts), set(info.free))

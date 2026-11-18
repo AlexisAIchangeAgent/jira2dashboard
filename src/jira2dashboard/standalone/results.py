@@ -6,7 +6,7 @@ and DataChecks. Same names as formulas.TABLES, so whatever reads the workbook's 
 reads these too.
 """
 import datetime as dt
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 from jira2dashboard.flow import dashboard_spec as D
 from jira2dashboard.flow import formulas as F
@@ -30,7 +30,7 @@ ITEMFLOW = ("Key", "Project", "Type", "WorkType", "Role", "Workflow", "Team", "C
             "UnclassifiedDays", "Reopened", "SkippedStart", "Excluded", "WorkTypeBucket", "Parent", "StatusCategory",
             "ResolvedUtc", "FixVersions", "StoryPoints", "PI", "BV", "TeamValue", "SprintState", "SprintStart",
             "SprintEnd", "SprintCount", "TargetStart", "TargetEnd", "KeyChanges") + PER_ISSUE + (
-            "DoneIteration", "DoneIterationStart", "DoneIterationEnd", "DonePI", "Account", "WhyNotInFlowTime", "BoundaryHours")
+            "DoneIteration", "DoneIterationStart", "DoneIterationEnd", "DonePI", "Account", "WhyNotInFlowTime", "BoundaryHours", "JiraWorkflow")
 DAILY_LOAD = F.TABLES["DailyLoad"]
 METRICS = F.TABLES["Metrics"]
 PI_METRICS = F.TABLES["PIMetrics"]
@@ -67,16 +67,22 @@ def fill_teams(issues: list[FlowIssue]) -> list[str]:
     return sorted({i.team for i in issues} - {OTHER_TYPES})
 
 
+def with_jira_workflow(issues: list[FlowIssue], s: RunSettings) -> list[FlowIssue]:
+    """Each issue with the Jira workflow of its project (the prefix of its key) and issue type, as the column ItemFlow.JiraWorkflow reads JiraIssueTypes."""
+    return [replace(i, jira_workflow=s.workflows.workflow_of.get((i.key.rsplit("-", 1)[0], i.type), "")) for i in issues]
+
+
 def compute(issues: list[FlowIssue], s: RunSettings) -> Results:
+    issues = with_jira_workflow(issues, s)
     items = [item_flow(i, s.as_of, s.rules) for i in issues]
     teams = team_names(s.projects)
     first, end = iteration_span(s.iterations)
-    flags = run_checks(issues, s.as_of, s.rules, s.moves, s.checks)
+    flags = run_checks(issues, s.as_of, s.rules, s.moves.with_jira(s.workflows), s.checks)
     fill = fill_rates(issues, s.checks, fill_teams(issues), sorted({i.type for i in issues}))
     rows = iteration_features(issues, items, s.iterations, s.checks.pis, s.checks.feature_types)
     predictability = pi_predictability(rows, issues, s.checks, s.predictability_mode)
     pi_names = [p.pi for p in predictability] or [D.NO_PI]               # the keys of PIMetrics, also those of PIStatusTime
-    status_time = pi_status_time(items, feature_statuses(s.sheets) or [D.NO_STATUS], pi_names, s.checks.pis)
+    status_time = pi_status_time(items, feature_statuses(items, s.workflows.feature_depths([k for k, role, _t in s.projects if role == "Program"], s.checks.feature_types)) or [D.NO_STATUS], pi_names, s.checks.pis)
     return Results(items, flags, teams,
                    [team_iteration_metrics(items, team, iteration, s.mode, s.as_of, s.rules.waits) for iteration in s.iterations for team in teams],
                    {team: daily_load(items, s.mode, team, first, end, s.as_of) for team in teams}, fill,
@@ -104,7 +110,7 @@ def itemflow_rows(results: Results, rows: list[tuple], issues: list[FlowIssue],
                     1 if item.excluded_from_flow_time else 0, _bucket(item.work_type))
                    + tuple(row[_RAW[name]] for name in ITEMFLOW[22:37])
                    + tuple(1 if check in ids else 0 for check in PER_ISSUE)
-                   + _trace_cells(item, list(iterations), pis or {}))
+                   + _trace_cells(item, list(iterations), pis or {}) + (issue.jira_workflow,))
     return out
 
 

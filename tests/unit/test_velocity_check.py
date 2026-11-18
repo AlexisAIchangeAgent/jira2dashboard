@@ -8,6 +8,7 @@ import datetime as dt
 
 from jira2dashboard.flow.itemflow import item_flow
 from jira2dashboard.flow.model import OTHER_TYPES, Change, FlowIssue, Iteration, Rules
+from jira2dashboard.mockjira.flow_adapter import jira_rules
 from jira2dashboard.flow.velocity_check import VelocityCheck, velocity_check
 from jira2dashboard.mockjira.scenarios import get
 
@@ -45,8 +46,7 @@ ISSUES = [
 
 
 def figures(iteration, team="ART"):
-    sheets = get("art-metrics").dataset.sheets
-    rules = Rules.from_params(list(sheets))
+    rules = jira_rules(get("art-metrics").dataset)
     items = [item_flow(i, AS_OF, rules) for i in ISSUES]
     return velocity_check(ISSUES, items, iteration, team, rules, FEATURE_TYPES)
 
@@ -81,7 +81,7 @@ def test_an_iteration_without_any_change_is_all_zero_never_not_computable():
 def test_the_gap_is_zero_on_the_real_scenario_whatever_the_iteration():
     scenario = get("art-metrics")
     ds = scenario.dataset
-    rules = Rules.from_params(list(ds.sheets))
+    rules = jira_rules(ds)
     from jira2dashboard.mockjira.flow_adapter import to_flow_issues
     issues = to_flow_issues(ds)
     items = [item_flow(i, ds.as_of, rules) for i in issues]

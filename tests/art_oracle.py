@@ -75,3 +75,11 @@ PI_ITEMS = {"PI-1": 6, "PI-2": 5, "PI-3": 3, "PI-4": 5}
 STATUS_AVERAGE_DAYS = {pi: {status: 2.0 if status == LONG_STATUS[pi] else 1.0 for status in CHAIN} for pi in PIS}
 # share of the cycle time: the long status 2/8 = 25 %, each of the six others 1/8 = 12.5 %
 STATUS_SHARE = {pi: {status: 0.25 if status == LONG_STATUS[pi] else 0.125 for status in CHAIN} for pi in PIS}
+
+
+# DC28 (AL, 2026-11-18): the Features that took each move of the workflow. Every Feature (the 25: released ones and deferred ones, which go on to doing) was
+# created in todo and moved analyzing -> ready4PI; the sub-tasks go todo -> released.
+PLANS_TAKING_THE_MOVES = {"analyzing>ready4PI": 25}
+# The 3 sub-tasks go todo -> analyzing -> doing -> released: analyzing -> doing and doing -> released are no move of the workflow (2 moves each, DC28).
+DC28_SUBTASKS = ("TTT-26", "TTT-27", "TTT-28")
+DC28_BAD_MOVES_PER_SUBTASK = 2

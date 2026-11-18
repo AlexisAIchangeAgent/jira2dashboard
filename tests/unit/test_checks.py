@@ -214,10 +214,47 @@ def test_fill_rates_count_filled_values_per_field_team_and_type():
 
 
 def test_moves_follow_the_sheet_transitions_per_workflow(moves):
-    assert moves.allowed("Team", "Nouveau", "En analyse")
-    assert not moves.allowed("Team", "Nouveau", "Prêt")
-    assert moves.allowed("Feature", "En développement", "En test / recette")
-    assert not moves.allowed("Team", "En développement", "En test / recette")
+    team, feature_ = story("S-9"), story("F-9", workflow="Feature")
+    assert moves.permits(team, "Nouveau", "En analyse")
+    assert not moves.permits(team, "Nouveau", "Prêt")
+    assert moves.permits(feature_, "En développement", "En test / recette")
+    assert not moves.permits(team, "En développement", "En test / recette")
+
+
+# --- DC28 with two sources of moves (AL, 2026-11-18): the Jira workflow of the ticket and the sheet Transitions --------------------------
+
+def jira_info():
+    from jira2dashboard.flow.jira_workflows import JiraWorkflows
+    return JiraWorkflows(moves=frozenset({("WF-A", "Open", "Doing"), ("WF-A", "Doing", "Closed")}))
+
+
+def test_a_move_that_the_jira_workflow_of_the_ticket_has_is_allowed_even_when_the_sheet_transitions_lacks_it():
+    from jira2dashboard.flow.checks import Moves
+    moves = Moves(set(), jira_info())                                    # the sheet Transitions is empty: Jira alone
+    issue = story("S-1", jira_workflow="WF-A")
+    assert moves.permits(issue, "Open", "Doing") and not moves.permits(issue, "Open", "Closed")
+
+
+def test_the_sheet_transitions_still_allows_a_move_that_jira_does_not_have():
+    from jira2dashboard.flow.checks import Moves
+    moves = Moves({("Team", "Open", "Closed")}, jira_info())
+    assert moves.permits(story("S-1", jira_workflow="WF-A"), "Open", "Closed")
+
+
+def test_a_ticket_whose_moves_nobody_knows_is_not_judged():
+    from jira2dashboard.flow.checks import Moves
+    nothing = Moves(set())
+    assert nothing.permits(story("S-1"), "A", "B")                       # no sheet row for Team, no Jira workflow read: no flag
+    only_other_kind = Moves({("Feature", "A", "B")}, jira_info())
+    assert only_other_kind.permits(story("S-1"), "X", "Y")               # a Team ticket with no Jira workflow of its own and no Team row
+    assert not only_other_kind.permits(story("S-1", jira_workflow="WF-A"), "X", "Y")   # its Jira workflow is known: the move is judged
+
+
+def test_a_ticket_of_an_unknown_jira_workflow_falls_back_on_the_sheet_transitions():
+    from jira2dashboard.flow.checks import Moves
+    moves = Moves({("Team", "A", "B")}, jira_info())
+    issue = story("S-1", jira_workflow="WF-UNKNOWN")
+    assert moves.permits(issue, "A", "B") and not moves.permits(issue, "A", "C")
 
 
 def test_the_settings_come_from_the_config_and_pis_sheets():

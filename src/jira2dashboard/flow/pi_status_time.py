@@ -13,9 +13,9 @@ from dataclasses import dataclass
 
 from jira2dashboard.flow.itemflow import ItemFlow
 from jira2dashboard.flow.model import ACTIVE, ART, NOT_COMPUTABLE, WAIT
-from jira2dashboard.params.model import ParamSheet
 
 FEATURE_WORKFLOW = "Feature"
+NO_DEPTH = 1_000_000
 IN_CYCLE = (ACTIVE, WAIT)                    # Backlog is not cycle time, Done ends it; Unclassified is not a status anyone chose
 
 
@@ -29,11 +29,19 @@ class PIStatusTime:
     share: float | str
 
 
-def feature_statuses(sheets: list[ParamSheet] | tuple[ParamSheet, ...]) -> list[str]:
-    """The statuses of the stack: the Feature workflow's Active and Wait statuses, in the ROW order of the sheet Workflows
-    (the sheet has no Order column: its rows are the normal flow)."""
-    workflows = next(s for s in sheets if s.name == "Workflows")
-    return [row[1] for row in workflows.rows if row[0] == FEATURE_WORKFLOW and row[2] in IN_CYCLE]
+def feature_statuses(items: list[ItemFlow], depths: dict[str, int] | None = None) -> list[str]:
+    """The statuses of the stack: those the Features (the ART) visited and whose category is Active or Wait (the Jira workflows hold many more, and
+    the sheet Workflows only exceptions). In the order of the normal flow: by depth in the transitions of the Feature workflow (`depths`, status
+    -> moves from the creation status, flow_depths; a status without depth comes last), then by the earliest position (Seq) at which a Feature
+    visited it, then by name (binary). VBA twin: modFlowBuild.StatusNames."""
+    first: dict[str, int] = {}
+    for item in items:
+        if item.team != ART:
+            continue
+        for interval in item.intervals:
+            if interval.category in IN_CYCLE:
+                first[interval.status] = min(first.get(interval.status, interval.seq), interval.seq)
+    return sorted(first, key=lambda status: (depths.get(status, NO_DEPTH) if depths else NO_DEPTH, first[status], status))
 
 
 def released_in(items: list[ItemFlow], window: tuple[dt.datetime, dt.datetime]) -> list[ItemFlow]:

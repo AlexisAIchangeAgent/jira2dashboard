@@ -27,7 +27,7 @@ from jira2dashboard.flow.model import NOT_COMPUTABLE, Rules
 from jira2dashboard.flow.checks import CHECKS, IDS, PER_ISSUE, CheckSettings, Moves, fill_rates, run_checks
 from jira2dashboard.mockjira.anomalies import PI, PI_WINDOW, with_anomalies
 from jira2dashboard.mockjira import config as jira_config
-from jira2dashboard.mockjira.flow_adapter import to_flow_issues
+from jira2dashboard.mockjira.flow_adapter import jira_rules, jira_workflows, to_flow_issues
 from jira2dashboard.mockjira.generator import generate
 from jira2dashboard.mockjira.server import MockJira
 from jira2dashboard import rovo_prompt as RP
@@ -560,7 +560,7 @@ def _pi_status_time_generated(world):
     from jira2dashboard.flow.pi_status_time import feature_statuses, pi_status_time
     got = table_dicts(world["wb"], "PIStatusTime")
     names = [row["PI"] for row in table_dicts(world["wb"], "PIMetrics")]
-    statuses = feature_statuses(load_all())
+    statuses = feature_statuses(world["items"], status_depths(world["dataset"]))
     expected = pi_status_time(world["items"], statuses, names, world["settings"].pis)
     assert [(r["PI"], r["Status"]) for r in got] == [(e.pi, e.status) for e in expected]
     for row, ref in zip(got, expected):
@@ -814,7 +814,7 @@ def chart_blocks(wb, world):
         if spec in D.ITERATION_CHARTS:
             continue                                           # the Features per iteration: checked on their own sheet
         n = days if spec.axis == D.DAY_AXIS else len(pis) if spec.axis == D.PI_AXIS else iterations
-        top, count = D.block_top(index, stride), len(D.series_names(spec) or (status_names() if spec.series == D.STATUS_SERIES else team_names()))
+        top, count = D.block_top(index, stride), len(D.series_names(spec) or (status_names(world) if spec.series == D.STATUS_SERIES else team_names()))
         grid = ws.Range(ws.Cells(top + 1, 1), ws.Cells(top + 1 + n, 1 + count + (2 if spec.band else 0))).Value2
         blocks[spec.name] = ([grid[0][c] for c in range(1, count + 1)], [grid[r][0] for r in range(1, n + 1)],
                              [list(grid[r][1:count + 1]) for r in range(1, n + 1)])
@@ -824,10 +824,22 @@ def chart_blocks(wb, world):
     return blocks
 
 
-def status_names():
-    """The series of the Cycle time by status chart: the Active and Wait statuses of the Feature workflow (modFlowBuild.StatusNames)."""
+def status_names(world):
+    """The series of the Cycle time by status chart: the Active and Wait statuses the Features visited (modFlowBuild.StatusNames)."""
     from jira2dashboard.flow.pi_status_time import feature_statuses
-    return feature_statuses(load_all())
+    items = world.get("items")
+    ds = world["dataset"] if "dataset" in world else world["scenario"].dataset
+    if items is None:                                                        # the scenario art-metrics: its items from the fake Jira
+        rules = jira_rules(ds)
+        items = [item_flow(i, ds.as_of, rules) for i in to_flow_issues(ds)]
+    return feature_statuses(items, status_depths(ds))
+
+
+def status_depths(ds):
+    """The depth of each status in the Jira workflow of the Feature types (what the sheets JiraIssueTypes, JiraWorkflows and JiraTransitions give the build)."""
+    sheets = list(ds.sheets or load_all())
+    programs = [row[0] for sheet in sheets if sheet.name == "Projects" for row in sheet.rows if row[1] == "Program"]
+    return jira_workflows(ds).feature_depths(programs, CheckSettings.from_params(sheets).feature_types)
 
 
 def team_names():
@@ -876,7 +888,8 @@ def _the_sheets_by_source(world):
     names = {sheet.Name for sheet in world["wb"].Worksheets}
     assert {S.of(n) for n in ("Config", "Projects", "Iterations", "PIs", "Workflows", "Transitions")} <= names
     assert {name for name in names if name.endswith(S.FROM_USER)} == {S.of(n) for n in S.USER}
-    assert {name for name in names if name.endswith(S.FROM_JIRA)} == {S.of(n) for n in ("Issues", "StatusIntervals", "IssueLinks", "Changelog", "PIIntervals")}
+    assert {name for name in names if name.endswith(S.FROM_JIRA)} == {S.of(n) for n in ("Issues", "StatusIntervals", "IssueLinks", "Changelog", "PIIntervals",
+                                                                                           "JiraIssueTypes", "JiraWorkflows", "JiraTransitions")}     # read by the extraction
     assert S.of("Dashboard") in names and S.of("Charts") in names and S.of("Manual") in names
 
 
@@ -1800,7 +1813,7 @@ def _art_reference(world):
     scenario = world["scenario"]
     ds = scenario.dataset
     issues = to_flow_issues(ds)
-    items = [item_flow(i, ds.as_of, Rules.from_params(list(ds.sheets))) for i in issues]
+    items = [item_flow(i, ds.as_of, jira_rules(ds)) for i in issues]
     settings = CheckSettings(feature_types=frozenset({"Feature"}), pis={p.name: (p.start, p.end) for p in scenario.pis})
     expected = iteration_features(issues, items, list(scenario.iterations), settings.pis, settings.feature_types)
     got = art_table(world, "IterationFeatures")
@@ -1853,12 +1866,58 @@ def _art_durations(world):
             assert all(abs(d - expected) < 1e-6 for d in days), (pi, status, days)
 
 
-@then("la feuille Projects ne contient que le projet du programme, et les feuilles Workflows et Transitions que le workflow Feature")
+@then("la feuille Projects ne contient que le projet du programme, la feuille Workflows que les trois statuts Wait, la feuille Transitions rien, et les feuilles lues dans Jira que le workflow du programme")
 def _art_only_its_own_parameters(world):
-    projects = [r for r in sheet_rows(world["wb"], "Projects") if any(r.values())]
+    """The parameter sheets hold what Jira cannot say (the Wait statuses); the workflow, its statuses and its moves come from Jira (AL, 2026-11-18)."""
+    wb = world["wb"]
+    projects = [r for r in sheet_rows(wb, "Projects") if any(r.values())]
     assert [(r["Project"], r["Role"]) for r in projects] == [("TTT", "Program")]
-    for name, column in (("Workflows", "Workflow"), ("Transitions", "Workflow")):
-        assert {r[column] for r in sheet_rows(world["wb"], name) if any(r.values())} == {"Feature"}, name
+    assert [(r["Workflow"], r["Status"], r["Category"]) for r in sheet_rows(wb, "Workflows") if any(r.values())] == [
+        ("Feature", "ready4PI", "Wait"), ("Feature", "ready2test", "Wait"), ("Feature", "ready2deploy", "Wait")]
+    assert [r for r in sheet_rows(wb, "Transitions") if any(r.values())] == []
+    assert {r["Workflow"] for r in sheet_rows(wb, "JiraWorkflows")} == {"program-workflow"}
+    assert {r["Workflow"] for r in sheet_rows(wb, "JiraTransitions")} == {"program-workflow"}
+    assert {(r["Project"], r["Workflow"]) for r in sheet_rows(wb, "JiraIssueTypes")} == {("TTT", "program-workflow")}
+    assert {r["JiraWorkflow"] for r in table_dicts(wb, "ItemFlow")} == {"program-workflow"}              # every ticket of the Program
+
+
+def dc28_flagged(world):
+    """The keys of the tickets that DC28 flags (the column DC28 of ItemFlow) and the number of moves BadMove flags in StatusIntervals."""
+    wb = world["wb"]
+    wb.Application.Calculate()
+    flagged = sorted(r["Key"] for r in table_dicts(wb, "ItemFlow") if r["DC28"] == 1)
+    return flagged, sum(r["BadMove"] for r in table_dicts(wb, "StatusIntervals"))
+
+
+@then("aucun passage n'est hors du workflow Jira de son ticket")
+def _art_no_bad_move(world):
+    wb = world["wb"]
+    assert [r for r in sheet_rows(wb, "Transitions") if any(r.values())] == []                     # nothing typed: only Jira knows the moves
+    intervals = table_dicts(wb, "StatusIntervals")
+    assert {r["JiraWorkflow"] for r in intervals} == {"program-workflow"}                          # the Jira workflow of each ticket, from JiraIssueTypes
+    assert sum(1 for r in intervals if r["Seq"] > 1) > 100                                          # many moves were judged
+    from art_oracle import DC28_BAD_MOVES_PER_SUBTASK, DC28_SUBTASKS
+    assert dc28_flagged(world) == (sorted(DC28_SUBTASKS), len(DC28_SUBTASKS) * DC28_BAD_MOVES_PER_SUBTASK)      # the sub-tasks skip steps; the 25 Features follow Jira
+
+
+@then("un passage retiré du workflow Jira lève DC28 sur les Features qui l'ont pris et le remettre l'efface")
+def _art_removed_move(world):
+    """Mutation on the real workbook: the move analyzing -> ready4PI (every Feature of the scenario that went on from analyzing took it) leaves JiraTransitions."""
+    from art_oracle import DC28_BAD_MOVES_PER_SUBTASK, DC28_SUBTASKS, PLANS_TAKING_THE_MOVES
+    wb = world["wb"]
+    ws = wb.Worksheets(S.of("JiraTransitions"))
+    header = [c for c in ws.Range("A1:G1").Value2[0]]
+    column = header.index("To") + 1
+    row = next(r for r in range(2, 200) if ws.Cells(r, header.index("From") + 1).Value2 == "analyzing" and ws.Cells(r, column).Value2 == "ready4PI")
+    ws.Cells(row, column).Value2 = "removed-by-the-test"
+    try:
+        features = PLANS_TAKING_THE_MOVES["analyzing>ready4PI"]
+        flagged, moves = dc28_flagged(world)
+        assert flagged == sorted([f"TTT-{n}" for n in range(1, features + 1)] + list(DC28_SUBTASKS)), flagged       # the 25 Features, and the sub-tasks as before
+        assert moves == features + len(DC28_SUBTASKS) * DC28_BAD_MOVES_PER_SUBTASK, moves
+    finally:
+        ws.Cells(row, column).Value2 = "ready4PI"
+    assert dc28_flagged(world) == (sorted(DC28_SUBTASKS), len(DC28_SUBTASKS) * DC28_BAD_MOVES_PER_SUBTASK)
 
 
 @then("chaque graphique par équipe de la feuille Charts n'a que la série ART")
@@ -1882,7 +1941,7 @@ def chart_note(world, name):
 def _art_status_time(world):
     from art_oracle import CHAIN, PI_ITEMS, PIS, STATUS_AVERAGE_DAYS, STATUS_SHARE
     rows = art_table(world, "PIStatusTime")
-    assert [(r["PI"], r["Status"]) for r in rows] == [(pi, s) for pi in PIS for s in CHAIN]              # PI order, then the order of Workflows
+    assert [(r["PI"], r["Status"]) for r in rows] == [(pi, s) for pi in PIS for s in CHAIN]              # PI order, then the order of the flow (Jira)
     assert {r["PI"]: int(r["Items"]) for r in rows} == PI_ITEMS                                           # the item set, not only the shares
     assert all(art_close(r["AverageDays"], STATUS_AVERAGE_DAYS[r["PI"]][r["Status"]]) for r in rows), rows[:3]
     assert all(art_close(r["Share"], STATUS_SHARE[r["PI"]][r["Status"]]) for r in rows), rows[:3]
@@ -1906,7 +1965,7 @@ def _art_velocity_check(world):
 def _art_velocity_check_reference(world):
     from jira2dashboard.flow.velocity_check import velocity_check
     scenario, ds = world["scenario"], world["scenario"].dataset
-    rules = Rules.from_params(list(ds.sheets))
+    rules = jira_rules(ds)
     issues = to_flow_issues(ds)
     items = [item_flow(i, ds.as_of, rules) for i in issues]
     iterations = {p.name: p for p in scenario.iterations}
@@ -1986,10 +2045,10 @@ def _art_rules_from_jira_only(world):
 def _art_status_time_reference(world):
     from jira2dashboard.flow.pi_status_time import feature_statuses, pi_status_time, released_in
     scenario, ds = world["scenario"], world["scenario"].dataset
-    rules = Rules.from_params(list(ds.sheets))
+    rules = jira_rules(ds)
     items = [item_flow(i, ds.as_of, rules) for i in to_flow_issues(ds)]
     windows = {p.name: (p.start, p.end) for p in scenario.pis}
-    expected = pi_status_time(items, feature_statuses(ds.sheets), list(windows), windows)
+    expected = pi_status_time(items, feature_statuses(items, status_depths(ds)), list(windows), windows)
     got = art_table(world, "PIStatusTime")
     assert [(r["PI"], r["Status"]) for r in got] == [(e.pi, e.status) for e in expected]
     for row, ref in zip(got, expected):

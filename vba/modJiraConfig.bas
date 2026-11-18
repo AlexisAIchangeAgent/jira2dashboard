@@ -534,24 +534,31 @@ Public Function ReadSprints(ByVal cfg As Object, ByVal keys As Collection, ByRef
     Set ReadSprints = out
 End Function
 
-Public Sub ReadWorkflowRules(ByVal cfg As Object, ByVal keys As Collection, ByVal starts As Object, ByVal frees As Object)
+Public Sub ReadWorkflowRules(ByVal cfg As Object, ByVal keys As Collection, ByVal starts As Object, ByVal frees As Object, Optional ByVal wb As Object = Nothing)
     ' The light version of ReadJiraConfiguration, for an extraction that has no sheet JiraWorkflows yet: the projects and the previews of their workflows only,
     ' and from them the statuses that start a workflow (the first in progress from the creation status) and those that are free, added to starts / frees.
+    ' When wb is given and Jira gave workflows, the sheets JiraIssueTypes, JiraWorkflows and JiraTransitions are written too (the same as the button Read the
+    ' Jira configuration writes): the workflow of each issue type, the moves (the check DC28) and the creation status (the order of the chart Cycle time by status).
     ' It only improves what the run knows, so it never raises: a project or a workflow that cannot be read (no administrator right, an answer that is not
     ' JSON) gives nothing.
     Cov "JCF47"
     Dim projects As Collection, project As Variant, workflowOf As Object, seen As Object, flowRows As New Collection, moveRows As New Collection, row As Variant
+    Dim typeRows As New Collection, projectsOf As Object
     On Error GoTo Failed
     Set projects = ReadProjects(cfg, keys)
     Set seen = CreateObject("Scripting.Dictionary")
+    Set projectsOf = CreateObject("Scripting.Dictionary")
     For Each project In projects
         Set workflowOf = CreateObject("Scripting.Dictionary")
         ReadWorkflows cfg, project, workflowOf, seen, flowRows, moveRows
+        AddProjectOf CStr(JGet(project, "key") & ""), workflowOf, projectsOf
+        AddIssueTypeRows project, workflowOf, typeRows
     Next project
     For Each row In flowRows
         If Val(CStr(row(3) & "")) = 1 Then starts(CStr(row(1))) = True
         If Val(CStr(row(5) & "")) = 1 Then frees(CStr(row(1))) = True
     Next row
+    If Not wb Is Nothing And flowRows.Count > 0 Then Cov "JCF49": WriteWorkflowSheets wb, typeRows, WithProjects(flowRows, projectsOf), WithProjects(moveRows, projectsOf)
     Exit Sub
 Failed:
     Cov "JCF48"
@@ -645,6 +652,20 @@ Private Function JiraJson(ByVal cfg As Object, ByVal method As String, ByVal url
     Set JiraJson = JsonParse(resp("Text"))
 End Function
 
+Private Sub WriteWorkflowSheets(ByVal wb As Object, ByVal typeRows As Collection, ByVal flowRows As Collection, ByVal moveRows As Collection)
+    ' The three proposal sheets about workflows; the sheet shown before stays shown.
+    Dim shown As Object
+    On Error Resume Next
+    Set shown = wb.ActiveSheet
+    On Error GoTo 0
+    WriteProposal wb, "JiraIssueTypes", Array("Project", "IssueType", "Workflow", "Subtask", "HierarchyLevel", "ProjectStyle"), typeRows
+    WriteProposal wb, "JiraWorkflows", Array("Workflow", "Status", "Category", "IsStart", "IsEnd", "IsFree", "JiraCategory", "Initial", "Project"), flowRows
+    WriteProposal wb, "JiraTransitions", Array("Workflow", "From", "To", "JiraTransition", "TransitionId", "Scope", "Project"), moveRows
+    On Error Resume Next
+    If Not shown Is Nothing Then shown.Activate
+    Err.Clear
+End Sub
+
 Private Sub WriteProposals(ByVal wb As Object, ByVal typeRows As Collection, ByVal statusRows As Collection, _
                            ByVal flowRows As Collection, ByVal moveRows As Collection, ByVal fieldRows As Collection, _
                            ByVal sumRows As Collection, ByVal metaRows As Collection, ByVal usageRows As Collection)
@@ -653,12 +674,8 @@ Private Sub WriteProposals(ByVal wb As Object, ByVal typeRows As Collection, ByV
     On Error Resume Next
     Set shown = wb.ActiveSheet
     On Error GoTo 0
-    WriteProposal wb, "JiraIssueTypes", Array("Project", "IssueType", "Workflow", "Subtask", "HierarchyLevel", "ProjectStyle"), typeRows
+    WriteWorkflowSheets wb, typeRows, flowRows, moveRows
     WriteProposal wb, "JiraStatuses", Array("Project", "IssueType", "Status", "JiraCategory"), statusRows
-    WriteProposal wb, "JiraWorkflows", Array("Workflow", "Status", "Category", "IsStart", "IsEnd", "IsFree", _
-                                            "JiraCategory", "Initial", "Project"), flowRows
-    WriteProposal wb, "JiraTransitions", Array("Workflow", "From", "To", "JiraTransition", "TransitionId", "Scope", _
-                                              "Project"), moveRows
     WriteProposal wb, "JiraFields", Array("Id", "Name", "Custom", "SchemaType", "SchemaDetail"), fieldRows
     WriteProposal wb, "JiraProjectWorkflows", Array("Project", "Workflow", "IssueTypes", "Statuses", "Transitions"), sumRows
     WriteProposal wb, "JiraProjectFields", Array("Project", "IssueType", "FieldId", "Name", "Required", "SchemaType"), metaRows

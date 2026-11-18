@@ -491,35 +491,101 @@ Private Function JoinNames(ByVal names As Collection) As String
     Next i
 End Function
 
+Private Function StatusBook(ByVal mode As Long) As Object
+    ' A scratch workbook as the build sees it: Projects (a Program and a Team), Config, Issues (Key, Type, Project) and StatusIntervals (Key, Seq, Status, Category)
+    ' written as raw values. P-1 and P-2 are Features of the Program (P-2 went Review first, a ticket created late), P-3 is a sub-task of the Program, T-1 a
+    ' Feature-typed ticket of the Team project: only the first two feed the stack. withJira adds the sheets of the Jira configuration: the Feature type follows
+    ' the workflow WF-F (Todo -> Build -> Review -> Done), the sub-task WF-S. mode: 0 no Jira sheet, 1 the sheets above, 2 also a second Feature type (Enabler)
+    ' that follows WF-G (Todo -> Review: Review at depth 1 there, 2 in WF-F).
+    Dim wb As Object
+    Set wb = Workbooks.Add
+    PutRows wb, "Projects", Array(Array("Project", "Role", "Team"), Array("P", "Program", ""), Array("T", "Team", "Alpha"))
+    PutRows wb, "Config", Array(Array("Parameter", "Value", "Example", "Mandatory", "Description"), Array("FeatureTypes", IIf(mode = 2, "Feature,Enabler", "Feature"), "Feature", "True", ""))
+    PutRows wb, "Issues", Array(Array("Key", "Type", "Project"), Array("P-1", "Feature", "P"), Array("P-2", "Feature", "P"), Array("P-3", "Sub-task", "P"), Array("T-1", "Feature", "T"))
+    PutRows wb, "StatusIntervals", Array(Array("Key", "Seq", "Status", "Category"), _
+        Array("P-1", 1, "Todo", "Backlog"), Array("P-1", 2, "Build", "Active"), Array("P-1", 3, "Review", "Wait"), Array("P-1", 4, "Build", "Active"), Array("P-1", 5, "Done", "Done"), _
+        Array("P-2", 1, "Review", "Wait"), Array("P-2", 2, "Build", "Active"), Array("P-2", 3, "Extra", "Active"), _
+        Array("P-3", 1, "Sub", "Active"), Array("T-1", 1, "Team", "Active"), Array("P-1", 6, "Odd", "Unclassified"))
+    If mode >= 1 Then
+        PutRows wb, "JiraIssueTypes", Array(Array("Project", "IssueType", "Workflow"), Array("P", "Feature", "WF-F"), Array("P", "Sub-task", "WF-S"), Array("T", "Feature", "WF-S"), _
+            Array("P", "Enabler", IIf(mode = 2, "WF-G", "")))
+        PutRows wb, "JiraWorkflows", Array(Array("Workflow", "Status", "Initial"), Array("WF-F", "Todo", 1), Array("WF-F", "Build", ""), Array("WF-F", "Review", ""), _
+            Array("WF-F", "Done", ""), Array("WF-S", "Sub", 1), Array("WF-G", "Todo", 1), Array("WF-G", "Review", ""))
+        PutRows wb, "JiraTransitions", Array(Array("Workflow", "From", "To"), Array("WF-F", "Todo", "Build"), Array("WF-F", "Build", "Review"), Array("WF-F", "Review", "Done"), _
+            Array("WF-S", "Sub", "Todo"), Array("WF-G", "Todo", "Review"))
+    End If
+    Application.DisplayAlerts = False
+    wb.Worksheets(1).Delete
+    Application.DisplayAlerts = True
+    Set StatusBook = wb
+End Function
+
+Private Sub CloseBook(ByVal wb As Object)
+    Application.DisplayAlerts = False
+    wb.Close False
+    Application.DisplayAlerts = True
+End Sub
+
 Public Sub T_StatusNames()
-    ' The stack of the chart Cycle time by status: the Active and Wait statuses of the Feature workflow, in the order of the sheet rows.
-    Dim ws As Object, rows As New Collection, names As Collection
-    Set ws = ThisWorkbook.Worksheets("TestScratch")
-    rows.Add Array("Team", "Nouveau", "Backlog", 1, 0, 0)
-    rows.Add Array("Team", "Doing", "Active", 0, 0, 0)
-    rows.Add Array("Feature", "Free", "Active", 0, 0, 1)                   ' a free status keeps its place in the sheet
-    rows.Add Array("feature", "Lower", "Active", 0, 0, 0)                  ' spelled otherwise: the loaders refuse it, it feeds no interval
-    rows.Add Array("Feature", "Review", "Wait", 0, 0, 0)
-    rows.Add Array("Feature", "Done", "Done", 0, 1, 0)
-    rows.Add Array("Feature", "Todo", "Backlog", 1, 0, 0)
-    rows.Add Array("Feature", "Build", "Active", 0, 0, 0)
-    rows.Add Array("Feature", "", "Active", 0, 0, 0)                       ' no status name: left out
-    WriteTable ws, Array("Workflow", "Status", "Category", "IsStart", "IsEnd", "IsFree"), rows
-    Set names = StatusNames(ws)
-    Check "statusnames", "the Active and Wait statuses of the Feature workflow, in the order of the rows", "Free, Review, Build", "3|Free|Review|Build", _
-          names.Count & JoinNames(names)
-    ws.Cells.Clear
-    Set rows = New Collection
-    rows.Add Array("Team", "Doing", "Active", 1, 0, 0)
-    WriteTable ws, Array("Workflow", "Status", "Category", "IsStart", "IsEnd", "IsFree"), rows
-    Set names = StatusNames(ws)
-    Check "statusnames", "no Active or Wait status in the Feature workflow gives one placeholder", "Team only", "1|(no status)", names.Count & JoinNames(names)
-    ws.Cells.Clear
+    ' The stack of the chart Cycle time by status: the Active and Wait statuses the Features visited, by depth in the Jira workflow, then by the earliest Seq,
+    ' then by name (flow/pi_status_time.feature_statuses); and the position of the selector list.
+    Dim wb As Object, names As Collection
+    Set wb = StatusBook(0)
+    Set names = StatusNames(wb)
+    Check "statusnames", "no Jira sheet: by the earliest Seq (Review first at 1 for P-2, Build 2, Extra 3), the sub-task, the Team project and the Backlog, Done and Unclassified rows are left out", _
+          "Review, Build, Extra", "3|Review|Build|Extra", names.Count & JoinNames(names)
+    CloseBook wb
+    Set wb = StatusBook(1)
+    Set names = StatusNames(wb)
+    Check "statusnames", "with the Jira workflow of the Feature type: by depth (Build 1, Review 2), a status that no move reaches last", "Build, Review, Extra", "3|Build|Review|Extra", names.Count & JoinNames(names)
+    CloseBook wb
+    Set wb = StatusBook(2)
+    Set names = StatusNames(wb)
+    Check "statusnames", "two Feature types: a status takes its smallest depth (Review 1 in WF-G, tied with Build: the earliest Seq decides)", "Review, Build, Extra", "3|Review|Build|Extra", names.Count & JoinNames(names)
+    CloseBook wb
+    Set wb = StatusBook(1)
+    PutRows wb, "JiraIssueTypes", Array(Array("Project", "IssueType", "Workflow"), Array("P", "Feature", ""), Array("T", "Feature", "WF-F"))
+    Set names = StatusNames(wb)
+    Check "statusnames", "a Feature type whose workflow is unknown, or that only a Team project follows, gives no depth: the Seq order", "Review, Build, Extra", "3|Review|Build|Extra", names.Count & JoinNames(names)
+    PutRows wb, "StatusIntervals", Array(Array("Key", "Seq", "Status", "Category"), Array("P-3", 1, "Sub", "Active"))
+    Set names = StatusNames(wb)
+    Check "statusnames", "no Feature visited an Active or Wait status: one placeholder", "(no status)", "1|(no status)", names.Count & JoinNames(names)
+    CloseBook wb
+    Set wb = StatusBook(0)
+    PutRows wb, "Issues", Array(Array("Key", "Type", "Project"))
+    Set names = StatusNames(wb)
+    Check "statusnames", "no issue at all: one placeholder, nothing raised", "(no status)", "1|(no status)", names.Count & JoinNames(names)
+    CloseBook wb
+    Check "statusnames", "the depth of a status is its number of moves from the creation status, a loop is visited once, an unreachable status has none", "a 0, b 1, c 2", "0|1|2|-", _
+          DepthsText(FlowDepths("a", MovesOf("a>b;b>a;b>c;x>a")), "a", "b", "c", "x")
+    Check "statusnames", "without a creation status there is no depth", "empty", 0, FlowDepths("", MovesOf("a>b")).Count
     Check "statusnames", "the selector list is right of the widest block: the teams", "9 teams, 4 Feature teams, 6 statuses", 13, SelectorColumn(9, 4, 6)
     Check "statusnames", "the selector list is right of the widest block: the statuses", "3 teams, 2 Feature teams, 12 statuses", 16, SelectorColumn(3, 2, 12)
     Check "statusnames", "the selector list is right of the widest block: the teams of the Features", "3 teams, 12 Feature teams, 4 statuses", 16, SelectorColumn(3, 12, 4)
     Check "statusnames", "the selector list starts at column 10 at least", "2 teams, 1 Feature team, 3 statuses", 10, SelectorColumn(2, 1, 3)
 End Sub
+
+Private Function MovesOf(ByVal text As String) As Collection
+    ' "a>b;b>c" as moves: Array(from, to) each.
+    Dim out As New Collection, part As Variant, p() As String
+    For Each part In Split(text, ";")
+        p = Split(CStr(part), ">")
+        out.Add Array(p(0), p(1))
+    Next part
+    Set MovesOf = out
+End Function
+
+Private Function DepthsText(ByVal depths As Object, ParamArray statuses() As Variant) As String
+    ' The depth of each status, "-" for one without depth, joined with |.
+    Dim i As Long, parts As New Collection, s As String
+    For i = LBound(statuses) To UBound(statuses)
+        parts.Add IIf(depths.Exists(CStr(statuses(i))), CStr(depths(CStr(statuses(i)))), "-")
+    Next i
+    For i = 1 To parts.Count
+        s = s & IIf(i > 1, "|", "") & parts(i)
+    Next i
+    DepthsText = s
+End Function
 
 Public Sub T_ProjectsSheet()
     ' Which projects to extract and which one is the Program: a sheet of the workbook, read by the macros.
@@ -1344,9 +1410,9 @@ Public Sub T_FlowBuild()
           IIf(dash.ChartObjects("velocity").Chart.SeriesCollection(1).HasDataLabels, "yes", "no") & "|" & _
           IIf(dash.ChartObjects("flow_time").Chart.SeriesCollection(1).HasDataLabels, "yes", "no")
     Check "flowbuild", "the Cycle time chart has one series per Active or Wait status of the Feature workflow, stacked at 100 %", "series|type", _
-          StatusNames(wb.Worksheets(SheetName("Workflows"))).Count & "|53", _
+          StatusNames(wb).Count & "|53", _
           dash.ChartObjects("pi_status_time").Chart.SeriesCollection.Count & "|" & dash.ChartObjects("pi_status_time").Chart.ChartType
-    Check "flowbuild", "the table PIStatusTime has one row per PI and status", "PIs x statuses", TableRows("PIMetrics") * StatusNames(wb.Worksheets(SheetName("Workflows"))).Count, TableRows("PIStatusTime")
+    Check "flowbuild", "the table PIStatusTime has one row per PI and status", "PIs x statuses", TableRows("PIMetrics") * StatusNames(wb).Count, TableRows("PIStatusTime")
     Check "flowbuild", "the table VelocityCheck has the rows of Metrics, the same Velocity and a control Gap of 0", "rows|Velocity|Gap", _
           TableRows("Metrics") & "|" & ColumnSum("Metrics", "Velocity") & "|0", _
           TableRows("VelocityCheck") & "|" & ColumnSum("VelocityCheck", "Velocity") & "|" & ColumnSum("VelocityCheck", "Gap")
@@ -2403,7 +2469,7 @@ End Sub
 
 Public Sub T_ReadWorkflowRules()
     ' The starts and the free statuses of the workflows of the projects, without any sheet: the first status in progress from the creation, the GLOBAL ones.
-    Dim cfg As Object, keys As New Collection, base As String, starts As Object, frees As Object
+    Dim cfg As Object, keys As New Collection, base As String, starts As Object, frees As Object, wb As Object
     Set cfg = TestConfig(): base = cfg("BaseUrl")
     keys.Add "PRG"
     Set starts = Dict(): Set frees = Dict()
@@ -2418,12 +2484,24 @@ Public Sub T_ReadWorkflowRules()
         "{'type':'DIRECTED','name':'Start','id':'11','toStatusReference':'r2','links':[{'fromStatusReference':'r1'}]}," & _
         "{'type':'DIRECTED','name':'Close','toStatusReference':'r3','links':[{'fromStatusReference':'r2'}]}," & _
         "{'type':'GLOBAL','name':'Park','toStatusReference':'r4','links':[]}]}]}")
-    ReadWorkflowRules cfg, keys, starts, frees
+    Set wb = Workbooks.Add
+    ReadWorkflowRules cfg, keys, starts, frees, wb
     Check "rules", "the start and the free status of the workflows of the projects", "Doing | Parked", "Doing|Parked", Join(starts.Keys, ",") & "|" & Join(frees.Keys, ",")
+    Check "rules", "the workflow of each issue type is kept in a sheet", "PRG|Feature|WF-A", "PRG|Feature|WF-A", RowText(wb.Worksheets(SheetName("JiraIssueTypes")), 2, 3)
+    Check "rules", "the creation status of the workflow is marked, the moves are kept", "Open", "Open|Start", _
+          IIf(Val(CStr(wb.Worksheets(SheetName("JiraWorkflows")).Cells(2, 8).Value)) = 1, CStr(wb.Worksheets(SheetName("JiraWorkflows")).Cells(2, 2).Value), "?") & "|" & _
+          CStr(wb.Worksheets(SheetName("JiraTransitions")).Cells(2, 4).Value)
+    Application.DisplayAlerts = False
+    wb.Close False
+    Application.DisplayAlerts = True
     FakeReset
     Set starts = Dict(): Set frees = Dict()
-    ReadWorkflowRules cfg, keys, starts, frees
-    Check "rules", "a call that fails gives nothing and never raises", "404", 0, starts.Count + frees.Count
+    Set wb = Workbooks.Add
+    ReadWorkflowRules cfg, keys, starts, frees, wb
+    Check "rules", "a call that fails gives nothing, writes no sheet and never raises", "404", 0, starts.Count + frees.Count + IIf(SheetExists(wb, "JiraWorkflows"), 1, 0)
+    Application.DisplayAlerts = False
+    wb.Close False
+    Application.DisplayAlerts = True
 End Sub
 
 Public Sub T_ReadLinkTypes()
@@ -2737,7 +2815,6 @@ Public Sub T_WorkflowExceptions()
     Check "rules", "the statuses whose flag is 1", "IsStart: Open", "Open", Join(flags.Keys, ",")
     Check "rules", "another flag", "IsFree: Doing, Parked", "Doing,Parked", Join(FlaggedStatuses(ws, "IsFree").Keys, ",")
     Check "rules", "a column the sheet lacks flags nothing", "IsEnd", 0, FlaggedStatuses(ws, "IsEnd").Count
-    Set ws = Nothing
     ThisWorkbook.Worksheets("TestScratch").Cells.Clear
     Check "rules", "an empty sheet gives no exception", "0", 0, WorkflowExceptions(ThisWorkbook.Worksheets("TestScratch")).Count
 End Sub

@@ -30,6 +30,7 @@ from collections import defaultdict
 from dataclasses import dataclass, field
 
 from jira2dashboard.flow.itemflow import item_flow
+from jira2dashboard.flow.jira_workflows import JiraWorkflows
 from jira2dashboard.flow.model import BACKLOG, REMOVED, UNCLASSIFIED, FlowIssue, Rules, change_order
 from jira2dashboard.params.model import ParamSheet, load_all
 
@@ -126,18 +127,29 @@ class CheckSettings:
 
 
 class Moves:
-    """The allowed moves (sheet Transitions): (workflow, from status, to status)."""
+    """The allowed moves: those the Jira workflow of the ticket has (JiraTransitions, read from Jira) and those of the sheet Transitions
+    (workflow kind Team / Feature, from status, to status: the person's own). A ticket whose moves nobody knows (no row of the sheet Transitions for
+    its kind, no Jira workflow read for it) cannot be judged: DC28 does not flag it (AL, 2026-11-18)."""
 
-    def __init__(self, rows: set[tuple[str, str, str]]):
+    def __init__(self, rows: set[tuple[str, str, str]], jira: JiraWorkflows = JiraWorkflows()):
         self._rows = rows
+        self.jira = jira
 
     @classmethod
-    def from_params(cls, sheets: list[ParamSheet] | None = None) -> "Moves":
+    def from_params(cls, sheets: list[ParamSheet] | None = None, jira: JiraWorkflows = JiraWorkflows()) -> "Moves":
         transitions = next(s for s in (sheets or load_all()) if s.name == "Transitions")
-        return cls({(wf, source, target) for wf, source, target in transitions.rows})
+        return cls({(wf, source, target) for wf, source, target in transitions.rows}, jira)
 
-    def allowed(self, workflow: str, source: str, target: str) -> bool:
-        return (workflow, source, target) in self._rows
+    def with_jira(self, jira: JiraWorkflows) -> "Moves":
+        return Moves(self._rows, jira)
+
+    def judges(self, issue: FlowIssue) -> bool:
+        return any(wf == issue.workflow for wf, _source, _target in self._rows) or self.jira.knows(issue.jira_workflow)
+
+    def permits(self, issue: FlowIssue, source: str, target: str) -> bool:
+        """True when a move of this ticket is allowed (by either source), or when nobody knows the moves of its workflow."""
+        return ((issue.workflow, source, target) in self._rows or self.jira.allowed(issue.jira_workflow, source, target)
+                or not self.judges(issue))
 
 
 def valid_pi(value: str | None) -> bool:
@@ -167,7 +179,7 @@ def _status_history(issue: FlowIssue, as_of: dt.datetime, rules: Rules, moves: M
     if item.reopened > 0:
         found.add("DC10")
     for before, after in zip(statuses, statuses[1:]):
-        if not moves.allowed(issue.workflow, before, after) and not rules.rule(issue.workflow, after).is_free:
+        if not moves.permits(issue, before, after) and not rules.rule(issue.workflow, after).is_free:
             found.add("DC28")
     return found
 

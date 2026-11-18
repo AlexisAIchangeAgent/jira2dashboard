@@ -11,7 +11,7 @@ import pytest
 from jira2dashboard.flow.itemflow import item_flow
 from jira2dashboard.flow.model import NOT_COMPUTABLE, Change, FlowIssue, Rules
 from jira2dashboard.flow.pi_status_time import feature_statuses, pi_status_time, released_in
-from jira2dashboard.mockjira.flow_adapter import to_flow_issues
+from jira2dashboard.mockjira.flow_adapter import jira_rules, to_flow_issues
 from jira2dashboard.mockjira.scenarios import get
 
 from art_oracle import CHAIN, PI_ITEMS, PIS, STATUS_AVERAGE_DAYS, STATUS_SHARE
@@ -25,16 +25,19 @@ def day(text):
 def world():
     scenario = get("art-metrics")
     ds = scenario.dataset
-    rules = Rules.from_params(list(ds.sheets))
+    rules = jira_rules(ds)
     items = [item_flow(i, ds.as_of, rules) for i in to_flow_issues(ds)]
     windows = {p.name: (p.start, p.end) for p in scenario.pis}
-    statuses = feature_statuses(ds.sheets)
+    statuses = feature_statuses(items)
     return {"ds": ds, "items": items, "windows": windows, "statuses": statuses, "rules": rules,
             "rows": pi_status_time(items, statuses, list(windows), windows)}
 
 
-def test_the_stack_is_the_active_and_wait_statuses_of_the_feature_workflow_in_the_order_of_the_sheet(world):
-    assert world["statuses"] == CHAIN                              # todo and deferred are Backlog, released is Done
+def test_the_stack_is_the_active_and_wait_statuses_the_features_visited_in_the_order_of_the_flow(world):
+    """The regression of 2026-11-18: the sheet Workflows of the scenario holds the three Wait exceptions only (Jira says the rest), so the stack
+    cannot come from it. todo and deferred are Backlog, released is Done: not in the stack."""
+    assert [r[1] for r in get("art-metrics").dataset.sheets[4].rows] == ["ready4PI", "ready2test", "ready2deploy"]
+    assert world["statuses"] == CHAIN
 
 
 def test_the_scenario_gives_the_items_the_average_days_and_the_shares_worked_out_by_hand(world):
@@ -75,10 +78,9 @@ def feature(key, moves, created="2025-04-01T00:00"):
 
 
 def compute(*features, names=("A", "B")):
-    sheets = get("art-metrics").dataset.sheets
-    rules = Rules.from_params(list(sheets))
+    rules = jira_rules(get("art-metrics").dataset)
     items = [item_flow(f, day("2025-12-01"), rules) for f in features]
-    rows = pi_status_time(items, feature_statuses(sheets), list(names), WINDOWS)
+    rows = pi_status_time(items, list(CHAIN), list(names), WINDOWS)
     return {(r.pi, r.status): r for r in rows}, items
 
 
@@ -139,3 +141,33 @@ def test_a_pi_without_a_released_feature_or_without_dates_is_not_computable_neve
 def test_a_feature_that_is_not_done_is_not_counted():
     rows, _ = compute(feature("F-1", [("2025-05-02T00:00", "doing")]))                          # still in doing at the as-of date
     assert rows[("A", "doing")].items == 0
+
+
+# --- the order of the stack (AL, 2026-11-18): depth in the Jira transitions, then the earliest position, then the name ---------------------
+
+def visits(*statuses, team="ART"):
+    """An item whose history visits the statuses one after the other (1 day each), every one Active (or Wait for those starting with w)."""
+    from jira2dashboard.flow.itemflow import ItemFlow
+    moves = [(f"2025-05-0{n}T00:00", status) for n, status in enumerate(statuses, start=1)]
+    f = feature("F", moves)
+    rules = jira_rules(get("art-metrics").dataset)
+    item = item_flow(f, day("2025-12-01"), rules)
+    return item if team == "ART" else ItemFlow(**{**item.__dict__, "team": team})
+
+
+def test_the_depth_in_the_transitions_comes_before_the_position_in_the_histories():
+    # this item went deploying first (a ticket created late in the flow): by position deploying would lead, by depth it comes last
+    item = visits("deploying", "analyzing", "doing")
+    assert feature_statuses([item]) == ["deploying", "analyzing", "doing"]                       # no depth: the earliest position
+    assert feature_statuses([item], {"analyzing": 1, "doing": 3, "deploying": 7}) == ["analyzing", "doing", "deploying"]
+
+
+def test_a_status_without_depth_comes_after_the_ones_that_have_one_then_by_position_then_by_name():
+    item = visits("testing", "doing", "analyzing", "ready4PI")
+    assert feature_statuses([item], {"doing": 3}) == ["doing", "testing", "analyzing", "ready4PI"]
+    assert feature_statuses([visits("ready4PI"), visits("analyzing")]) == ["analyzing", "ready4PI"]      # the same position: the name decides
+
+
+def test_only_the_features_the_active_and_wait_statuses_and_every_status_once_make_the_stack():
+    assert feature_statuses([visits("analyzing", "doing", "analyzing", "released")]) == ["analyzing", "doing"]    # released is Done, once each
+    assert feature_statuses([visits("analyzing", team="ART (other types)")]) == []                                   # the sub-tasks are not Features

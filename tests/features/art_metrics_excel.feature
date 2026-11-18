@@ -58,8 +58,16 @@ Fonctionnalité: Le scénario art-metrics du faux Jira donne, dans le classeur l
     Soit le faux Jira du scénario art-metrics
     Et le classeur à livrer rempli pour ce scénario
     Quand j'extrais et calcule
-    Alors la feuille Projects ne contient que le projet du programme, et les feuilles Workflows et Transitions que le workflow Feature
+    Alors la feuille Projects ne contient que le projet du programme, la feuille Workflows que les trois statuts Wait, la feuille Transitions rien, et les feuilles lues dans Jira que le workflow du programme
     Et chaque graphique par équipe de la feuille Charts n'a que la série ART
+
+  @excel
+  Scénario: Le contrôle DC28 juge les passages d'après le workflow Jira du ticket quand la feuille Transitions est vide
+    Soit le faux Jira du scénario art-metrics
+    Et le classeur à livrer rempli pour ce scénario
+    Quand j'extrais et calcule
+    Alors aucun passage n'est hors du workflow Jira de son ticket
+    Et un passage retiré du workflow Jira lève DC28 sur les Features qui l'ont pris et le remettre l'efface
 
   @excel
   Scénario: Le temps de cycle par statut de chaque PI est celui calculé à la main et celui du calcul de référence

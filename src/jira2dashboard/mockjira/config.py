@@ -89,7 +89,7 @@ def project_statuses(ds: Dataset, key: str, sheets: list[ParamSheet] | None = No
     """GET /rest/api/3/project/{key}/statuses: the statuses of each issue type, with the Jira status category."""
     if key not in ds.projects():
         raise _error(404, f"No project could be found with key '{key}'.")
-    params = _sheets(sheets or ds.sheets)
+    params = _sheets(sheets or ds.jira_sheets or ds.sheets)
     answer = []
     for name in _issue_types(ds, key):
         workflow = _workflow_of(ds, key, name)
@@ -115,7 +115,7 @@ def workflows_preview(ds: Dataset, body: dict, sheets: list[ParamSheet] | None =
     key = next((k for k in ds.projects() if project_id(ds, k) == str(body["projectId"])), None)
     if key is None:
         raise _error(404, "The previews were not found.")
-    params = _sheets(sheets or ds.sheets)
+    params = _sheets(sheets or ds.jira_sheets or ds.sheets)
     by_workflow: dict[str, list[str]] = {}
     for name in _issue_types(ds, key):
         if ISSUE_TYPES[name][0] in type_ids:

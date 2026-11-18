@@ -173,7 +173,7 @@ def test_fill_workbook_writes_the_parameter_sheets_of_a_scenario_Projects_includ
     written = {ws: data for fn, ws, data in calls}
     assert [fn for fn, _ws, _d in calls].count("write_rows") == 3
     assert written[S.of("Projects")] == (("TTT", "Program", None),)
-    assert {r[0] for r in written[S.of("Workflows")]} == {"Feature"} and {r[0] for r in written[S.of("Transitions")]} == {"Feature"}
+    assert {r[0] for r in written[S.of("Workflows")]} == {"Feature"} and not written[S.of("Transitions")]          # exceptions only (the Wait statuses)
     assert len(written[S.of("Iterations")]) == 24 and [p.name for p in written[S.of("PIs")]] == ["PI-1", "PI-2", "PI-3", "PI-4"]
 
 

@@ -38,6 +38,7 @@ from jira2dashboard.standalone.http_winhttp import JiraClient, WinHttp, took
 from jira2dashboard.standalone.mapping import FieldIds, extracted, interval_rows
 from jira2dashboard.standalone.params_book import read_params, run_settings
 from jira2dashboard.standalone.proxy import choose_proxy, detect_proxy
+from jira2dashboard.standalone.workflows import read_workflows
 from jira2dashboard import sheet_names as S
 from jira2dashboard import version
 from jira2dashboard.standalone.xlsx_read import NotAWorkbook, defined_name
@@ -209,7 +210,8 @@ def run(args, formatter: Scrubbed, collected: Collected, sleep=time.sleep, detec
                         settings.blocks_link_type, client.user_fields(), settings.checks.feature_types)
     current = {row[6]: row[8] for row in extract.rows if row[6] and row[8]}            # the category Jira gives the current status of a ticket
     catalog = client.status_catalog()
-    settings = dataclasses.replace(settings, rules=Rules.from_params(settings.sheets, catalog, current))     # Jira's rules under the exceptions of the sheet
+    info = read_workflows(client, [row[0] for row in settings.projects])
+    settings = dataclasses.replace(settings, workflows=info, rules=Rules.from_params(settings.sheets, catalog, current, set(info.starts), set(info.free)))     # Jira's rules under the exceptions of the sheet
     log.info("END Jira: %d issues, %d changelog items, %d links%s", len(extract.rows), extract.changelog_items,
              len(extract.links), took(step))
     key, kind, others = extract.date_key
@@ -261,7 +263,7 @@ def run(args, formatter: Scrubbed, collected: Collected, sleep=time.sleep, detec
               pictures=feature_pictures, pictures_per_row=D.CHARTS_PER_ROW),
         Sheet(S.of("DataChecks"), R.DATA_CHECKS, R.data_check_rows(results.flags, results.fill, settings.checks)),
         Sheet(S.of("FillRates"), R.FILL_RATES, R.fillrates_rows(results.fill)),
-        Sheet(S.of("ItemFlow"), R.ITEMFLOW, R.itemflow_rows(results, extract.rows, extract.flow, settings.projects,
+        Sheet(S.of("ItemFlow"), R.ITEMFLOW, R.itemflow_rows(results, extract.rows, R.with_jira_workflow(extract.flow, settings), settings.projects,
                                                                   settings.iterations, settings.checks.pis)),
         Sheet(S.of("DailyLoad"), R.DAILY_LOAD, R.dailyload_rows(results, first, end)),
         Sheet(S.of("Issues"), ISSUES, extract.rows),

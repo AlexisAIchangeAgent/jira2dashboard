@@ -10,7 +10,7 @@ from jira2dashboard.flow.itemflow import item_flow
 from jira2dashboard.flow.iteration_features import baselines, feature_teams, iteration_features
 from jira2dashboard.flow.metrics import PIPredictability, feature_predictability
 from jira2dashboard.flow.model import NOT_COMPUTABLE, Rules
-from jira2dashboard.mockjira.flow_adapter import to_flow_issues
+from jira2dashboard.mockjira.flow_adapter import jira_rules, to_flow_issues
 from jira2dashboard.mockjira.scenarios import get
 
 from art_oracle import ART_ROWS, CURRENT_PI, DONE_A, DONE_B, PLANNED, TEAM_ROWS
@@ -21,7 +21,7 @@ def world():
     scenario = get("art-metrics")
     ds = scenario.dataset
     issues = to_flow_issues(ds)
-    rules = Rules.from_params(list(ds.sheets))
+    rules = jira_rules(ds)
     items = [item_flow(i, ds.as_of, rules) for i in issues]
     settings = CheckSettings(feature_types=frozenset({"Feature"}), pis={p.name: (p.start, p.end) for p in scenario.pis})
     rows = iteration_features(issues, items, list(scenario.iterations), settings.pis, settings.feature_types)

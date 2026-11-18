@@ -14,6 +14,7 @@ from pathlib import Path
 
 from jira2dashboard import sheet_names as S
 from jira2dashboard.flow.checks import FIELD_PARAMETERS, CheckSettings, Moves
+from jira2dashboard.flow.jira_workflows import JiraWorkflows
 from jira2dashboard.flow.model import Iteration, Rules
 from jira2dashboard.params.model import (CONFIG_PARAMETERS, SPECS, ParamSheet, ParamsError, _parse_moment,
                                          shape_problems)
@@ -180,6 +181,7 @@ class RunSettings:
     rules: Rules
     moves: Moves
     checks: CheckSettings
+    workflows: JiraWorkflows = JiraWorkflows()      # what Jira says about the workflows (read at the run: standalone/workflows.py)
 
 
 def _number(value: str, default: int, minimum: int) -> int:
