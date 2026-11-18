@@ -31,7 +31,9 @@ def first_steps() -> list[str]:
         f'"{ROVO_CAPTION}" prepares a prompt for Rovo that lists the values to find, '
         f'"{ROVO_LOAD_CAPTION}" loads its answer (CSV).',
         f'3. Click "{PROPOSE_CAPTION}" (or "{CONFIG_CAPTION}" to only read). Read the proposal sheets {PROPOSAL_SHEETS}.',
-        f"4. Check the yellow cells it wrote in the sheets {WORKFLOWS}, {TRANSITIONS} and {CONFIG}, then type what is left.",
+        f"4. Check the yellow cells it wrote in the sheets {CONFIG} and {ITERATIONS}, then type what is left. The statuses, their categories, the start and the end of "
+        f"each flow and the moves are read from Jira by the workbook itself: type in {WORKFLOWS} only what Jira cannot say (a status that waits, a Done status that is "
+        "no delivery, such as cancelled).",
         f'5. Click "{EXTRACT_CAPTION}" and wait for the bar to reach the end. "{CANCEL_CAPTION}" stops it.',
         f"6. Read the charts in the sheet {CHARTS}, the figures in the sheet {METRICS} and the data checks in the sheet {DATACHECKS}.",
         LEGEND,
@@ -82,8 +84,9 @@ def manual(mandatory: tuple[str, ...]) -> list[tuple[str, str]]:
         (f'Button "{CONFIG_CAPTION}"', [
             f"It reads Jira (read only) for the projects of the sheet {PROJECTS} and writes the proposal sheets "
             f"{PROPOSAL_SHEETS}. It never changes the parameter sheets.",
-            "Decide by hand: IsStart, Active or Wait, Removed instead of Done. Then copy into "
-            f"{WORKFLOWS} and {TRANSITIONS}, and the field ids into the ...Field rows of {CONFIG}.",
+            f"The metrics read the statuses, the workflow of each issue type and its moves from these sheets (also read by the Extract button when they are missing). "
+            f"Decide by hand only the exceptions, in {WORKFLOWS}: Wait (Jira has no such category), Removed instead of Done, a status that does not end the flow. "
+            f"The field ids go into the ...Field rows of {CONFIG}.",
         ]),
         (f'Button "{PROPOSE_CAPTION}"', [
             f'It does what "{CONFIG_CAPTION}" does, then copies what fits of the proposal sheets into the sheets {WORKFLOWS}, '
