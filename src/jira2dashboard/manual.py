@@ -152,6 +152,13 @@ def manual(mandatory: tuple[str, ...]) -> list[tuple[str, str]]:
             "Feature workflow: the Features released in the PI, the average days each spent in the status, and its share of the total (the "
             "statuses of a PI add up to 100 %). The chart Cycle time by status stacks these shares, one bar per PI: the biggest block "
             "is the status that takes most of the cycle time.",
+            f"{S.of('VelocityCheck')}: the Velocity counted again from the status changes of the changelog, one row per iteration and team "
+            "(the rows of Metrics). Velocity = the items done in the iteration (the chart); VelocityFeatures = of which the types of "
+            "FeatureTypes (the team ART holds every type of the Program project); CreatedDone = done because they were CREATED in the end "
+            "status (the changelog holds no change for them); ChangedToEnd = the changes into an end status (IsEnd) in the iteration, "
+            "one per change (an item closed twice counts twice), ChangedToEndFeatures = of which Features (what the JQL status CHANGED TO "
+            "... DURING counts in Jira); ReopenedLater = those changes that the item left again. Gap = Velocity - CreatedDone - "
+            "(ChangedToEnd - ReopenedLater) is 0 when the table explains the Velocity.",
             f"{DATACHECKS}: the 29 data checks DC01-DC29, with Items and OK, KO or not computable. To see the work items, "
             f"filter the table ItemFlow (sheet {ITEMFLOW}) on its column DCxx = 1.",
             f"Do not edit the sheets {S.of('FlowFormulas')}, {S.of('ChartSpec')} and {S.of('ChecksSpec')}: they describe the formulas, the charts and "

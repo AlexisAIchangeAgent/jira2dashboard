@@ -51,6 +51,7 @@ Fonctionnalité: Le classeur livré extrait Jira et calcule les mêmes chiffres 
     Et chaque anomalie connue est trouvée par les contrôles qui lui correspondent et seulement par eux
     Et la table PIMetrics et le graphique Feature Predictability donnent pour chaque PI les Features faites avant sa fin sur les Features planifiées
     Et la table PIStatusTime reproduit la référence Python sur les données générées
+    Et la table VelocityCheck reproduit la référence Python sur les données générées
 
   @excel
   Scénario: Un contrôle dont le champ Jira n'est pas configuré est « not computable » et ne signale personne

@@ -50,6 +50,14 @@ Fonctionnalité: Le scénario art-metrics du faux Jira donne, dans le classeur l
     Et le graphique Cycle time by status empile les parts des statuts de chaque PI
 
   @excel
+  Scénario: La table VelocityCheck retrouve la vélocité de l'ART dans les changements d'état du changelog
+    Soit le faux Jira du scénario art-metrics
+    Et le classeur à livrer rempli pour ce scénario
+    Quand j'extrais et calcule
+    Alors la table VelocityCheck donne pour chaque itération de l'ART autant de passages vers l'état de fin que de Features livrées, sans création ni réouverture
+    Et la table VelocityCheck est celle du calcul de référence et son écart est 0
+
+  @excel
   Scénario: Une itération sans livraison montre sa vélocité à 0 et la note sous les graphiques dit pourquoi
     Soit le faux Jira du scénario art-metrics
     Et le classeur à livrer rempli pour ce scénario

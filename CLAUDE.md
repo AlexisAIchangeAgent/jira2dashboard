@@ -181,6 +181,12 @@ python.log). `tests/unit/test_claude_hooks.py` and `test_claude_skills.py` test 
   VBA: `modFlowBuild.StatusNames` (the series of the chart: its plan `SeriesNames` is the token `{statuses}`, read from Workflows at the build),
   `SelectorColumn` (the selector list sits right of the widest ChartData block: teams, Feature teams or statuses), `WritePiStatusKeys`.
   Python path: sheet `PIStatusTime`, SVG chart. The report of the scenario art-metrics has a 6th section (140 figures).
+- **VelocityCheck (AL, 2026-11-18).** On the client PC the Velocity of the ART read 4 / 10 / 60 where Jira's `status CHANGED TO "Terminé" DURING` read +8 in
+  the last sprint. The table `VelocityCheck` (sheet `VelocityCheck_from_excel`, the keys of `Metrics`, reference `flow/velocity_check.py`) counts the Velocity again
+  from the intervals of `StatusIntervals`: `Velocity`, `VelocityFeatures` (types of `FeatureTypes`: **the team ART is every issue of the Program project, `Velocity`
+  has no type filter**), `CreatedDone` (done because CREATED in an IsEnd status: no change in the changelog), `ChangedToEnd` / `ChangedToEndFeatures` (changes into
+  IsEnd, one per change), `ReopenedLater`, `Gap` = Velocity - CreatedDone - (ChangedToEnd - ReopenedLater), always 0. Helper `StatusIntervals.ItemIsFeature`.
+  Hand-typed cases in `tests/unit/test_velocity_check.py`; `flow_excel.feature` (cell by cell) and `art_metrics_excel.feature` (= the oracle's Velocity).
 - **Python reference as oracle.** `flow/` (`intervals.py`, `itemflow.py`, `load.py`, `metrics.py`, `checks.py`) is a pure
   Python implementation of the same metrics and data checks. The scenarios in `tests/features/flow_excel.feature` run the
   real delivered workbook against the fake Jira and compare Excel with this reference **cell by cell** (Flow Load modes A

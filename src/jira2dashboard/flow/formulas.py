@@ -58,6 +58,7 @@ INTERVAL_HELPERS = (
     ("ItemStart", f"=INDEX({IF_}[StartUtc],[@ItemRow])"),
     ("ItemDone", f"=INDEX({IF_}[DoneUtc],[@ItemRow])"),
     ("ItemExcluded", f"=INDEX({IF_}[Excluded],[@ItemRow])"),
+    ("ItemIsFeature", f"=INDEX({IF_}[IsFeature],[@ItemRow])"),                 # VelocityCheck: the Feature types of Config.FeatureTypes
     ("InCycle", f'=IF(AND(OR([@Category]="Active",[@Category]="Wait"),[@ItemStart]<>"",[@ItemDone]<>"",[@ItemExcluded]=0),'
                 f"IF(AND([@EnteredUtc]>=[@ItemStart]-{HALF},[@EnteredUtc]<[@ItemDone]-{HALF}),1,0),0)"),
 )
@@ -176,6 +177,22 @@ METRICS_COLUMNS = (
     (f"DistWip{b}", f'=IF(OR([@EndDay]="",[@FlowLoadEnd]=0),{_NC},[@WipCount{b}]/[@FlowLoadEnd])')
     for b in BUCKETS
 ) + (("FlowPredictability", f"={_NC}"),)
+
+# --- the table VelocityCheck: the Velocity counted again from the status changes of the changelog (AL, 2026-11-18) ----------------
+# Same keys as Metrics (one row per iteration and team: VBA writes them with the same code). All figures are counts over StatusIntervals; an
+# iteration with nothing gives 0, never "not computable". Reference: flow/velocity_check.py (its docstring says what each column means).
+_END_IN = (f'{SI}[IsEnd],1,{SI}[EnteredUtc],">="&([@IterationStart]-{HALF}),{SI}[EnteredUtc],"<"&([@IterationEnd]-{HALF}),'
+           f"{SI}[Team],[@Team]")
+VELOCITYCHECK_KEYS = METRICS_KEYS
+VELOCITYCHECK_COLUMNS = (
+    ("Velocity", f"=COUNTIFS({DONE_IN})"),
+    ("VelocityFeatures", f"=COUNTIFS({DONE_IN},{IF_}[IsFeature],1)"),
+    ("CreatedDone", f"=COUNTIFS({_END_IN},{SI}[Seq],1,{SI}[IsOpen],TRUE)"),
+    ("ChangedToEnd", f'=COUNTIFS({_END_IN},{SI}[Seq],">1")'),
+    ("ChangedToEndFeatures", f'=COUNTIFS({_END_IN},{SI}[Seq],">1",{SI}[ItemIsFeature],1)'),
+    ("ReopenedLater", f'=COUNTIFS({_END_IN},{SI}[Seq],">1",{SI}[IsOpen],FALSE)'),
+    ("Gap", "=[@Velocity]-[@CreatedDone]-([@ChangedToEnd]-[@ReopenedLater])"),
+)
 
 # --- the table PIMetrics: Feature Predictability per PI (AL's variant, 2026-11-12) -----------------------------
 # The key PI comes from the sheet PIs, then from the Features whose PI the sheet lacks (modFlowBuild.PiNames); its dates
@@ -303,4 +320,5 @@ TABLES = {
     "IterationFeatures": ITERATIONFEATURES_KEYS + ITERATIONFEATURES_NAMES,
     "PIMetrics": PIMETRICS_KEYS + tuple(name for name, _ in PIMETRICS_COLUMNS),
     "PIStatusTime": PISTATUSTIME_KEYS + tuple(name for name, _ in PISTATUSTIME_COLUMNS),
+    "VelocityCheck": VELOCITYCHECK_KEYS + tuple(name for name, _ in VELOCITYCHECK_COLUMNS),
 }

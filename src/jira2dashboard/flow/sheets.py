@@ -33,7 +33,7 @@ def read_table(wb, sheet: str, name: str) -> tuple[list[str], list[list]]:
 def error_cells(wb) -> dict[str, int]:
     """How many cells of each flow table show an Excel error, by column (a typo in a formula shows here)."""
     found: dict[str, int] = {}
-    for name in ("StatusIntervals", "ItemFlow", "DailyLoad", "Metrics", "PIIntervals", "IterationFeatures", "PIMetrics", "PIStatusTime", "DataChecks",
+    for name in ("StatusIntervals", "ItemFlow", "DailyLoad", "Metrics", "PIIntervals", "IterationFeatures", "PIMetrics", "PIStatusTime", "VelocityCheck", "DataChecks",
                  "IssueLinks", "FillRates"):
         header, rows = read_table(wb, name, name)
         for row in rows:

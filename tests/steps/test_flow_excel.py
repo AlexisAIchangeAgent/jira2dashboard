@@ -570,6 +570,28 @@ def _pi_status_time_generated(world):
     assert any(isinstance(e.items, int) and e.items > 0 and e.total_days > 0 for e in expected), expected[:4]
 
 
+@then("la table VelocityCheck reproduit la référence Python sur les données générées")
+def _velocity_check_generated(world):
+    """The Velocity counted again from the status changes, on generated data (reopened items, items closed twice...): every row of the table
+    against flow/velocity_check, cell by cell, the control Gap is 0, and the data holds real figures (not only zeros)."""
+    from jira2dashboard.flow.velocity_check import velocity_check
+    issues, rules = to_flow_issues(world["dataset"]), world["rules"]
+    iterations = {p.name: p for p in world["iterations"]}
+    got = table_dicts(world["wb"], "VelocityCheck")
+    metrics = table_dicts(world["wb"], "Metrics")
+    assert [(r["Iteration-label"], r["Team"]) for r in got] == [(r["Iteration-label"], r["Team"]) for r in metrics] and got
+    expected = [velocity_check(issues, world["items"], iterations[r["Iteration-label"]], r["Team"], rules, world["settings"].feature_types)
+                for r in got]
+    for row, ref in zip(got, expected):
+        for column, attribute in (("Velocity", "velocity"), ("VelocityFeatures", "velocity_features"), ("CreatedDone", "created_done"),
+                                  ("ChangedToEnd", "changed_to_end"), ("ChangedToEndFeatures", "changed_to_end_features"),
+                                  ("ReopenedLater", "reopened_later"), ("Gap", "gap")):
+            assert row[column] == getattr(ref, attribute), (ref.iteration, ref.team, column, row[column], getattr(ref, attribute))
+    assert [r["Velocity"] for r in got] == [r["Velocity"] for r in metrics]                      # the same figure as the chart's table
+    assert all(r["Gap"] == 0 for r in got)
+    assert any(e.changed_to_end > 0 for e in expected) and any(e.reopened_later > 0 for e in expected), expected[:6]
+
+
 @then("la table DataChecks et les colonnes DC de ItemFlow reproduisent les contrôles de la référence Python")
 def _data_checks(world):
     expected, settings = expected_flags(world), world["settings"]
@@ -1704,6 +1726,37 @@ def _art_status_time(world):
     assert all(art_close(r["AverageDays"], STATUS_AVERAGE_DAYS[r["PI"]][r["Status"]]) for r in rows), rows[:3]
     assert all(art_close(r["Share"], STATUS_SHARE[r["PI"]][r["Status"]]) for r in rows), rows[:3]
     assert all(r["Start"] and r["End"] for r in rows)                                                     # the dates come from the sheet PIs
+
+
+@then("la table VelocityCheck donne pour chaque itération de l'ART autant de passages vers l'état de fin que de Features livrées, "
+      "sans création ni réouverture")
+def _art_velocity_check(world):
+    from art_oracle import ITERATION_STARTS, VELOCITY
+    rows = [r for r in art_table(world, "VelocityCheck") if r["Team"] == "ART"]
+    assert [r["Iteration-label"] for r in rows] == list(ITERATION_STARTS)
+    assert {r["Iteration-label"]: r["Velocity"] for r in rows} == VELOCITY                                # the hand-worked figures
+    assert all(r["ChangedToEnd"] == r["Velocity"] == r["VelocityFeatures"] == r["ChangedToEndFeatures"] for r in rows)
+    assert all(r["CreatedDone"] == 0 and r["ReopenedLater"] == 0 and r["Gap"] == 0 for r in rows)
+    assert sum(r["Velocity"] for r in rows) == sum(VELOCITY.values()) > 0
+
+
+@then("la table VelocityCheck est celle du calcul de référence et son écart est 0")
+def _art_velocity_check_reference(world):
+    from jira2dashboard.flow.velocity_check import velocity_check
+    scenario, ds = world["scenario"], world["scenario"].dataset
+    rules = Rules.from_params(list(ds.sheets))
+    issues = to_flow_issues(ds)
+    items = [item_flow(i, ds.as_of, rules) for i in issues]
+    iterations = {p.name: p for p in scenario.iterations}
+    from jira2dashboard.flow.checks import CheckSettings
+    types = CheckSettings.from_params().feature_types
+    got = art_table(world, "VelocityCheck")
+    assert got
+    for row in got:
+        ref = velocity_check(issues, items, iterations[row["Iteration-label"]], row["Team"], rules, types)
+        assert (row["Velocity"], row["VelocityFeatures"], row["CreatedDone"], row["ChangedToEnd"], row["ChangedToEndFeatures"],
+                row["ReopenedLater"], row["Gap"]) == (ref.velocity, ref.velocity_features, ref.created_done, ref.changed_to_end,
+                                                      ref.changed_to_end_features, ref.reopened_later, ref.gap), (row, ref)
 
 
 @then("la table PIStatusTime est celle du calcul de référence et ses totaux sont les jours actifs et d'attente des mêmes Features")

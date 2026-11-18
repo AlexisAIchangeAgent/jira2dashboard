@@ -69,7 +69,7 @@ Private Sub DeleteDerived(ByVal wb As Object)
     alerts = Application.DisplayAlerts
     Application.DisplayAlerts = False
     On Error GoTo Restore
-    For Each nm In Array("ChartData", "ItemFlow", "DailyLoad", "Metrics", "IterationFeatures", "PIMetrics", "PIStatusTime", "DataChecks", "FillRates", "Controls")
+    For Each nm In Array("ChartData", "ItemFlow", "DailyLoad", "Metrics", "IterationFeatures", "PIMetrics", "PIStatusTime", "VelocityCheck", "DataChecks", "FillRates", "Controls")
         If SheetExists(wb, CStr(nm)) Then wb.Worksheets(SheetName(CStr(nm))).Delete
     Next nm
 Restore:
@@ -322,7 +322,7 @@ Private Sub BuildAll(ByVal wb As Object, ByVal spec As Object, ByVal teams As Co
     Dim wsI As Object, wsS As Object, wsF As Object, wsD As Object, wsM As Object, wsC As Object, wsL As Object, wsR As Object
     Dim loI As Object, loS As Object, loF As Object, loD As Object, loM As Object, loC As Object, loL As Object, loR As Object
     Dim wsP As Object, loP As Object, pis As Collection, wsQ As Object, loQ As Object, wsT As Object, loT As Object
-    Dim featureTeams As Collection, keys As Collection, statuses As Collection, wsU As Object, loU As Object
+    Dim featureTeams As Collection, keys As Collection, statuses As Collection, wsU As Object, loU As Object, wsV As Object, loV As Object
     LogBegin "flow sheets: prepare"
     DeleteDerived wb
     Set wsI = wb.Worksheets(SheetName("Issues")): Set wsS = wb.Worksheets(SheetName("StatusIntervals"))
@@ -339,13 +339,14 @@ Private Sub BuildAll(ByVal wb As Object, ByVal spec As Object, ByVal teams As Co
     LogBegin "flow sheets: keys"
     Set wsF = AddSheet(wb, "ItemFlow"): Set wsD = AddSheet(wb, "DailyLoad"): Set wsM = AddSheet(wb, "Metrics")
     Set wsC = AddSheet(wb, "DataChecks"): Set wsR = AddSheet(wb, "FillRates"): Set wsT = AddSheet(wb, "IterationFeatures")
-    Set wsP = AddSheet(wb, "PIMetrics"): Set wsU = AddSheet(wb, "PIStatusTime")
+    Set wsP = AddSheet(wb, "PIMetrics"): Set wsU = AddSheet(wb, "PIStatusTime"): Set wsV = AddSheet(wb, "VelocityCheck")
     Set pis = PiNames(wb, SettingOf(spec, "Dashboard", "NoPI"))
     Set statuses = StatusNames(wb.Worksheets(SheetName("Workflows")))
     Set featureTeams = FeatureTeamNames(wb, SettingOf(spec, "Dashboard", "ProgramTeam"))
     Set keys = IterationFeatureKeys(wb, iterations, featureTeams)
     WriteDailyKeys wsD, iterations, teams
     WriteMetricKeys wsM, iterations, teams
+    WriteMetricKeys wsV, iterations, teams                                      ' VelocityCheck has the keys of Metrics
     WritePiKeys wsP, pis
     WritePiStatusKeys wsU, pis, statuses
     WriteIterationFeatureKeys wsT, keys
@@ -366,6 +367,7 @@ Private Sub BuildAll(ByVal wb As Object, ByVal spec As Object, ByVal teams As Co
     Set loT = CreateTable(wsT, "IterationFeatures", spec("IterationFeatures"), keys.Count)
     Set loP = CreateTable(wsP, "PIMetrics", spec("PIMetrics"), pis.Count)
     Set loU = CreateTable(wsU, "PIStatusTime", spec("PIStatusTime"), pis.Count * statuses.Count)
+    Set loV = CreateTable(wsV, "VelocityCheck", spec("VelocityCheck"), iterations.Count * teams.Count)
     LogEnd "flow sheets: tables"
     LogBegin "flow sheets: formulas StatusIntervals"
     FillFormulas loS, spec("StatusIntervals")
@@ -400,6 +402,10 @@ Private Sub BuildAll(ByVal wb As Object, ByVal spec As Object, ByVal teams As Co
     LogBegin "flow sheets: formulas PIStatusTime"
     FillFormulas loU, spec("PIStatusTime")
     LogEnd "flow sheets: formulas PIStatusTime"
+    LogBegin "flow sheets: formulas VelocityCheck"
+    FillFormulas loV, spec("VelocityCheck")
+    LogEnd "flow sheets: formulas VelocityCheck"
+    wsV.Range(wsV.Columns(2), wsV.Columns(3)).NumberFormat = "yyyy-mm-dd"
     wsU.Range(wsU.Columns(3), wsU.Columns(4)).NumberFormat = "yyyy-mm-dd"
     wsU.Columns(7).NumberFormat = "0.0"                                          ' AverageDays
     wsU.Columns(8).NumberFormat = "0%"                                           ' Share

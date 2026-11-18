@@ -249,6 +249,7 @@ def run(args, formatter: Scrubbed, collected: Collected, sleep=time.sleep, detec
         Sheet(S.of("Metrics"), R.METRICS, R.metrics_rows(results, settings)),
         Sheet(S.of("PIMetrics"), R.PI_METRICS, R.pimetrics_rows(results, settings)),
         Sheet(S.of("PIStatusTime"), R.PI_STATUS_TIME, R.pistatustime_rows(results, settings)),
+        Sheet(S.of("VelocityCheck"), R.VELOCITY_CHECK, R.velocitycheck_rows(results, settings)),
         Sheet(S.of("IterationFeatures"), R.ITERATION_FEATURES, R.iterationfeatures_rows(results)),
         Sheet(S.of("IterationCharts"), rows=[("The Features of the ART iteration by iteration, drawn by Python (SVG pictures).",)],
               pictures=feature_pictures, pictures_per_row=D.CHARTS_PER_ROW),

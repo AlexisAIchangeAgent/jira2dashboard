@@ -1283,6 +1283,15 @@ Private Function IterationCell(ByVal column As String, ByVal row As Long) As Str
     Err.Clear
 End Function
 
+Private Function ColumnSum(ByVal tableName As String, ByVal column As String) As String
+    ' The sum of a column of a table, "?" when it cannot be read or holds an error (a check must not raise).
+    Dim v As Variant
+    On Error Resume Next
+    v = Application.WorksheetFunction.Sum(ThisWorkbook.Worksheets(SheetName(tableName)).ListObjects(tableName).ListColumns(column).DataBodyRange)
+    If Err.Number <> 0 Then ColumnSum = "?" Else ColumnSum = CStr(CLng(v))
+    On Error GoTo 0
+End Function
+
 Private Function TableRows(ByVal sheetKey As String) As Long
     TableRows = ThisWorkbook.Worksheets(SheetName(sheetKey)).ListObjects(sheetKey).ListRows.Count
 End Function
@@ -1335,6 +1344,9 @@ Public Sub T_FlowBuild()
           StatusNames(wb.Worksheets(SheetName("Workflows"))).Count & "|53", _
           dash.ChartObjects("pi_status_time").Chart.SeriesCollection.Count & "|" & dash.ChartObjects("pi_status_time").Chart.ChartType
     Check "flowbuild", "the table PIStatusTime has one row per PI and status", "PIs x statuses", TableRows("PIMetrics") * StatusNames(wb.Worksheets(SheetName("Workflows"))).Count, TableRows("PIStatusTime")
+    Check "flowbuild", "the table VelocityCheck has the rows of Metrics, the same Velocity and a control Gap of 0", "rows|Velocity|Gap", _
+          TableRows("Metrics") & "|" & ColumnSum("Metrics", "Velocity") & "|0", _
+          TableRows("VelocityCheck") & "|" & ColumnSum("VelocityCheck", "Velocity") & "|" & ColumnSum("VelocityCheck", "Gap")
     Check "flowbuild", "one series per work type in the Distribution chart", "flow_distribution", 5, dash.ChartObjects("flow_distribution").Chart.SeriesCollection.Count
     Check "flowbuild", "the Predictability chart has two more series: the 80-100 % band", "Predictability", teams + 2, dash.ChartObjects("flow_predictability").Chart.SeriesCollection.Count
     Check "flowbuild", "the daily Flow Load curve has one series per team and one point per day", "28 days", teams & "|" & 28, _
