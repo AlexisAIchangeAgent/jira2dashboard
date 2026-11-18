@@ -382,6 +382,8 @@ then `mermaid.parse`), and check every `](#anchor)` link against the headings.
    `rovo/confluence_flow_metrics_page.md`, `tests/art_report.py` (the figure count).
 5. Then `build` before `manual-test -Run`, `vba-reviewer` before `vba-tests`, and the generic `flow_excel.feature` compares the new table with the
    reference cell by cell (check that its data holds real figures, not only gaps).
+6. **A column of `ItemFlow` reads only columns defined BEFORE it** (`test_flow_formulas` enforces it: `Team` read `[@IsFeature]`, defined later; use `check_formulas.in_list`
+   inline). A formula typed in ONE cell of a table column fills the whole column: write per-row formulas (the `Reconciliation` Expected/Found) BEFORE `CreateTable`.
 
 ## Adding a data check
 
@@ -518,6 +520,15 @@ then `mermaid.parse`), and check every `](#anchor)` link against the headings.
   green runs: only the test result counts.
 - **While a change adds `Cov` markers,** the hook `bas_guard` prints "VBA guard tests failed" after each `.bas` edit until
   `test_run_vba_tests_pure` pins the new marker total and `FLB`/`MEX`... range: expected; finish the edits, then update those two numbers.
+- **Removing or adding a column of a parameter sheet** (`params/*.md`) shifts two things silently: the tuples read by INDEX in Python (`row[2]` in `mockjira/`, `flow/model.py`, `checks.py`, tests) and
+  the formulas that read the sheet by COLUMN LETTER (`formulas.INTERVAL_HELPERS` on `Workflows_from_user!$D:$F`): only the `flow_excel.feature` scenarios catch the second (empty `StartUtc`). grep both.
+- **A `T_` check on a range** must not raise on an error cell: `Application.WorksheetFunction.Sum` of a column with `#N/A` raises (opens the VB dialog): use `ColumnSum` (returns "?").
+  A check whose only possible answers are "1" or "?" proves nothing (an `IFERROR(...,"")` formula hides its failure): seed a ticket or leave it to the Excel scenarios.
+- **Look at the results of a scenario without a click:** `PYTHONPATH=src .venv/Scripts/python.exe -m jira2dashboard.mock_workbook --scenario art-metrics --run` (needs `build` first), then
+  `standalone.xlsx_read.read_sheets(Path(copy))` shows the cached values of every sheet. A `python -` heredoc that imports `jira2dashboard` needs `PYTHONPATH=src`.
+- **AL's Excel is French and shows dates as `45474,49546`:** to give him a filter, convert with `(date - dt.date(1899, 12, 30)).days` (2026-10-28 = 46323) and say that the End is excluded.
+- **Mutation proof of a Python reference:** `cp file $TEMP/x.bak`, replace one expression (`assert s.count(old) == 1`), run the unit test file, `cp` back; one mutation per behaviour. A mutation that
+  survives means the test data cannot tell it (a tautology: add the case, or let the function take the ledger as a parameter so a test can feed a wrong one).
 - **Look at a chart:** `start-mock.ps1 -Port 8100`, a scratch copy of `out\release\jira2dashboard.xlsm` filled by
   `mock_workbook.fill_copy(copy, base_url(8100))`, `modActions.ExtractAndCompute`, then in the same session Activate the
   ChartObject, `Chart.Export` to the scratchpad and Read the PNG; `stop-mock.ps1 -Port 8100` after (8099 may be AL's).
