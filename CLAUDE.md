@@ -549,6 +549,14 @@ then `mermaid.parse`), and check every `](#anchor)` link against the headings.
 - **AL's Excel is French and shows dates as `45474,49546`:** to give him a filter, convert with `(date - dt.date(1899, 12, 30)).days` (2026-10-28 = 46323) and say that the End is excluded.
 - **Mutation proof of a Python reference:** `cp file $TEMP/x.bak`, replace one expression (`assert s.count(old) == 1`), run the unit test file, `cp` back; one mutation per behaviour. A mutation that
   survives means the test data cannot tell it (a tautology: add the case, or let the function take the ledger as a parameter so a test can feed a wrong one).
+- **A scenario must not hold what Jira gives in its parameter sheets** (2026-11-18): `Dataset.jira_sheets` = Jira's full Workflows/Transitions, `sheets` = the exceptions. References
+  come from `flow_adapter.jira_rules(ds)` / `jira_workflows(ds)`, never `Rules.from_params(list(ds.sheets))`; a test whose dataset still has complete sheets cannot see an exceptions-only workbook.
+- **A sheet that a formula reads must exist from the build** (`flow/sheets.py`, list of `add_sheet_after_last`), even empty: the formula written at the build of the flow sheets would
+  otherwise ask Excel for a file. A new ItemFlow column goes LAST (`formulas.ITEMFLOW_COLUMNS` after `ITEMFLOW_CHECK_COLUMNS`, `results.ITEMFLOW` and the positional tuple of `itemflow_rows`).
+- **A new `Cov` marker takes the next free number of its prefix** (`grep -o 'Cov "FLB[0-9]*"' vba/*.bas | sort`): FLB50-57 were taken when new ones were numbered FLB53-55 by mistake. Pins: total +
+  range of the prefix in `test_run_vba_tests_pure.py`. `StatusNames(wb)` and any build-time reader see the RAW sheets only (formulas are not calculated yet).
+- The scenario "Annuler pendant l'extraction" is the usual victim of the Excel crash (open defect): rerun it alone with `-k annuler` (30 s) before suspecting a change; green twice = noise.
+- `jira_config.feature` Propose scenarios assert that a deleted Workflows/Transitions row does NOT come back (Propose no longer copies them): do not "fix" that back.
 - **Look at a chart:** `start-mock.ps1 -Port 8100`, a scratch copy of `out\release\jira2dashboard.xlsm` filled by
   `mock_workbook.fill_copy(copy, base_url(8100))`, `modActions.ExtractAndCompute`, then in the same session Activate the
   ChartObject, `Chart.Export` to the scratchpad and Read the PNG; `stop-mock.ps1 -Port 8100` after (8099 may be AL's).
