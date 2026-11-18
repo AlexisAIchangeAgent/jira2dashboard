@@ -136,6 +136,28 @@ class JiraClient:
         return frozenset(f["id"] for f in answer if isinstance(f, dict) and f.get("id")
                          and ((f.get("schema") or {}).get("type") == "user" or (f.get("schema") or {}).get("items") == "user"))
 
+    def status_catalog(self) -> dict[str, str]:
+        """Every status of the instance with its Jira category (GET statuses/search, 200 a page): status name -> TODO, IN_PROGRESS or DONE (or the key
+        of a category object). It only improves what the run knows, so a call that fails ends the reading with what was got, never an error."""
+        out: dict[str, str] = {}
+        start = 0
+        for _page in range(100):
+            try:
+                answer = self.call("GET", f"/rest/api/3/statuses/search?startAt={start}&maxResults=200", "statuses")
+            except J.JiraError as err:
+                log.warning("the statuses of the instance could not be read (%s): only the categories of the sheet Workflows and of the tickets apply", err.code)
+                break
+            values = answer.get("values") if isinstance(answer, dict) else None
+            for status in values or []:
+                category = status.get("statusCategory")
+                category = category.get("key") if isinstance(category, dict) else category
+                if isinstance(status, dict) and status.get("name"):
+                    out[status["name"]] = category or ""
+            if not values or answer.get("isLast"):
+                break
+            start += len(values)
+        return out
+
     def changelogs(self, keys: list[str]) -> list[dict]:
         """The changelog pages of the issues, 1000 keys a call."""
         pages = []

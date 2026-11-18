@@ -102,3 +102,14 @@ def test_a_proxy_that_asks_for_the_windows_session_gets_it_only_with_proxy_windo
         with pytest.raises(J.JiraError, match=r"HTTP 407 .*the proxy asks for authentication"):
             client("http://jira.mock.invalid", [], proxy=address, windows_auth=False).call(
                 "GET", "/rest/api/3/myself", "me")
+
+
+def test_the_status_catalog_lists_every_status_of_the_instance_page_by_page_and_a_refusal_gives_what_was_read(jira, dataset, caplog):
+    waits = []
+    got = client(jira.base_url, waits).status_catalog()
+    assert got["Nouveau"] == "TODO" and got["En analyse"] == "IN_PROGRESS" and got["Terminé"] == "DONE" and waits == []
+    assert len(got) == len(dataset.catalog.ids)
+    jira.fail_next("GET", "/rest/api/3/statuses/search", 403, times=1, body={"errorMessages": ["no permission"]})
+    with caplog.at_level(logging.WARNING, logger="jira2dashboard.extract"):
+        assert client(jira.base_url, waits).status_catalog() == {}
+    assert "statuses of the instance could not be read" in caplog.text

@@ -50,7 +50,7 @@ Private Function TestNames() As Variant
     TestNames = Array("T_JsonNested", "T_JsonEscapes", "T_JsonEmpty", "T_JsonErrors", "T_JsonRoundTrip", _
         "T_JsonLarge", "T_Base64Auth", "T_UrlEncode", "T_Utf8RoundTrip", "T_JiraDates", "T_FieldToCell", _
         "T_SafeCell", "T_ProjectsJql", "T_SearchUrl", "T_SearchPagination", "T_Retry429", _
-        "T_HttpNetworkAndCancel", "T_RetryExhausted", "T_ChangelogChunks", "T_IssueRows", "T_WriteTable", "T_StatusIntervals", "T_IntervalsUnreadableDate", "T_StatusChangesUnreadableDate", "T_ChangelogRows", "T_UserFieldIds", "T_DateShape", "T_ParseJiraDateEpoch", "T_DateKind", "T_IsPlausibleDate", "T_FindDateKey", "T_ChangelogDateKey", "T_SkippedDatesWarning", "T_SheetName", "T_ProposeFromSheets", "T_ProposeIterations", "T_ReadSprints", "T_TeamNames", "T_ReadLinkTypes", "T_ProposeTypes", "T_ProposeKindOf", "T_ProposeValuesNotAdmin", "T_HealthFields", "T_StatusRules", "T_NotFeatures", "T_ReconciliationFindings", "T_CellKind", "T_FitsType", "T_ShapeOfCell", "T_TypeHints", "T_TypeProblems", "T_TypeEmptyTable", "T_TypeBlocks", "T_TypeFillLines", "T_WireTypes", _
+        "T_HttpNetworkAndCancel", "T_RetryExhausted", "T_ChangelogChunks", "T_IssueRows", "T_WriteTable", "T_StatusIntervals", "T_IntervalsUnreadableDate", "T_StatusChangesUnreadableDate", "T_ChangelogRows", "T_UserFieldIds", "T_DateShape", "T_ParseJiraDateEpoch", "T_DateKind", "T_IsPlausibleDate", "T_FindDateKey", "T_ChangelogDateKey", "T_SkippedDatesWarning", "T_SheetName", "T_ProposeFromSheets", "T_ProposeIterations", "T_ReadSprints", "T_TeamNames", "T_ReadStatusCatalog", "T_ReadWorkflowRules", "T_ReadLinkTypes", "T_ProposeTypes", "T_ProposeKindOf", "T_ProposeValuesNotAdmin", "T_HealthFields", "T_StatusRules", "T_WorkflowExceptions", "T_NotFeatures", "T_ReconciliationFindings", "T_CellKind", "T_FitsType", "T_ShapeOfCell", "T_TypeHints", "T_TypeProblems", "T_TypeEmptyTable", "T_TypeBlocks", "T_TypeFillLines", "T_WireTypes", _
         "T_StatusChanges", "T_RetryDelay", "T_SafeAccess", "T_FilesUtf8", "T_StringifyBadObject", _
         "T_TooManyPages", "T_BackgroundExport", "T_TextNotConverted", "T_ParamsTables", "T_ParamsOnWorkbook", _
         "T_TrimWhite", "T_ConfigSheet", "T_MandatoryConfig", "T_Locked", "T_PiIntervals", "T_ProxyDetect", "T_ProxyScript", "T_ProjectsSheet", "T_StatusNames", "T_ParseMoment", "T_ExtractFlowData", "T_ExtractJob", "T_ExtractCheckFields", "T_FlowBuild", "T_BaseUrlHttps", "T_Log", "T_LogInputsAndTimes", "T_StatusParts", "T_ErrorCodes", "T_LogHintAndOpen", "T_StepsSheet", "T_RovoPrompt", "T_RovoCsv", _
@@ -1243,6 +1243,9 @@ Private Sub FlowRaw(ByVal withStory As Boolean, Optional ByVal featurePis As Var
         info(issueRow(0)) = Array(issueRow(5), issueRow(12))
     Next issueRow
     WriteTable ThisWorkbook.Worksheets(SheetName("PIIntervals")), PiIntervalsHeader(), PiIntervalRows(info, New Collection)
+    ' the rules the extraction writes: the exceptions of the sheet Workflows (the delivered parameters) and nothing from Jira
+    WriteTable ThisWorkbook.Worksheets(SheetName("StatusRules")), Array("Workflow", "Status", "Category", "IsStart", "IsEnd", "IsFree", "Source"), _
+        EffectiveRules(Array("Feature", "Team"), Dict(), Dict(), Dict(), Dict(), WorkflowExceptions(ThisWorkbook.Worksheets(SheetName("Workflows"))))
 End Sub
 
 Private Sub FlowIterations(ByVal start1 As Variant, ByVal end1 As Variant, Optional ByVal second As Boolean = False)
@@ -2368,6 +2371,61 @@ Public Sub T_TeamNames()
     ws.Cells.Clear
 End Sub
 
+Public Sub T_ReadStatusCatalog()
+    ' Every status of the instance with its Jira category, paged; a refused or unreadable call ends the reading and never stops the run.
+    Dim cfg As Object, base As String, rows As Collection, wb As Object, ws As Object
+    Set cfg = TestConfig(): base = cfg("BaseUrl")
+    FakeReset
+    FakeAdd "GET", base & "/rest/api/3/statuses/search?startAt=0&maxResults=200", 200, J("{'isLast':false,'values':[{'id':'1','name':'Open','statusCategory':'TODO'}," & _
+        "{'id':'2','name':'Doing','statusCategory':{'key':'indeterminate'}},{'id':'3','name':'','statusCategory':'DONE'}]}")
+    FakeAdd "GET", base & "/rest/api/3/statuses/search?startAt=3&maxResults=200", 200, J("{'isLast':true,'values':[{'id':'4','name':'Closed','statusCategory':'DONE'}]}")
+    Set rows = ReadStatusCatalog(cfg)
+    Check "catalog", "the statuses of the pages, a status without a name left out, the category as an enum or as an object", "3", _
+          "1|Open|TODO;2|Doing|indeterminate;4|Closed|DONE", Join(Array(Join(rows(1), "|"), Join(rows(2), "|"), Join(rows(3), "|")), ";") & IIf(rows.Count = 3, "", "?")
+    FakeReset
+    FakeAdd "GET", base & "/rest/api/3/statuses/search?startAt=0&maxResults=200", 403, J("{'errorMessages':['no permission']}")
+    Check "catalog", "a refused call gives none", "403", 0, ReadStatusCatalog(cfg).Count
+    FakeReset
+    FakeAdd "GET", base & "/rest/api/3/statuses/search?startAt=0&maxResults=200", 200, "not json"
+    Check "catalog", "an answer that is not JSON gives none", "text", 0, ReadStatusCatalog(cfg).Count
+    Set wb = Workbooks.Add
+    Set rows = New Collection
+    WriteStatusCatalog wb, rows
+    Check "catalog", "nothing is written when the call gave nothing", "no sheet", False, SheetExists(wb, "JiraStatusCatalog")
+    rows.Add Array("1", "Open", "TODO")
+    WriteStatusCatalog wb, rows
+    Set ws = wb.Worksheets(SheetName("JiraStatusCatalog"))
+    Check "catalog", "the proposal sheet", "Id|Status|JiraCategory / 1|Open|TODO", "Id|Status|JiraCategory/1|Open|TODO", RowText(ws, 1, 3) & "/" & RowText(ws, 2, 3)
+    Application.DisplayAlerts = False
+    wb.Close False
+    Application.DisplayAlerts = True
+End Sub
+
+Public Sub T_ReadWorkflowRules()
+    ' The starts and the free statuses of the workflows of the projects, without any sheet: the first status in progress from the creation, the GLOBAL ones.
+    Dim cfg As Object, keys As New Collection, base As String, starts As Object, frees As Object
+    Set cfg = TestConfig(): base = cfg("BaseUrl")
+    keys.Add "PRG"
+    Set starts = Dict(): Set frees = Dict()
+    FakeReset
+    FakeAdd "GET", ProjectSearchUrl(base, keys, 1, 0), 200, J("{'startAt':0,'isLast':true,'values':[{'id':'10100','key':'PRG','style':'classic'," & _
+        "'issueTypes':[{'id':'10001','name':'Feature','subtask':false,'hierarchyLevel':1}]}]}")
+    FakeAdd "POST", base & "/rest/api/3/workflows/preview", 200, J("{'statuses':[{'statusReference':'r1','name':'Open','statusCategory':'TODO'}," & _
+        "{'statusReference':'r2','name':'Doing','statusCategory':'IN_PROGRESS'},{'statusReference':'r3','name':'Closed','statusCategory':'DONE'}," & _
+        "{'statusReference':'r4','name':'Parked','statusCategory':'TODO'}]," & _
+        "'workflows':[{'name':'WF-A','queryContext':[{'project':'P','issueTypes':['10001']}],'statuses':[{'statusReference':'r1'},{'statusReference':'r2'}," & _
+        "{'statusReference':'r3'},{'statusReference':'r4'}],'transitions':[{'type':'INITIAL','name':'Create','toStatusReference':'r1','links':[]}," & _
+        "{'type':'DIRECTED','name':'Start','id':'11','toStatusReference':'r2','links':[{'fromStatusReference':'r1'}]}," & _
+        "{'type':'DIRECTED','name':'Close','toStatusReference':'r3','links':[{'fromStatusReference':'r2'}]}," & _
+        "{'type':'GLOBAL','name':'Park','toStatusReference':'r4','links':[]}]}]}")
+    ReadWorkflowRules cfg, keys, starts, frees
+    Check "rules", "the start and the free status of the workflows of the projects", "Doing | Parked", "Doing|Parked", Join(starts.Keys, ",") & "|" & Join(frees.Keys, ",")
+    FakeReset
+    Set starts = Dict(): Set frees = Dict()
+    ReadWorkflowRules cfg, keys, starts, frees
+    Check "rules", "a call that fails gives nothing and never raises", "404", 0, starts.Count + frees.Count
+End Sub
+
 Public Sub T_ReadLinkTypes()
     ' The issue link types of the site: Name | Inward | Outward; an account that may not read them gives none, never an error.
     Dim cfg As Object, base As String, rows As Collection
@@ -2653,6 +2711,35 @@ Public Sub T_StatusRules()
     Set rules = EffectiveRules(Array("Feature"), Dict("A", "indeterminate"), none, Dict(), Dict(), ex)
     Check "rules", "a declared Wait status is told", "Wait", "Waitx", RuleCategories(rules, "Feature").Item("A") & IIf(HasWait(rules), "x", "")
     Check "rules", "no Wait status declared: told too", "no", "no", IIf(HasWait(EffectiveRules(Array("Feature"), Dict("A", "indeterminate"), none, Dict(), Dict(), New Collection)), "yes", "no")
+End Sub
+
+Public Sub T_WorkflowExceptions()
+    ' The sheet Workflows as exceptions: a row without Workflow is read, an empty cell stays empty text, a row without a status is left out; the flagged
+    ' statuses of a Jira sheet.
+    Dim ws As Object, ex As Collection, flags As Object, rows As New Collection
+    Set ws = ThisWorkbook.Worksheets("TestScratch")
+    rows.Add Array("Team", "Attente", "Wait", "", "", "")
+    rows.Add Array("", "Annule", "Removed", "", 0, "")
+    rows.Add Array("Feature", " Analyse ", "", 1, "", 1)
+    rows.Add Array("Team", "", "Done", "", "", "")
+    WriteTable ws, Array("Workflow", "Status", "Category", "IsStart", "IsEnd", "IsFree"), rows
+    Set ex = WorkflowExceptions(ws)
+    Check "rules", "the exceptions of the sheet Workflows, also the row of both workflows, none without a status", "3", _
+          "Team|Attente|Wait|||;|Annule|Removed||0|;Feature|Analyse||1||1", _
+          Join(ex(1), "|") & ";" & Join(ex(2), "|") & ";" & Join(ex(3), "|") & IIf(ex.Count = 3, "", "?")
+    ws.Cells.Clear
+    Set rows = New Collection
+    rows.Add Array("WF", "Open", "", 1, 0)
+    rows.Add Array("WF", "Doing", "", 0, 1)
+    rows.Add Array("WF", "Parked", "", "", 1)
+    WriteTable ws, Array("Workflow", "Status", "Category", "IsStart", "IsFree"), rows
+    Set flags = FlaggedStatuses(ws, "IsStart")
+    Check "rules", "the statuses whose flag is 1", "IsStart: Open", "Open", Join(flags.Keys, ",")
+    Check "rules", "another flag", "IsFree: Doing, Parked", "Doing,Parked", Join(FlaggedStatuses(ws, "IsFree").Keys, ",")
+    Check "rules", "a column the sheet lacks flags nothing", "IsEnd", 0, FlaggedStatuses(ws, "IsEnd").Count
+    Set ws = Nothing
+    ThisWorkbook.Worksheets("TestScratch").Cells.Clear
+    Check "rules", "an empty sheet gives no exception", "0", 0, WorkflowExceptions(ThisWorkbook.Worksheets("TestScratch")).Count
 End Sub
 
 Public Sub T_NotFeatures()
@@ -3382,10 +3469,10 @@ Public Sub T_JiraConfig()
     Check "jiraconfig", "no workflow when it could not be read", "TB Story", "TB|Story||No|0|classic", RowText(wsT, 5, 6)
     Check "jiraconfig", "a workflow shared by two projects is written once", "header + WF-A 4 + WF-B 2", 7, LastRow(wsW)
     Check "jiraconfig", "the second workflow of a project has its own statuses", "WF-B", _
-          "WF-B|Triage|Backlog|||0|TODO|1;WF-B|Fixed|Done|||0|DONE|", RowText(wsW, 6, 8) & ";" & RowText(wsW, 7, 8)
+          "WF-B|Triage|Backlog|||0|TODO|1;WF-B|Fixed|Done||1|0|DONE|", RowText(wsW, 6, 8) & ";" & RowText(wsW, 7, 8)
     Check "jiraconfig", "status of creation: Initial 1; to do -> Backlog", "Open", "WF-A|Open|Backlog|||0|TODO|1", RowText(wsW, 2, 8)
-    Check "jiraconfig", "in progress: Active or Wait is left to a human", "Doing", "WF-A|Doing||||0|IN_PROGRESS|", RowText(wsW, 3, 8)
-    Check "jiraconfig", "done -> Done", "Closed", "WF-A|Closed|Done|||0|DONE|", RowText(wsW, 4, 8)
+    Check "jiraconfig", "in progress: Active or Wait is left to a human; the start is the first status in progress from the creation", "Doing", "WF-A|Doing||1||0|IN_PROGRESS|", RowText(wsW, 3, 8)
+    Check "jiraconfig", "done -> Done, and the end", "Closed", "WF-A|Closed|Done||1|0|DONE|", RowText(wsW, 4, 8)
     Check "jiraconfig", "a GLOBAL transition makes its status free", "Parked", "WF-A|Parked|Backlog|||1|TODO|", RowText(wsW, 5, 8)
     Check "jiraconfig", "one move per link of a DIRECTED transition", "Start from Open and Parked", _
           "WF-A|Open|Doing|Start;WF-A|Parked|Doing|Start", RowText(wsM, 2, 4) & ";" & RowText(wsM, 3, 4)

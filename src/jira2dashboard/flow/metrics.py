@@ -53,7 +53,8 @@ def _shares(items: list[ItemFlow]):
 
 
 def team_iteration_metrics(items: list[ItemFlow], team: str, iteration: Iteration, mode: str,
-                        as_of: dt.datetime) -> TeamIterationMetrics:
+                        as_of: dt.datetime, waits: bool = True) -> TeamIterationMetrics:
+    """`waits`: a status is declared Wait (Rules.waits). Without one Flow Efficiency would be 100 % by construction: it is not computable."""
     mine = [i for i in items if i.team == team]
     done = [i for i in mine if iteration.contains(i.done)]
     counted = [i for i in done if not i.excluded_from_flow_time]
@@ -65,7 +66,7 @@ def team_iteration_metrics(items: list[ItemFlow], team: str, iteration: Iteratio
     active = sum(i.active_days for i in counted)
     wait = sum(i.wait_days for i in counted)
     unclassified = sum(i.unclassified_days for i in counted)
-    efficiency = active / (active + wait) if counted and unclassified == 0 and active + wait > 0 else NOT_COMPUTABLE
+    efficiency = active / (active + wait) if waits and counted and unclassified == 0 and active + wait > 0 else NOT_COMPUTABLE
 
     days = snapshot_days(iteration.start, iteration.end, as_of)
     loads = [sum(1 for i in mine if in_process_at(i, day + ONE_DAY, mode)) for day in days]

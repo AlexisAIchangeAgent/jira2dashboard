@@ -33,6 +33,27 @@ Fonctionnalité: Le scénario art-metrics du faux Jira donne, dans le classeur l
     Et chaque statut dure en moyenne 1 jour, 2 jours pour le statut long du PI de la Feature
 
   @excel
+  Scénario: Les statuts viennent de Jira : la feuille Workflows ne déclare que les trois statuts d'attente et les chiffres ne changent pas
+    Soit le faux Jira du scénario art-metrics
+    Et le classeur à livrer rempli pour ce scénario
+    Et la feuille Workflows ne garde que les trois statuts d'attente comme exceptions
+    Quand j'extrais et calcule
+    Alors la vélocité par itération de l'ART est celle du scénario
+    Et chaque itération qui livre a un Flow Time de 8 jours et le Flow Efficiency de son PI
+    Et chaque statut dure en moyenne 1 jour, 2 jours pour le statut long du PI de la Feature
+    Et la feuille StatusRules donne la catégorie, le début et la fin de chaque statut du scénario avec leur source
+
+  @excel
+  Scénario: Sans aucune exception tout vient de Jira : le Flow Efficiency n'est pas calculable faute de statut d'attente, le reste ne change pas
+    Soit le faux Jira du scénario art-metrics
+    Et le classeur à livrer rempli pour ce scénario
+    Et la feuille Workflows est vide
+    Quand j'extrais et calcule
+    Alors la vélocité par itération de l'ART est celle du scénario
+    Et chaque itération qui livre a un Flow Time de 8 jours et un Flow Efficiency non calculable
+    Et la feuille StatusRules ne contient que des règles venues de Jira, sans statut d'attente
+
+  @excel
   Scénario: Le classeur ne contient que les données du scénario, aucune équipe ni aucun workflow des paramètres par défaut
     Soit le faux Jira du scénario art-metrics
     Et le classeur à livrer rempli pour ce scénario

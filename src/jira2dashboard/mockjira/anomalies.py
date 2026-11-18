@@ -58,7 +58,7 @@ def known_anomalies(projects: tuple[str, ...]) -> dict[Issue, frozenset[str]]:
     story(clean.key)                                                # a clean control
     story(clean.key, "DC09", "DC28", moves=(("2026-10-02T10:00", "Terminé"),))
     story(clean.key, "DC10", "DC28", moves=CHAIN + (("2026-10-09T10:00", "En développement"),))
-    story(clean.key, "DC08", "DC28", moves=CHAIN[:1] + (("2026-10-03T10:00", "Statut inconnu"),))
+    story(clean.key, "DC08", "DC28", moves=CHAIN[:1] + (("2026-10-03T10:00", "Statut inconnu"), ("2026-10-04T10:00", "En analyse")))     # a status of the history that no Jira source knows (the current one is known)
     story(clean.key, "DC07", moves=(("2026-09-30T10:00", "En analyse"), ("2026-10-02T10:00", "Prêt")))
     story(clean.key, "DC04", moves=CHAIN, resolution_override=(None,))
     story(clean.key, "DC05", resolution_override=(dt.datetime(2026, 10, 3, 10, 0),))

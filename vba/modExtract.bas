@@ -15,6 +15,7 @@ Private mIssues As Collection, mNames As Object, mToken As String, mPage As Long
 Private mKeys As Collection, mIdToKey As Object, mRaw As Collection, mNextChunk As Long
 Private mPhase As Long                  ' 0 no job, 1 search, 2 changelogs, 3 issue rows, 4 intervals, 5 write
 Private mRows As Collection, mLinks As Collection, mChanges As Collection, mMoved As Object, mIntervals As Collection
+Private mRules As Collection                                     ' the status rules of the run (modParams.EffectiveRules), written to the sheet StatusRules
 Private mPiChanges As Collection                                  ' the changes of the PI field (Config.PIField), from the changelogs
 Private mIds As Variant, mBlocksType As String, mRowNext As Long, mWfNext As Long
 Public gRowBatch As Long                ' issues per step of phase 3 (0: ROW_BATCH); a test sets a small one
@@ -268,6 +269,7 @@ Public Sub ExtractJobStart(ByVal cfg As Object, ByVal jql As String, ByVal workT
     Set mIssues = New Collection: Set mNames = CreateObject("Scripting.Dictionary"): mToken = "": mPage = 0
     Set mKeys = Nothing: Set mIdToKey = Nothing: Set mRaw = New Collection: mNextChunk = 1: ResetDateKey
     Set mRows = Nothing: Set mLinks = Nothing: Set mChanges = Nothing: Set mMoved = Nothing: Set mIntervals = Nothing: Set mPiChanges = Nothing
+    Set mRules = Nothing
     mRowNext = 1: mWfNext = 0
     mPhase = 1
 End Sub
@@ -352,6 +354,7 @@ Public Sub ExtractJobAbort()
     mPhase = 0
     Set mIssues = Nothing: Set mKeys = Nothing: Set mRaw = Nothing: Set mIdToKey = Nothing: Set mNames = Nothing
     Set mRows = Nothing: Set mLinks = Nothing: Set mChanges = Nothing: Set mMoved = Nothing: Set mIntervals = Nothing: Set mPiChanges = Nothing
+    Set mRules = Nothing
     Set mCfg = Nothing: Set mSettings = Nothing: Set mChangelog = Nothing: Set mWsChangelog = Nothing: Set mUserFields = Nothing
     Set mWsProjects = Nothing: Set mWsWorkflows = Nothing: Set mWsIssues = Nothing: Set mWsIntervals = Nothing: Set mWsLinks = Nothing
 End Sub
@@ -404,6 +407,7 @@ Private Sub IntervalsStep()
     ' reads the rows of phase 3 (key, project, creation date, status), not the JSON again.
     Dim wf As String, program As String, info As Object, row As Variant, mine As Collection, ch As Variant, iv As Variant
     If mIntervals Is Nothing Then Set mIntervals = New Collection
+    If mRules Is Nothing Then RulesInit                              ' once, before the first step of the log below: the steps never overlap
     wf = IIf(mWfNext = 0, "Feature", "Team")
     program = ProgramProject(mWsProjects)
     LogBegin "raw sheets: intervals " & wf
@@ -415,11 +419,37 @@ Private Sub IntervalsStep()
     For Each ch In mChanges
         If info.Exists(ch(0)) Then mine.Add ch
     Next ch
-    For Each iv In BuildStatusIntervals(info, mine, mAsOf, StatusCategories(mWsWorkflows, wf))
+    For Each iv In BuildStatusIntervals(info, mine, mAsOf, RuleCategories(mRules, wf))
         mIntervals.Add Array(iv(0), wf, iv(1), iv(2), iv(3), iv(4), iv(5), iv(6), iv(7), iv(8), iv(9))
     Next iv
     LogEnd "raw sheets: intervals " & wf & ": " & mIntervals.Count
     mWfNext = mWfNext + 1
+End Sub
+
+Private Sub RulesInit()
+    ' The status rules of the run (flow/status_rules.py): what Jira says (the catalog of every status of the instance, the category Jira gives the current
+    ' status of each ticket, the start and the free statuses of the workflows that "Read the Jira configuration" wrote in JiraWorkflows) under the exceptions
+    ' of the sheet Workflows. A status that no source knows stays Unclassified.
+    Cov "MEX16"
+    Dim catalog As Object, current As Object, starts As Object, frees As Object, row As Variant, jw As Object
+    LogBegin "status rules"
+    Set catalog = CreateObject("Scripting.Dictionary")
+    For Each row In ReadStatusCatalog(mCfg)
+        catalog(CStr(row(1))) = CStr(row(2))
+    Next row
+    Set current = CreateObject("Scripting.Dictionary")
+    For Each row In mRows
+        If Len(CStr(row(6) & "")) > 0 And Len(CStr(row(8) & "")) > 0 Then current(CStr(row(6))) = CStr(row(8))
+    Next row
+    If SheetExists(ThisWorkbook, "JiraWorkflows") Then
+        Set jw = ThisWorkbook.Worksheets(SheetName("JiraWorkflows"))
+        Set starts = FlaggedStatuses(jw, "IsStart"): Set frees = FlaggedStatuses(jw, "IsFree")
+    Else
+        Set starts = CreateObject("Scripting.Dictionary"): Set frees = CreateObject("Scripting.Dictionary")
+    End If
+    If starts.Count = 0 Then Cov "MEX17": ReadWorkflowRules mCfg, ProjectKeys(mWsProjects), starts, frees        ' no sheet JiraWorkflows read yet: ask Jira now
+    Set mRules = EffectiveRules(Array("Feature", "Team"), catalog, current, starts, frees, WorkflowExceptions(mWsWorkflows))
+    LogEnd "status rules: " & mRules.Count & " rules, " & catalog.Count & " statuses in the catalog"
 End Sub
 
 Private Function PiRows() As Collection
@@ -475,6 +505,10 @@ Private Sub WriteRawSheetsCore()
                                    "DurationDays", "IsOpen", "ChangeId", "Check"), mIntervals
     Set mIntervals = Nothing
     LogEnd "raw sheets: write StatusIntervals"
+    LogBegin "raw sheets: write StatusRules " & mRules.Count
+    WriteTable SheetNamed("StatusRules"), Array("Workflow", "Status", "Category", "IsStart", "IsEnd", "IsFree", "Source"), mRules
+    Set mRules = Nothing
+    LogEnd "raw sheets: write StatusRules"
     LogBegin "raw sheets: write PIIntervals " & piStretches.Count
     WriteTable SheetNamed("PIIntervals"), PiIntervalsHeader(), piStretches
     LogEnd "raw sheets: write PIIntervals"

@@ -233,6 +233,8 @@ def _make_handler(state: _State):
                                                       urllib.parse.unquote(meta.group(2)), query), {}
             if (method, path) == ("POST", "/rest/api/3/workflows/preview"):
                 return 200, config.workflows_preview(ds, body), {}
+            if (method, path) == ("GET", "/rest/api/3/statuses/search"):
+                return 200, config.statuses_search(ds, query), {}
             if (method, path) == ("GET", "/rest/api/3/issueLinkType"):
                 return 200, config.link_types(), {}
             if (method, path) == ("GET", "/rest/agile/1.0/board"):
@@ -243,7 +245,7 @@ def _make_handler(state: _State):
             known = {"/rest/api/3/search/jql", "/rest/api/3/search/approximate-count",
                      "/rest/api/3/changelog/bulkfetch", "/rest/api/3/field", "/rest/api/3/myself",
                      "/rest/api/3/project/search", "/rest/api/3/workflows/preview", "/rest/agile/1.0/board",
-                     "/rest/api/3/issueLinkType"}
+                     "/rest/api/3/issueLinkType", "/rest/api/3/statuses/search"}
             if path in known:
                 return 405, {"errorMessages": [f"Method {method} is not allowed on {path}."], "errors": {}}, {}
             return 404, {"errorMessages": ["Not Found"], "errors": {}}, {}

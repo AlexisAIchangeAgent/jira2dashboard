@@ -182,3 +182,17 @@ def test_the_link_types_name_blocks_with_its_outward_text():
     answer = config.link_types()["issueLinkTypes"]
     assert [t["name"] for t in answer if t["outward"] == "blocks"] == ["Blocks"]
     assert all({"id", "name", "inward", "outward"} <= set(t) for t in answer)
+
+
+def test_the_status_search_lists_every_status_of_the_instance_with_its_category_and_pages():
+    first = config.statuses_search(DS, {"startAt": ["0"], "maxResults": ["4"]})
+    assert first["startAt"] == 0 and first["maxResults"] == 4 and len(first["values"]) == 4 and first["isLast"] is False
+    everything = config.statuses_search(DS, {})
+    names = {s["name"] for s in everything["values"]}
+    assert everything["isLast"] is True and everything["total"] == len(names) == len(DS.catalog.ids)
+    assert {"Nouveau", "En analyse", "Terminé", "Annulé"} <= names
+    by_name = {s["name"]: s["statusCategory"] for s in everything["values"]}
+    assert (by_name["Nouveau"], by_name["En analyse"], by_name["Terminé"]) == ("TODO", "IN_PROGRESS", "DONE")
+    second = config.statuses_search(DS, {"startAt": ["4"], "maxResults": ["4"]})
+    assert [s["id"] for s in first["values"] + second["values"]] == [s["id"] for s in everything["values"][:8]]
+    assert all(s["scope"] == {"type": "GLOBAL"} and s["id"].isdigit() for s in everything["values"])

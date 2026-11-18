@@ -78,7 +78,7 @@ def compute(issues: list[FlowIssue], s: RunSettings) -> Results:
     pi_names = [p.pi for p in predictability] or [D.NO_PI]               # the keys of PIMetrics, also those of PIStatusTime
     status_time = pi_status_time(items, feature_statuses(s.sheets) or [D.NO_STATUS], pi_names, s.checks.pis)
     return Results(items, flags, teams,
-                   [team_iteration_metrics(items, team, iteration, s.mode, s.as_of) for iteration in s.iterations for team in teams],
+                   [team_iteration_metrics(items, team, iteration, s.mode, s.as_of, s.rules.waits) for iteration in s.iterations for team in teams],
                    {team: daily_load(items, s.mode, team, first, end, s.as_of) for team in teams}, fill,
                    predictability, rows, status_time,
                    [velocity_check(issues, items, iteration, team, s.rules, s.checks.feature_types)

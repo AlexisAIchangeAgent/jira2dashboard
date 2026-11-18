@@ -717,7 +717,7 @@ def _art_reconciliation(world):
     census_rows = [tuple(row) for row in ws.Range("H2:M3").Value2]
     assert census_rows == [("Feature", 25.0, 25.0, 0.0, released, released), ("Sub-task", 3.0, 0.0, 3.0, 3.0, 3.0)]              # by hand
     parameters = {ws.Cells(r, 1).Value: ws.Cells(r, 2).Value for r in range(16, 25)}
-    assert parameters["FeatureTypes (the types of the ART)"] == "Feature" and parameters["Statuses that end it (IsEnd)"] == "Feature: released"
+    assert parameters["FeatureTypes (the types of the ART)"] == "Feature" and parameters["Statuses that end it (IsEnd)"] == "released"
     assert parameters["Program project(s)"] == "TTT"
 
 
@@ -1143,7 +1143,14 @@ def _workflows(world):
     got = {(r["Workflow"], r["Status"]): (number_or_text(r["Initial"]), r["Category"], number_or_text(r["IsFree"])) for r in rows}
     assert got == expected
     assert len(rows) == len(expected)
-    assert {(r["IsStart"], r["IsEnd"]) for r in rows} == {("", "")}               # a human decision
+    from jira2dashboard.flow.status_rules import first_in_progress
+    catalog, moves = world["dataset"].catalog, param_rows("Transitions")
+    for wf in first:                                                                 # IsEnd: every Done status; IsStart: the first status in progress from the creation
+        categories = {status: catalog.jira_category(wf, status)[0] for w, status, *_rest in param_rows("Workflows") if w == wf}
+        start = first_in_progress(first[wf], [(a, b) for w, a, b in moves if w == wf], categories)
+        got_flags = {r["Status"]: (number_or_text(r["IsStart"]), number_or_text(r["IsEnd"])) for r in rows if r["Workflow"] == wf}
+        assert got_flags == {s: (1 if s == start else "", 1 if c == "done" else "") for s, c in categories.items()}, (wf, got_flags)
+        assert start, wf
 
 
 @then("la feuille JiraTransitions redonne les passages de la feuille Transitions")
@@ -1706,6 +1713,26 @@ def _art_workbook(world, flow_workbook):
     mock_workbook.fill_workbook(wb, world["jira"].base_url, world["scenario"])             # the same code as the copy of manual-test.ps1
 
 
+def set_workflow_exceptions(world, rows):
+    """Empties the sheet Workflows (the scenario's own complete rows) and writes `rows` (workflow, status, category, IsStart, IsEnd, IsFree) as exceptions."""
+    ws = world["wb"].Worksheets(S.of("Workflows"))
+    ws.Range("A2:F500").ClearContents()
+    for n, row in enumerate(rows, start=2):
+        for c, value in enumerate(row, start=1):
+            if value not in (None, ""):
+                ws.Cells(n, c).Value = value
+
+
+@given("la feuille Workflows ne garde que les trois statuts d'attente comme exceptions")
+def _only_waits(world):
+    set_workflow_exceptions(world, [("", name, "Wait", None, None, None) for name in ("ready4PI", "ready2test", "ready2deploy")])
+
+
+@given("la feuille Workflows est vide")
+def _no_exception(world):
+    set_workflow_exceptions(world, [])
+
+
 @when("j'extrais et calcule")
 def _art_run(world):
     wb = world["wb"]
@@ -1913,6 +1940,43 @@ def _art_accounts(world):
     assert all(by_key[k]["WhyNotInFlowTime"] == "" for k in by_key)                                       # nothing is reopened or started late here
 
 
+def status_rules(world):
+    ws = world["wb"].Worksheets(S.of("StatusRules"))
+    last = ws.Cells(ws.Rows.Count, 1).End(-4162).Row
+    return [tuple("" if v is None else v for v in row) for row in ws.Range(ws.Cells(2, 1), ws.Cells(last, 7)).Value2]
+
+
+@then("la feuille StatusRules donne la catégorie, le début et la fin de chaque statut du scénario avec leur source")
+def _art_status_rules(world):
+    rules = {(r[0], r[1]): r[2:] for r in status_rules(world)}
+    wait = ("Wait", 0.0, 0.0, 0.0, "user")
+    assert [rules[("Feature", s)] for s in ("ready4PI", "ready2test", "ready2deploy")] == [wait] * 3                      # the exceptions
+    assert rules[("Feature", "todo")] == ("Backlog", 0.0, 0.0, 0.0, "Jira")                                         # new -> Backlog
+    assert rules[("Feature", "analyzing")] == ("Active", 1.0, 0.0, 0.0, "Jira")                                     # the first in progress from todo
+    assert rules[("Feature", "doing")][:4] == ("Active", 0.0, 0.0, 0.0) and rules[("Feature", "testing")][0] == "Active"
+    assert rules[("Feature", "released")] == ("Done", 0.0, 1.0, 0.0, "Jira")                                        # every Done status ends the flow
+    assert rules[("Feature", "deferred")] == ("Backlog", 0.0, 0.0, 1.0, "Jira")                                     # reached by a GLOBAL transition: free
+
+
+@then("chaque itération qui livre a un Flow Time de 8 jours et un Flow Efficiency non calculable")
+def _art_no_efficiency(world):
+    from art_oracle import FLOW_TIME_DAYS, VELOCITY
+    delivering = 0
+    for r in (r for r in art_table(world, "Metrics") if r["Team"] == "ART"):
+        if VELOCITY[r["Iteration-label"]]:
+            delivering += 1
+            assert art_close(r["FlowTimeMedian"], FLOW_TIME_DAYS) and r["FlowEfficiency"] == "not computable", (r["Iteration-label"], r["FlowEfficiency"])
+    assert delivering == sum(1 for v in VELOCITY.values() if v)
+    assert chart_note(world, "flow_efficiency") == f"24 of 24 points are not computable (gaps) - {D.EFFICIENCY_REASON}"
+
+
+@then("la feuille StatusRules ne contient que des règles venues de Jira, sans statut d'attente")
+def _art_rules_from_jira_only(world):
+    rules = status_rules(world)
+    assert rules and {r[6] for r in rules} == {"Jira"} and "Wait" not in {r[2] for r in rules}, rules[:4]
+    assert {r[1]: r[2] for r in rules if r[0] == "Feature"}["ready4PI"] == "Active"                          # in progress, Active by default
+
+
 @then("la table PIStatusTime est celle du calcul de référence et ses totaux sont les jours actifs et d'attente des mêmes Features")
 def _art_status_time_reference(world):
     from jira2dashboard.flow.pi_status_time import feature_statuses, pi_status_time, released_in
@@ -1959,8 +2023,8 @@ def _art_velocity_labels(world):
 
 @then("les graphiques Flow Time et Flow Efficiency ont 6 trous expliqués par l'absence de ticket terminé")
 def _art_gap_notes(world):
-    for name in ("flow_time", "flow_time_p85", "flow_efficiency"):
-        assert chart_note(world, name) == f"6 of 24 points are not computable (gaps) - {D.NO_ITEM_DONE}", name
+    for name, reason in (("flow_time", D.NO_ITEM_DONE), ("flow_time_p85", D.NO_ITEM_DONE), ("flow_efficiency", D.EFFICIENCY_REASON)):
+        assert chart_note(world, name) == f"6 of 24 points are not computable (gaps) - {reason}", name
 
 
 @then("la feuille IterationCharts a ses 5 graphiques avec une série pour l'ART et une par équipe")

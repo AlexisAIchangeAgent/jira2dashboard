@@ -23,6 +23,7 @@ from jira2dashboard.flow.itemflow import item_flow
 from jira2dashboard.flow.load import daily_load
 from jira2dashboard.flow.metrics import BUCKETS, feature_predictability, team_iteration_metrics
 from jira2dashboard.flow.model import NOT_COMPUTABLE, Change, Rules
+from jira2dashboard.mockjira import config as jira_config
 from jira2dashboard.mockjira.anomalies import with_anomalies
 from jira2dashboard.mockjira.flow_adapter import to_flow_issues
 from jira2dashboard.mockjira.generator import generate
@@ -168,8 +169,11 @@ def to_second(issue):
 def reference(world):
     if "reference" not in world:
         dataset = world["dataset"]
-        as_of, rules = dataset.as_of, Rules.from_params()
+        as_of = dataset.as_of
         issues = [to_second(i) for i in to_flow_issues(dataset)]
+        # the rules the Python path applies: the sheet Workflows over what Jira says (the catalog of the instance, the category of each ticket's current status)
+        catalog = {s["name"]: s["statusCategory"] for s in jira_config.statuses_search(dataset, {})["values"]}
+        rules = Rules.from_params(None, catalog, {i.status: i.status_category for i in issues if i.status and i.status_category})
         settings = dataclasses.replace(CheckSettings.from_params(), pis={p.name: (p.start, p.end) for p in M.PIS},
                                        fields={name: getattr(dataset.fields, attr) for name, attr in M.FIELD_IDS.items()})
         items = [item_flow(i, as_of, rules) for i in issues]

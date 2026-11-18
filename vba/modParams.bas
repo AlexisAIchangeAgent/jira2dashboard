@@ -697,3 +697,36 @@ Public Function HasWait(ByVal rules As Collection) As Boolean
         If CStr(r(2)) = "Wait" Then Cov "PRM65": HasWait = True: Exit Function
     Next r
 End Function
+
+Public Function WorkflowExceptions(ByVal wsWorkflows As Object) As Collection
+    ' The rows of the sheet Workflows as the exceptions of EffectiveRules: Array(workflow, status, category, isStart, isEnd, isFree). Unlike ReadTable it also
+    ' reads a row whose Workflow is empty (it touches both workflows); a row without a status is left out.
+    Cov "PRM66"
+    Dim out As New Collection, cW As Long, cS As Long, cC As Long, cB As Long, cE As Long, cF As Long, last As Long, r As Long, st As String
+    Set WorkflowExceptions = out
+    cS = HeaderColumn(wsWorkflows, "Status")
+    If cS = 0 Then Exit Function
+    cW = HeaderColumn(wsWorkflows, "Workflow"): cC = HeaderColumn(wsWorkflows, "Category")
+    cB = HeaderColumn(wsWorkflows, "IsStart"): cE = HeaderColumn(wsWorkflows, "IsEnd"): cF = HeaderColumn(wsWorkflows, "IsFree")
+    last = wsWorkflows.Cells(wsWorkflows.Rows.Count, cS).End(-4162).Row
+    For r = 2 To last
+        st = TrimWhite(CStr(wsWorkflows.Cells(r, cS).Value & ""))
+        If Len(st) > 0 Then out.Add Array(CellText(wsWorkflows, r, cW), st, CellText(wsWorkflows, r, cC), CellText(wsWorkflows, r, cB), _
+                                         CellText(wsWorkflows, r, cE), CellText(wsWorkflows, r, cF))
+    Next r
+End Function
+
+Private Function CellText(ByVal ws As Object, ByVal r As Long, ByVal c As Long) As String
+    If c = 0 Then Exit Function
+    CellText = TrimWhite(CStr(ws.Cells(r, c).Value & ""))
+End Function
+
+Public Function FlaggedStatuses(ByVal ws As Object, ByVal flagHeader As String) As Object
+    ' status -> True for the rows of a sheet (Status column) whose flag column holds 1: the starts and the free statuses of the sheet JiraWorkflows.
+    Dim out As Object, row As Variant
+    Set out = CreateObject("Scripting.Dictionary")
+    For Each row In ReadTable(ws)
+        If Val(CStr(row(flagHeader) & "")) = 1 Then Cov "PRM67": out(CStr(row("Status") & "")) = True
+    Next row
+    Set FlaggedStatuses = out
+End Function

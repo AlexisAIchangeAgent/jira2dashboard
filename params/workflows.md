@@ -1,13 +1,16 @@
 # Workflows parameters
 
-Rows of the sheet `Workflows`: one row per status and workflow. The application reads this table and writes it
-into the workbook; the VBA reads the sheet. Change a category here (or in the workbook), never in code.
+Rows of the sheet `Workflows`: **exceptions to what Jira says** (AL, 2026-11-18). The workbook reads the status categories and the workflows from
+Jira by itself (new -> Backlog, in progress -> Active, done -> Done and the end of the flow, the first status in progress from the creation = the start,
+a GLOBAL transition = free; `flow/status_rules.py`); a row here wins, cell by cell (an empty cell keeps Jira's value, an empty `Workflow` touches both).
+The rows below are the example of the delivered workbook (French statuses): at a client, keep only what Jira cannot decide (Wait, Removed, a Done status
+that is no delivery). Change a category here (or in the workbook), never in code.
 Meaning of the columns and decisions: `docs/safe-flow-metrics-and-data-checks.md`, section 1.
 A test keeps this table consistent with the statuses table of that document.
 
 The ROW order of the table is the normal flow (the chart Cycle time by status stacks the statuses in that order).
-`Category`: Active, Wait, Done, Removed, Backlog or Unclassified. `IsStart`, `IsEnd`, `IsFree` are 0 or 1. The `Feature` workflow is always needed; the `Team` workflow
-only when the sheet Projects has a Team project.
+`Category`: Active, Wait, Done, Removed, Backlog or Unclassified (or empty). `IsStart`, `IsEnd`, `IsFree` are 0, 1 or empty. Flow Efficiency needs at
+least one status declared Wait: without one it is not computable.
 
 | Workflow | Status | Category | IsStart | IsEnd | IsFree |
 |---|---|---|---|---|---|

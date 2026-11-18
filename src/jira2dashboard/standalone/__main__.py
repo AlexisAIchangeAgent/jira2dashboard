@@ -14,6 +14,7 @@ Log: every step, every failed call to Jira with its status, attempt and what Jir
 traceback, in the folder logs next to the workbook (logs\\python.log, never the API token nor the Authorization header).
 Exit code 0 when the file is written, 1 otherwise.
 """
+import dataclasses
 import datetime as dt
 import logging
 import tempfile
@@ -27,7 +28,7 @@ from jira2dashboard.cli.args import parser
 from jira2dashboard.flow import dashboard_spec as D
 from jira2dashboard.flow import raw_types
 from jira2dashboard.flow.formulas import CHANGELOG_RAW, INTERVALS_RAW, ISSUES, PIINTERVALS_RAW
-from jira2dashboard.flow.model import UNCLASSIFIED
+from jira2dashboard.flow.model import UNCLASSIFIED, Rules
 from jira2dashboard.params.model import ParamsError
 from jira2dashboard.paths import RELEASE_DIR
 from jira2dashboard.standalone import jira_api as J
@@ -206,6 +207,9 @@ def run(args, formatter: Scrubbed, collected: Collected, sleep=time.sleep, detec
     pages = client.changelogs([i["key"] for i in issues])
     extract = extracted(issues, pages, FieldIds(settings.work_type_field, settings.fields), settings.projects,
                         settings.blocks_link_type, client.user_fields(), settings.checks.feature_types)
+    current = {row[6]: row[8] for row in extract.rows if row[6] and row[8]}            # the category Jira gives the current status of a ticket
+    catalog = client.status_catalog()
+    settings = dataclasses.replace(settings, rules=Rules.from_params(settings.sheets, catalog, current))     # Jira's rules under the exceptions of the sheet
     log.info("END Jira: %d issues, %d changelog items, %d links%s", len(extract.rows), extract.changelog_items,
              len(extract.links), took(step))
     key, kind, others = extract.date_key

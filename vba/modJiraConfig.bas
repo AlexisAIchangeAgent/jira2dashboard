@@ -8,7 +8,8 @@ Option Explicit
 '   JiraProjectWorkflows  one row per project and workflow: its issue types, number of statuses and of transitions;
 '   JiraProjectFields     the fields of the create screen of each issue type of each project (createmeta);
 '   JiraFieldUsage        the fields returned for a page of issues of each project, and in how many they are filled;
-'   JiraLinkTypes         the issue link types (Name, Inward, Outward): the one that means blocks.
+'   JiraLinkTypes         the issue link types (Name, Inward, Outward): the one that means blocks;
+'   JiraStatusCatalog     every status of the instance with its Jira category (Id, Status, JiraCategory): what the flow reads by default.
 ' JiraWorkflows and JiraTransitions end with the column Project (who uses the workflow: it is written once).
 ' The parameter sheets are never written: the user reviews the proposals, decides what stays human (IsStart, Active or Wait)
 ' and copies them (the button Propose values from Jira does it for what Jira says for sure). Calls: GET project/search,
@@ -21,6 +22,7 @@ Private Const TYPES_PER_PREVIEW As Long = 25         ' API limit of workflows/pr
 Private Const MAX_PAGES As Long = 100
 Private Const FIELDS_PER_PAGE As Long = 100          ' createmeta page size
 Private Const BOARDS_PER_PAGE As Long = 50           ' API limit of board and of board/sprint
+Private Const STATUSES_PER_PAGE As Long = 200        ' API limit of statuses/search
 
 Public Function ReadJiraConfiguration(ByVal cfg As Object, ByVal keys As Collection, ByVal wb As Object, _
                                       Optional ByVal withWorkflows As Boolean = True) As String
@@ -29,7 +31,7 @@ Public Function ReadJiraConfiguration(ByVal cfg As Object, ByVal keys As Collect
     Dim projects As Collection, project As Variant, n As Long, denied As Long, workflowOf As Object, seen As Object
     Dim typeRows As New Collection, statusRows As New Collection, flowRows As New Collection, moveRows As New Collection
     Dim fieldRows As New Collection, key As String, summary As String, projectsOf As Object, noMeta As Long
-    Dim metaRows As New Collection, usageRows As New Collection, sumRows As New Collection, skipped As Long
+    Dim metaRows As New Collection, usageRows As New Collection, sumRows As New Collection, skipped As Long, catalogRows As Collection
     If keys.Count = 0 Then
         Cov "JCF02"
         Err.Raise vbObjectError + 620, "ReadJiraConfiguration", "Sheet Projects has no project: type the keys of the Jira projects first."
@@ -60,10 +62,12 @@ Public Function ReadJiraConfiguration(ByVal cfg As Object, ByVal keys As Collect
     LogBegin "fields"
     AddFieldRows JiraJson(cfg, "GET", cfg("BaseUrl") & "/rest/api/3/field", "", "fields"), fieldRows
     LogEnd "fields: " & fieldRows.Count
+    Set catalogRows = ReadStatusCatalog(cfg)
     LogBegin "proposal sheets"
     AddSummaryRows typeRows, flowRows, moveRows, sumRows
     WriteProposals wb, typeRows, statusRows, WithProjects(flowRows, projectsOf), WithProjects(moveRows, projectsOf), _
                    fieldRows, sumRows, metaRows, usageRows
+    WriteStatusCatalog wb, catalogRows
     LogEnd "proposal sheets"
     Application.StatusBar = False
     ' "Title | Name: value | ...": the Dashboard shows the title in its status cell and one row per field under it.
@@ -210,12 +214,14 @@ End Sub
 
 Private Sub AddOneWorkflow(ByVal wf As Variant, ByVal name As String, ByVal names As Object, ByVal cats As Object, _
                            ByVal flowRows As Collection, ByVal moveRows As Collection)
-    ' JiraWorkflows: Workflow | Status | Category (proposed) | IsStart | IsEnd | IsFree (1 when a GLOBAL transition leads to it:
-    ' reachable from any status) | JiraCategory | Initial (1 for the status of creation) | Project (added at the write).
+    ' JiraWorkflows: Workflow | Status | Category (proposed) | IsStart (1 on the first status in progress from the creation status: the start by
+    ' default) | IsEnd (1 on every Done status: the end by default) | IsFree (1 when a GLOBAL transition leads to it: reachable from any status) |
+    ' JiraCategory | Initial (1 for the status of creation) | Project (added at the write).
     ' JiraTransitions: one row per link of a DIRECTED transition: Workflow | From | To | JiraTransition | TransitionId | Scope |
     ' Project (added at the write). GLOBAL transitions make a status IsFree, the INITIAL one marks the status of creation.
-    Dim free As Object, initial As String, t As Variant, link As Variant, s As Variant, ref As String
+    Dim free As Object, initial As String, t As Variant, link As Variant, s As Variant, ref As String, edges As New Collection, byName As Object, start As String
     Set free = CreateObject("Scripting.Dictionary")
+    Set byName = CreateObject("Scripting.Dictionary")
     For Each t In AsList(JGet(wf, "transitions"))
         ref = CStr(JGet(t, "toStatusReference") & "")
         Select Case UCase$(CStr(JGet(t, "type") & ""))
@@ -228,12 +234,19 @@ Private Sub AddOneWorkflow(ByVal wf As Variant, ByVal name As String, ByVal name
                     Cov "JCF15"
                     moveRows.Add Array(name, NameOf(names, CStr(JGet(link, "fromStatusReference") & "")), NameOf(names, ref), _
                                        CStr(JGet(t, "name") & ""), CStr(JGet(t, "id") & ""), "DIRECTED")
+                    edges.Add Array(NameOf(names, CStr(JGet(link, "fromStatusReference") & "")), NameOf(names, ref))
                 Next link
         End Select
     Next t
     For Each s In AsList(JGet(wf, "statuses"))
         ref = CStr(JGet(s, "statusReference") & "")
-        flowRows.Add Array(name, NameOf(names, ref), ProposedCategory(ValueOf(cats, ref)), "", "", _
+        byName(NameOf(names, ref)) = ValueOf(cats, ref)
+    Next s
+    If Len(initial) > 0 Then start = FirstInProgress(NameOf(names, initial), edges, byName)      ' the start: the first status in progress from the creation
+    For Each s In AsList(JGet(wf, "statuses"))
+        ref = CStr(JGet(s, "statusReference") & "")
+        flowRows.Add Array(name, NameOf(names, ref), ProposedCategory(ValueOf(cats, ref)), IIf(Len(start) > 0 And NameOf(names, ref) = start, 1, ""), _
+                           IIf(JiraCategoryName(ValueOf(cats, ref)) = "Done", 1, ""), _
                            IIf(free.Exists(ref), 1, 0), ValueOf(cats, ref), IIf(Len(initial) > 0 And ref = initial, 1, ""))
     Next s
 End Sub
@@ -520,6 +533,73 @@ Public Function ReadSprints(ByVal cfg As Object, ByVal keys As Collection, ByRef
     Next key
     Set ReadSprints = out
 End Function
+
+Public Sub ReadWorkflowRules(ByVal cfg As Object, ByVal keys As Collection, ByVal starts As Object, ByVal frees As Object)
+    ' The light version of ReadJiraConfiguration, for an extraction that has no sheet JiraWorkflows yet: the projects and the previews of their workflows only,
+    ' and from them the statuses that start a workflow (the first in progress from the creation status) and those that are free, added to starts / frees.
+    ' It only improves what the run knows, so it never raises: a project or a workflow that cannot be read (no administrator right, an answer that is not
+    ' JSON) gives nothing.
+    Cov "JCF47"
+    Dim projects As Collection, project As Variant, workflowOf As Object, seen As Object, flowRows As New Collection, moveRows As New Collection, row As Variant
+    On Error GoTo Failed
+    Set projects = ReadProjects(cfg, keys)
+    Set seen = CreateObject("Scripting.Dictionary")
+    For Each project In projects
+        Set workflowOf = CreateObject("Scripting.Dictionary")
+        ReadWorkflows cfg, project, workflowOf, seen, flowRows, moveRows
+    Next project
+    For Each row In flowRows
+        If Val(CStr(row(3) & "")) = 1 Then starts(CStr(row(1))) = True
+        If Val(CStr(row(5) & "")) = 1 Then frees(CStr(row(1))) = True
+    Next row
+    Exit Sub
+Failed:
+    Cov "JCF48"
+    Err.Clear
+End Sub
+
+Public Function ReadStatusCatalog(ByVal cfg As Object) As Collection
+    ' Id | Status | JiraCategory: every status of the instance, not only those of the workflows read (GET statuses/search, paged), so that a status of a
+    ' workflow that is no longer used still has a category. It only improves what the workbook knows, so it never stops the run: an answer that is not 200
+    ' (no right, a server error) or not readable ends the reading with what was got.
+    Cov "JCF43"
+    Dim out As New Collection, resp As Object, page As Object, values As Collection, s As Variant, startAt As Long, pages As Long, cat As String
+    Set ReadStatusCatalog = out
+    Do
+        pages = pages + 1
+        If pages > MAX_PAGES Then Exit Do
+        Set resp = HttpRequest(cfg, "GET", cfg("BaseUrl") & "/rest/api/3/statuses/search?startAt=" & startAt & "&maxResults=" & STATUSES_PER_PAGE)
+        If resp("Status") <> 200 Then Cov "JCF44": Exit Do
+        Set page = Nothing
+        On Error Resume Next
+        Set page = JsonParse(resp("Text"))
+        On Error GoTo 0
+        If page Is Nothing Then Cov "JCF45": Exit Do
+        Set values = AsList(JGet(page, "values"))
+        For Each s In values
+            cat = ""
+            On Error Resume Next
+            cat = CStr(JGet(s, "statusCategory") & "")                    ' the enum TODO, IN_PROGRESS, DONE
+            If Len(cat) = 0 Then cat = CStr(JPath(s, "statusCategory.key") & "")
+            On Error GoTo 0
+            If Len(CStr(JGet(s, "name") & "")) > 0 Then out.Add Array(CStr(JGet(s, "id") & ""), CStr(JGet(s, "name") & ""), cat)
+        Next s
+        If IsTrue(JGet(page, "isLast")) Or values.Count = 0 Then Exit Do
+        startAt = startAt + values.Count
+    Loop
+End Function
+
+Public Sub WriteStatusCatalog(ByVal wb As Object, ByVal rows As Collection)
+    ' The proposal sheet JiraStatusCatalog (the active sheet stays shown). Nothing is written when the call gave no status: the sheet of a
+    ' previous reading stays.
+    Dim shown As Object
+    If rows.Count = 0 Then Cov "JCF46": Exit Sub
+    On Error Resume Next
+    Set shown = wb.ActiveSheet
+    On Error GoTo 0
+    WriteProposal wb, "JiraStatusCatalog", Array("Id", "Status", "JiraCategory"), rows
+    If Not shown Is Nothing Then shown.Activate
+End Sub
 
 Public Function ReadLinkTypes(ByVal cfg As Object) As Collection
     ' Name | Inward | Outward: the issue link types of the site (GET issueLinkType). It only improves a default, so it never stops the

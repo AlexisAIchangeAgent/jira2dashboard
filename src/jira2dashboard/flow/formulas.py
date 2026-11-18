@@ -17,6 +17,7 @@ from jira2dashboard.flow.model import ART, OTHER_TYPES
 from jira2dashboard.flow.refs import (HALF, IF_, IS, PIS_LAST, SI, TRANSITIONS_LAST, bounded, last_row_cell,
                                       row_index)
 
+RULES_SHEET = "StatusRules_from_excel"       # the effective rules of every status (Jira's, under the exceptions of Workflows_from_user): modExtract writes it
 FAR = "2958465"                      # 9999-12-31: "no end"
 NOT_COMPUTABLE = "not computable"
 CATEGORIES_IN_PROCESS = ("Active", "Wait", "Unclassified")
@@ -41,8 +42,8 @@ _row_index = row_index
 # --- StatusIntervals: helper columns after the raw ones ------------------------------------------------
 
 INTERVAL_HELPERS = (
-    ("IsStart", "=SUMIFS(Workflows_from_user!$D:$D,Workflows_from_user!$A:$A,[@Workflow],Workflows_from_user!$B:$B,[@Status])"),
-    ("IsEnd", "=SUMIFS(Workflows_from_user!$E:$E,Workflows_from_user!$A:$A,[@Workflow],Workflows_from_user!$B:$B,[@Status])"),
+    ("IsStart", "=SUMIFS(StatusRules_from_excel!$D:$D,StatusRules_from_excel!$A:$A,[@Workflow],StatusRules_from_excel!$B:$B,[@Status])"),
+    ("IsEnd", "=SUMIFS(StatusRules_from_excel!$E:$E,StatusRules_from_excel!$A:$A,[@Workflow],StatusRules_from_excel!$B:$B,[@Status])"),
     ("PrevCategory", f'=IF([@Seq]=1,"",INDEX({SI}[Category],{_row_index(SI)}-1))'),
     ("Team", f"=INDEX({IF_}[Team],MATCH([@Key],{IF_}[Key],0))"),
     ("Bucket", f"=INDEX({IF_}[WorkTypeBucket],MATCH([@Key],{IF_}[Key],0))"),
@@ -53,8 +54,8 @@ INTERVAL_HELPERS = (
     # DC28: the move from the previous status is not in Transitions (same workflow) and the status is not free (IsFree)
     ("BadMove", f'=IF([@Seq]=1,0,IF(OR(COUNTIFS({bounded("Transitions", "A", TRANSITIONS_LAST)},[@Workflow],'
                 f'{bounded("Transitions", "B", TRANSITIONS_LAST)},[@PrevStatus],'
-                f'{bounded("Transitions", "C", TRANSITIONS_LAST)},[@Status])>0,SUMIFS(Workflows_from_user!$F:$F,Workflows_from_user!$A:$A,[@Workflow],'
-                'Workflows_from_user!$B:$B,[@Status])>0),0,1))'),
+                f'{bounded("Transitions", "C", TRANSITIONS_LAST)},[@Status])>0,SUMIFS(StatusRules_from_excel!$F:$F,StatusRules_from_excel!$A:$A,[@Workflow],'
+                'StatusRules_from_excel!$B:$B,[@Status])>0),0,1))'),
     # PIStatusTime: the time of a Feature in each Active / Wait status, between its StartUtc (included) and its DoneUtc (excluded), the
     # window of ItemFlow.ActiveDays / WaitDays; 0 for an interval of an item that is not done, has no valid start or is excluded from flow time
     ("ItemRow", f"=MATCH([@Key],{IF_}[Key],0)"),                       # one lookup per interval, the three columns below read it
@@ -180,9 +181,10 @@ METRICS_COLUMNS = (
     ("EndDay", f'=IF(COUNTIFS({_LOAD_WINDOW},DailyLoad[Load],">=0")=0,"",'
                f'MAXIFS(DailyLoad[Date],{_LOAD_WINDOW},DailyLoad[Load],">=0"))'),
     ("FlowLoadEnd", f'=IF([@EndDay]="",{_NC},SUMIFS(DailyLoad[Load],DailyLoad[Team],[@Team],DailyLoad[Date],[@EndDay]))'),
-    ("FlowEfficiency", f"=IF([@FlowTimeCount]=0,{_NC},IF({_sum('UnclassifiedDays')}>0,{_NC},"
-                       f"IF({_sum('ActiveDays')}+{_sum('WaitDays')}=0,{_NC},"
-                       f"{_sum('ActiveDays')}/({_sum('ActiveDays')}+{_sum('WaitDays')}))))"),
+    # Flow Efficiency needs a status declared Wait: Jira cannot say which in-progress statuses wait, and without one the ratio would be 100 % by construction
+    ("FlowEfficiency", f'=IF(COUNTIF({RULES_SHEET}!$C$2:$C$5000,"Wait")=0,{_NC},IF([@FlowTimeCount]=0,{_NC},IF({_sum("UnclassifiedDays")}>0,{_NC},'
+                       f'IF({_sum("ActiveDays")}+{_sum("WaitDays")}=0,{_NC},'
+                       f'{_sum("ActiveDays")}/({_sum("ActiveDays")}+{_sum("WaitDays")})))))'),
 ) + tuple(
     (f"DistDone{b}", f'=IF([@Velocity]=0,{_NC},COUNTIFS({DONE_IN},{IF_}[WorkTypeBucket],"{b}")/[@Velocity])')
     for b in BUCKETS
@@ -407,10 +409,10 @@ UNCLASSIFIED_COLUMNS = (
 PARAMETERS_IN_FORCE = (
     ("FeatureTypes (the types of the ART)", "=" + CONFIG_VALUE.format(name="FeatureTypes")),
     ("Program project(s)", '=TEXTJOIN(", ",TRUE,FILTER(Projects_from_user!$A$2:$A$300,Projects_from_user!$B$2:$B$300="Program",""))'),
-    ("Statuses that start the flow (IsStart)", '=TEXTJOIN(", ",TRUE,FILTER(Workflows_from_user!$A$2:$A$500&": "&Workflows_from_user!$B$2:$B$500,'
-                                               'Workflows_from_user!$D$2:$D$500=1,""))'),
-    ("Statuses that end it (IsEnd)", '=TEXTJOIN(", ",TRUE,FILTER(Workflows_from_user!$A$2:$A$500&": "&Workflows_from_user!$B$2:$B$500,'
-                                     'Workflows_from_user!$E$2:$E$500=1,""))'),
+    ("Statuses that start the flow (IsStart)", f'=TEXTJOIN(", ",TRUE,UNIQUE(FILTER({RULES_SHEET}!$B$2:$B$5000,{RULES_SHEET}!$D$2:$D$5000=1,"")))'),
+    ("Statuses that end it (IsEnd)", f'=TEXTJOIN(", ",TRUE,UNIQUE(FILTER({RULES_SHEET}!$B$2:$B$5000,{RULES_SHEET}!$E$2:$E$5000=1,"")))'),
+    ("Statuses declared Wait or Removed", f'=TEXTJOIN(", ",TRUE,UNIQUE(FILTER({RULES_SHEET}!$B$2:$B$5000,'
+                                         f'({RULES_SHEET}!$C$2:$C$5000="Wait")+({RULES_SHEET}!$C$2:$C$5000="Removed"),"")))'),
     ("First iteration start", "=MIN(Metrics[IterationStart])"),
     ("Last iteration end (excluded)", "=MAX(Metrics[IterationEnd])"),
     ("AsOf (UTC)", "=AsOfUtc"),

@@ -68,6 +68,7 @@ STEPS_CELL = "T1"           # the first steps (manual.first_steps), right of the
 # AL, 2026-11-17: an iteration where nothing was done (every Feature deferred, say) has Velocity 0 (no bar) and no Flow Time or Flow
 # Efficiency (a gap: never 0, never a guess). The value is written above the bar and the note under the chart says why.
 NO_ITEM_DONE = "no item was done in these iterations, so there is nothing to measure"
+EFFICIENCY_REASON = "no item was done in these iterations, or no status is declared Wait (the sheet Workflows): Jira cannot say which in-progress statuses wait"
 PI_STATUS_REASON = "no Feature was released in the PI, or the PI is not in the sheet PIs"
 ZERO_NOTE = "no item was done (no bar)"
 
@@ -77,7 +78,7 @@ CHARTS = (
     ChartSpec("flow_time_p85", "Flow Time - 85th percentile, in days", "FlowTimeP85", XL_LINE_MARKERS, reason=NO_ITEM_DONE),
     ChartSpec("flow_load", "Flow Load - average items in process", "FlowLoadAverage", XL_LINE_MARKERS),
     ChartSpec("flow_efficiency", "Flow Efficiency - active time / (active + wait)", "FlowEfficiency",
-              XL_COLUMN_CLUSTERED, "0%", reason=NO_ITEM_DONE),
+              XL_COLUMN_CLUSTERED, "0%", reason=EFFICIENCY_REASON),
     ChartSpec("flow_distribution", "Flow Distribution - items done by work type (team of the selector)", None,
               XL_COLUMN_STACKED_100, "0%", series=BUCKET_SERIES),
     ChartSpec("flow_predictability", "Flow Predictability", "FlowPredictability", XL_LINE_MARKERS, "0%",

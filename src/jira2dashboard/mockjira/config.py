@@ -160,6 +160,23 @@ def _workflow_json(ds: Dataset, workflow: str, type_ids: list[str], pid: str, pa
             "transitions": transitions}
 
 
+STATUS_PAGE_MAX = 200
+
+
+def statuses_search(ds: Dataset, query: dict) -> dict:
+    """GET /rest/api/3/statuses/search?startAt=&maxResults=: every status of the instance (not only those of one project) with its status category
+    (TODO, IN_PROGRESS, DONE), offset paging, in the order of the ids."""
+    start = int(_first(query, "startAt", "0"))
+    size = min(int(_first(query, "maxResults", str(STATUS_PAGE_MAX))), STATUS_PAGE_MAX)
+    category_of = {}
+    for (workflow, status), _cat in ds.catalog.categories.items():
+        category_of.setdefault(status, ds.catalog.jira_category(workflow, status)[0])
+    found = sorted(ds.catalog.ids.items(), key=lambda item: int(item[1]))
+    values = [{"id": status_id, "name": name, "statusCategory": _PREVIEW_CATEGORY[category_of.get(name, "indeterminate")],
+               "scope": {"type": "GLOBAL"}, "description": ""} for name, status_id in found[start:start + size]]
+    return {"values": values, "startAt": start, "maxResults": size, "total": len(found), "isLast": start + size >= len(found)}
+
+
 def link_types() -> dict:
     """GET /rest/api/3/issueLinkType: the issue link types of the site (the three of a new Jira Cloud site; Blocks is the one the
     parameter BlocksLinkType names)."""
