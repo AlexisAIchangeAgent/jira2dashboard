@@ -91,6 +91,14 @@ def unclassified(items: list[ItemFlow]) -> list[tuple]:
     return [(status, counted[status], left_out[status]) for status in sorted(set(counted) | set(left_out))]
 
 
+def done_statuses(issues: list[FlowIssue], rules: Rules) -> list[tuple]:
+    """The statuses that end the flow and the tickets that sit in each now, one row per status in the order of the names: what the person reads to declare as
+    exceptions the Done statuses of Jira that are no delivery (cancelled, to deploy): status, tickets."""
+    ended = rules.ended_statuses()
+    count = Counter(issue.status for issue in issues if issue.status in ended)
+    return [(status, count[status]) for status in sorted(ended)]
+
+
 def census(items: list[ItemFlow], iterations: list[Iteration], pis: dict) -> list[tuple]:
     """One row per ticket type, in the order of the names: type, tickets, in the team ART, left out (the other team), done, done in an iteration."""
     out = []

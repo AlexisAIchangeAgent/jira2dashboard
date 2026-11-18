@@ -56,6 +56,7 @@ def formula_rows() -> list[tuple[str, str, str]]:
     rows += [("ReconciliationFound", name, F.RECONCILIATION_FORMULAS[name][1]) for name, _ in R.CONTROLS]
     rows += [("Census", name, text) for name, text in F.CENSUS_COLUMNS]
     rows += [("Unclassified", name, text) for name, text in F.UNCLASSIFIED_COLUMNS]
+    rows += [("DoneStatuses", name, text) for name, text in F.DONE_STATUS_COLUMNS]
     rows += [("ParametersInForce", name, text) for name, text in F.PARAMETERS_IN_FORCE]
     rows += [("MetricItemsTitle", title, "") for title in F.METRICITEMS_TITLES]
     for block, columns in zip(("MetricItemsDone", "MetricItemsLeftOut", "MetricItemsCutoff"), F.METRICITEMS_BLOCKS):

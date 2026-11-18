@@ -271,10 +271,10 @@ Private Sub BuildReconciliation(ByVal wb As Object, ByVal spec As Object)
     ' the census of the types (spilled formulas from H1) and, below the table, the parameters in force that the figures read.
     Cov "FLB57"
     Dim ws As Object, lo As Object, keys As Collection, expected As Collection, found As Collection, cols As Collection, census As Collection
-    Dim params As Collection, unknown As Collection, i As Long, top As Long
+    Dim params As Collection, unknown As Collection, ended As Collection, i As Long, top As Long
     Set ws = wb.Worksheets(SheetName("Reconciliation"))
     Set keys = spec("ReconciliationControl"): Set expected = spec("ReconciliationExpected"): Set found = spec("ReconciliationFound")
-    Set cols = spec("Reconciliation"): Set census = spec("Census"): Set params = spec("ParametersInForce"): Set unknown = spec("Unclassified")
+    Set cols = spec("Reconciliation"): Set census = spec("Census"): Set params = spec("ParametersInForce"): Set unknown = spec("Unclassified"): Set ended = spec("DoneStatuses")
     ' the cells are written BEFORE the table exists: a formula typed in one cell of a table column fills the whole column
     For i = 1 To keys.Count
         ws.Cells(i + 1, 1).Value = keys(i)(0)
@@ -293,6 +293,11 @@ Private Sub BuildReconciliation(ByVal wb As Object, ByVal spec As Object)
         ws.Cells(1, 14 + i).Value = unknown(i)(0)
         ws.Cells(1, 14 + i).Font.Bold = True
         WriteOneFormula ws.Cells(2, 14 + i), CStr(unknown(i)(1)), "Unclassified." & unknown(i)(0)
+    Next i
+    For i = 1 To ended.Count                                                    ' the statuses that end the flow and the tickets in them, from column S (19)
+        ws.Cells(1, 18 + i).Value = ended(i)(0)
+        ws.Cells(1, 18 + i).Font.Bold = True
+        WriteOneFormula ws.Cells(2, 18 + i), CStr(ended(i)(1)), "DoneStatuses." & ended(i)(0)
     Next i
     top = keys.Count + 4
     ws.Cells(top - 1, 1).Value = "Parameters in force (what the figures read: compare them with Jira)"

@@ -695,6 +695,10 @@ def _reconciliation_generated(world):
     if ref_unknown:                                                                           # the statuses that no rule classifies, by name
         block = ws.Range(ws.Cells(2, 15), ws.Cells(1 + len(ref_unknown), 17)).Value2
         assert sorted(tuple(row) for row in block) == sorted((s, float(c), float(o)) for s, c, o in ref_unknown), (block, ref_unknown)
+    from jira2dashboard.flow.reconciliation import done_statuses
+    ref_done = done_statuses(issues, world["rules"])                                              # the statuses that end the flow, with the tickets in them
+    block = ws.Range(ws.Cells(2, 19), ws.Cells(1 + len(ref_done), 20)).Value2
+    assert [tuple(row) for row in block] == [(s, float(n)) for s, n in ref_done] and ref_done, (block, ref_done)
     ref_census = census(items, iterations, pis)
     spilled = ws.Range(ws.Cells(2, 8), ws.Cells(1 + len(ref_census), 13)).Value2
     assert [tuple(row) for row in spilled] == [tuple(float(v) if isinstance(v, int) else v for v in row) for row in ref_census], (spilled, ref_census)
@@ -716,7 +720,8 @@ def _art_reconciliation(world):
     ws = world["wb"].Worksheets(S.of("Reconciliation"))
     census_rows = [tuple(row) for row in ws.Range("H2:M3").Value2]
     assert census_rows == [("Feature", 25.0, 25.0, 0.0, released, released), ("Sub-task", 3.0, 0.0, 3.0, 3.0, 3.0)]              # by hand
-    parameters = {ws.Cells(r, 1).Value: ws.Cells(r, 2).Value for r in range(16, 25)}
+    assert [tuple(row) for row in ws.Range("S2:T2").Value2] == [("released", float(released + 3))]        # the one status that ends the flow, with ALL the tickets read in it (+ the 3 sub-tasks)
+    parameters = {ws.Cells(r, 1).Value: ws.Cells(r, 2).Value for r in range(16, 26)}
     assert parameters["FeatureTypes (the types of the ART)"] == "Feature" and parameters["Statuses that end it (IsEnd)"] == "released"
     assert parameters["Program project(s)"] == "TTT"
 

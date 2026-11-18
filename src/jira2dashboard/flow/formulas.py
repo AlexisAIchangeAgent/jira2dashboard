@@ -405,6 +405,13 @@ UNCLASSIFIED_COLUMNS = (
     ("IntervalsOfCounted", f'=IFERROR(COUNTIFS({SI}[Status],{_UNK},{SI}[Category],"Unclassified",{SI}[Team],"<>{OTHER_TYPES}"),"")'),
     ("IntervalsOfLeftOut", f'=IFERROR(COUNTIFS({SI}[Status],{_UNK},{SI}[Category],"Unclassified",{SI}[Team],"{OTHER_TYPES}"),"")'),
 )
+# the statuses that end the flow (IsEnd = 1 in the rules) and the tickets that sit in each now (spilled from column S): the person declares as exceptions the Done
+# statuses of Jira that are no delivery
+_ENDED = "$S$2#"
+DONE_STATUS_COLUMNS = (
+    ("EndStatus", f'=IFERROR(SORT(UNIQUE(FILTER({RULES_SHEET}!$B$2:$B$5000,{RULES_SHEET}!$E$2:$E$5000=1,""))),"")'),
+    ("TicketsNow", f'=IFERROR(COUNTIFS(Issues[Status],{_ENDED}),"")'),
+)
 # the parameters in force: what the figures read, written next to them so that the person can compare it with Jira
 PARAMETERS_IN_FORCE = (
     ("FeatureTypes (the types of the ART)", "=" + CONFIG_VALUE.format(name="FeatureTypes")),
