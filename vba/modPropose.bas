@@ -3,10 +3,6 @@ Option Explicit
 ' _from_Jira), it copies what fits into the parameter sheets (_from_user), and only into EMPTY cells: what the person typed
 ' is never changed. Every cell it writes is yellow and the first one of a row has the note "To confirm": the person sees what
 ' to check. It proposes:
-'   Workflows    the statuses the sheet lacks (Workflow = Feature when only the Program project uses the Jira workflow, else
-'                Team), the category Jira gives for sure (to do -> Backlog, done -> Done), IsFree, and IsEnd on the only Done status
-'                of a workflow that has no IsEnd yet; never IsStart, Active or Wait, Removed: those are human choices;
-'   Transitions  the moves the sheet lacks (Workflow, From, To);
 '   Iterations   the iterations that the sprints of the scrum boards make (the sprints of the teams that start on the same
 '                day, +- 1 day, are one iteration; End = the day after the latest last day: the end is excluded), the ones
 '                the sheet lacks;
@@ -16,6 +12,9 @@ Option Explicit
 '                Program project with the highest hierarchy level; ParentRequiredTypes and PointsRequiredTypes: the types of the
 '                sheet that no Team project has are taken out) and BlocksLinkType (the link type whose outward text is "blocks"),
 '                where the Value is empty or still the delivered default (the column Example): see SetListValue.
+' It no longer copies statuses or moves into the sheets Workflows and Transitions (AL, 2026-11-18): the metrics read the statuses, their categories, the start
+' and the end of each flow, the workflow of each issue type and its moves from the _from_Jira sheets (flow/status_rules.py); Workflows only holds the exceptions
+' the person types (Wait, Removed, a Done status that is no delivery), Transitions the moves the person adds to Jira's.
 ' This module makes no call to Jira: it reads and writes the sheets of the workbook.
 
 Public Const TO_CONFIRM_NOTE As String = "To confirm: proposed from Jira"
@@ -37,20 +36,16 @@ End Function
 Public Function ProposeFromSheets(ByVal wb As Object) As String
     ' The proposals of the sheets already in wb; " | Name: value" fields for the status cell.
     Cov "PRP02"
-    Dim roleOf As Object, nW As Long, nT As Long, nC As Long, nI As Long
+    Dim roleOf As Object, nC As Long, nI As Long
     Set roleOf = RolesOfProjects(wb)
-    nW = ProposeWorkflows(wb, roleOf)
-    nT = ProposeTransitions(wb, roleOf)
     nC = ProposeFieldIds(wb) + ProposeTypes(wb, roleOf) + ProposeLinkType(wb)
     nI = ProposeIterations(wb)
-    If nW + nT + nC + nI = 0 Then
+    If nC + nI = 0 Then
         Cov "PRP03"
         ProposeFromSheets = " | Proposed: nothing new, the parameter sheets already hold what Jira gives"
         Exit Function
     End If
     ProposeFromSheets = " | To confirm, in yellow: the cells below" & _
-                        " | " & SheetName("Workflows") & ": " & nW & " proposed" & _
-                        " | " & SheetName("Transitions") & ": " & nT & " proposed" & _
                         " | " & SheetName("Config") & ": " & nC & " proposed" & _
                         " | " & SheetName("Iterations") & ": " & nI & " proposed"
 End Function
@@ -65,26 +60,6 @@ Private Function RolesOfProjects(ByVal wb As Object) As Object
         Next row
     End If
     Set RolesOfProjects = out
-End Function
-
-Public Function KindOf(ByVal projectsText As String, ByVal roleOf As Object) As String
-    ' The Workflow of the sheets Workflows and Transitions for a Jira workflow used by these projects ("PRG, TA"): Feature when
-    ' every one of them is the Program, else Team.
-    Dim p As Variant, key As String, some As Boolean
-    KindOf = "Team"
-    For Each p In Split(projectsText, ",")
-        key = UCase$(TrimWhite(CStr(p)))
-        If Len(key) > 0 Then
-            If Not roleOf.Exists(key) Then Exit Function
-            If StrComp(CStr(roleOf(key)), "Program", vbTextCompare) <> 0 Then Exit Function
-            some = True
-        End If
-    Next p
-    If some Then Cov "PRP04": KindOf = "Feature"
-End Function
-
-Private Function PairKey(ByVal a As String, ByVal b As String, Optional ByVal c As String = "") As String
-    PairKey = LCase$(TrimWhite(a)) & "|" & LCase$(TrimWhite(b)) & "|" & LCase$(TrimWhite(c))
 End Function
 
 Private Function LastUsedRow(ByVal ws As Object, ByVal col As Long) As Long
@@ -111,135 +86,6 @@ Private Function FillEmpty(ByVal ws As Object, ByVal r As Long, ByVal col As Lon
     ws.Cells(r, col).Value = SafeCell(value)
     MarkToConfirm ws.Cells(r, col), False
     FillEmpty = 1
-End Function
-
-Private Function StatusSources(ByVal wb As Object, ByVal roleOf As Object) As Collection
-    ' Array(kind, status, category, isFree): the statuses of JiraWorkflows (with the Jira workflow's projects), then those of
-    ' JiraStatuses that no workflow gave (a project whose workflows could not be read, or IsUserProjectAdmin = False).
-    Dim out As New Collection, seen As Object, row As Variant, kind As String, status As String
-    Set seen = CreateObject("Scripting.Dictionary")
-    If SheetExists(wb, "JiraWorkflows") Then
-        For Each row In ReadTable(wb.Worksheets(SheetName("JiraWorkflows")))
-            kind = KindOf(CStr(row("Project") & ""), roleOf)
-            status = TrimWhite(CStr(row("Status") & ""))
-            If Len(status) > 0 And Not seen.Exists(PairKey(kind, status)) Then
-                seen(PairKey(kind, status)) = True
-                out.Add Array(kind, status, CStr(row("Category") & ""), row("IsFree"))
-            End If
-        Next row
-    End If
-    If SheetExists(wb, "JiraStatuses") Then
-        For Each row In ReadTable(wb.Worksheets(SheetName("JiraStatuses")))
-            kind = KindOf(CStr(row("Project") & ""), roleOf)
-            status = TrimWhite(CStr(row("Status") & ""))
-            If Len(status) > 0 And Not seen.Exists(PairKey(kind, status)) Then
-                seen(PairKey(kind, status)) = True
-                out.Add Array(kind, status, ProposedCategory(CStr(row("JiraCategory") & "")), "")
-            End If
-        Next row
-    End If
-    Set StatusSources = out
-End Function
-
-Private Function ProposeWorkflows(ByVal wb As Object, ByVal roleOf As Object) As Long
-    ' The sheet Workflows: an empty Category or IsFree of a status it has gets Jira's; a status it lacks is added at the end. IsEnd:
-    ' the only Done status of a workflow that has no IsEnd = 1 yet gets 1 (two Done statuses: the person chooses).
-    Cov "PRP05"
-    Dim ws As Object, cWf As Long, cSt As Long, cCat As Long, cFree As Long, cEnd As Long, last As Long, r As Long, existing As Object
-    Dim src As Variant, key As String, sources As Collection, endOf As Object, hasEnd As Object
-    If Not SheetExists(wb, "Workflows") Then Exit Function
-    Set ws = wb.Worksheets(SheetName("Workflows"))
-    cWf = HeaderColumn(ws, "Workflow"): cSt = HeaderColumn(ws, "Status"): cCat = HeaderColumn(ws, "Category"): cFree = HeaderColumn(ws, "IsFree")
-    cEnd = HeaderColumn(ws, "IsEnd")
-    If cWf = 0 Or cSt = 0 Then Exit Function
-    Set existing = CreateObject("Scripting.Dictionary")
-    Set hasEnd = CreateObject("Scripting.Dictionary")
-    last = LastUsedRow(ws, cSt)
-    For r = 2 To last
-        existing(PairKey(CStr(ws.Cells(r, cWf).Value & ""), CStr(ws.Cells(r, cSt).Value & ""))) = r
-        If cEnd > 0 Then
-            If Val(CStr(ws.Cells(r, cEnd).Value & "")) = 1 Then hasEnd(LCase$(TrimWhite(CStr(ws.Cells(r, cWf).Value & "")))) = True
-        End If
-    Next r
-    Set sources = StatusSources(wb, roleOf)
-    Set endOf = OnlyDoneStatus(sources)
-    For Each src In sources
-        key = PairKey(CStr(src(0)), CStr(src(1)))
-        If existing.Exists(key) Then
-            Cov "PRP06"
-            r = existing(key)
-            ProposeWorkflows = ProposeWorkflows + FillEmpty(ws, r, cCat, src(2)) + FillEmpty(ws, r, cFree, src(3)) + _
-                               FillEnd(ws, r, cEnd, src, endOf, hasEnd)
-        Else
-            Cov "PRP07"
-            last = last + 1
-            existing(key) = last
-            FillEmpty ws, last, cWf, src(0)
-            FillEmpty ws, last, cSt, src(1)
-            FillEmpty ws, last, cCat, src(2)
-            FillEmpty ws, last, cFree, src(3)
-            FillEnd ws, last, cEnd, src, endOf, hasEnd
-            MarkToConfirm ws.Cells(last, cSt), True
-            ProposeWorkflows = ProposeWorkflows + 1
-        End If
-    Next src
-End Function
-
-Private Function OnlyDoneStatus(ByVal sources As Collection) As Object
-    ' kind (lower case) -> the status whose category is Done, when the workflow has exactly one; "" when it has several.
-    Dim out As Object, src As Variant, kind As String
-    Set out = CreateObject("Scripting.Dictionary")
-    For Each src In sources
-        If StrComp(TrimWhite(CStr(src(2))), "Done", vbTextCompare) = 0 Then
-            kind = LCase$(CStr(src(0)))
-            If out.Exists(kind) Then Cov "PRP27": out(kind) = "" Else out(kind) = CStr(src(1))
-        End If
-    Next src
-    Set OnlyDoneStatus = out
-End Function
-
-Private Function FillEnd(ByVal ws As Object, ByVal r As Long, ByVal cEnd As Long, ByVal src As Variant, ByVal endOf As Object, _
-                         ByVal hasEnd As Object) As Long
-    ' IsEnd = 1 on the only Done status of a workflow that has no IsEnd yet (1 when written).
-    Dim kind As String
-    If cEnd = 0 Then Exit Function
-    kind = LCase$(CStr(src(0)))
-    If Not endOf.Exists(kind) Then Exit Function
-    If hasEnd.Exists(kind) Then Exit Function
-    If StrComp(CStr(endOf(kind)), CStr(src(1)), vbTextCompare) <> 0 Then Exit Function
-    Cov "PRP28"
-    FillEnd = FillEmpty(ws, r, cEnd, 1)
-    If FillEnd = 1 Then hasEnd(kind) = True
-End Function
-
-Private Function ProposeTransitions(ByVal wb As Object, ByVal roleOf As Object) As Long
-    ' The sheet Transitions: the moves it lacks (Workflow, From, To) are added at the end.
-    Cov "PRP08"
-    Dim ws As Object, cWf As Long, cFrom As Long, cTo As Long, last As Long, r As Long, existing As Object, row As Variant
-    Dim kind As String, key As String
-    If Not SheetExists(wb, "Transitions") Or Not SheetExists(wb, "JiraTransitions") Then Exit Function
-    Set ws = wb.Worksheets(SheetName("Transitions"))
-    cWf = HeaderColumn(ws, "Workflow"): cFrom = HeaderColumn(ws, "From"): cTo = HeaderColumn(ws, "To")
-    If cWf = 0 Or cFrom = 0 Or cTo = 0 Then Exit Function
-    Set existing = CreateObject("Scripting.Dictionary")
-    last = LastUsedRow(ws, cFrom)
-    For r = 2 To last
-        existing(PairKey(CStr(ws.Cells(r, cWf).Value & ""), CStr(ws.Cells(r, cFrom).Value & ""), CStr(ws.Cells(r, cTo).Value & ""))) = True
-    Next r
-    For Each row In ReadTable(wb.Worksheets(SheetName("JiraTransitions")))
-        kind = KindOf(CStr(row("Project") & ""), roleOf)
-        key = PairKey(kind, CStr(row("From") & ""), CStr(row("To") & ""))
-        If Len(TrimWhite(CStr(row("From") & ""))) > 0 And Len(TrimWhite(CStr(row("To") & ""))) > 0 And Not existing.Exists(key) Then
-            Cov "PRP09"
-            existing(key) = True
-            last = last + 1
-            FillEmpty ws, last, cWf, kind
-            FillEmpty ws, last, cFrom, TrimWhite(CStr(row("From") & ""))
-            FillEmpty ws, last, cTo, TrimWhite(CStr(row("To") & ""))
-            MarkToConfirm ws.Cells(last, cFrom), True
-            ProposeTransitions = ProposeTransitions + 1
-        End If
-    Next row
 End Function
 
 Private Function ProposeFieldIds(ByVal wb As Object) As Long

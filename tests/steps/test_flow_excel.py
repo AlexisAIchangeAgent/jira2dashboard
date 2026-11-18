@@ -1610,21 +1610,17 @@ def _propose_values(world):
 def _values_proposed(world):
     status = world["status"]
     assert status.startswith(f"Values proposed from Jira | Projects: {len(project_keys())} | Workflows: 2 | "), status
-    for name in ("Workflows", "Transitions", "Config"):
-        found = re.search(rf"{S.of(name)}: (\d+) proposed", status)
-        assert found and int(found.group(1)) >= 1, (name, status)
+    found = re.search(rf"{S.of('Config')}: (\d+) proposed", status)
+    assert found and int(found.group(1)) >= 1, status
+    assert S.of("Workflows") + ":" not in status and S.of("Transitions") + ":" not in status, status       # no longer copied (AL, 2026-11-18)
 
 
-@then("le statut et le passage perdus sont revenus en jaune avec la note « To confirm »")
-def _lost_rows_back(world):
+@then("le statut et le passage perdus ne sont pas recopiés : Jira les donne aux métriques")
+def _lost_rows_stay_lost(world):
     wb = world["wb"]
     ws = wb.Worksheets(S.of("Workflows"))
-    row = next(r for r in range(2, last_row(ws) + 1) if (ws.Cells(r, 1).Value, ws.Cells(r, 2).Value) == world["lost"]["Workflows"])
-    assert ws.Cells(row, 2).Interior.Color == YELLOW and ws.Cells(row, 2).Comment.Text() == TO_CONFIRM
-    assert all(ws.Cells(row, c).Value is None for c in (4, 5)), "IsStart stays a human choice, and a status that is not Done is no IsEnd"
-    ws = wb.Worksheets(S.of("Transitions"))
-    row = find_row(ws, *world["lost"]["Transitions"])
-    assert row and ws.Cells(row, 2).Interior.Color == YELLOW and ws.Cells(row, 2).Comment.Text() == TO_CONFIRM
+    assert not [r for r in range(2, last_row(ws) + 1) if (ws.Cells(r, 1).Value, ws.Cells(r, 2).Value) == world["lost"]["Workflows"]]
+    assert find_row(wb.Worksheets(S.of("Transitions")), *world["lost"]["Transitions"]) == 0
 
 
 @then("l'identifiant du champ Story Points est revenu en jaune")
@@ -1664,15 +1660,6 @@ def _not_read_not_admin(world):
 @then("le faux Jira n'a reçu aucun appel à l'aperçu des workflows")
 def _no_preview(world):
     assert not [r for r in world["jira"].requests if r.path.endswith("/workflows/preview")]
-
-
-@then("le statut perdu est revenu en jaune mais pas le passage")
-def _status_back_not_the_move(world):
-    wb = world["wb"]
-    ws = wb.Worksheets(S.of("Workflows"))
-    row = next(r for r in range(2, last_row(ws) + 1) if (ws.Cells(r, 1).Value, ws.Cells(r, 2).Value) == world["lost"]["Workflows"])
-    assert ws.Cells(row, 2).Interior.Color == YELLOW
-    assert find_row(wb.Worksheets(S.of("Transitions")), *world["lost"]["Transitions"]) == 0
 
 
 # --- what the status says after an extraction (modHealth) -----------------------------------------------------------------

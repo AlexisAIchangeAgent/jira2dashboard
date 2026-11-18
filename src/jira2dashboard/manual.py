@@ -89,8 +89,8 @@ def manual(mandatory: tuple[str, ...]) -> list[tuple[str, str]]:
             f"The field ids go into the ...Field rows of {CONFIG}.",
         ]),
         (f'Button "{PROPOSE_CAPTION}"', [
-            f'It does what "{CONFIG_CAPTION}" does, then copies what fits of the proposal sheets into the sheets {WORKFLOWS}, '
-            f"{TRANSITIONS} and {CONFIG}: the statuses and moves the sheets lack (IsEnd on the only Done status of a workflow), the ids "
+            f'It does what "{CONFIG_CAPTION}" does, then copies what fits of the proposal sheets into the sheets {CONFIG} and {ITERATIONS} '
+            f"(never into {WORKFLOWS} and {TRANSITIONS}: the statuses, workflows and moves are read from Jira by the workbook): the ids "
             "of the fields that Jira names once (Sprint, Team, Story Points, Target start and end, PI, Business Value, work type "
             "category), the issue types of SubTaskTypes (the sub-tasks of Jira) and FeatureTypes (the types of the Program project at its "
             "highest hierarchy level), the types of ParentRequiredTypes and PointsRequiredTypes that no team project has taken out, and "

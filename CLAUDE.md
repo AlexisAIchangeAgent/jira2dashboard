@@ -212,8 +212,7 @@ python.log). `tests/unit/test_claude_hooks.py` and `test_claude_skills.py` test 
   **The stack of the chart Cycle time by status** (`PIStatusTime`) no longer reads Workflows rows: the Active/Wait statuses the Features (Program project, FeatureTypes) visited, ordered by
   depth in the Jira workflow of the Feature types (`status_rules.flow_depths`, `JiraWorkflows.feature_depths`), then earliest `Seq`, then name (`pi_status_time.feature_statuses`,
   VBA `modFlowBuild.StatusNames(wb)` reading the RAW sheets). **The scenario art-metrics keeps Jira's full definition in `Dataset.jira_sheets` and only the 3 Wait exceptions in its
-  `sheets`** (`flow_adapter.jira_rules/jira_workflows` give the references): a test that builds `Rules` from `ds.sheets` alone sees no start. Not done yet: `modPropose` still copies statuses and
-  moves into `Workflows` / `Transitions`; the delivered `params/workflows.md` / `transitions.md` still hold the complete example; the Python path does not write the Jira sheets.
+  `sheets`** (`flow_adapter.jira_rules/jira_workflows` give the references): a test that builds `Rules` from `ds.sheets` alone sees no start. Not done yet: the delivered `params/workflows.md` / `transitions.md` still hold the complete example; the Python path does not write the Jira sheets.
 - **MetricItems and Reconciliation (AL, 2026-11-18, "c'est de la comptabilite").** Every figure can be traced back to its tickets. `ItemFlow` gets the trace columns
   `DoneIteration` (+ `DoneIterationStart/End`, found in the key columns of `Metrics`: no circular reference), `DonePI` (from `PIMetrics`), `Account` (the partition of the
   population: done in an iteration / done outside the iterations / left out: not a Feature / removed / open), `WhyNotInFlowTime` (Reopened, No valid start),
@@ -305,9 +304,8 @@ python.log). `tests/unit/test_claude_hooks.py` and `test_claude_skills.py` test 
   the fake Jira of `start-mock` runs `run.ps1 mock-jira` in its own process) and sends the output of Python through PowerShell (`2>&1 | Show-Line`,
   UTF-8 console meanwhile), or the transcript would hold no result of pytest.
 - **Propose values from Jira (button, VBA, AL 2026-11-13).** `modPropose` (`BtnProposeValues`, cell `A9`) runs `ReadJiraConfiguration` and then copies what fits
-  of the proposal sheets (`_from_Jira`) into the parameter sheets (`_from_user`), **only into empty cells**: a status or move that `Workflows` / `Transitions` lack
-  (Workflow = Feature when only the Program project uses the Jira workflow, else Team; Category only what Jira gives for sure; IsEnd = 1 on the ONLY Done status of a
-  workflow that has none; never IsStart or Active/Wait), the `...Field` ids of `Config` that Jira names once (by the custom type, else by the name; two candidates = nothing;
+  of the proposal sheets (`_from_Jira`) into the parameter sheets (`_from_user`), **only into empty cells**: **since 2026-11-18 (AL) it no longer copies statuses or moves into
+  `Workflows` / `Transitions`** (the metrics read them from Jira, `flow/status_rules.py`; those sheets hold exceptions), the `...Field` ids of `Config` that Jira names once (by the custom type, else by the name; two candidates = nothing;
   also `WorkTypeField` by the names "Work type category" / "TypeCategorie"). **Since 2026-11-18 (AL) the sheets `Workflows` and `Transitions` have no `Order` / `Type`
   column and the sheet `FieldMapping` is gone (nothing read them); a Team project with an empty `Team` is its own team (the project key: `ItemFlow.Team`,
   `modFlowBuild.TeamNames`, `flow_adapter`, `mapping.flow_issue`).** The Config lists of issue types and `BlocksLinkType` follow another rule (`SetListValue`): the Value is
@@ -316,7 +314,7 @@ python.log). `tests/unit/test_claude_hooks.py` and `test_claude_skills.py` test 
   only the names that no Team project has are taken out), `BlocksLinkType` (the ONE link type of `JiraLinkTypes` whose outward text is "blocks", read by `modJiraConfig.ReadLinkTypes`,
   GET `issueLinkType`, a refused call gives none). A change of those defaults in `params/config.md` must keep Value = Example.
   Every cell written is yellow (`RGB(255, 242, 204)`), the first of a row has the note "To confirm: proposed from Jira". `Config.IsUserProjectAdmin` (True by
-  default, False = no call to `workflows/preview`, which needs the project administrator right: the statuses of `JiraStatuses` are proposed instead, no moves).
+  default, False = no call to `workflows/preview`, which needs the project administrator right: `JiraStatuses` is still read, no moves).
   It also reads the sprints of the scrum boards (`modJiraConfig.ReadSprints`, agile/1.0, sheet `JiraSprints`; a 400/401/403/404 skips the board) and proposes the
   iterations they make (`ProposeIterations`: sprints that start and end within a day = one iteration, End = last day + 1, cut at the start of the next iteration so
   that no day is in two iterations, label = the shared name else `Iteration <Start>`, only the ones `Iterations` lacks). A new proposal rule goes in `modPropose`
