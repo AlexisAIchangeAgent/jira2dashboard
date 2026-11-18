@@ -38,8 +38,8 @@ CONFIG_TITLE = (f"SHEET {S.of('Config')} - one line per parameter: name, mandato
                 "of the value:")
 SHEET_RULES = {
     "Projects": "One row per Jira project to extract. Project = the Jira project key. Role = Program for the project that "
-                "holds the Features (exactly one), Team for the others. Team = the team name shown in the metrics (for the "
-                "Program project, the name of the train).",
+                "holds the Features (exactly one), Team for the others. Team = the team name shown in the metrics (optional: "
+                "empty = the project key; for the Program project, the name of the train).",
     "Iterations": "One row per iteration of the Agile Release Train, from the oldest to the latest you can see (the sprints "
                   "of the boards are a good source). Iteration-label = a short unique name such as PI#01-2026 It1. "
                   "Start = first day (yyyy-mm-dd, included). End = the day the next iteration starts (yyyy-mm-dd, excluded).",
@@ -48,13 +48,12 @@ SHEET_RULES = {
     "Workflows": "One row per status of each workflow. Workflow = Team for the statuses used by the issue types of the Team "
                  "projects (stories, tasks, sub-tasks), Feature for the statuses used by the features of the Program project: "
                  "only these two values (say in Note which Jira workflow and issue types the status comes from). Status = the "
-                 "status name exactly as in Jira. Order = position in the normal flow (1 = first status, - when none). "
+                 "status name exactly as in Jira, in the order of the normal flow (the rows are read in order). "
                  "Category = Backlog, Active (work in progress), Wait (waiting), Done, Removed (cancelled) or Unclassified. "
                  "IsStart = 1 for the status where the work starts and IsEnd = 1 for the final status: exactly one of each "
                  "per Workflow. IsFree = 1 for a status reachable from any status; 0 otherwise.",
     "Transitions": "One row per allowed move between two statuses. Workflow = Team or Feature, as in the sheet " + S.of("Workflows") + ". "
-                   "From and To = status names listed for that same Workflow in the sheet " + S.of("Workflows") + ". Type = forward, back, "
-                   "back to backlog or exit.",
+                   "From and To = status names listed for that same Workflow in the sheet " + S.of("Workflows") + ".",
 }
 FORMAT = (
     "",

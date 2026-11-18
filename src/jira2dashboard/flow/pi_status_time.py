@@ -30,10 +30,10 @@ class PIStatusTime:
 
 
 def feature_statuses(sheets: list[ParamSheet] | tuple[ParamSheet, ...]) -> list[str]:
-    """The statuses of the stack: the Feature workflow's Active and Wait statuses, in the ROW order of the sheet Workflows (the column
-    Order is empty for a free status, and VBA and Python would not break that tie alike)."""
+    """The statuses of the stack: the Feature workflow's Active and Wait statuses, in the ROW order of the sheet Workflows
+    (the sheet has no Order column: its rows are the normal flow)."""
     workflows = next(s for s in sheets if s.name == "Workflows")
-    return [row[2] for row in workflows.rows if row[0] == FEATURE_WORKFLOW and row[3] in IN_CYCLE]
+    return [row[1] for row in workflows.rows if row[0] == FEATURE_WORKFLOW and row[2] in IN_CYCLE]
 
 
 def released_in(items: list[ItemFlow], window: tuple[dt.datetime, dt.datetime]) -> list[ItemFlow]:

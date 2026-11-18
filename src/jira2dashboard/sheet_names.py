@@ -18,9 +18,9 @@ FROM_EXCEL = "_from_excel"
 
 SUFFIX = {"user": FROM_USER, "jira": FROM_JIRA, "excel": FROM_EXCEL}
 
-USER = ("Config", "Projects", "Iterations", "PIs", "Workflows", "Transitions", "FieldMapping")
+USER = ("Config", "Projects", "Iterations", "PIs", "Workflows", "Transitions")
 JIRA = ("Issues", "StatusIntervals", "IssueLinks", "JiraIssueTypes", "JiraStatuses", "JiraWorkflows", "JiraTransitions",
-        "JiraFields", "JiraProjectWorkflows", "JiraProjectFields", "JiraFieldUsage", "JiraSprints", "Changelog", "PIIntervals")
+        "JiraFields", "JiraProjectWorkflows", "JiraProjectFields", "JiraFieldUsage", "JiraSprints", "JiraLinkTypes", "Changelog", "PIIntervals")
 EXCEL = ("Dashboard", "Charts", "Manual", "ErrorCodes", "Steps", "ItemFlow", "DailyLoad", "Metrics", "PIMetrics",
          "PIStatusTime", "IterationFeatures", "IterationCharts", "DataChecks", "FillRates", "Controls", "ChartData", "FlowFormulas", "ChartSpec", "ChecksSpec", "RawTypesSpec", "RovoPromptSpec",
          "RovoPrompt", "Run", "Errors")                  # Run and Errors: the sheets of the Python path only

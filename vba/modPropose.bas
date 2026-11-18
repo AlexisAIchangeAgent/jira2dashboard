@@ -4,14 +4,18 @@ Option Explicit
 ' is never changed. Every cell it writes is yellow and the first one of a row has the note "To confirm": the person sees what
 ' to check. It proposes:
 '   Workflows    the statuses the sheet lacks (Workflow = Feature when only the Program project uses the Jira workflow, else
-'                Team), the category Jira gives for sure (to do -> Backlog, done -> Done) and IsFree; never Order, IsStart,
-'                IsEnd, Active or Wait, Removed: those are human choices;
-'   Transitions  the moves the sheet lacks (Workflow, From, To; the Type is a human choice);
+'                Team), the category Jira gives for sure (to do -> Backlog, done -> Done), IsFree, and IsEnd on the only Done status
+'                of a workflow that has no IsEnd yet; never IsStart, Active or Wait, Removed: those are human choices;
+'   Transitions  the moves the sheet lacks (Workflow, From, To);
 '   Iterations   the iterations that the sprints of the scrum boards make (the sprints of the teams that start on the same
 '                day, +- 1 day, are one iteration; End = the day after the latest last day: the end is excluded), the ones
 '                the sheet lacks;
 '   Config       the ids of the fields that Jira names once (Sprint, Team, Story Points, Target start and end, PI, Business
-'                Value) where the Value is empty. Two candidates for one parameter: nothing proposed, the person chooses.
+'                Value, Work type category) where the Value is empty. Two candidates for one parameter: nothing proposed, the
+'                person chooses. The lists of issue types (SubTaskTypes: the sub-tasks of Jira; FeatureTypes: the types of the
+'                Program project with the highest hierarchy level; ParentRequiredTypes and PointsRequiredTypes: the types of the
+'                sheet that no Team project has are taken out) and BlocksLinkType (the link type whose outward text is "blocks"),
+'                where the Value is empty or still the delivered default (the column Example): see SetListValue.
 ' This module makes no call to Jira: it reads and writes the sheets of the workbook.
 
 Public Const TO_CONFIRM_NOTE As String = "To confirm: proposed from Jira"
@@ -24,6 +28,7 @@ Public Function ProposeValues(ByVal cfg As Object, ByVal keys As Collection, ByV
     summary = ReadJiraConfiguration(cfg, keys, wb, withWorkflows)
     Set sprints = ReadSprints(cfg, keys, noBoard)                  ' read only: the agile API (Jira Software)
     WriteSprints wb, sprints
+    WriteLinkTypes wb, ReadLinkTypes(cfg)
     summary = summary & " | Sprints read: " & sprints.Count
     If noBoard > 0 Then Cov "PRP15": summary = summary & " (" & noBoard & " project(s) with no scrum board or sprint that you can read)"
     ProposeValues = "Values proposed from Jira" & Mid$(summary, InStr(summary, " | ")) & ProposeFromSheets(wb)
@@ -36,7 +41,7 @@ Public Function ProposeFromSheets(ByVal wb As Object) As String
     Set roleOf = RolesOfProjects(wb)
     nW = ProposeWorkflows(wb, roleOf)
     nT = ProposeTransitions(wb, roleOf)
-    nC = ProposeFieldIds(wb)
+    nC = ProposeFieldIds(wb) + ProposeTypes(wb, roleOf) + ProposeLinkType(wb)
     nI = ProposeIterations(wb)
     If nW + nT + nC + nI = 0 Then
         Cov "PRP03"
@@ -137,25 +142,34 @@ Private Function StatusSources(ByVal wb As Object, ByVal roleOf As Object) As Co
 End Function
 
 Private Function ProposeWorkflows(ByVal wb As Object, ByVal roleOf As Object) As Long
-    ' The sheet Workflows: an empty Category or IsFree of a status it has gets Jira's; a status it lacks is added at the end.
+    ' The sheet Workflows: an empty Category or IsFree of a status it has gets Jira's; a status it lacks is added at the end. IsEnd:
+    ' the only Done status of a workflow that has no IsEnd = 1 yet gets 1 (two Done statuses: the person chooses).
     Cov "PRP05"
-    Dim ws As Object, cWf As Long, cSt As Long, cCat As Long, cFree As Long, last As Long, r As Long, existing As Object
-    Dim src As Variant, key As String
+    Dim ws As Object, cWf As Long, cSt As Long, cCat As Long, cFree As Long, cEnd As Long, last As Long, r As Long, existing As Object
+    Dim src As Variant, key As String, sources As Collection, endOf As Object, hasEnd As Object
     If Not SheetExists(wb, "Workflows") Then Exit Function
     Set ws = wb.Worksheets(SheetName("Workflows"))
     cWf = HeaderColumn(ws, "Workflow"): cSt = HeaderColumn(ws, "Status"): cCat = HeaderColumn(ws, "Category"): cFree = HeaderColumn(ws, "IsFree")
+    cEnd = HeaderColumn(ws, "IsEnd")
     If cWf = 0 Or cSt = 0 Then Exit Function
     Set existing = CreateObject("Scripting.Dictionary")
+    Set hasEnd = CreateObject("Scripting.Dictionary")
     last = LastUsedRow(ws, cSt)
     For r = 2 To last
         existing(PairKey(CStr(ws.Cells(r, cWf).Value & ""), CStr(ws.Cells(r, cSt).Value & ""))) = r
+        If cEnd > 0 Then
+            If Val(CStr(ws.Cells(r, cEnd).Value & "")) = 1 Then hasEnd(LCase$(TrimWhite(CStr(ws.Cells(r, cWf).Value & "")))) = True
+        End If
     Next r
-    For Each src In StatusSources(wb, roleOf)
+    Set sources = StatusSources(wb, roleOf)
+    Set endOf = OnlyDoneStatus(sources)
+    For Each src In sources
         key = PairKey(CStr(src(0)), CStr(src(1)))
         If existing.Exists(key) Then
             Cov "PRP06"
             r = existing(key)
-            ProposeWorkflows = ProposeWorkflows + FillEmpty(ws, r, cCat, src(2)) + FillEmpty(ws, r, cFree, src(3))
+            ProposeWorkflows = ProposeWorkflows + FillEmpty(ws, r, cCat, src(2)) + FillEmpty(ws, r, cFree, src(3)) + _
+                               FillEnd(ws, r, cEnd, src, endOf, hasEnd)
         Else
             Cov "PRP07"
             last = last + 1
@@ -164,14 +178,42 @@ Private Function ProposeWorkflows(ByVal wb As Object, ByVal roleOf As Object) As
             FillEmpty ws, last, cSt, src(1)
             FillEmpty ws, last, cCat, src(2)
             FillEmpty ws, last, cFree, src(3)
+            FillEnd ws, last, cEnd, src, endOf, hasEnd
             MarkToConfirm ws.Cells(last, cSt), True
             ProposeWorkflows = ProposeWorkflows + 1
         End If
     Next src
 End Function
 
+Private Function OnlyDoneStatus(ByVal sources As Collection) As Object
+    ' kind (lower case) -> the status whose category is Done, when the workflow has exactly one; "" when it has several.
+    Dim out As Object, src As Variant, kind As String
+    Set out = CreateObject("Scripting.Dictionary")
+    For Each src In sources
+        If StrComp(TrimWhite(CStr(src(2))), "Done", vbTextCompare) = 0 Then
+            kind = LCase$(CStr(src(0)))
+            If out.Exists(kind) Then Cov "PRP27": out(kind) = "" Else out(kind) = CStr(src(1))
+        End If
+    Next src
+    Set OnlyDoneStatus = out
+End Function
+
+Private Function FillEnd(ByVal ws As Object, ByVal r As Long, ByVal cEnd As Long, ByVal src As Variant, ByVal endOf As Object, _
+                         ByVal hasEnd As Object) As Long
+    ' IsEnd = 1 on the only Done status of a workflow that has no IsEnd yet (1 when written).
+    Dim kind As String
+    If cEnd = 0 Then Exit Function
+    kind = LCase$(CStr(src(0)))
+    If Not endOf.Exists(kind) Then Exit Function
+    If hasEnd.Exists(kind) Then Exit Function
+    If StrComp(CStr(endOf(kind)), CStr(src(1)), vbTextCompare) <> 0 Then Exit Function
+    Cov "PRP28"
+    FillEnd = FillEmpty(ws, r, cEnd, 1)
+    If FillEnd = 1 Then hasEnd(kind) = True
+End Function
+
 Private Function ProposeTransitions(ByVal wb As Object, ByVal roleOf As Object) As Long
-    ' The sheet Transitions: the moves it lacks (Workflow, From, To) are added at the end; the Type stays empty.
+    ' The sheet Transitions: the moves it lacks (Workflow, From, To) are added at the end.
     Cov "PRP08"
     Dim ws As Object, cWf As Long, cFrom As Long, cTo As Long, last As Long, r As Long, existing As Object, row As Variant
     Dim kind As String, key As String
@@ -225,7 +267,9 @@ Private Function ProposeFieldIds(ByVal wb As Object) As Long
                            Array("TargetStartField", "name", "Target start"), _
                            Array("TargetEndField", "name", "Target end"), _
                            Array("PIField", "name", "PI"), _
-                           Array("BusinessValueField", "name", "Business Value"))
+                           Array("BusinessValueField", "name", "Business Value"), _
+                           Array("WorkTypeField", "name", "Work type category"), _
+                           Array("WorkTypeField", "name", "TypeCategorie"))
         If Not done.Exists(rule(0)) Then
             n = FieldsThatFit(fields, CStr(rule(1)), CStr(rule(2)), id)
             If n = 1 Then
@@ -243,6 +287,109 @@ Private Function ProposeFieldIds(ByVal wb As Object) As Long
             End If
         End If
     Next rule
+End Function
+
+Private Function ListKey(ByVal text As String) As String
+    ' A list of names as a comparison key: no spaces, lower case ("Story, Task" = "story,task").
+    ListKey = LCase$(Replace(TrimWhite(text), " ", ""))
+End Function
+
+Private Function SetListValue(ByVal ws As Object, ByVal cParam As Long, ByVal cValue As Long, ByVal cExample As Long, _
+                              ByVal param As String, ByVal proposed As String) As Long
+    ' The Value of a Config parameter gets what Jira says when it is EMPTY or still holds the delivered default (the same text as
+    ' its Example: the person never chose it). A value the person typed, whatever it is, stays; so does a value Jira agrees with.
+    ' Yellow, with the note. 1 when written.
+    Dim r As Long, current As String
+    If Len(proposed) = 0 Then Exit Function
+    r = FindRow(ws, cParam, param)
+    If r = 0 Then Exit Function
+    current = TrimWhite(CStr(ws.Cells(r, cValue).Value & ""))
+    If Len(current) > 0 Then
+        If ListKey(current) <> ListKey(CStr(ws.Cells(r, cExample).Value & "")) Then Cov "PRP22": Exit Function
+        If ListKey(current) = ListKey(proposed) Then Cov "PRP23": Exit Function
+    End If
+    Cov "PRP24"
+    ws.Cells(r, cValue).Value = SafeCell(proposed)
+    MarkToConfirm ws.Cells(r, cValue), True
+    SetListValue = 1
+End Function
+
+Private Function NamesText(ByVal names As Object) As String
+    ' The names of a dictionary (lower case -> name) as a list "A,B".
+    Dim k As Variant
+    For Each k In names.Keys
+        NamesText = NamesText & IIf(Len(NamesText) > 0, ",", "") & CStr(names(k))
+    Next k
+End Function
+
+Private Function KeepKnown(ByVal current As String, ByVal known As Object) As String
+    ' The names of the list `current` that the dictionary knows (lower case -> name), in the order of the list.
+    Dim p As Variant, key As String
+    For Each p In Split(current, ",")
+        key = LCase$(TrimWhite(CStr(p)))
+        If known.Exists(key) Then KeepKnown = KeepKnown & IIf(Len(KeepKnown) > 0, ",", "") & CStr(known(key))
+    Next p
+End Function
+
+Private Function ProposeTypes(ByVal wb As Object, ByVal roleOf As Object) As Long
+    ' The sheet Config: the lists of issue types, from JiraIssueTypes (Project | IssueType | Workflow | Subtask | HierarchyLevel |
+    ' ProjectStyle). SubTaskTypes: the types Jira calls sub-tasks. FeatureTypes: the types of the Program project (not sub-tasks)
+    ' at its highest hierarchy level. ParentRequiredTypes and PointsRequiredTypes are rules, not facts: only the names that no Team
+    ' project has are taken out of the list. Nothing is proposed from an empty list (no Team project, no sub-task type).
+    Cov "PRP21"
+    Dim ws As Object, cParam As Long, cValue As Long, cExample As Long, row As Variant, subs As Object, top As Object, team As Object
+    Dim name As String, role As String, level As Double, best As Double, r As Long
+    If Not SheetExists(wb, "Config") Or Not SheetExists(wb, "JiraIssueTypes") Then Exit Function
+    Set ws = wb.Worksheets(SheetName("Config"))
+    cParam = HeaderColumn(ws, "Parameter"): cValue = HeaderColumn(ws, "Value"): cExample = HeaderColumn(ws, "Example")
+    If cParam = 0 Or cValue = 0 Or cExample = 0 Then Exit Function
+    Set subs = CreateObject("Scripting.Dictionary"): Set top = CreateObject("Scripting.Dictionary"): Set team = CreateObject("Scripting.Dictionary")
+    best = -1000
+    For Each row In ReadTable(wb.Worksheets(SheetName("JiraIssueTypes")))
+        name = TrimWhite(CStr(row("IssueType") & ""))
+        If Len(name) > 0 Then
+            If StrComp(TrimWhite(CStr(row("Subtask") & "")), "Yes", vbTextCompare) = 0 Then
+                subs(LCase$(name)) = name
+            Else
+                role = ""
+                If roleOf.Exists(UCase$(TrimWhite(CStr(row("Project") & "")))) Then role = CStr(roleOf(UCase$(TrimWhite(CStr(row("Project") & "")))))
+                If StrComp(role, "Program", vbTextCompare) = 0 Then
+                    level = Val(CStr(row("HierarchyLevel") & ""))
+                    If level > best Then best = level: top.RemoveAll
+                    If level = best Then top(LCase$(name)) = name
+                ElseIf StrComp(role, "Team", vbTextCompare) = 0 Then
+                    team(LCase$(name)) = name
+                End If
+            End If
+        End If
+    Next row
+    ProposeTypes = SetListValue(ws, cParam, cValue, cExample, "SubTaskTypes", NamesText(subs)) + _
+                   SetListValue(ws, cParam, cValue, cExample, "FeatureTypes", NamesText(top))
+    If team.Count > 0 Then
+        For Each row In Array("ParentRequiredTypes", "PointsRequiredTypes")
+            r = FindRow(ws, cParam, CStr(row))
+            If r > 0 Then
+                ProposeTypes = ProposeTypes + SetListValue(ws, cParam, cValue, cExample, CStr(row), _
+                               KeepKnown(CStr(ws.Cells(r, cValue).Value & ""), team))
+            End If
+        Next row
+    End If
+End Function
+
+Private Function ProposeLinkType(ByVal wb As Object) As Long
+    ' BlocksLinkType: the name of the one link type whose outward text is "blocks" (JiraLinkTypes: Name | Inward | Outward). Two
+    ' of them, or none: nothing, the person chooses.
+    Cov "PRP25"
+    Dim ws As Object, cParam As Long, cValue As Long, cExample As Long, row As Variant, found As Long, name As String
+    If Not SheetExists(wb, "Config") Or Not SheetExists(wb, "JiraLinkTypes") Then Exit Function
+    Set ws = wb.Worksheets(SheetName("Config"))
+    cParam = HeaderColumn(ws, "Parameter"): cValue = HeaderColumn(ws, "Value"): cExample = HeaderColumn(ws, "Example")
+    If cParam = 0 Or cValue = 0 Or cExample = 0 Then Exit Function
+    For Each row In ReadTable(wb.Worksheets(SheetName("JiraLinkTypes")))
+        If StrComp(TrimWhite(CStr(row("Outward") & "")), "blocks", vbTextCompare) = 0 Then name = TrimWhite(CStr(row("Name") & "")): found = found + 1
+    Next row
+    If found > 1 Then Cov "PRP26": Exit Function
+    ProposeLinkType = SetListValue(ws, cParam, cValue, cExample, "BlocksLinkType", name)
 End Function
 
 Private Function IsoDay(ByVal serial As Double) As String

@@ -81,12 +81,12 @@ def test_a_flag_typed_as_text_boolean_or_decimal_stays_a_number(tmp_path):
     def typed(sheets):
         workflows = named(sheets, "Workflows")
         rows = [list(r) for r in workflows.rows]
-        rows[0][4], rows[1][4], rows[2][4] = "0", False, 0.0          # Nouveau, En analyse (the start), Prêt: IsStart
-        rows[1][4] = True
+        rows[0][3], rows[1][3], rows[2][3] = "0", False, 0.0          # Nouveau, En analyse (the start), Prêt: IsStart
+        rows[1][3] = True
         replace(sheets, "Workflows", Sheet(S.of("Workflows"), workflows.header, [tuple(r) for r in rows]))
     sheets = P.read_params(book(tmp_path, change=typed))
     rows = named(sheets, "Workflows").rows
-    assert (rows[0][4], rows[1][4], rows[2][4]) == (0, 1, 0)
+    assert (rows[0][3], rows[1][3], rows[2][3]) == (0, 1, 0)
     rules = P.run_settings(sheets).rules
     assert not rules.rule("Team", "Nouveau").is_start and rules.rule("Team", "En analyse").is_start
 
@@ -123,7 +123,7 @@ def test_the_rules_of_the_md_files_apply_to_the_sheets(tmp_path):
     def wrong(sheets):
         workflows = named(sheets, "Workflows")
         rows = [list(r) for r in workflows.rows]
-        rows[1][3] = "Actif"
+        rows[1][2] = "Actif"
         replace(sheets, "Workflows", Sheet(S.of("Workflows"), workflows.header, [tuple(r) for r in rows]))
     with pytest.raises(ParamsError, match=r"Workflows row 2: Category 'Actif'"):
         P.read_params(book(tmp_path, change=wrong))

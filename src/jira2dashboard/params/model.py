@@ -13,8 +13,6 @@ from jira2dashboard.paths import PARAMS_DIR
 
 WORKFLOWS = ("Team", "Feature")
 CATEGORIES = ("Active", "Wait", "Done", "Removed", "Backlog", "Unclassified")
-ROLES = ("Required", "Optional", "Display")      # a role may continue: "Required for PI views"
-YES_NO = ("yes", "no")
 
 
 class ParamsError(ValueError):
@@ -57,11 +55,9 @@ SPECS = (
     SheetSpec("Iterations", "iterations.md", ("Iteration-label", "Start", "End")),
     SheetSpec("PIs", "pis.md", ("PI", "Start", "End")),
     SheetSpec("Workflows", "workflows.md",
-              ("Workflow", "Order", "Status", "Category", "IsStart", "IsEnd", "IsFree"),
-              frozenset({"Order", "IsStart", "IsEnd", "IsFree"})),
-    SheetSpec("Transitions", "transitions.md", ("Workflow", "From", "To", "Type")),
-    SheetSpec("FieldMapping", "field_mapping.md",
-              ("Extract", "Logical", "Type", "CanBeEmpty", "UsedBy", "Role", "IfMissing", "TypeConfirmed")),
+              ("Workflow", "Status", "Category", "IsStart", "IsEnd", "IsFree"),
+              frozenset({"IsStart", "IsEnd", "IsFree"})),
+    SheetSpec("Transitions", "transitions.md", ("Workflow", "From", "To")),
 )
 
 
@@ -152,30 +148,10 @@ def _check_transitions(sheet: ParamSheet, workflows: ParamSheet, problems: list[
         for column in ("From", "To"):
             if rec[column] not in statuses[workflow]:
                 problems.append(f"{where}: {column} {rec[column]!r} is not a status of workflow {workflow!r}")
-        if not rec["Type"]:
-            problems.append(f"{where}: Type is empty")
         seen[(workflow, rec["From"], rec["To"])] += 1
     for (workflow, source, target), count in seen.items():
         if count > 1:
             problems.append(f"Transitions: {workflow!r} {source!r} -> {target!r} listed twice")
-
-
-def _check_field_mapping(sheet: ParamSheet, problems: list[str]) -> None:
-    seen: Counter = Counter()
-    for number, rec in _records(sheet):
-        where = f"FieldMapping row {number}"
-        for column in ("Extract", "Logical"):
-            if not rec[column]:
-                problems.append(f"{where}: {column} is empty")
-        role = rec["Role"] or ""
-        if role.split(" ")[0] not in ROLES:
-            problems.append(f"{where}: Role {role!r} must start with one of {', '.join(ROLES)}")
-        if rec["CanBeEmpty"] not in YES_NO:
-            problems.append(f"{where}: CanBeEmpty {rec['CanBeEmpty']!r} must be yes or no")
-        seen[rec["Extract"]] += 1
-    for extract, count in seen.items():
-        if count > 1:
-            problems.append(f"FieldMapping: column {extract!r} listed twice")
 
 
 def _check_config(sheet: ParamSheet, problems: list[str]) -> None:
@@ -272,8 +248,6 @@ def _check_projects(sheet: ParamSheet, problems: list[str]) -> None:
             problems.append(f"{where}: Project {key!r} is not a Jira project key (capital letters, digits, _)")
         if rec["Role"] not in PROJECT_ROLES:
             problems.append(f"{where}: Role {rec['Role']!r} is not one of {', '.join(PROJECT_ROLES)}")
-        if rec["Role"] == "Team" and not rec["Team"]:
-            problems.append(f"{where}: a Team project needs a Team name")
         seen[key] += 1
     for key, count in seen.items():
         if count > 1:
@@ -301,8 +275,6 @@ def load_all(params_dir: Path = PARAMS_DIR) -> list[ParamSheet]:
     if sheets["Config"]:
         _check_config(sheets["Config"], problems)
     problems += shape_problems(sheets)
-    if sheets["FieldMapping"]:
-        _check_field_mapping(sheets["FieldMapping"], problems)
     if problems:
         raise ParamsError("\n".join(problems))
     return [sheets[spec.name] for spec in SPECS]

@@ -36,8 +36,8 @@ def test_three_projects_with_the_expected_types(dataset):
 
 
 def test_every_move_follows_a_transition_of_the_parameters(dataset, sheets):
-    allowed = {(wf, a, b) for wf, a, b, _kind in sheets["Transitions"].rows}
-    free = {wf: next(r[2] for r in sheets["Workflows"].rows if r[0] == wf and r[6] == 1) for wf in ("Team", "Feature")}
+    allowed = {(wf, a, b) for wf, a, b in sheets["Transitions"].rows}
+    free = {wf: next(r[1] for r in sheets["Workflows"].rows if r[0] == wf and r[5] == 1) for wf in ("Team", "Feature")}
     for issue in dataset.issues:
         previous = issue.initial_status
         for change in issue.changes:

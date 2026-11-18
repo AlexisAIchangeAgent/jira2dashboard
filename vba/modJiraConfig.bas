@@ -7,10 +7,11 @@ Option Explicit
 '   JiraFields      the field ids, for the Config sheet;
 '   JiraProjectWorkflows  one row per project and workflow: its issue types, number of statuses and of transitions;
 '   JiraProjectFields     the fields of the create screen of each issue type of each project (createmeta);
-'   JiraFieldUsage        the fields returned for a page of issues of each project, and in how many they are filled.
+'   JiraFieldUsage        the fields returned for a page of issues of each project, and in how many they are filled;
+'   JiraLinkTypes         the issue link types (Name, Inward, Outward): the one that means blocks.
 ' JiraWorkflows and JiraTransitions end with the column Project (who uses the workflow: it is written once).
-' The parameter sheets are never written: the user reviews the proposals, decides what stays human (Order, IsStart, IsEnd,
-' Active or Wait, the Type of a move) and copies them. Calls: GET project/search,
+' The parameter sheets are never written: the user reviews the proposals, decides what stays human (IsStart, Active or Wait)
+' and copies them (the button Propose values from Jira does it for what Jira says for sure). Calls: GET project/search,
 ' GET project/{key}/statuses, POST workflows/preview, GET field, GET issue/createmeta/{key}/issuetypes/{id}, GET search/jql. A 401, 403 or 404 on the preview means the account may
 ' not read the workflows: the other sheets are still written. The answers stay in this workbook; the log gets counts only.
 
@@ -209,11 +210,11 @@ End Sub
 
 Private Sub AddOneWorkflow(ByVal wf As Variant, ByVal name As String, ByVal names As Object, ByVal cats As Object, _
                            ByVal flowRows As Collection, ByVal moveRows As Collection)
-    ' JiraWorkflows: Workflow | Order (1 for the status of creation) | Status | Category (proposed) | IsStart | IsEnd |
-    ' IsFree (1 when a GLOBAL transition leads to it: reachable from any status) | JiraCategory.
-    ' JiraTransitions: one row per link of a DIRECTED transition: Workflow | From | To | Type (human) | JiraTransition |
-    ' TransitionId | Scope | Project (added at the write). GLOBAL and INITIAL transitions are IsFree and Order 1 of JiraWorkflows.
-    Dim free As Object, initial As String, t As Variant, link As Variant, s As Variant, ref As String, order As Variant
+    ' JiraWorkflows: Workflow | Status | Category (proposed) | IsStart | IsEnd | IsFree (1 when a GLOBAL transition leads to it:
+    ' reachable from any status) | JiraCategory | Initial (1 for the status of creation) | Project (added at the write).
+    ' JiraTransitions: one row per link of a DIRECTED transition: Workflow | From | To | JiraTransition | TransitionId | Scope |
+    ' Project (added at the write). GLOBAL transitions make a status IsFree, the INITIAL one marks the status of creation.
+    Dim free As Object, initial As String, t As Variant, link As Variant, s As Variant, ref As String
     Set free = CreateObject("Scripting.Dictionary")
     For Each t In AsList(JGet(wf, "transitions"))
         ref = CStr(JGet(t, "toStatusReference") & "")
@@ -226,16 +227,14 @@ Private Sub AddOneWorkflow(ByVal wf As Variant, ByVal name As String, ByVal name
                 For Each link In AsList(JGet(t, "links"))
                     Cov "JCF15"
                     moveRows.Add Array(name, NameOf(names, CStr(JGet(link, "fromStatusReference") & "")), NameOf(names, ref), _
-                                       "", CStr(JGet(t, "name") & ""), CStr(JGet(t, "id") & ""), "DIRECTED")
+                                       CStr(JGet(t, "name") & ""), CStr(JGet(t, "id") & ""), "DIRECTED")
                 Next link
         End Select
     Next t
     For Each s In AsList(JGet(wf, "statuses"))
         ref = CStr(JGet(s, "statusReference") & "")
-        order = ""
-        If Len(initial) > 0 And ref = initial Then order = 1
-        flowRows.Add Array(name, order, NameOf(names, ref), ProposedCategory(ValueOf(cats, ref)), "", "", _
-                           IIf(free.Exists(ref), 1, 0), ValueOf(cats, ref))
+        flowRows.Add Array(name, NameOf(names, ref), ProposedCategory(ValueOf(cats, ref)), "", "", _
+                           IIf(free.Exists(ref), 1, 0), ValueOf(cats, ref), IIf(Len(initial) > 0 And ref = initial, 1, ""))
     Next s
 End Sub
 
@@ -522,6 +521,31 @@ Public Function ReadSprints(ByVal cfg As Object, ByVal keys As Collection, ByRef
     Set ReadSprints = out
 End Function
 
+Public Function ReadLinkTypes(ByVal cfg As Object) As Collection
+    ' Name | Inward | Outward: the issue link types of the site (GET issueLinkType). It only improves a default, so it never stops the
+    ' button: an answer that is not 200 (no right, a server error) or not readable gives none.
+    Cov "JCF41"
+    Dim out As New Collection, resp As Object, t As Variant
+    Set ReadLinkTypes = out
+    Set resp = HttpRequest(cfg, "GET", cfg("BaseUrl") & "/rest/api/3/issueLinkType")
+    If resp("Status") <> 200 Then Cov "JCF42": Exit Function
+    On Error Resume Next
+    For Each t In AsList(JGet(JsonParse(resp("Text")), "issueLinkTypes"))
+        If Len(CStr(JGet(t, "name") & "")) > 0 Then out.Add Array(CStr(JGet(t, "name") & ""), CStr(JGet(t, "inward") & ""), CStr(JGet(t, "outward") & ""))
+    Next t
+    On Error GoTo 0
+End Function
+
+Public Sub WriteLinkTypes(ByVal wb As Object, ByVal rows As Collection)
+    ' The proposal sheet JiraLinkTypes (the active sheet stays shown).
+    Dim shown As Object
+    On Error Resume Next
+    Set shown = wb.ActiveSheet
+    On Error GoTo 0
+    WriteProposal wb, "JiraLinkTypes", Array("Name", "Inward", "Outward"), rows
+    If Not shown Is Nothing Then shown.Activate
+End Sub
+
 Public Sub WriteSprints(ByVal wb As Object, ByVal rows As Collection)
     ' The proposal sheet JiraSprints (the active sheet stays shown).
     Dim shown As Object
@@ -551,9 +575,9 @@ Private Sub WriteProposals(ByVal wb As Object, ByVal typeRows As Collection, ByV
     On Error GoTo 0
     WriteProposal wb, "JiraIssueTypes", Array("Project", "IssueType", "Workflow", "Subtask", "HierarchyLevel", "ProjectStyle"), typeRows
     WriteProposal wb, "JiraStatuses", Array("Project", "IssueType", "Status", "JiraCategory"), statusRows
-    WriteProposal wb, "JiraWorkflows", Array("Workflow", "Order", "Status", "Category", "IsStart", "IsEnd", "IsFree", _
-                                            "JiraCategory", "Project"), flowRows
-    WriteProposal wb, "JiraTransitions", Array("Workflow", "From", "To", "Type", "JiraTransition", "TransitionId", "Scope", _
+    WriteProposal wb, "JiraWorkflows", Array("Workflow", "Status", "Category", "IsStart", "IsEnd", "IsFree", _
+                                            "JiraCategory", "Initial", "Project"), flowRows
+    WriteProposal wb, "JiraTransitions", Array("Workflow", "From", "To", "JiraTransition", "TransitionId", "Scope", _
                                               "Project"), moveRows
     WriteProposal wb, "JiraFields", Array("Id", "Name", "Custom", "SchemaType", "SchemaDetail"), fieldRows
     WriteProposal wb, "JiraProjectWorkflows", Array("Project", "Workflow", "IssueTypes", "Statuses", "Transitions"), sumRows

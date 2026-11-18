@@ -51,7 +51,7 @@ def text(value) -> str | None:
 
 
 def _whole(value):
-    """A Workflows number (Order, IsStart, IsEnd, IsFree): 1 and 1.0 and TRUE and "1" are 1; empty and "-" are None.
+    """A Workflows number (IsStart, IsEnd, IsFree): 1 and 1.0 and TRUE and "1" are 1; empty and "-" are None.
     Anything else stays as it is, for the check to name it (bool("0") would be True: never let text through)."""
     if value is None or isinstance(value, bool):
         return None if value is None else int(value)

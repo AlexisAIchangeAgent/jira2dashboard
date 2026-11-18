@@ -23,30 +23,34 @@ P_STEP_BACK, P_DETOUR, P_CANCEL_AT_DETOUR = 0.12, 0.06, 0.3
 
 
 class _Workflow:
-    """The moves of one workflow, read from the parameter sheets."""
+    """The moves of one workflow, read from the parameter sheets. The sheets carry no kind of move: the ROW order of Workflows is the
+    normal flow (the chain runs from the first row to the IsEnd status), a move to the next status of the chain is forward, to an
+    earlier one is back; from the free status, a move to a Removed status is the exit, to a Backlog status the restart."""
 
     def __init__(self, name: str, sheets: dict[str, ParamSheet]):
+        rows = [r for r in sheets["Workflows"].rows if r[0] == name]
+        category = {r[1]: r[2] for r in rows}
+        self.start = next(r[1] for r in rows if r[3] == 1)
+        self.end = next(r[1] for r in rows if r[4] == 1)
+        self.free = next(r[1] for r in rows if r[5] == 1)
+        self.first = rows[0][1]
+        self.chain = [r[1] for r in rows][: [r[1] for r in rows].index(self.end) + 1]
         self.forward: dict[str, str] = {}
         self.back: dict[str, list[str]] = defaultdict(list)
         self.exit_to: str | None = None
         self.restart_at: str | None = None
-        for wf, source, target, kind in sheets["Transitions"].rows:
+        for wf, source, target in sheets["Transitions"].rows:
             if wf != name:
                 continue
-            if kind == "forward":
-                self.forward[source] = target
-            elif kind == "back":
-                self.back[source].append(target)
-            elif kind == "exit":
+            if source in self.chain and target in self.chain:
+                if self.chain.index(target) == self.chain.index(source) + 1:
+                    self.forward[source] = target
+                elif self.chain.index(target) < self.chain.index(source):
+                    self.back[source].append(target)
+            elif source == self.free and category.get(target) == "Removed":
                 self.exit_to = target
-            elif kind == "back to backlog":
+            elif source == self.free and category.get(target) == "Backlog":
                 self.restart_at = target
-        rows = [r for r in sheets["Workflows"].rows if r[0] == name]
-        self.start = next(r[2] for r in rows if r[4] == 1)
-        self.end = next(r[2] for r in rows if r[5] == 1)
-        self.free = next(r[2] for r in rows if r[6] == 1)
-        self.first = next(r[2] for r in rows if r[1] == 1)
-        self.chain = [r[2] for r in sorted((r for r in rows if r[1] is not None), key=lambda r: r[1])]
 
 
 def _walk(rng: random.Random, wf: _Workflow, created: dt.datetime, as_of: dt.datetime) -> list[tuple[dt.datetime, str]]:
@@ -187,6 +191,6 @@ def generate(seed: int = 1, issues: int = 1200, as_of: dt.datetime = AS_OF,
             features.append(key)
         elif type_ == "Story":
             stories[project].append(key)
-    teams = {row[0]: row[2] for row in sheets_by_name["Projects"].rows if row[1] == "Team"}
+    teams = {row[0]: row[2] or row[0] for row in sheets_by_name["Projects"].rows if row[1] == "Team"}
     return Dataset(tuple(_decorate(result, seed, as_of, teams)), as_of,
                    StatusCatalog.from_params(list(sheets_by_name.values())), fields or FieldIds())

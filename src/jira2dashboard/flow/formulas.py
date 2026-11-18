@@ -38,8 +38,8 @@ _row_index = row_index
 # --- StatusIntervals: helper columns after the raw ones ------------------------------------------------
 
 INTERVAL_HELPERS = (
-    ("IsStart", "=SUMIFS(Workflows_from_user!$E:$E,Workflows_from_user!$A:$A,[@Workflow],Workflows_from_user!$C:$C,[@Status])"),
-    ("IsEnd", "=SUMIFS(Workflows_from_user!$F:$F,Workflows_from_user!$A:$A,[@Workflow],Workflows_from_user!$C:$C,[@Status])"),
+    ("IsStart", "=SUMIFS(Workflows_from_user!$D:$D,Workflows_from_user!$A:$A,[@Workflow],Workflows_from_user!$B:$B,[@Status])"),
+    ("IsEnd", "=SUMIFS(Workflows_from_user!$E:$E,Workflows_from_user!$A:$A,[@Workflow],Workflows_from_user!$B:$B,[@Status])"),
     ("PrevCategory", f'=IF([@Seq]=1,"",INDEX({SI}[Category],{_row_index(SI)}-1))'),
     ("Team", f"=INDEX({IF_}[Team],MATCH([@Key],{IF_}[Key],0))"),
     ("Bucket", f"=INDEX({IF_}[WorkTypeBucket],MATCH([@Key],{IF_}[Key],0))"),
@@ -50,8 +50,8 @@ INTERVAL_HELPERS = (
     # DC28: the move from the previous status is not in Transitions (same workflow) and the status is not free (IsFree)
     ("BadMove", f'=IF([@Seq]=1,0,IF(OR(COUNTIFS({bounded("Transitions", "A", TRANSITIONS_LAST)},[@Workflow],'
                 f'{bounded("Transitions", "B", TRANSITIONS_LAST)},[@PrevStatus],'
-                f'{bounded("Transitions", "C", TRANSITIONS_LAST)},[@Status])>0,SUMIFS(Workflows_from_user!$G:$G,Workflows_from_user!$A:$A,[@Workflow],'
-                'Workflows_from_user!$C:$C,[@Status])>0),0,1))'),
+                f'{bounded("Transitions", "C", TRANSITIONS_LAST)},[@Status])>0,SUMIFS(Workflows_from_user!$F:$F,Workflows_from_user!$A:$A,[@Workflow],'
+                'Workflows_from_user!$B:$B,[@Status])>0),0,1))'),
     # PIStatusTime: the time of a Feature in each Active / Wait status, between its StartUtc (included) and its DoneUtc (excluded), the
     # window of ItemFlow.ActiveDays / WaitDays; 0 for an interval of an item that is not done, has no valid start or is excluded from flow time
     ("ItemRow", f"=MATCH([@Key],{IF_}[Key],0)"),                       # one lookup per interval, the three columns below read it
@@ -83,7 +83,9 @@ ITEMFLOW_COLUMNS = (
     ("WorkType", f'=IF(INDEX({IS}[WorkType],{_row_index(IF_)})="","",INDEX({IS}[WorkType],{_row_index(IF_)}))'),
     ("Role", '=IFERROR(INDEX(Projects_from_user!$B:$B,MATCH([@Project],Projects_from_user!$A:$A,0)),"")'),
     ("Workflow", '=IF([@Role]="Program","Feature","Team")'),
-    ("Team", '=IF([@Role]="Program","ART",IFERROR(INDEX(Projects_from_user!$C:$C,MATCH([@Project],Projects_from_user!$A:$A,0)),""))'),
+    # the team of a Team project: its column Team, or the project key when that cell is empty (AL, 2026-11-18)
+    ("Team", '=IF([@Role]="Program","ART",IFERROR(IF(INDEX(Projects_from_user!$C:$C,MATCH([@Project],Projects_from_user!$A:$A,0))="",[@Project],'
+             'INDEX(Projects_from_user!$C:$C,MATCH([@Project],Projects_from_user!$A:$A,0))),""))'),
     ("CreatedUtc", f"=INDEX({IS}[CreatedUtc],{_row_index(IF_)})"),
     ("LastBacklogUtc", f'=MAXIFS({SI}[EnteredUtc],{SI}[Key],[@Key],{SI}[Category],"Backlog")'),
     ("FirstStartUtc", f'=IF(COUNTIFS({SI}[Key],[@Key],{SI}[IsStart],1)=0,"",'

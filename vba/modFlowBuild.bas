@@ -98,8 +98,9 @@ Private Function SettingOf(ByVal spec As Object, ByVal table As String, ByVal co
     Next pair
 End Function
 
-Private Function TeamNames(ByVal wsProjects As Object, ByVal programTeam As String) As Collection
-    ' The Program reports under its own team name (ART), then the teams of the Team projects, each once.
+Public Function TeamNames(ByVal wsProjects As Object, ByVal programTeam As String) As Collection
+    ' The Program reports under its own team name (ART), then the teams of the Team projects, each once. A Team project whose cell Team
+    ' is empty is its own team (the project key).
     Cov "FLB07"
     Dim out As New Collection, seen As Object, row As Variant, team As String
     Set seen = CreateObject("Scripting.Dictionary")
@@ -107,6 +108,7 @@ Private Function TeamNames(ByVal wsProjects As Object, ByVal programTeam As Stri
     seen(programTeam) = True
     For Each row In ReadTable(wsProjects)
         team = TrimWhite(CStr(row("Team") & ""))
+        If Len(team) = 0 Then team = TrimWhite(CStr(row("Project") & ""))
         If StrComp(TrimWhite(CStr(row("Role") & "")), "Team", vbTextCompare) = 0 And Len(team) > 0 Then
             If Not seen.Exists(team) Then Cov "FLB08": seen(team) = True: out.Add team
         End If
@@ -116,7 +118,7 @@ End Function
 
 Public Function StatusNames(ByVal wsWorkflows As Object) As Collection
     ' The stack of the chart Cycle time by status and the status keys of the table PIStatusTime: the statuses of the Feature workflow whose
-    ' category is Active or Wait, in the ROW order of the sheet Workflows (its column Order is empty for a free status). One placeholder
+    ' category is Active or Wait, in the ROW order of the sheet Workflows (the sheet has no Order column: its rows are the normal flow). One placeholder
     ' when there is none, so that the chart and the table still have a row (a gap). Reference: flow/pi_status_time.feature_statuses.
     Cov "FLB50"
     ' The texts are compared as they are written, like modParams.StatusCategories and the Python reference (the loaders refuse a Workflow or a

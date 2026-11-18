@@ -75,7 +75,7 @@ def test_the_workflow_is_program_workflow_with_its_categories(scenario):
     assert ds.workflow_names == {"Feature": "program-workflow"}
     workflows = next(s for s in ds.sheets if s.name == "Workflows")
     feature = [row for row in workflows.rows if row[0] == "Feature"]
-    assert [(row[2], row[4], row[5], row[6]) for row in feature] == [          # status, IsStart, IsEnd, IsFree
+    assert [(row[1], row[3], row[4], row[5]) for row in feature] == [          # status, IsStart, IsEnd, IsFree
         ("todo", 0, 0, 0), ("analyzing", 1, 0, 0), ("ready4PI", 0, 0, 0), ("doing", 0, 0, 0), ("ready2test", 0, 0, 0),
         ("testing", 0, 0, 0), ("ready2deploy", 0, 0, 0), ("deploying", 0, 0, 0), ("released", 0, 1, 0), ("deferred", 0, 0, 1)]
     assert not any(row[0] == "Team" for row in workflows.rows)                  # no Team workflow: the scenario has no Team project
@@ -195,7 +195,7 @@ def test_the_mock_jira_command_and_the_workbook_fill_know_the_scenario():
     book = {sheet.name.split("_")[0]: sheet for sheet in M.params_book("http://x", scenario=scenario_)}
     assert [row[0] for row in book["PIs"].rows] == list(PIS)
     assert len(book["Iterations"].rows) == 24 and book["Iterations"].rows[0][0] == "IT-1-1"
-    assert [row[2] for row in book["Workflows"].rows if row[0] == "Feature"][-1] == "deferred"
+    assert [row[1] for row in book["Workflows"].rows if row[0] == "Feature"][-1] == "deferred"
     config = {row[0]: row[1] for row in book["Config"].rows}
     assert config["AsOf"] == "2026-05-20 00:00" and config["PIField"] == scenario_.dataset.fields.pi
     assert "program-workflow" not in str(book["Workflows"].rows)               # the sheets keep the workflow value Feature

@@ -64,11 +64,11 @@ class StatusCatalog:
     @classmethod
     def from_params(cls, sheets: list[ParamSheet] | None = None) -> "StatusCatalog":
         workflows = next(s for s in (sheets or load_all()) if s.name == "Workflows")
-        names = sorted({row[2] for row in workflows.rows})
+        names = sorted({row[1] for row in workflows.rows})
         return cls(
             ids={name: str(10000 + i) for i, name in enumerate(names, start=1)},
-            categories={(row[0], row[2]): row[3] for row in workflows.rows},
-            end_statuses={row[0]: row[2] for row in workflows.rows if row[5] == 1},
+            categories={(row[0], row[1]): row[2] for row in workflows.rows},
+            end_statuses={row[0]: row[1] for row in workflows.rows if row[4] == 1},
         )
 
     def jira_category(self, workflow: str, status: str) -> tuple[str, str]:

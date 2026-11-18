@@ -5,7 +5,8 @@ table into the workbook and the VBA reads the sheet (`modParams.ProjectKeys`, `P
 change it in the workbook, never in code.
 
 Exactly one project is the **Program** (the train, it holds the Features). The others are **Team** projects
-(Stories, Tasks, Sub-tasks); `Team` is the team name shown in the metrics (used by the team split and by DC14).
+(Stories, Tasks, Sub-tasks); `Team` is the team name shown in the metrics (used by the team split and by DC14). **It is optional:
+an empty `Team` is the project key** (the project is its own team).
 An ART of Features only needs no Team project (and then no `Team` workflow).
 
 The keys below are the anonymised keys of the existing extraction script (the first one is the Program).

@@ -67,7 +67,7 @@ def project_search(ds: Dataset, query: dict) -> dict:
 
 
 def _statuses(workflow: str, sheets: dict[str, ParamSheet]) -> list[str]:
-    return [row[2] for row in sheets["Workflows"].rows if row[0] == workflow]
+    return [row[1] for row in sheets["Workflows"].rows if row[0] == workflow]
 
 
 def create_meta_fields(ds: Dataset, key: str, type_id: str, query: dict) -> dict:
@@ -138,11 +138,11 @@ def workflows_preview(ds: Dataset, body: dict, sheets: list[ParamSheet] | None =
 
 def _workflow_json(ds: Dataset, workflow: str, type_ids: list[str], pid: str, params: dict, ref) -> dict:
     rows = [row for row in params["Workflows"].rows if row[0] == workflow]
-    status_refs = [{"statusReference": ref(workflow, row[2]), "deprecated": False} for row in rows]
+    status_refs = [{"statusReference": ref(workflow, row[1]), "deprecated": False} for row in rows]
     transitions = [{"id": "1", "name": "Create", "type": "INITIAL", "links": [],
-                    "toStatusReference": ref(workflow, next(row[2] for row in rows if row[1] == 1))}]
+                    "toStatusReference": ref(workflow, rows[0][1])}]                # the first row is the status of creation
     targets: dict[str, list[str]] = {}                  # one DIRECTED transition per target, one link per source
-    for wf, source, target, _kind in params["Transitions"].rows:
+    for wf, source, target in params["Transitions"].rows:
         if wf == workflow:
             targets.setdefault(target, []).append(source)
     for target, sources in targets.items():
@@ -151,13 +151,23 @@ def _workflow_json(ds: Dataset, workflow: str, type_ids: list[str], pid: str, pa
                             "links": [{"fromStatusReference": ref(workflow, s), "fromPort": 0, "toPort": 1}
                                       for s in sources]})
     for row in rows:
-        if row[6] == 1:                                 # a free status is reachable from any status: a GLOBAL transition
-            transitions.append({"id": str(10 * len(transitions) + 1), "name": row[2], "type": "GLOBAL", "links": [],
-                                "toStatusReference": ref(workflow, row[2])})
+        if row[5] == 1:                                 # a free status is reachable from any status: a GLOBAL transition
+            transitions.append({"id": str(10 * len(transitions) + 1), "name": row[1], "type": "GLOBAL", "links": [],
+                                "toStatusReference": ref(workflow, row[1])})
     name = ds.workflow_names.get(workflow, workflow)                # a scenario names its workflow in Jira (program-workflow)
     return {"id": f"wf-{name.lower()}", "name": name, "description": "", "scope": {"type": "GLOBAL"},
             "queryContext": [{"project": pid, "issueTypes": type_ids}], "statuses": status_refs,
             "transitions": transitions}
+
+
+def link_types() -> dict:
+    """GET /rest/api/3/issueLinkType: the issue link types of the site (the three of a new Jira Cloud site; Blocks is the one the
+    parameter BlocksLinkType names)."""
+    return {"issueLinkTypes": [
+        {"id": "10000", "name": "Blocks", "inward": "is blocked by", "outward": "blocks"},
+        {"id": "10001", "name": "Cloners", "inward": "is cloned by", "outward": "clones"},
+        {"id": "10002", "name": "Duplicate", "inward": "is duplicated by", "outward": "duplicates"},
+        {"id": "10003", "name": "Relates", "inward": "relates to", "outward": "relates to"}]}
 
 
 # --- Jira Software (agile/1.0): the scrum boards and their sprints ----------------------------------------------------------

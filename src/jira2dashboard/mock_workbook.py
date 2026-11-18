@@ -93,8 +93,6 @@ def params_book(url: str, values: dict[str, str] | None = None, scenario: Scenar
     out = []
     for sheet in (load_all() if scenario is None else scenario.dataset.sheets):
         rows = list(sheet.rows)
-        if sheet.name == "FieldMapping":
-            continue
         if sheet.name == "Config":
             value = sheet.header.index("Value")
             rows = [row[:value] + (filled.get(row[0], row[value]),) + row[value + 1:] for row in rows]

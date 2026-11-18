@@ -31,7 +31,7 @@ class Rules:
     def from_params(cls, sheets: list[ParamSheet] | None = None) -> "Rules":
         workflows = next(s for s in (sheets or load_all()) if s.name == "Workflows")
         return cls({(wf, status): StatusRule(category, bool(start), bool(end), bool(free))
-                    for wf, _order, status, category, start, end, free in workflows.rows})
+                    for wf, status, category, start, end, free in workflows.rows})
 
     def rule(self, workflow: str, status: str) -> StatusRule:
         return self._rows.get((workflow, status), StatusRule(UNCLASSIFIED, False, False, False))

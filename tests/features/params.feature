@@ -8,7 +8,6 @@ Fonctionnalité: Paramètres écrits dans le classeur
     Quand je les charge
     Alors la feuille "Workflows" a 20 lignes
     Et la feuille "Transitions" a 26 lignes
-    Et la feuille "FieldMapping" a 22 lignes
 
   Scénario: Une catégorie inconnue est refusée avec un message clair
     Soit les fichiers de paramètres du dépôt
@@ -80,7 +79,6 @@ Fonctionnalité: Paramètres écrits dans le classeur
       | PIs          | pis.md           |
       | Workflows    | workflows.md     |
       | Transitions  | transitions.md   |
-      | FieldMapping | field_mapping.md |
 
   @excel
   Plan du scénario: Le VBA lit la catégorie d'un statut dans la feuille Workflows

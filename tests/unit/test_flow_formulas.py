@@ -59,7 +59,7 @@ def test_table_column_names_are_unique():
 
 def test_no_status_name_and_no_mapping_is_written_in_a_formula():
     sheets = {s.name: s for s in load_all()}
-    statuses = {ascii_fold(row[2]) for row in sheets["Workflows"].rows}
+    statuses = {ascii_fold(row[1]) for row in sheets["Workflows"].rows}
     team_names = {row[2] for row in sheets["Projects"].rows if row[2]} | {row[0] for row in sheets["Projects"].rows}
     for (table, column), formula in ALL + [(("Metrics", "AsOf"), f.AS_OF_CELL), (("Metrics", "Mode"), f.MODE_CELL)]:
         folded = ascii_fold(formula)

@@ -1,6 +1,6 @@
 Attribute VB_Name = "modParams"
 Option Explicit
-' Parameters live in the workbook, never in code. The sheets Workflows, Transitions and FieldMapping are written by
+' Parameters live in the workbook, never in code. The sheets Workflows and Transitions are written by
 ' the Python generator from params\*.md; this module only reads them. Each reader takes the sheet as an argument
 ' (testable on a scratch sheet). Every call re-reads the sheet: keep the result (for example the Dictionary of
 ' StatusCategories) when you need it in a loop.
@@ -189,7 +189,7 @@ Public Sub RequireEditableIf(ByVal isReadOnly As Boolean, ByVal inProtectedView 
     Dim why As String
     why = LockReason(isReadOnly, inProtectedView)
     If Len(why) > 0 Then
-        Cov "PRM56"
+        Cov "PRM10"
         Err.Raise vbObjectError + 612, "RequireEditable", "The workbook is locked: " & why & ". If a yellow bar is shown at the top of Excel, " & _
                   "click Enable Editing. Otherwise close what holds the file (another Excel or user), or save a copy (File > Save As) and open " & _
                   "that one; for a file that came from the Internet also right-click it > Properties > Unblock. Then click the button again."

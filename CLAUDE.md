@@ -107,7 +107,7 @@ python.log). `tests/unit/test_claude_hooks.py` and `test_claude_skills.py` test 
 ## Architecture (big picture)
 
 - **Sheet names say where the data comes from (AL, 2026-11-13).** `_from_user` = typed by the person (Config, Projects, Iterations, PIs, Workflows,
-  Transitions, FieldMapping), `_from_Jira` = read from the Jira API (Issues, StatusIntervals, IssueLinks, the `Jira...` proposals), `_from_excel` = calculated,
+  Transitions), `_from_Jira` = read from the Jira API (Issues, StatusIntervals, IssueLinks, the `Jira...` proposals), `_from_excel` = calculated,
   drawn or written by the workbook (Charts, Metrics, ItemFlow, Dashboard, Manual, Steps, the plan sheets...). The code keeps the LOGICAL names (`Config`,
   `Issues`; the Excel tables too: `Issues[Key]`) and converts at the edge: `sheet_names.of(name)` in Python, `modText.SheetName(name)` in VBA (both idempotent,
   an unknown name such as a test's scratch sheet comes back unchanged; `LogicalSheet` goes back). The three lists must be the same on both sides
@@ -154,7 +154,7 @@ python.log). `tests/unit/test_claude_hooks.py` and `test_claude_skills.py` test 
   `art_metrics_excel.feature` (the real workbook, also against the reference cell by cell) compare to it, never only to `flow/`.
   **A scenario is a SEPARATE INSTANCE with only its own data (AL, 2026-11-17).** Its parameter sheets are built from its own text
   (`art_metrics.sheets()`): Projects = the Program `TTT` alone (no Team project: the legends of its charts show `ART`, never `AAA`...),
-  Workflows and Transitions = the Feature workflow alone, its own Iterations and PIs; only Config and FieldMapping (the product's list of
+  Workflows and Transitions = the Feature workflow alone, its own Iterations and PIs; only Config (the product's list of
   parameters and columns) come from `params/`. Its `FieldIds` keep only the fields it uses (PI, Team, Work type, Iteration; the others are
   `None`: not in `/field`, not in the issues, empty in its Config). The product rule was relaxed for it (`params/model.shape_problems`):
   the Team workflow is needed only when a Team project exists, and a Team project is no longer required. Its fake Jira listens on its own
@@ -172,7 +172,7 @@ python.log). `tests/unit/test_claude_hooks.py` and `test_claude_skills.py` test 
   table `PIStatusTime` (sheet `PIStatusTime_from_excel`: PI | Status | Start | End | Items | TotalDays | AverageDays | Share) show where the cycle
   time of the Features goes, to find the statuses that take most of it. A PI = the Features RELEASED in it (DoneUtc in [Start, End) of the sheet
   PIs, not excluded from flow time); the statuses = the Active and Wait statuses of the Feature workflow in the ROW order of the sheet
-  Workflows (not `Order`, empty for a free status; Unclassified is left out); TotalDays = the time those Features spent in the status from their
+  Workflows (the sheet has no `Order` column since 2026-11-18: its rows are the normal flow; Unclassified is left out); TotalDays = the time those Features spent in the status from their
   StartUtc (included) to their DoneUtc (excluded), the window of `ItemFlow.ActiveDays/WaitDays` (so the totals of a PI add up to the Active + Wait
   days of the same Features: a test asserts it); Average = Total / Items; Share = Total / the total of the statuses of the PI. The helper columns
   of `StatusIntervals` (`ItemRow`, `ItemStart`, `ItemDone`, `ItemExcluded`, `InCycle`) feed it. Reference `flow/pi_status_time.py`, hand-typed oracle
@@ -186,7 +186,7 @@ python.log). `tests/unit/test_claude_hooks.py` and `test_claude_skills.py` test 
   real delivered workbook against the fake Jira and compare Excel with this reference **cell by cell** (Flow Load modes A
   and B). Keep the two sides in step: a formula change needs the reference change and vice versa.
 - **Parameters live in the workbook, never in code.** `params/*.md` (config, projects, workflows, transitions,
-  field_mapping, iterations) are read and validated by `src/jira2dashboard/params/`, written into sheets, and read by VBA
+  iterations) are read and validated by `src/jira2dashboard/params/`, written into sheets, and read by VBA
   (`modParams`). Status names, team names and extract columns must not appear as literals in VBA (a guard test enforces it).
   `Config` columns: Parameter | Value | Example | Mandatory | Description (formulas read A and B; the rest by header). An empty Mandatory=True value
   stops the buttons before any call to Jira (`modParams.RequireMandatory`, error 608).
@@ -262,14 +262,21 @@ python.log). `tests/unit/test_claude_hooks.py` and `test_claude_skills.py` test 
   UTF-8 console meanwhile), or the transcript would hold no result of pytest.
 - **Propose values from Jira (button, VBA, AL 2026-11-13).** `modPropose` (`BtnProposeValues`, cell `A9`) runs `ReadJiraConfiguration` and then copies what fits
   of the proposal sheets (`_from_Jira`) into the parameter sheets (`_from_user`), **only into empty cells**: a status or move that `Workflows` / `Transitions` lack
-  (Workflow = Feature when only the Program project uses the Jira workflow, else Team; Category only what Jira gives for sure; never Order, IsStart, IsEnd,
-  Active/Wait, the Type of a move), the `...Field` ids of `Config` that Jira names once (by the custom type, else by the name; two candidates = nothing).
+  (Workflow = Feature when only the Program project uses the Jira workflow, else Team; Category only what Jira gives for sure; IsEnd = 1 on the ONLY Done status of a
+  workflow that has none; never IsStart or Active/Wait), the `...Field` ids of `Config` that Jira names once (by the custom type, else by the name; two candidates = nothing;
+  also `WorkTypeField` by the names "Work type category" / "TypeCategorie"). **Since 2026-11-18 (AL) the sheets `Workflows` and `Transitions` have no `Order` / `Type`
+  column and the sheet `FieldMapping` is gone (nothing read them); a Team project with an empty `Team` is its own team (the project key: `ItemFlow.Team`,
+  `modFlowBuild.TeamNames`, `flow_adapter`, `mapping.flow_issue`).** The Config lists of issue types and `BlocksLinkType` follow another rule (`SetListValue`): the Value is
+  written when EMPTY or when it still equals its **Example** (the delivered default = never chosen), a typed value never changes, Jira agreeing = nothing: `SubTaskTypes`
+  (JiraIssueTypes.Subtask), `FeatureTypes` (types of the Program project at its highest `HierarchyLevel`), `ParentRequiredTypes` / `PointsRequiredTypes` (a rule, not a fact:
+  only the names that no Team project has are taken out), `BlocksLinkType` (the ONE link type of `JiraLinkTypes` whose outward text is "blocks", read by `modJiraConfig.ReadLinkTypes`,
+  GET `issueLinkType`, a refused call gives none). A change of those defaults in `params/config.md` must keep Value = Example.
   Every cell written is yellow (`RGB(255, 242, 204)`), the first of a row has the note "To confirm: proposed from Jira". `Config.IsUserProjectAdmin` (True by
   default, False = no call to `workflows/preview`, which needs the project administrator right: the statuses of `JiraStatuses` are proposed instead, no moves).
   It also reads the sprints of the scrum boards (`modJiraConfig.ReadSprints`, agile/1.0, sheet `JiraSprints`; a 400/401/403/404 skips the board) and proposes the
   iterations they make (`ProposeIterations`: sprints that start and end within a day = one iteration, End = last day + 1, cut at the start of the next iteration so
   that no day is in two iterations, label = the shared name else `Iteration <Start>`, only the ones `Iterations` lacks). A new proposal rule goes in `modPropose`
-  with its case in `T_ProposeFromSheets`. Not yet: the link type, the teams; PI dates have no API.
+  with its case in `T_ProposeFromSheets` / `T_ProposeTypes`. Not yet: the teams; PI dates have no API.
 - **After an extraction (modHealth, AL 2026-11-13).** `ExtractSlice` appends `HealthFields` to the final status, each field only when there is something to see:
   `Done outside the iterations: N of M` (no metric counts a ticket done outside every iteration: the usual cause of empty charts), `Without a team`,
   `Statuses not in Workflows` (their names), `Cells in error: Table.Column x n` (a formula that fails on real data; the charts' own #N/A are not read).
@@ -333,7 +340,7 @@ python.log). `tests/unit/test_claude_hooks.py` and `test_claude_skills.py` test 
   COM: `flow/sheets.py`, `cli/check_machine.py`, `cli/diagnose.py`, `mockjira/__main__.py`, and the `build*`/`main` functions (see
   `pyproject.toml`).
 
-Domain decisions and the metric definitions are in `docs/` (7 md files, **never edit them**). The handoff file `claude-code-handoff.md` was deleted
+Domain decisions and the metric definitions are in `docs/` (7 md files, **never edit them** unless AL says so: he allowed it on 2026-11-18 for the removal of `FieldMapping`, `Order` and `Type`). The handoff file `claude-code-handoff.md` was deleted
 on 2026-11-06; its last version is `git show 6a93cdd:claude-code-handoff.md` (section 7: COM traps, 8b: open defect, 8c: Jira calls, and the roadmap).
 `README.md` (English) is the engineering guide: keep it concise,
 tables rather than code blocks for lists, never the word "client" nor the vendor or product name of the endpoint protection

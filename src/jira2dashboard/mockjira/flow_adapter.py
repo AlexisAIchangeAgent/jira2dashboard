@@ -22,7 +22,7 @@ def _day(value: dt.date | None) -> dt.datetime | None:
 def to_flow_issues(dataset: Dataset, sheets: list[ParamSheet] | None = None) -> list[FlowIssue]:
     """Program issues are reported under the team ART and follow the Feature workflow; every other project
     follows the Team workflow and reports under its team name (sheet Projects)."""
-    projects = {row[0]: (row[1], row[2]) for s in (sheets or dataset.sheets or load_all()) if s.name == "Projects" for row in s.rows}
+    projects = {row[0]: (row[1], row[2] or row[0]) for s in (sheets or dataset.sheets or load_all()) if s.name == "Projects" for row in s.rows}
     out = []
     for issue in dataset.issues:
         role, team = projects[issue.project]

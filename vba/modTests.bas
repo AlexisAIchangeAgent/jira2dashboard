@@ -50,7 +50,7 @@ Private Function TestNames() As Variant
     TestNames = Array("T_JsonNested", "T_JsonEscapes", "T_JsonEmpty", "T_JsonErrors", "T_JsonRoundTrip", _
         "T_JsonLarge", "T_Base64Auth", "T_UrlEncode", "T_Utf8RoundTrip", "T_JiraDates", "T_FieldToCell", _
         "T_SafeCell", "T_ProjectsJql", "T_SearchUrl", "T_SearchPagination", "T_Retry429", _
-        "T_HttpNetworkAndCancel", "T_RetryExhausted", "T_ChangelogChunks", "T_IssueRows", "T_WriteTable", "T_StatusIntervals", "T_IntervalsUnreadableDate", "T_StatusChangesUnreadableDate", "T_ChangelogRows", "T_UserFieldIds", "T_DateShape", "T_ParseJiraDateEpoch", "T_DateKind", "T_IsPlausibleDate", "T_FindDateKey", "T_ChangelogDateKey", "T_SkippedDatesWarning", "T_SheetName", "T_ProposeFromSheets", "T_ProposeIterations", "T_ReadSprints", "T_ProposeKindOf", "T_ProposeValuesNotAdmin", "T_HealthFields", "T_CellKind", "T_FitsType", "T_ShapeOfCell", "T_TypeHints", "T_TypeProblems", "T_TypeEmptyTable", "T_TypeBlocks", "T_TypeFillLines", "T_WireTypes", _
+        "T_HttpNetworkAndCancel", "T_RetryExhausted", "T_ChangelogChunks", "T_IssueRows", "T_WriteTable", "T_StatusIntervals", "T_IntervalsUnreadableDate", "T_StatusChangesUnreadableDate", "T_ChangelogRows", "T_UserFieldIds", "T_DateShape", "T_ParseJiraDateEpoch", "T_DateKind", "T_IsPlausibleDate", "T_FindDateKey", "T_ChangelogDateKey", "T_SkippedDatesWarning", "T_SheetName", "T_ProposeFromSheets", "T_ProposeIterations", "T_ReadSprints", "T_TeamNames", "T_ReadLinkTypes", "T_ProposeTypes", "T_ProposeKindOf", "T_ProposeValuesNotAdmin", "T_HealthFields", "T_CellKind", "T_FitsType", "T_ShapeOfCell", "T_TypeHints", "T_TypeProblems", "T_TypeEmptyTable", "T_TypeBlocks", "T_TypeFillLines", "T_WireTypes", _
         "T_StatusChanges", "T_RetryDelay", "T_SafeAccess", "T_FilesUtf8", "T_StringifyBadObject", _
         "T_TooManyPages", "T_BackgroundExport", "T_TextNotConverted", "T_ParamsTables", "T_ParamsOnWorkbook", _
         "T_TrimWhite", "T_ConfigSheet", "T_MandatoryConfig", "T_Locked", "T_PiIntervals", "T_ProxyDetect", "T_ProxyScript", "T_ProjectsSheet", "T_StatusNames", "T_ParseMoment", "T_ExtractFlowData", "T_ExtractJob", "T_ExtractCheckFields", "T_FlowBuild", "T_BaseUrlHttps", "T_Log", "T_LogInputsAndTimes", "T_StatusParts", "T_ErrorCodes", "T_LogHintAndOpen", "T_StepsSheet", "T_RovoPrompt", "T_RovoCsv", _
@@ -495,23 +495,23 @@ Public Sub T_StatusNames()
     ' The stack of the chart Cycle time by status: the Active and Wait statuses of the Feature workflow, in the order of the sheet rows.
     Dim ws As Object, rows As New Collection, names As Collection
     Set ws = ThisWorkbook.Worksheets("TestScratch")
-    rows.Add Array("Team", 1, "Nouveau", "Backlog", 1, 0, 0)
-    rows.Add Array("Team", 2, "Doing", "Active", 0, 0, 0)
-    rows.Add Array("Feature", Null, "Free", "Active", 0, 0, 1)             ' no Order: it keeps its place in the sheet
-    rows.Add Array("feature", 2, "Lower", "Active", 0, 0, 0)               ' spelled otherwise: the loaders refuse it, it feeds no interval
-    rows.Add Array("Feature", 2, "Review", "Wait", 0, 0, 0)
-    rows.Add Array("Feature", 3, "Done", "Done", 0, 1, 0)
-    rows.Add Array("Feature", 1, "Todo", "Backlog", 1, 0, 0)
-    rows.Add Array("Feature", 4, "Build", "Active", 0, 0, 0)
-    rows.Add Array("Feature", 5, "", "Active", 0, 0, 0)                    ' no status name: left out
-    WriteTable ws, Array("Workflow", "Order", "Status", "Category", "IsStart", "IsEnd", "IsFree"), rows
+    rows.Add Array("Team", "Nouveau", "Backlog", 1, 0, 0)
+    rows.Add Array("Team", "Doing", "Active", 0, 0, 0)
+    rows.Add Array("Feature", "Free", "Active", 0, 0, 1)                   ' a free status keeps its place in the sheet
+    rows.Add Array("feature", "Lower", "Active", 0, 0, 0)                  ' spelled otherwise: the loaders refuse it, it feeds no interval
+    rows.Add Array("Feature", "Review", "Wait", 0, 0, 0)
+    rows.Add Array("Feature", "Done", "Done", 0, 1, 0)
+    rows.Add Array("Feature", "Todo", "Backlog", 1, 0, 0)
+    rows.Add Array("Feature", "Build", "Active", 0, 0, 0)
+    rows.Add Array("Feature", "", "Active", 0, 0, 0)                       ' no status name: left out
+    WriteTable ws, Array("Workflow", "Status", "Category", "IsStart", "IsEnd", "IsFree"), rows
     Set names = StatusNames(ws)
     Check "statusnames", "the Active and Wait statuses of the Feature workflow, in the order of the rows", "Free, Review, Build", "3|Free|Review|Build", _
           names.Count & JoinNames(names)
     ws.Cells.Clear
     Set rows = New Collection
-    rows.Add Array("Team", 1, "Doing", "Active", 1, 0, 0)
-    WriteTable ws, Array("Workflow", "Order", "Status", "Category", "IsStart", "IsEnd", "IsFree"), rows
+    rows.Add Array("Team", "Doing", "Active", 1, 0, 0)
+    WriteTable ws, Array("Workflow", "Status", "Category", "IsStart", "IsEnd", "IsFree"), rows
     Set names = StatusNames(ws)
     Check "statusnames", "no Active or Wait status in the Feature workflow gives one placeholder", "Team only", "1|(no status)", names.Count & JoinNames(names)
     ws.Cells.Clear
@@ -2176,8 +2176,13 @@ End Sub
 Private Sub PutRows(ByVal wb As Object, ByVal logicalName As String, ByVal rows As Variant)
     ' A sheet of wb (named like the real one) from rows: Array(Array(header...), Array(row...), ...); "" is an empty cell.
     Dim ws As Object, r As Long, c As Long
-    Set ws = wb.Worksheets.Add(, wb.Worksheets(wb.Worksheets.Count))
-    ws.Name = SheetName(logicalName)
+    If SheetExists(wb, logicalName) Then
+        Set ws = wb.Worksheets(SheetName(logicalName))                       ' written again: the new rows replace the old ones
+        ws.Cells.Clear
+    Else
+        Set ws = wb.Worksheets.Add(, wb.Worksheets(wb.Worksheets.Count))
+        ws.Name = SheetName(logicalName)
+    End If
     For r = 0 To UBound(rows)
         For c = 0 To UBound(rows(r))
             If Len(CStr(rows(r)(c))) > 0 Then ws.Cells(r + 1, c + 1).Value = rows(r)(c)
@@ -2191,24 +2196,24 @@ Private Function ProposalBook() As Object
     Set wb = Workbooks.Add
     PutRows wb, "Projects", Array(Array("Project", "Role", "Team"), Array("PRG", "Program", "ART"), Array("TA", "Team", "Team A"), _
                                   Array("TB", "Team", "Team B"))
-    PutRows wb, "Workflows", Array(Array("Workflow", "Order", "Status", "Category", "IsStart", "IsEnd", "IsFree"), _
-                                   Array("Team", 1, "Open", "Backlog", 1, 0, 0), Array("Team", 2, "Doing", "", 0, 0, 0))
-    PutRows wb, "Transitions", Array(Array("Workflow", "From", "To", "Type"), Array("Team", "Open", "Doing", "forward"))
+    PutRows wb, "Workflows", Array(Array("Workflow", "Status", "Category", "IsStart", "IsEnd", "IsFree"), _
+                                   Array("Team", "Open", "Backlog", 1, "", 0), Array("Team", "Doing", "", 0, "", 0))
+    PutRows wb, "Transitions", Array(Array("Workflow", "From", "To"), Array("Team", "Open", "Doing"))
     PutRows wb, "Config", Array(Array("Parameter", "Value", "Example", "Mandatory", "Description"), Array("SprintField", "", "x", "False", ""), _
                                 Array("TeamField", "customfield_9", "x", "False", ""), Array("StoryPointsField", "", "x", "False", ""), _
                                 Array("PIField", "", "x", "False", ""), Array("BusinessValueField", "", "x", "False", ""), _
                                 Array("TargetStartField", "", "x", "False", ""))
-    PutRows wb, "JiraWorkflows", Array(Array("Workflow", "Order", "Status", "Category", "IsStart", "IsEnd", "IsFree", "JiraCategory", "Project"), _
-                                       Array("WF-A", 1, "Open", "Backlog", "", "", 0, "TODO", "PRG, TA"), _
-                                       Array("WF-A", "", "Doing", "", "", "", 0, "IN_PROGRESS", "PRG, TA"), _
-                                       Array("WF-A", "", "Closed", "Done", "", "", 0, "DONE", "PRG, TA"), _
-                                       Array("WF-F", "", "Draft", "Backlog", "", "", 1, "TODO", "PRG"))
+    PutRows wb, "JiraWorkflows", Array(Array("Workflow", "Status", "Category", "IsStart", "IsEnd", "IsFree", "JiraCategory", "Initial", "Project"), _
+                                       Array("WF-A", "Open", "Backlog", "", "", 0, "TODO", 1, "PRG, TA"), _
+                                       Array("WF-A", "Doing", "", "", "", 0, "IN_PROGRESS", "", "PRG, TA"), _
+                                       Array("WF-A", "Closed", "Done", "", "", 0, "DONE", "", "PRG, TA"), _
+                                       Array("WF-F", "Draft", "Backlog", "", "", 1, "TODO", "", "PRG"))
     PutRows wb, "JiraStatuses", Array(Array("Project", "IssueType", "Status", "JiraCategory"), Array("TB", "Story", "Triage", "new"), _
                                       Array("TB", "Story", "Open", "new"))
-    PutRows wb, "JiraTransitions", Array(Array("Workflow", "From", "To", "Type", "JiraTransition", "TransitionId", "Scope", "Project"), _
-                                         Array("WF-A", "Open", "Doing", "", "Start", "11", "DIRECTED", "PRG, TA"), _
-                                         Array("WF-A", "Doing", "Closed", "", "Close", "12", "DIRECTED", "PRG, TA"), _
-                                         Array("WF-F", "Draft", "Ready", "", "Go", "13", "DIRECTED", "PRG"))
+    PutRows wb, "JiraTransitions", Array(Array("Workflow", "From", "To", "JiraTransition", "TransitionId", "Scope", "Project"), _
+                                         Array("WF-A", "Open", "Doing", "Start", "11", "DIRECTED", "PRG, TA"), _
+                                         Array("WF-A", "Doing", "Closed", "Close", "12", "DIRECTED", "PRG, TA"), _
+                                         Array("WF-F", "Draft", "Ready", "Go", "13", "DIRECTED", "PRG"))
     PutRows wb, "JiraFields", Array(Array("Id", "Name", "Custom", "SchemaType", "SchemaDetail"), _
                                     Array("customfield_1", "Sprint", "Yes", "array", "com.pyxis.greenhopper.jira:gh-sprint"), _
                                     Array("customfield_2", "Team", "Yes", "team", "com.atlassian.teams:rm-teams-custom-field-team"), _
@@ -2244,16 +2249,16 @@ Public Sub T_ProposeFromSheets()
     Set wsW = wb.Worksheets(SheetName("Workflows")): Set wsT = wb.Worksheets(SheetName("Transitions")): Set wsC = wb.Worksheets(SheetName("Config"))
     Check "propose", "the summary names the three sheets with their counts", "3, 2, 3", True, _
           InStr(summary, " | Workflows_from_user: 3 proposed | Transitions_from_user: 2 proposed | Config_from_user: 3 proposed") > 0
-    Check "propose", "a status the sheet has is left as typed", "Open", "Team|1|Open|Backlog|1|0|0", RowText(wsW, 2, 7)
-    Check "propose", "a status of a workflow shared with a Team project is Team, Done is the category", "Closed", "Team||Closed|Done|||0", RowText(wsW, 4, 7)
-    Check "propose", "a workflow only the Program uses is Feature, IsFree comes from Jira", "Draft", "Feature||Draft|Backlog|||1", RowText(wsW, 5, 7)
-    Check "propose", "a status of JiraStatuses no workflow gave: its category (new -> Backlog)", "Triage", "Team||Triage|Backlog|||", RowText(wsW, 6, 7)
-    Check "propose", "Order, IsStart and IsEnd stay a human choice", "Closed", "||", CStr(wsW.Cells(4, 2).Value & "") & "|" & CStr(wsW.Cells(4, 5).Value & "") & "|" & CStr(wsW.Cells(4, 6).Value & "")
-    Check "propose", "a proposed cell is yellow", "Status of Closed", yellow, wsW.Cells(4, 3).Interior.Color
-    Check "propose", "the first cell of a row has the note", "Status of Closed", "To confirm: proposed from Jira", wsW.Cells(4, 3).Comment.Text
-    Check "propose", "a typed cell stays plain", "Status of Open", True, wsW.Cells(2, 3).Interior.ColorIndex = -4142
-    Check "propose", "a move the sheet lacks is added without a Type", "Doing -> Closed", "Team|Doing|Closed|", RowText(wsT, 3, 4)
-    Check "propose", "a move of the Program workflow is Feature", "Draft -> Ready", "Feature|Draft|Ready|", RowText(wsT, 4, 4)
+    Check "propose", "a status the sheet has is left as typed", "Open", "Team|Open|Backlog|1||0", RowText(wsW, 2, 6)
+    Check "propose", "a status of a workflow shared with a Team project is Team, Done is the category, and the only Done is the end", "Closed", "Team|Closed|Done||1|0", RowText(wsW, 4, 6)
+    Check "propose", "a workflow only the Program uses is Feature, IsFree comes from Jira, no Done: no IsEnd", "Draft", "Feature|Draft|Backlog|||1", RowText(wsW, 5, 6)
+    Check "propose", "a status of JiraStatuses no workflow gave: its category (new -> Backlog)", "Triage", "Team|Triage|Backlog|||", RowText(wsW, 6, 6)
+    Check "propose", "IsStart stays a human choice", "Closed", "", CStr(wsW.Cells(4, 4).Value & "")
+    Check "propose", "a proposed cell is yellow", "Status of Closed", yellow, wsW.Cells(4, 2).Interior.Color
+    Check "propose", "the first cell of a row has the note", "Status of Closed", "To confirm: proposed from Jira", wsW.Cells(4, 2).Comment.Text
+    Check "propose", "a typed cell stays plain", "Status of Open", True, wsW.Cells(2, 2).Interior.ColorIndex = -4142
+    Check "propose", "a move the sheet lacks is added", "Doing -> Closed", "Team|Doing|Closed", RowText(wsT, 3, 3)
+    Check "propose", "a move of the Program workflow is Feature", "Draft -> Ready", "Feature|Draft|Ready", RowText(wsT, 4, 3)
     Check "propose", "a move the sheet has is not added twice", "rows", 4, LastRow(wsT)
     Check "propose", "an empty field id gets the one field that fits (by its custom type)", "SprintField", "customfield_1", CStr(wsC.Cells(2, 2).Value)
     Check "propose", "a typed field id is never changed", "TeamField", "customfield_9", CStr(wsC.Cells(3, 2).Value)
@@ -2331,6 +2336,114 @@ Public Sub T_ReadSprints()
     Check "sprints", "a Kanban board and an unreadable project are skipped", "ZZ", 1, noBoard
 End Sub
 
+Public Sub T_TeamNames()
+    ' The teams of the charts: ART, then the team of each Team project, once; an empty Team is the project key (AL, 2026-11-18).
+    Dim ws As Object, rows As New Collection, names As Collection
+    Set ws = ThisWorkbook.Worksheets("TestScratch")
+    rows.Add Array("PRG", "Program", "")
+    rows.Add Array("TA", "Team", "Team A")
+    rows.Add Array("TB", "Team", "")
+    rows.Add Array("TC", "Team", "Team A")
+    rows.Add Array("TD", "Team", " ")
+    WriteTable ws, Array("Project", "Role", "Team"), rows
+    Set names = TeamNames(ws, "ART")
+    Check "teams", "ART, the team of a project, the key of a project without team (a blank cell too), each once", "PRG TA TB TC TD", "4|ART|Team A|TB|TD", _
+          names.Count & JoinNames(names)
+    ws.Cells.Clear
+End Sub
+
+Public Sub T_ReadLinkTypes()
+    ' The issue link types of the site: Name | Inward | Outward; an account that may not read them gives none, never an error.
+    Dim cfg As Object, base As String, rows As Collection
+    Set cfg = TestConfig(): base = cfg("BaseUrl")
+    FakeReset
+    FakeAdd "GET", base & "/rest/api/3/issueLinkType", 200, J("{'issueLinkTypes':[{'id':'1','name':'Blocks','inward':'is blocked by','outward':'blocks'}," & _
+        "{'id':'2','name':'Relates','inward':'relates to','outward':'relates to'}]}")
+    Set rows = ReadLinkTypes(cfg)
+    Check "linktypes", "the types of the site", "2", "Blocks|is blocked by|blocks;Relates|relates to|relates to", Join(Array(Join(rows(1), "|"), Join(rows(2), "|")), ";")
+    FakeReset
+    FakeAdd "GET", base & "/rest/api/3/issueLinkType", 403, J("{'errorMessages':['no permission']}")
+    Check "linktypes", "a call that is refused gives none, never an error", "403", 0, ReadLinkTypes(cfg).Count
+    FakeReset
+    FakeAdd "GET", base & "/rest/api/3/issueLinkType", 500, J("{'errorMessages':['server error']}")
+    Check "linktypes", "a server error gives none too: it never stops the button", "500", 0, ReadLinkTypes(cfg).Count
+    FakeReset
+    FakeAdd "GET", base & "/rest/api/3/issueLinkType", 200, "not json"
+    Check "linktypes", "an answer that is not JSON gives none", "text", 0, ReadLinkTypes(cfg).Count
+End Sub
+
+Private Function LinkTypesBook(ByVal pointsValue As String, ByVal blocksValue As String) As Object
+    ' The Config rows (Value = Example: the delivered default) and what Jira says about the issue types and the link types.
+    Dim wb As Object
+    Set wb = Workbooks.Add
+    PutRows wb, "Projects", Array(Array("Project", "Role", "Team"), Array("PRG", "Program", "ART"), Array("TA", "Team", "Team A"))
+    PutRows wb, "Config", Array(Array("Parameter", "Value", "Example", "Mandatory", "Description"), _
+        Array("SubTaskTypes", "Sub-task", "Sub-task", "False", ""), Array("FeatureTypes", "Feature", "Feature", "True", ""), _
+        Array("ParentRequiredTypes", "Story,Task", "Story,Task", "False", ""), Array("PointsRequiredTypes", pointsValue, "Story", "False", ""), _
+        Array("BlocksLinkType", blocksValue, "Blocks", "True", ""))
+    PutRows wb, "JiraIssueTypes", Array(Array("Project", "IssueType", "Workflow", "Subtask", "HierarchyLevel", "ProjectStyle"), _
+        Array("PRG", "Epic", "WF", "No", 1, "classic"), Array("PRG", "Feature", "WF", "No", 2, "classic"), Array("PRG", "Enabler", "WF", "No", 2, "classic"), _
+        Array("TA", "Story", "WF", "No", 0, "classic"), Array("TA", "Bug", "WF", "No", 0, "classic"), _
+        Array("TA", "Sub-task", "WF", "Yes", -1, "classic"), Array("TA", "Technical task", "WF", "Yes", -1, "classic"), _
+        Array("TB", "Task", "WF", "No", 0, "classic"))
+    PutRows wb, "JiraLinkTypes", Array(Array("Name", "Inward", "Outward"), Array("Blocks", "is blocked by", "blocks"), Array("Relates", "relates to", "relates to"))
+    Application.DisplayAlerts = False
+    wb.Worksheets(1).Delete
+    Application.DisplayAlerts = True
+    Set LinkTypesBook = wb
+End Function
+
+Public Sub T_ProposeTypes()
+    ' Config: the lists of issue types come from JiraIssueTypes, BlocksLinkType from JiraLinkTypes, where the Value is empty or still the
+    ' delivered default (= its Example); a typed value stays; yellow with a note. IsEnd: the only Done status of a workflow without one.
+    Dim wb As Object, wsC As Object, wsW As Object, summary As String, yellow As Long
+    yellow = RGB(255, 242, 204)
+    Set wb = LinkTypesBook("Story", "Blocks")
+    summary = ProposeFromSheets(wb)
+    Set wsC = wb.Worksheets(SheetName("Config"))
+    Check "propose", "the sub-tasks of Jira replace the default", "SubTaskTypes", "Sub-task,Technical task", CStr(wsC.Cells(2, 2).Value)
+    Check "propose", "the types of the Program at its highest level replace the default", "FeatureTypes", "Feature,Enabler", CStr(wsC.Cells(3, 2).Value)
+    Check "propose", "a type that no Team project has is taken out of the rule", "ParentRequiredTypes", "Story", CStr(wsC.Cells(4, 2).Value)
+    Check "propose", "Jira agrees with the default: nothing written", "PointsRequiredTypes", "Story|" & -4142, CStr(wsC.Cells(5, 2).Value) & "|" & wsC.Cells(5, 2).Interior.ColorIndex
+    Check "propose", "the link type that blocks agrees with the default: nothing written", "BlocksLinkType", "Blocks|" & -4142, CStr(wsC.Cells(6, 2).Value) & "|" & wsC.Cells(6, 2).Interior.ColorIndex
+    Check "propose", "a replaced default is yellow with the note", "SubTaskTypes", yellow & "|To confirm: proposed from Jira", wsC.Cells(2, 2).Interior.Color & "|" & wsC.Cells(2, 2).Comment.Text
+    Check "propose", "the summary counts the three", "3", True, InStr(summary, " | Config_from_user: 3 proposed") > 0
+    Check "propose", "a second run adds nothing", "nothing new", True, InStr(ProposeFromSheets(wb), " | Proposed: nothing new") = 1
+    Application.DisplayAlerts = False
+    wb.Close False
+    Application.DisplayAlerts = True
+    ' a value the person typed stays, the link type of the site is another one
+    Set wb = LinkTypesBook("Story,Task", "Bloque")
+    PutRows wb, "JiraLinkTypes", Array(Array("Name", "Inward", "Outward"), Array("Blocks", "is blocked by", "blocks"))
+    ProposeFromSheets wb
+    Set wsC = wb.Worksheets(SheetName("Config"))
+    Check "propose", "a typed link type stays, whatever Jira says", "BlocksLinkType", "Bloque", CStr(wsC.Cells(6, 2).Value)
+    Application.DisplayAlerts = False
+    wb.Close False
+    Application.DisplayAlerts = True
+    ' two link types that block: nothing, the person chooses; the default link type is replaced by the one Jira names once
+    Set wb = LinkTypesBook("Story", "Blocks")
+    PutRows wb, "JiraLinkTypes", Array(Array("Name", "Inward", "Outward"), Array("Blocks", "is blocked by", "blocks"), Array("Stops", "is stopped by", "blocks"))
+    ProposeFromSheets wb
+    Check "propose", "two link types that block: nothing proposed", "BlocksLinkType", "Blocks", CStr(wb.Worksheets(SheetName("Config")).Cells(6, 2).Value)
+    PutRows wb, "JiraLinkTypes", Array(Array("Name", "Inward", "Outward"), Array("Bloquant", "est bloque par", "blocks"))
+    ProposeFromSheets wb
+    Check "propose", "the one link type that blocks replaces the default name", "BlocksLinkType", "Bloquant", CStr(wb.Worksheets(SheetName("Config")).Cells(6, 2).Value)
+    Application.DisplayAlerts = False
+    wb.Close False
+    Application.DisplayAlerts = True
+    ' IsEnd: two Done statuses in the workflow, the person chooses
+    Set wb = ProposalBook()
+    PutRows wb, "JiraWorkflows", Array(Array("Workflow", "Status", "Category", "IsStart", "IsEnd", "IsFree", "JiraCategory", "Initial", "Project"), _
+        Array("WF-A", "Closed", "Done", "", "", 0, "DONE", "", "PRG, TA"), Array("WF-A", "Cancelled", "Done", "", "", 0, "DONE", "", "PRG, TA"))
+    ProposeFromSheets wb
+    Set wsW = wb.Worksheets(SheetName("Workflows"))
+    Check "propose", "two Done statuses: no IsEnd proposed", "Closed, Cancelled", "Team|Closed|Done||;Team|Cancelled|Done||", RowText(wsW, 4, 5) & ";" & RowText(wsW, 5, 5)
+    Application.DisplayAlerts = False
+    wb.Close False
+    Application.DisplayAlerts = True
+End Sub
+
 Public Sub T_ProposeKindOf()
     ' Feature only when every project that uses the Jira workflow is the Program; an unknown project makes it Team.
     Dim roleOf As Object
@@ -2375,8 +2488,8 @@ Public Sub T_ProposeValuesNotAdmin()
     Check "propose", "the status says why the workflows were not read", "IsUserProjectAdmin", True, _
           InStr(summary, " | Workflows not read: IsUserProjectAdmin is False") > 0
     Set wsW = wb.Worksheets(SheetName("Workflows"))
-    Check "propose", "the statuses of the issue types are proposed: Done as Done", "Shipped", "Team||Shipped|Done|||", RowText(wsW, 4, 7)
-    Check "propose", "an In progress status the sheet has keeps its empty category", "Doing", "Team|2|Doing||0|0|0", RowText(wsW, 3, 7)
+    Check "propose", "the statuses of the issue types are proposed: Done as Done, the only one is the end", "Shipped", "Team|Shipped|Done||1|", RowText(wsW, 4, 6)
+    Check "propose", "an In progress status the sheet has keeps its empty category", "Doing", "Team|Doing||0||0", RowText(wsW, 3, 6)
     Check "propose", "the Sprint field is proposed too", "SprintField", "customfield_7", CStr(wb.Worksheets(SheetName("Config")).Cells(2, 2).Value)
     Application.DisplayAlerts = False
     wb.Close False
@@ -2946,23 +3059,23 @@ Public Sub N_HttpBadHost()
     Check "net", "error text filled", "bad host", True, Len(r("Error")) > 0
 End Sub
 
-' ================= Parameters (sheets Workflows, Transitions, FieldMapping) =================
+' ================= Parameters (sheets Workflows, Transitions) =================
 
 Public Sub T_ParamsTables()
     ' Hermetic: the tables are written on the scratch sheet, with ASCII fixtures.
     Dim ws As Object, rows As New Collection, t As Collection, cats As Object
     Set ws = ThisWorkbook.Worksheets("TestScratch")
-    rows.Add Array("Team", 1, "Nouveau", "Backlog", 0, 0, 0)
-    rows.Add Array("Team", 2, "En analyse", "Active", 1, 0, 0)
-    rows.Add Array("Team", 3, "Termine", "Done", 0, 1, 0)
-    rows.Add Array("Team", Null, "Deprioritise", "Backlog", 0, 0, 1)
-    rows.Add Array("Feature", 2, "En analyse", "Wait", 1, 0, 0)
-    WriteTable ws, Array("Workflow", "Order", "Status", "Category", "IsStart", "IsEnd", "IsFree"), rows
+    rows.Add Array("Team", "Nouveau", "Backlog", 0, 0, 0)
+    rows.Add Array("Team", "En analyse", "Active", 1, 0, 0)
+    rows.Add Array("Team", "Termine", "Done", 0, 1, 0)
+    rows.Add Array("Team", "Deprioritise", "Backlog", Null, 0, 1)
+    rows.Add Array("Feature", "En analyse", "Wait", 1, 0, 0)
+    WriteTable ws, Array("Workflow", "Status", "Category", "IsStart", "IsEnd", "IsFree"), rows
     Set t = ReadTable(ws)
     Check "params", "one dictionary per row", "5 data rows", 5, t.Count
     Check "params", "headers are the keys", "row 2 Status", "En analyse", t(2)("Status")
     Check "params", "numbers stay numbers", "row 2 IsStart", 1, t(2)("IsStart")
-    Check "params", "empty cell is empty", "row 4 Order", Empty, t(4)("Order")
+    Check "params", "empty cell is empty", "row 4 IsStart", Empty, t(4)("IsStart")
     Set cats = StatusCategories(ws, "Team")
     Check "params", "Team has 4 statuses", "StatusCategories", 4, cats.Count
     Check "params", "category of a status", "Team En analyse", "Active", cats("En analyse")
@@ -2976,12 +3089,10 @@ Public Sub T_ParamsTables()
     Check "params", "flag off", "Team Nouveau IsEnd", False, StatusHasFlag(ws, "Team", "Nouveau", "IsEnd")
     Check "params", "flag of an unknown status", "Team Nope IsEnd", False, StatusHasFlag(ws, "Team", "Nope", "IsEnd")
     Set rows = New Collection
-    rows.Add Array("Cle", "Key", "text", "no")
-    rows.Add Array("Statut", "Status", "text", "no")
-    rows.Add Array("", "ignored: first cell is empty", "", "")
-    WriteTable ws, Array("Extract", "Logical", "Type", "CanBeEmpty"), rows
-    Check "params", "logical names", "Cle", "Key", LogicalNames(ws)("Cle")
-    Check "params", "rows without a first cell are ignored", "3 rows written", 2, LogicalNames(ws).Count
+    rows.Add Array("Team", "Nouveau", "Backlog", 0, 0, 0)
+    rows.Add Array("", "ignored: first cell is empty", "", 0, 0, 0)
+    WriteTable ws, Array("Workflow", "Status", "Category", "IsStart", "IsEnd", "IsFree"), rows
+    Check "params", "rows without a first cell are ignored", "2 rows written", 1, ReadTable(ws).Count
     ws.Cells.ClearContents
     Check "params", "empty sheet gives no rows", "", 0, ReadTable(ws).Count
     WriteTable ws, Array("Workflow", "Status"), New Collection
@@ -2990,13 +3101,12 @@ End Sub
 
 Public Sub T_ParamsOnWorkbook()
     ' The sheets written by the generator from params\*.md. Accents are built with ChrW (VBA source is ASCII).
-    Dim pret As String, depri As String, deployer As String, termine As String, wsW As Object, wsF As Object
+    Dim pret As String, depri As String, deployer As String, termine As String, wsW As Object
     pret = "Pr" & ChrW(234) & "t"
     depri = "D" & ChrW(233) & "prioris" & ChrW(233)
     deployer = ChrW(192) & " d" & ChrW(233) & "ployer"
     termine = "Termin" & ChrW(233)
     Set wsW = ThisWorkbook.Worksheets(SheetName("Workflows"))
-    Set wsF = ThisWorkbook.Worksheets(SheetName("FieldMapping"))
     Check "params", "Team start status", "Team IsStart", "En analyse", FlaggedStatus(wsW, "Team", "IsStart")
     Check "params", "Team end status", "Team IsEnd", termine, FlaggedStatus(wsW, "Team", "IsEnd")
     Check "params", "Team category", "Team En analyse", "Active", CategoryOf("Team", "En analyse")
@@ -3013,8 +3123,6 @@ Public Sub T_ParamsOnWorkbook()
     Check "params", "Team test to deploy", "Team En test > A deployer", True, IsAllowed("Team", "En test", deployer)
     Check "params", "Feature test to deploy", "Feature En test / recette > A deployer", True, IsAllowed("Feature", "En test / recette", deployer)
     Check "params", "Feature has no plain En test", "Feature En test > A deployer", False, IsAllowed("Feature", "En test", deployer)
-    Check "params", "22 columns in the field mapping", "FieldMapping", 22, LogicalNames(wsF).Count
-    Check "params", "logical name of Cle", "Cle", "Key", LogicalNames(wsF)("Cle")
 End Sub
 
 Public Sub T_JiraConfig()
@@ -3091,9 +3199,9 @@ Public Sub T_JiraConfig()
     Set wsF = ThisWorkbook.Worksheets(SheetName("JiraFields"))
     Set wsU = ThisWorkbook.Worksheets(SheetName("JiraProjectWorkflows")): Set wsP = ThisWorkbook.Worksheets(SheetName("JiraProjectFields"))
     Set wsG = ThisWorkbook.Worksheets(SheetName("JiraFieldUsage"))
-    Check "jiraconfig", "a workflow shared by two projects names both", "WF-A", "WF-A|1|Open|Backlog|||0|TODO|PRG, TA", RowText(wsW, 2, 9)
-    Check "jiraconfig", "a workflow of one project names it", "WF-B", "WF-B|1|Triage|Backlog|||0|TODO|TA", RowText(wsW, 6, 9)
-    Check "jiraconfig", "a move has its id, its scope and its projects", "Start", "WF-A|Open|Doing||Start|11|DIRECTED|PRG, TA", RowText(wsM, 2, 8)
+    Check "jiraconfig", "a workflow shared by two projects names both", "WF-A", "WF-A|Open|Backlog|||0|TODO|1|PRG, TA", RowText(wsW, 2, 9)
+    Check "jiraconfig", "a workflow of one project names it", "WF-B", "WF-B|Triage|Backlog|||0|TODO|1|TA", RowText(wsW, 6, 9)
+    Check "jiraconfig", "a move has its id, its scope and its projects", "Start", "WF-A|Open|Doing|Start|11|DIRECTED|PRG, TA", RowText(wsM, 2, 7)
     Check "jiraconfig", "summary: a project, its workflow, its issue types, its counts", "PRG", "PRG|WF-A|Feature|4|4", RowText(wsU, 2, 5)
     Check "jiraconfig", "summary: the shared workflow is listed for each project", "TA", "TA|WF-A|Story|4|4", RowText(wsU, 3, 5)
     Check "jiraconfig", "summary: the second workflow of a project", "TA", "TA|WF-B|Sub-task|2|1", RowText(wsU, 4, 5)
@@ -3120,15 +3228,15 @@ Public Sub T_JiraConfig()
     Check "jiraconfig", "no workflow when it could not be read", "TB Story", "TB|Story||No|0|classic", RowText(wsT, 5, 6)
     Check "jiraconfig", "a workflow shared by two projects is written once", "header + WF-A 4 + WF-B 2", 7, LastRow(wsW)
     Check "jiraconfig", "the second workflow of a project has its own statuses", "WF-B", _
-          "WF-B|1|Triage|Backlog|||0|TODO;WF-B||Fixed|Done|||0|DONE", RowText(wsW, 6, 8) & ";" & RowText(wsW, 7, 8)
-    Check "jiraconfig", "status of creation: Order 1; to do -> Backlog", "Open", "WF-A|1|Open|Backlog|||0|TODO", RowText(wsW, 2, 8)
-    Check "jiraconfig", "in progress: Active or Wait is left to a human", "Doing", "WF-A||Doing||||0|IN_PROGRESS", RowText(wsW, 3, 8)
-    Check "jiraconfig", "done -> Done", "Closed", "WF-A||Closed|Done|||0|DONE", RowText(wsW, 4, 8)
-    Check "jiraconfig", "a GLOBAL transition makes its status free", "Parked", "WF-A||Parked|Backlog|||1|TODO", RowText(wsW, 5, 8)
+          "WF-B|Triage|Backlog|||0|TODO|1;WF-B|Fixed|Done|||0|DONE|", RowText(wsW, 6, 8) & ";" & RowText(wsW, 7, 8)
+    Check "jiraconfig", "status of creation: Initial 1; to do -> Backlog", "Open", "WF-A|Open|Backlog|||0|TODO|1", RowText(wsW, 2, 8)
+    Check "jiraconfig", "in progress: Active or Wait is left to a human", "Doing", "WF-A|Doing||||0|IN_PROGRESS|", RowText(wsW, 3, 8)
+    Check "jiraconfig", "done -> Done", "Closed", "WF-A|Closed|Done|||0|DONE|", RowText(wsW, 4, 8)
+    Check "jiraconfig", "a GLOBAL transition makes its status free", "Parked", "WF-A|Parked|Backlog|||1|TODO|", RowText(wsW, 5, 8)
     Check "jiraconfig", "one move per link of a DIRECTED transition", "Start from Open and Parked", _
-          "WF-A|Open|Doing||Start;WF-A|Parked|Doing||Start", RowText(wsM, 2, 5) & ";" & RowText(wsM, 3, 5)
-    Check "jiraconfig", "a reference the answer does not list is shown, not hidden", "zz", "WF-A|zz|Closed||Close", RowText(wsM, 5, 5)
-    Check "jiraconfig", "the moves of the second workflow follow", "WF-B", "WF-B|Triage|Fixed||Fix", RowText(wsM, 6, 5)
+          "WF-A|Open|Doing|Start;WF-A|Parked|Doing|Start", RowText(wsM, 2, 4) & ";" & RowText(wsM, 3, 4)
+    Check "jiraconfig", "a reference the answer does not list is shown, not hidden", "zz", "WF-A|zz|Closed|Close", RowText(wsM, 5, 4)
+    Check "jiraconfig", "the moves of the second workflow follow", "WF-B", "WF-B|Triage|Fixed|Fix", RowText(wsM, 6, 4)
     Check "jiraconfig", "4 + 1 moves, the shared workflow written once", "rows", 6, LastRow(wsM)
     Check "jiraconfig", "statuses per issue type with the category key", "PRG", "PRG|Story|Doing|indeterminate", RowText(wsS, 2, 4)
     Check "jiraconfig", "one status row per project", "3 projects", 4, LastRow(wsS)
@@ -3632,18 +3740,6 @@ Public Function TransitionAllowed(ByVal wsWorkflows As Object, ByVal wsTransitio
         End If
     Next row
     If StatusHasFlag(wsWorkflows, workflow, toStatus, "IsFree") Then Cov "PRM09": TransitionAllowed = True
-End Function
-
-' (from modParams)
-Public Function LogicalNames(ByVal wsMapping As Object) As Object
-    ' extract column -> logical name (sheet FieldMapping). The macros use the logical name, never the extract column.
-    Cov "PRM10"
-    Dim out As Object, row As Variant
-    Set out = CreateObject("Scripting.Dictionary")
-    For Each row In ReadTable(wsMapping)
-        out(CStr(row("Extract"))) = CStr(row("Logical"))
-    Next row
-    Set LogicalNames = out
 End Function
 
 ' (from modParams)

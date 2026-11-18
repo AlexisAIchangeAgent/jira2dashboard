@@ -41,7 +41,7 @@ Private mRunOn As Boolean                           ' a run started and did not 
 Private Const SHOWN_PARAMETERS As String = ",WorkTypeField,ProxyWindowsAuth,IsUserProjectAdmin,FlowLoadMode,PredictabilityMode,AsOf,TimeoutSeconds,MaxRetries," & _
     "ParentRequiredTypes,FeatureTypes,SubTaskTypes,PointsRequiredTypes,StoryPointsField,BusinessValueField,PIField," & _
     "TeamField,SprintField,TargetStartField,TargetEndField,BlocksLinkType,FillRateThreshold,LogLevel,OpenLogOnError,"
-Private Const PARAMETER_SHEETS As String = "Projects,Workflows,Transitions,FieldMapping,Iterations,PIs"
+Private Const PARAMETER_SHEETS As String = "Projects,Workflows,Transitions,Iterations,PIs"
 
 Public Function LogFolderFrom(ByVal workbookPath As String, ByVal localAppData As String, ByVal temp As String) As String
     ' logs next to the workbook; the folder of the user when the workbook has no folder of its own.

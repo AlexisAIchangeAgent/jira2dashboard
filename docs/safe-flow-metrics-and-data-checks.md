@@ -23,17 +23,19 @@ Labels: **SAFe** = definition from the SAFe framework site; **Documented** = Atl
 - All teams share **one workflow** (`Team`). Features have **one workflow** of their own (`Feature`). Statuses
   and moves (Jira UI, French) are defined **in the workbook, never in code**, on two sheets.
 
-**Sheet `Workflows`** (one row per status and workflow): `Workflow | Order | Status | Category | IsStart | IsEnd | IsFree`
+**Sheet `Workflows`** (one row per status and workflow): `Workflow | Status | Category | IsStart | IsEnd | IsFree`
+(2026-11-18, AL: the column `Order` is gone, the rows are in the order of the normal flow)
 
 | Column | Meaning |
 |---|---|
 | Workflow | `Team` or `Feature` |
-| Order | position in the normal flow (1 to 8) |
 | Status | exact Jira name (with accents, read from the sheet) |
 | Category | `Active`, `Wait`, `Done`, `Removed`, `Backlog`, `Unclassified` |
 | IsStart | 1 on `En analyse` (start of the flow time) |
 | IsEnd | 1 on `Terminé` only (end of the flow time) |
 | IsFree | 1 on `Dépriorisé`: reachable from any status |
+
+Normal flow (the `Order` column is documentation only: the sheet keeps the rows in this order):
 
 | Order | Team status | Feature status | Category |
 |---|---|---|---|
@@ -48,7 +50,8 @@ Labels: **SAFe** = definition from the SAFe framework site; **Documented** = Atl
 | - | Annulé | Annulé | Removed (**Decided**) |
 | - | Dépriorisé | Dépriorisé | Backlog (**Decided**), `IsFree = 1` |
 
-**Sheet `Transitions`** (one row per allowed move, forward and backward): `Workflow | From | To | Type`.
+**Sheet `Transitions`** (one row per allowed move, forward and backward): `Workflow | From | To`
+(2026-11-18, AL: the column `Type` is gone, nothing read it; the table keeps the kind of each move as documentation).
 The same 13 rows exist for `Team` and for `Feature` (with `En test / recette` in `Feature`):
 
 | From | To | Type |
@@ -109,16 +112,16 @@ MisAjour, Resolu, Echeance, Label, FixVersion, PIsource, Parent, BusinessValue, 
   need them (DC13-DC16, DC18-DC20, DC22-DC24, and the status history for `StatusIntervals`) cannot run on this
   extract alone: list them in `MissingData` until they are extracted.
 
-### Sheet `FieldMapping` (extract column -> logical name -> metric or check)
+### Extract column -> logical name -> metric or check (the former sheet `FieldMapping`)
 
-One row per column of the extract. It shows, for each field, which metric or check uses it and what is
-wrong or not computable when it is missing. Columns: `Extract | Logical | Type | CanBeEmpty | UsedBy | Role | IfMissing | TypeConfirmed`.
+**The sheet `FieldMapping` was removed on 2026-11-18 (AL): no macro, formula or check read it** (the columns of `Issues` are fixed by
+the extraction). The table stays here as the record of the first extract and of what each field is used for.
+One row per column of the extract: which metric or check uses it and what is wrong or not computable when it is missing.
 
 - `Role`: `Required` (the metric or check cannot run without it), `Optional`, `Display` (not used in a calculation).
-- `TypeConfirmed`: `Yes` = type and emptiness given by the developer (this says nothing about the other
+- `Status` (last column): `Yes` = type and emptiness given by the developer (this says nothing about the other
   columns). **`UsedBy`, `Role` and `IfMissing` were validated by the developer on 2026-11-03.** Types of dates (date or date-time) are to be
   checked on the real extract.
-- The sheet is data, not code: the VBA reads the logical names from it. A row can be edited without changing macros.
 
 | Extract | Logical | Type | CanBeEmpty | UsedBy | Role | IfMissing | Status |
 |---|---|---|---|---|---|---|---|

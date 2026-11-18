@@ -11,7 +11,7 @@ DS = generate(seed=11, issues=250)                    # projects PRG (the Progra
 
 
 def statuses_of(workflow):
-    return [row[2] for row in SHEETS["Workflows"].rows if row[0] == workflow]
+    return [row[1] for row in SHEETS["Workflows"].rows if row[0] == workflow]
 
 
 def project(key):
@@ -94,8 +94,8 @@ def test_preview_global_transitions_lead_to_the_free_statuses_and_initial_to_the
     _found, answer = preview("TA")
     ref, transitions = names(answer), answer["workflows"][0]["transitions"]
     team = [r for r in SHEETS["Workflows"].rows if r[0] == "Team"]
-    assert [ref[t["toStatusReference"]] for t in transitions if t["type"] == "GLOBAL"] == [r[2] for r in team if r[6] == 1]
-    assert [ref[t["toStatusReference"]] for t in transitions if t["type"] == "INITIAL"] == [r[2] for r in team if r[1] == 1]
+    assert [ref[t["toStatusReference"]] for t in transitions if t["type"] == "GLOBAL"] == [r[1] for r in team if r[5] == 1]
+    assert [ref[t["toStatusReference"]] for t in transitions if t["type"] == "INITIAL"] == [team[0][1]]     # the first row
     assert all(t["links"] == [] for t in transitions if t["type"] != "DIRECTED")
 
 
@@ -176,3 +176,9 @@ def test_a_board_that_does_not_exist_is_a_404():
     with pytest.raises(ApiError) as error:
         config.board_sprints(data, 99, {})
     assert error.value.status == 404
+
+
+def test_the_link_types_name_blocks_with_its_outward_text():
+    answer = config.link_types()["issueLinkTypes"]
+    assert [t["name"] for t in answer if t["outward"] == "blocks"] == ["Blocks"]
+    assert all({"id", "name", "inward", "outward"} <= set(t) for t in answer)

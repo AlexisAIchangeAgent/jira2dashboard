@@ -718,7 +718,7 @@ def _every_sheet_says_its_source(world):
 @then("les feuilles à saisir sont _from_user, celles lues dans Jira sont _from_Jira et celles calculées sont _from_excel")
 def _the_sheets_by_source(world):
     names = {sheet.Name for sheet in world["wb"].Worksheets}
-    assert {S.of(n) for n in ("Config", "Projects", "Iterations", "PIs", "Workflows", "Transitions", "FieldMapping")} <= names
+    assert {S.of(n) for n in ("Config", "Projects", "Iterations", "PIs", "Workflows", "Transitions")} <= names
     assert {name for name in names if name.endswith(S.FROM_USER)} == {S.of(n) for n in S.USER}
     assert {name for name in names if name.endswith(S.FROM_JIRA)} == {S.of(n) for n in ("Issues", "StatusIntervals", "IssueLinks", "Changelog", "PIIntervals")}
     assert S.of("Dashboard") in names and S.of("Charts") in names and S.of("Manual") in names
@@ -909,7 +909,7 @@ def _metrics(world, mode):
 
 # --- jira_config.feature: the button Read the Jira configuration ----------------------------------------------------
 
-PARAMETER_SHEETS = ("Config", "Projects", "Workflows", "Transitions", "FieldMapping", "Iterations")
+PARAMETER_SHEETS = ("Config", "Projects", "Workflows", "Transitions", "Iterations")
 PREVIEW = "/rest/api/3/workflows/preview"
 MSO_FORM_CONTROL = 8                 # Shape.Type of a Form button
 
@@ -983,10 +983,13 @@ def _statuses(world):
 @then("la feuille JiraWorkflows redonne les statuts de la feuille Workflows, avec une catégorie proposée et les statuts libres")
 def _workflows(world):
     proposed = {"Backlog": "Backlog", "Active": "", "Wait": "", "Done": "Done", "Removed": "Done"}  # Jira has 3 categories
-    expected = {(wf, status): (1 if order == 1 else "", proposed[category], free)
-                for wf, order, status, category, _start, _end, free in param_rows("Workflows")}
+    first: dict[str, str] = {}                                                    # the status of creation: the first row of the workflow
+    for wf, status, *_rest in param_rows("Workflows"):
+        first.setdefault(wf, status)
+    expected = {(wf, status): (1 if status == first[wf] else "", proposed[category], free)
+                for wf, status, category, _start, _end, free in param_rows("Workflows")}
     rows = sheet_rows(world["wb"], "JiraWorkflows")
-    got = {(r["Workflow"], r["Status"]): (number_or_text(r["Order"]), r["Category"], number_or_text(r["IsFree"])) for r in rows}
+    got = {(r["Workflow"], r["Status"]): (number_or_text(r["Initial"]), r["Category"], number_or_text(r["IsFree"])) for r in rows}
     assert got == expected
     assert len(rows) == len(expected)
     assert {(r["IsStart"], r["IsEnd"]) for r in rows} == {("", "")}               # a human decision
@@ -996,7 +999,6 @@ def _workflows(world):
 def _transitions(world):
     rows = sheet_rows(world["wb"], "JiraTransitions")
     assert sorted((r["Workflow"], r["From"], r["To"]) for r in rows) == sorted(row[:3] for row in param_rows("Transitions"))
-    assert {r["Type"] for r in rows} == {""}                                        # forward, back, exit: a human decision
 
 
 @then("la feuille JiraFields liste les champs du faux Jira avec leur identifiant")
@@ -1262,7 +1264,7 @@ def _rovo_iterations(world):
 @then("les feuilles Workflows et Transitions n'ont pas changé")
 def _rovo_others_kept(world):
     wb = world["wb"]
-    for name in ("Workflows", "Transitions", "FieldMapping"):
+    for name in ("Workflows", "Transitions"):
         assert wb.Worksheets(S.of(name)).UsedRange.Value == world["before"][name], name
 
 
@@ -1399,7 +1401,7 @@ def find_row(ws, *values) -> int:
 @given("les feuilles Workflows et Transitions ont perdu leur dernière ligne et la feuille Config n'a plus l'identifiant du champ Story Points")
 def _parameters_lost_a_row(world):
     wb, lost = world["wb"], {}
-    for name, columns in (("Workflows", (1, 3)), ("Transitions", (1, 2, 3))):
+    for name, columns in (("Workflows", (1, 2)), ("Transitions", (1, 2, 3))):
         ws = wb.Worksheets(S.of(name))
         last = last_row(ws)
         lost[name] = tuple(ws.Cells(last, c).Value for c in columns)
@@ -1441,13 +1443,12 @@ def _values_proposed(world):
 def _lost_rows_back(world):
     wb = world["wb"]
     ws = wb.Worksheets(S.of("Workflows"))
-    row = next(r for r in range(2, last_row(ws) + 1) if (ws.Cells(r, 1).Value, ws.Cells(r, 3).Value) == world["lost"]["Workflows"])
-    assert ws.Cells(row, 3).Interior.Color == YELLOW and ws.Cells(row, 3).Comment.Text() == TO_CONFIRM
-    assert all(ws.Cells(row, c).Value is None for c in (2, 5, 6)), "Order, IsStart and IsEnd stay a human choice"
+    row = next(r for r in range(2, last_row(ws) + 1) if (ws.Cells(r, 1).Value, ws.Cells(r, 2).Value) == world["lost"]["Workflows"])
+    assert ws.Cells(row, 2).Interior.Color == YELLOW and ws.Cells(row, 2).Comment.Text() == TO_CONFIRM
+    assert all(ws.Cells(row, c).Value is None for c in (4, 5)), "IsStart stays a human choice, and a status that is not Done is no IsEnd"
     ws = wb.Worksheets(S.of("Transitions"))
     row = find_row(ws, *world["lost"]["Transitions"])
     assert row and ws.Cells(row, 2).Interior.Color == YELLOW and ws.Cells(row, 2).Comment.Text() == TO_CONFIRM
-    assert ws.Cells(row, 4).Value is None, "the Type of a move stays a human choice"
 
 
 @then("l'identifiant du champ Story Points est revenu en jaune")
@@ -1493,8 +1494,8 @@ def _no_preview(world):
 def _status_back_not_the_move(world):
     wb = world["wb"]
     ws = wb.Worksheets(S.of("Workflows"))
-    row = next(r for r in range(2, last_row(ws) + 1) if (ws.Cells(r, 1).Value, ws.Cells(r, 3).Value) == world["lost"]["Workflows"])
-    assert ws.Cells(row, 3).Interior.Color == YELLOW
+    row = next(r for r in range(2, last_row(ws) + 1) if (ws.Cells(r, 1).Value, ws.Cells(r, 2).Value) == world["lost"]["Workflows"])
+    assert ws.Cells(row, 2).Interior.Color == YELLOW
     assert find_row(wb.Worksheets(S.of("Transitions")), *world["lost"]["Transitions"]) == 0
 
 

@@ -16,21 +16,21 @@ Fonctionnalité: Un type de ticket peut suivre son propre workflow dans un proje
 
     Contexte:
       Soit le workflow "Bug" décrit dans les paramètres :
-        | Order | Status          | Category | IsStart | IsEnd | IsFree |
-        | 1     | Nouveau         | Backlog  | 0       | 0     | 0      |
-        | 2     | En analyse      | Wait     | 0       | 0     | 0      |
-        | 3     | En correction   | Active   | 1       | 0     | 0      |
-        | 4     | À livrer        | Wait     | 0       | 0     | 0      |
-        | 5     | Corrigé         | Done     | 0       | 1     | 0      |
-        | -     | Rejeté          | Removed  | 0       | 0     | 0      |
+        | Status          | Category | IsStart | IsEnd | IsFree |
+        | Nouveau         | Backlog  | 0       | 0     | 0      |
+        | En analyse      | Wait     | 0       | 0     | 0      |
+        | En correction   | Active   | 1       | 0     | 0      |
+        | À livrer        | Wait     | 0       | 0     | 0      |
+        | Corrigé         | Done     | 0       | 1     | 0      |
+        | Rejeté          | Removed  | 0       | 0     | 0      |
       Et ses transitions dans les paramètres :
-        | From          | To            | Type    |
-        | Nouveau       | En analyse    | forward |
-        | En analyse    | En correction | forward |
-        | En correction | À livrer      | forward |
-        | À livrer      | Corrigé       | forward |
-        | À livrer      | En correction | back    |
-        | En analyse    | Rejeté        | exit    |
+        | From          | To            |
+        | Nouveau       | En analyse    |
+        | En analyse    | En correction |
+        | En correction | À livrer      |
+        | À livrer      | Corrigé       |
+        | À livrer      | En correction |
+        | En analyse    | Rejeté        |
       Et le type "Bug" des projets d'équipe suit le workflow "Bug" dans les paramètres
       Et ces tickets, créés en statut Nouveau :
         | ticket | type    | équipe | créé  | changements de statut                                                                                 |

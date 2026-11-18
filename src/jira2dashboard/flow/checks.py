@@ -134,7 +134,7 @@ class Moves:
     @classmethod
     def from_params(cls, sheets: list[ParamSheet] | None = None) -> "Moves":
         transitions = next(s for s in (sheets or load_all()) if s.name == "Transitions")
-        return cls({(wf, source, target) for wf, source, target, _kind in transitions.rows})
+        return cls({(wf, source, target) for wf, source, target in transitions.rows})
 
     def allowed(self, workflow: str, source: str, target: str) -> bool:
         return (workflow, source, target) in self._rows

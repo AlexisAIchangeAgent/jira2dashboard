@@ -31,20 +31,19 @@ def sheet(sheets, name):
 
 def test_real_parameters_load_in_the_order_of_the_workbook_sheets():
     sheets = model.load_all()
-    assert [s.name for s in sheets] == ["Config", "Projects", "Iterations", "PIs", "Workflows", "Transitions", "FieldMapping"]
+    assert [s.name for s in sheets] == ["Config", "Projects", "Iterations", "PIs", "Workflows", "Transitions"]
 
 
 def test_real_parameters_have_the_documented_sizes():
     sheets = model.load_all()
     assert len(sheet(sheets, "Workflows").rows) == 20        # 10 statuses x 2 workflows
     assert len(sheet(sheets, "Transitions").rows) == 26      # 13 moves x 2 workflows
-    assert len(sheet(sheets, "FieldMapping").rows) == 22     # 22 columns of the extract
 
 
 def test_workflows_cells_are_typed():
     rows = sheet(model.load_all(), "Workflows").rows
-    assert rows[0] == ("Team", 1, "Nouveau", "Backlog", 0, 0, 0)
-    assert rows[9] == ("Team", None, "Dépriorisé", "Backlog", 0, 0, 1)      # "-" means no order
+    assert rows[0] == ("Team", "Nouveau", "Backlog", 0, 0, 0)
+    assert rows[9] == ("Team", "Dépriorisé", "Backlog", 0, 0, 1)
 
 
 def test_every_row_has_as_many_cells_as_the_header():
@@ -55,7 +54,7 @@ def test_every_row_has_as_many_cells_as_the_header():
 # --- validation: clear messages, all problems at once -----------------------------------------------
 
 def test_unknown_category_is_refused(params_copy):
-    edit(params_copy, "workflows.md", "| Team | 2 | En analyse | Active |", "| Team | 2 | En analyse | Actif |")
+    edit(params_copy, "workflows.md", "| Team | En analyse | Active |", "| Team | En analyse | Actif |")
     with pytest.raises(ParamsError, match=r"Workflows row 2.*Category 'Actif'"):
         model.load_all(params_copy)
 
@@ -66,26 +65,20 @@ def test_flag_must_be_0_or_1(params_copy):
         model.load_all(params_copy)
 
 
-def test_order_must_be_a_whole_number_or_a_dash(params_copy):
-    edit(params_copy, "workflows.md", "| Team | 3 | Prêt", "| Team | abc | Prêt")
-    with pytest.raises(ParamsError, match="Order.*whole number.*'abc'"):
-        model.load_all(params_copy)
-
-
 def test_each_workflow_needs_exactly_one_start_status(params_copy):
-    edit(params_copy, "workflows.md", "| Team | 3 | Prêt | Wait | 0 |", "| Team | 3 | Prêt | Wait | 1 |")
+    edit(params_copy, "workflows.md", "| Team | Prêt | Wait | 0 |", "| Team | Prêt | Wait | 1 |")
     with pytest.raises(ParamsError, match="Team.*exactly one IsStart"):
         model.load_all(params_copy)
 
 
 def test_a_status_cannot_appear_twice_in_a_workflow(params_copy):
-    edit(params_copy, "workflows.md", "| Team | 4 | Planifié |", "| Team | 4 | Prêt |")
+    edit(params_copy, "workflows.md", "| Team | Planifié |", "| Team | Prêt |")
     with pytest.raises(ParamsError, match="Team.*'Prêt'.*twice"):
         model.load_all(params_copy)
 
 
 def test_unknown_workflow_name_is_refused(params_copy):
-    edit(params_copy, "workflows.md", "| Team | 1 |", "| Equipe | 1 |")
+    edit(params_copy, "workflows.md", "| Team | Nouveau | Backlog |", "| Equipe | Nouveau | Backlog |")
     with pytest.raises(ParamsError, match="Workflow 'Equipe'"):
         model.load_all(params_copy)
 
@@ -97,25 +90,13 @@ def test_transition_to_an_unknown_status_is_refused(params_copy):
 
 
 def test_duplicate_transition_is_refused(params_copy):
-    edit(params_copy, "transitions.md", "| Team | Prêt | En analyse | back |", "| Team | Nouveau | En analyse | back |")
+    edit(params_copy, "transitions.md", "| Team | Prêt | En analyse |", "| Team | Nouveau | En analyse |")
     with pytest.raises(ParamsError, match="twice"):
         model.load_all(params_copy)
 
 
-def test_field_role_must_be_known_but_may_have_a_suffix(params_copy):
-    edit(params_copy, "field_mapping.md", "| Required for PI views |", "| Mandatory |")
-    with pytest.raises(ParamsError, match="Role 'Mandatory'"):
-        model.load_all(params_copy)
-
-
-def test_can_be_empty_is_yes_or_no(params_copy):
-    edit(params_copy, "field_mapping.md", "| text | no | readable", "| text | maybe | readable")
-    with pytest.raises(ParamsError, match="CanBeEmpty 'maybe'"):
-        model.load_all(params_copy)
-
-
 def test_wrong_header_is_refused(params_copy):
-    edit(params_copy, "workflows.md", "| Workflow | Order |", "| Flow | Order |")
+    edit(params_copy, "workflows.md", "| Workflow | Status |", "| Flow | Status |")
     with pytest.raises(ParamsError, match="workflows.md.*header"):
         model.load_all(params_copy)
 
@@ -132,13 +113,11 @@ def test_a_file_without_a_table_is_refused(params_copy):
         model.load_all(params_copy)
 
 
-def test_empty_status_and_empty_transition_type_are_refused(params_copy):
-    edit(params_copy, "workflows.md", "| Team | 3 | Prêt |", "| Team | 3 |  |")
-    edit(params_copy, "transitions.md", "| forward |", "|  |")
+def test_an_empty_status_is_refused(params_copy):
+    edit(params_copy, "workflows.md", "| Team | Prêt | Wait |", "| Team |  | Wait |")
     with pytest.raises(ParamsError) as err:
         model.load_all(params_copy)
     assert "Workflows row 3: Status is empty" in str(err.value)
-    assert "Transitions row 1: Type is empty" in str(err.value)
 
 
 def test_transition_with_an_unknown_workflow_is_refused(params_copy):
@@ -153,13 +132,6 @@ def test_a_workflow_without_any_status_is_refused(params_copy):
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
     with pytest.raises(ParamsError, match="workflow 'Feature' has no status"):
         model.load_all(params_copy)
-
-
-def test_duplicate_extract_column_and_empty_logical_name_are_refused(params_copy):
-    edit(params_copy, "field_mapping.md", "| Cle | Key |", "| Projet |  |")
-    with pytest.raises(ParamsError) as err:
-        model.load_all(params_copy)
-    assert "Logical is empty" in str(err.value) and "column 'Projet' listed twice" in str(err.value)
 
 
 # --- Projects: which projects to extract, and which one is the Program -------------------------------
@@ -199,10 +171,10 @@ def test_project_rows_are_checked(params_copy):
     assert "'ee-e' is not a Jira project key" in text and "Role 'Chef'" in text and "project 'AAA' listed twice" in text
 
 
-def test_a_team_project_needs_a_team_name(params_copy):
+def test_the_team_name_of_a_team_project_is_optional(params_copy):
+    """AL, 2026-11-18: an empty Team is the project key (the team of the project is the project itself)."""
     edit(params_copy, "projects.md", "| SSS | Team | SSS |", "| SSS | Team |  |")
-    with pytest.raises(ParamsError, match="needs a Team name"):
-        model.load_all(params_copy)
+    assert model.load_all(params_copy)
 
 
 # --- Config: the connection parameters, proxy included, live in the workbook ------------------------
@@ -321,11 +293,11 @@ def test_config_parameter_names_are_checked(params_copy):
 
 
 def test_all_problems_are_reported_together(params_copy):
-    edit(params_copy, "workflows.md", "| Team | 2 | En analyse | Active |", "| Team | 2 | En analyse | Actif |")
-    edit(params_copy, "field_mapping.md", "| Required for PI views |", "| Mandatory |")
+    edit(params_copy, "workflows.md", "| Team | En analyse | Active |", "| Team | En analyse | Actif |")
+    edit(params_copy, "transitions.md", "| Team | Nouveau | En analyse |", "| Team | Nouveau | En analyze |")
     with pytest.raises(ParamsError) as err:
         model.load_all(params_copy)
-    assert "Actif" in str(err.value) and "Mandatory" in str(err.value)
+    assert "Actif" in str(err.value) and "En analyze" in str(err.value)
 
 
 # --- Config: an example of each value, next to it ----------------------------------------------------
@@ -356,7 +328,7 @@ def test_open_log_on_error_defaults_to_yes_and_must_be_yes_or_no(params_copy):
 # --- an ART without Team projects: the Program and the Feature workflow are enough (AL, 2026-11-17, scenario art-metrics) -----
 
 def _feature_only(workflows):
-    return model.ParamSheet("Workflows", ("Workflow", "Order", "Status", "Category", "IsStart", "IsEnd", "IsFree"),
+    return model.ParamSheet("Workflows", ("Workflow", "Status", "Category", "IsStart", "IsEnd", "IsFree"),
                             tuple(r for r in workflows.rows if r[0] == "Feature"))
 
 

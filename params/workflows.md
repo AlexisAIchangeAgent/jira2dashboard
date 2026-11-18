@@ -5,29 +5,29 @@ into the workbook; the VBA reads the sheet. Change a category here (or in the wo
 Meaning of the columns and decisions: `docs/safe-flow-metrics-and-data-checks.md`, section 1.
 A test keeps this table consistent with the statuses table of that document.
 
-`Order` is the position in the normal flow; `-` means none. `Category`: Active, Wait, Done, Removed, Backlog or
-Unclassified. `IsStart`, `IsEnd`, `IsFree` are 0 or 1. The `Feature` workflow is always needed; the `Team` workflow
+The ROW order of the table is the normal flow (the chart Cycle time by status stacks the statuses in that order).
+`Category`: Active, Wait, Done, Removed, Backlog or Unclassified. `IsStart`, `IsEnd`, `IsFree` are 0 or 1. The `Feature` workflow is always needed; the `Team` workflow
 only when the sheet Projects has a Team project.
 
-| Workflow | Order | Status | Category | IsStart | IsEnd | IsFree |
-|---|---|---|---|---|---|---|
-| Team | 1 | Nouveau | Backlog | 0 | 0 | 0 |
-| Team | 2 | En analyse | Active | 1 | 0 | 0 |
-| Team | 3 | Prêt | Wait | 0 | 0 | 0 |
-| Team | 4 | Planifié | Wait | 0 | 0 | 0 |
-| Team | 5 | En développement | Active | 0 | 0 | 0 |
-| Team | 6 | En test | Active | 0 | 0 | 0 |
-| Team | 7 | À déployer | Wait | 0 | 0 | 0 |
-| Team | 8 | Terminé | Done | 0 | 1 | 0 |
-| Team | - | Annulé | Removed | 0 | 0 | 0 |
-| Team | - | Dépriorisé | Backlog | 0 | 0 | 1 |
-| Feature | 1 | Nouveau | Backlog | 0 | 0 | 0 |
-| Feature | 2 | En analyse | Active | 1 | 0 | 0 |
-| Feature | 3 | Prêt | Wait | 0 | 0 | 0 |
-| Feature | 4 | Planifié | Wait | 0 | 0 | 0 |
-| Feature | 5 | En développement | Active | 0 | 0 | 0 |
-| Feature | 6 | En test / recette | Active | 0 | 0 | 0 |
-| Feature | 7 | À déployer | Wait | 0 | 0 | 0 |
-| Feature | 8 | Terminé | Done | 0 | 1 | 0 |
-| Feature | - | Annulé | Removed | 0 | 0 | 0 |
-| Feature | - | Dépriorisé | Backlog | 0 | 0 | 1 |
+| Workflow | Status | Category | IsStart | IsEnd | IsFree |
+|---|---|---|---|---|---|
+| Team | Nouveau | Backlog | 0 | 0 | 0 |
+| Team | En analyse | Active | 1 | 0 | 0 |
+| Team | Prêt | Wait | 0 | 0 | 0 |
+| Team | Planifié | Wait | 0 | 0 | 0 |
+| Team | En développement | Active | 0 | 0 | 0 |
+| Team | En test | Active | 0 | 0 | 0 |
+| Team | À déployer | Wait | 0 | 0 | 0 |
+| Team | Terminé | Done | 0 | 1 | 0 |
+| Team | Annulé | Removed | 0 | 0 | 0 |
+| Team | Dépriorisé | Backlog | 0 | 0 | 1 |
+| Feature | Nouveau | Backlog | 0 | 0 | 0 |
+| Feature | En analyse | Active | 1 | 0 | 0 |
+| Feature | Prêt | Wait | 0 | 0 | 0 |
+| Feature | Planifié | Wait | 0 | 0 | 0 |
+| Feature | En développement | Active | 0 | 0 | 0 |
+| Feature | En test / recette | Active | 0 | 0 | 0 |
+| Feature | À déployer | Wait | 0 | 0 | 0 |
+| Feature | Terminé | Done | 0 | 1 | 0 |
+| Feature | Annulé | Removed | 0 | 0 | 0 |
+| Feature | Dépriorisé | Backlog | 0 | 0 | 1 |

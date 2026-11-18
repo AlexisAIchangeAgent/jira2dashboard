@@ -60,7 +60,7 @@ def test_the_dashboard_settings_are_in_the_plan():
 def test_teams_are_art_then_the_team_projects_each_once():
     projects = [("TTT", "Program", ""), ("AAA", "Team", "Alpha"), ("BBB", "Team", " Beta "), ("CCC", "team", "Alpha"),
                 ("DDD", "Team", "")]
-    assert B.team_names(projects) == ["ART", "Alpha", "Beta"]
+    assert B.team_names(projects) == ["ART", "Alpha", "Beta", "DDD"]          # a team without a name is its project key (2026-11-18)
     sheet = next(s for s in load_all() if s.name == "Projects")
     teams = B.team_names([tuple(r) for r in sheet.rows])
     assert teams[0] == "ART" and len(teams) == 1 + len(sheet.rows) - 1       # the Program is one row, the others teams
@@ -77,3 +77,9 @@ def test_the_charts_of_the_flow_figures_say_why_an_iteration_has_a_gap():
     rows = {r[0]: r for r in B.chart_rows()}
     for name in ("flow_time", "flow_time_p85", "flow_efficiency"):
         assert "no item was done in these iterations" in rows[name][6], name
+
+
+def test_a_team_project_without_a_team_name_is_its_own_team():
+    """AL, 2026-11-18: an empty Team is the project key; the Program stays ART, a team named twice counts once."""
+    rows = [("PRG", "Program", None), ("TA", "Team", "Team A"), ("TB", "Team", None), ("TC", "Team", "Team A"), ("TD", "Team", " ")]
+    assert B.team_names(rows) == ["ART", "Team A", "TB", "TD"]

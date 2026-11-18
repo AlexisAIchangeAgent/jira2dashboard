@@ -341,7 +341,7 @@ def _projects(world, keys):
 
 @then(parsers.parse('chaque type de ticket de "{key}" a les statuts du workflow "{workflow}" de la feuille Workflows'))
 def _statuses_per_type(world, key, workflow):
-    expected = [row[2] for row in _rows("Workflows") if row[0] == workflow]
+    expected = [row[1] for row in _rows("Workflows") if row[0] == workflow]
     answer = world["result"].json
     assert {t["name"] for t in answer} == {i.type for i in world["jira"].dataset.issues if i.project == key}
     for issue_type in answer:
@@ -366,7 +366,7 @@ def _only_workflow(world, workflow, key):
 @then(parsers.parse('ses statuts sont ceux du workflow "{workflow}" de la feuille Workflows'))
 def _preview_statuses(world, workflow):
     names, found = _workflow(world)
-    assert [names[s["statusReference"]] for s in found["statuses"]] == [r[2] for r in _rows("Workflows") if r[0] == workflow]
+    assert [names[s["statusReference"]] for s in found["statuses"]] == [r[1] for r in _rows("Workflows") if r[0] == workflow]
 
 
 @then(parsers.parse('ses transitions dirigées sont celles du workflow "{workflow}" de la feuille Transitions'))
@@ -381,4 +381,4 @@ def _preview_moves(world, workflow):
 def _preview_free(world, workflow):
     names, found = _workflow(world)
     targets = [names[t["toStatusReference"]] for t in found["transitions"] if t["type"] == "GLOBAL"]
-    assert targets == [r[2] for r in _rows("Workflows") if r[0] == workflow and r[6] == 1]
+    assert targets == [r[1] for r in _rows("Workflows") if r[0] == workflow and r[5] == 1]

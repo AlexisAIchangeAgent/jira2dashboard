@@ -392,7 +392,7 @@ def flow_issue(row: tuple, changes: list[Change], projects: list[tuple[str, str,
     (key, _id, project, type_, work_type, created, status, parent, category, resolved, _versions, points, pi, value,
      team_value, sprint_state, sprint_start, sprint_end, sprint_count, target_start, target_end, key_changes) = row
     program = project == program_project(projects)
-    team = next((row_[2] or "" for row_ in projects if row_[0] == project), "")
+    team = next(((row_[2] or "").strip() or row_[0] for row_ in projects if row_[0] == project), "")     # an empty Team is the project key
     return FlowIssue(key=key, team=ART if program else team, type=type_, work_type=work_type,
                      workflow="Feature" if program else "Team", created=created, status=status,
                      changes=tuple(changes), parent=parent, resolved=resolved, status_category=category or "",

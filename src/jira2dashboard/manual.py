@@ -82,18 +82,22 @@ def manual(mandatory: tuple[str, ...]) -> list[tuple[str, str]]:
         (f'Button "{CONFIG_CAPTION}"', [
             f"It reads Jira (read only) for the projects of the sheet {PROJECTS} and writes the proposal sheets "
             f"{PROPOSAL_SHEETS}. It never changes the parameter sheets.",
-            "Decide by hand: Order, IsStart, IsEnd, Active or Wait, Removed instead of Done, and the Type of a "
-            f"transition. Then copy into {WORKFLOWS} and {TRANSITIONS}, and the field ids into the ...Field rows of {CONFIG}.",
+            "Decide by hand: IsStart, Active or Wait, Removed instead of Done. Then copy into "
+            f"{WORKFLOWS} and {TRANSITIONS}, and the field ids into the ...Field rows of {CONFIG}.",
         ]),
         (f'Button "{PROPOSE_CAPTION}"', [
             f'It does what "{CONFIG_CAPTION}" does, then copies what fits of the proposal sheets into the sheets {WORKFLOWS}, '
-            f"{TRANSITIONS} and {CONFIG}: the statuses and moves the sheets lack, and the ids of the fields that Jira names once "
-            "(Sprint, Team, Story Points, Target start and end, PI, Business Value). It reads the sprints of the scrum boards "
+            f"{TRANSITIONS} and {CONFIG}: the statuses and moves the sheets lack (IsEnd on the only Done status of a workflow), the ids "
+            "of the fields that Jira names once (Sprint, Team, Story Points, Target start and end, PI, Business Value, work type "
+            "category), the issue types of SubTaskTypes (the sub-tasks of Jira) and FeatureTypes (the types of the Program project at its "
+            "highest hierarchy level), the types of ParentRequiredTypes and PointsRequiredTypes that no team project has taken out, and "
+            f"BlocksLinkType (the link type that blocks, {S.of('JiraLinkTypes')}). It reads the sprints of the scrum boards "
             f"({S.of('JiraSprints')}) and proposes the iterations they make in {ITERATIONS}: the sprints of the teams that start and end "
             "on the same days are one iteration, and no day belongs to two iterations. PI dates have no API: type them.",
             "It writes only into EMPTY cells: what you typed is never changed. Every cell it writes is yellow, the first cell of a "
-            "row has the note 'To confirm': check it, then clear the colour if you like. Order, IsStart, IsEnd, Active or Wait, "
-            "Removed instead of Done and the Type of a move stay yours to type.",
+            "row has the note 'To confirm': check it, then clear the colour if you like. IsStart, Active or Wait and Removed instead "
+            "of Done stay yours to type. In " + CONFIG + " a value that still is the delivered default (the same text as its Example) is "
+            "replaced when Jira says otherwise, in yellow; a value you changed is never touched.",
             f"IsUserProjectAdmin in {CONFIG}: True (default) = you administer the Jira projects, the full workflows are read. "
             "False = only the statuses and their categories are read (the right to browse is enough), without the moves.",
         ]),

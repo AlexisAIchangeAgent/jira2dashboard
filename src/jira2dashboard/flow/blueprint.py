@@ -101,7 +101,8 @@ def _chart_row(index: int, spec: D.ChartSpec, sheet: str) -> tuple:
 def team_names(project_rows: list[tuple[str, str, str]]) -> list[str]:
     """Test mirror of modFlowBuild.TeamNames (VBA computes the teams itself): ART (the Program), then the teams of the Team projects."""
     teams = [ART]
-    for _key, role, team in project_rows:
-        if role.strip().lower() == "team" and team.strip() and team.strip() not in teams:
-            teams.append(team.strip())
+    for key, role, team in project_rows:
+        team = (team or "").strip() or key.strip()          # an empty Team is the project key
+        if role.strip().lower() == "team" and team and team not in teams:
+            teams.append(team)
     return teams

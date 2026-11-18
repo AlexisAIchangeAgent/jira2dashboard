@@ -7,6 +7,10 @@ empty here, and **`ApiToken` must stay empty** (a test refuses a token in this f
 
 **Example** shows the expected form of the value. It is never read: only **Value** counts.
 
+**Propose values from Jira** fills the empty values of the field ids (`...Field`), of `SubTaskTypes`, `FeatureTypes`,
+`ParentRequiredTypes`, `PointsRequiredTypes` and `BlocksLinkType`. A value that still is the delivered default (the same text
+as **Example**) counts as not chosen: Jira's answer replaces it, in yellow with a note. A value you typed is never changed.
+
 **Mandatory** says whether the macros work while the value is empty:
 - `True`: the button **Extract from Jira and compute** stops before any call to Jira and names the empty ones. The
   button **Read the Jira configuration** checks only `BaseUrl`, `Email` and `ApiToken`. Without the value, a request

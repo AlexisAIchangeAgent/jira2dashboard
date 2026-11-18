@@ -37,15 +37,14 @@ RELEASE_DAY = dt.timedelta(days=10, hours=12)                                   
 SETTLED = "2025-01-01T00:00"                                                          # the backlog, created at the start of PI-1
 ADDED = "2026-02-10T09:00"                                                            # ft-25, during IT-4-2
 
-# status, Workflows rows (Workflow, Order, Status, Category, IsStart, IsEnd, IsFree) and Transitions (Workflow, From, To, Type)
+# status, Workflows rows (Workflow, Status, Category, IsStart, IsEnd, IsFree) and Transitions (Workflow, From, To)
 _STATUS_ROWS = ((TODO, "Backlog", 0, 0, 0), ("analyzing", "Active", 1, 0, 0), ("ready4PI", "Wait", 0, 0, 0),
                 ("doing", "Active", 0, 0, 0), ("ready2test", "Wait", 0, 0, 0), ("testing", "Active", 0, 0, 0),
                 ("ready2deploy", "Wait", 0, 0, 0), ("deploying", "Active", 0, 0, 0), (DONE, "Done", 0, 1, 0))
-WORKFLOW_ROWS = tuple((WORKFLOW, order, name, category, start, end, free)
-                      for order, (name, category, start, end, free) in enumerate(_STATUS_ROWS, start=1)) + (
-    (WORKFLOW, None, DEFERRED, "Backlog", 0, 0, 1),)
-TRANSITION_ROWS = tuple((WORKFLOW, _STATUS_ROWS[n][0], _STATUS_ROWS[n + 1][0], "forward") for n in range(len(_STATUS_ROWS) - 1)) + (
-    (WORKFLOW, DEFERRED, TODO, "back to backlog"),)
+WORKFLOW_ROWS = tuple((WORKFLOW, name, category, start, end, free) for name, category, start, end, free in _STATUS_ROWS) + (
+    (WORKFLOW, DEFERRED, "Backlog", 0, 0, 1),)
+TRANSITION_ROWS = tuple((WORKFLOW, _STATUS_ROWS[n][0], _STATUS_ROWS[n + 1][0]) for n in range(len(_STATUS_ROWS) - 1)) + (
+    (WORKFLOW, DEFERRED, TODO),)
 
 
 @dataclass(frozen=True)
@@ -95,7 +94,7 @@ def iterations() -> tuple[Iteration, ...]:
 def sheets() -> tuple[ParamSheet, ...]:
     """The parameter sheets of the scenario, in the order of the workbook. Projects, Iterations, PIs, Workflows and Transitions are
     its own (built here: the Program project only, its calendar, the Feature workflow only: no Team project, no Team workflow, nothing
-    of params/*.md). Config and FieldMapping are the product's own list of parameters and extract columns: they come from params/."""
+    of params/*.md). Config is the product's own list of parameters: it comes from params/."""
     own = {"Projects": ((PROGRAM, "Program", None),),
            "Iterations": tuple((i.name, f"{i.start:%Y-%m-%d}", f"{i.end:%Y-%m-%d}") for i in iterations()),
            "PIs": tuple((p.name, f"{p.start:%Y-%m-%d}", f"{p.end:%Y-%m-%d}") for p in pis()),
