@@ -264,14 +264,14 @@ RECONCILIATION_FORMULAS = {
                        f'=SUMIFS({_LEDGER["days"]},{_LEDGER["counted"]},1)'),
     R.UNIQUE: ("=0", f'=COUNTIF({_LEDGER["key"]},"?*")-IFERROR(ROWS(UNIQUE(FILTER({_LEDGER["key"]},{_LEDGER["key"]}<>""))),0)'),
     R.CUTOFF: ("=0", f'=COUNTIF({_M}!$S$3#,"?*")'),
-    R.CLASSIFIED: ("=0", f'=COUNTIFS({SI}[Category],"Unclassified")'),
+    R.CLASSIFIED: ("=0", f'=COUNTIFS({SI}[Category],"Unclassified",{SI}[Team],"<>{OTHER_TYPES}")'),
     R.FEATURE_TYPES: ("=1", f'=IF(COUNTIFS(ItemFlow[Role],"Program")=0,1,MIN(1,COUNTIFS(ItemFlow[Team],"{ART}")))'),
     R.HISTORIES: ("=0", "=SUM(ItemFlow[DC06])+SUM(ItemFlow[DC07])"),
     R.EXISTENCE: ("=COUNT(ItemFlow[DoneUtc])", f"=COUNTIFS({SI}[IsEnd],1,{SI}[IsOpen],TRUE)"),
 }
 assert tuple(RECONCILIATION_FORMULAS) == tuple(name for name, _ in R.CONTROLS), "one pair of formulas per control, in the order of the catalogue"
 RECONCILIATION_COLUMNS = (("Control", ""), ("Assertion", ""), ("Expected", ""), ("Found", ""),
-                          ("Difference", "=[@Found]-[@Expected]"), ("Result", '=IF(ABS([@Difference])<0.000001,"OK","REVIEW")'))
+                          ("Difference", "=[@Found]-[@Expected]"), ("Result", '=IF(ABS([@Difference])<0.000001,"OK",IF(OR(' + ",".join(f'[@Assertion]="{a}"' for a in R.INFO_ASSERTIONS) + '),"INFO","REVIEW"))'))
 # the census of the types (spilled formulas right of the table: the list of the types, then one count per type)
 _TYPES = "$H$2#"
 CENSUS_COLUMNS = (
@@ -395,6 +395,14 @@ MODE_CELL = "=UPPER(TRIM(" + CONFIG_VALUE.format(name="FlowLoadMode") + "))"
 PREDICTABILITY_MODE_CELL = "=UPPER(TRIM(" + CONFIG_VALUE.format(name="PredictabilityMode") + "))"
 TRANSITIONS_LAST_CELL, PIS_LAST_CELL = last_row_cell("Transitions"), last_row_cell("PIs")
 
+# the statuses that no rule classifies, by name (spilled formulas right of the census, from column O): the intervals of the counted tickets (what the
+# control counts) and of the tickets left out
+_UNK = "$O$2#"
+UNCLASSIFIED_COLUMNS = (
+    ("Status", f'=IFERROR(SORT(UNIQUE(FILTER({SI}[Status],{SI}[Category]="Unclassified"))),"")'),
+    ("IntervalsOfCounted", f'=IFERROR(COUNTIFS({SI}[Status],{_UNK},{SI}[Category],"Unclassified",{SI}[Team],"<>{OTHER_TYPES}"),"")'),
+    ("IntervalsOfLeftOut", f'=IFERROR(COUNTIFS({SI}[Status],{_UNK},{SI}[Category],"Unclassified",{SI}[Team],"{OTHER_TYPES}"),"")'),
+)
 # the parameters in force: what the figures read, written next to them so that the person can compare it with Jira
 PARAMETERS_IN_FORCE = (
     ("FeatureTypes (the types of the ART)", "=" + CONFIG_VALUE.format(name="FeatureTypes")),

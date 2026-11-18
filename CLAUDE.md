@@ -202,7 +202,8 @@ python.log). `tests/unit/test_claude_hooks.py` and `test_claude_skills.py` test 
   The sheet `Reconciliation_from_excel` has the table `Reconciliation` (12 controls Control | Assertion | Expected | Found | Difference | Result OK/REVIEW, in the order
   of `reconciliation.CONTROLS`; Expected and Found are a formula of their own per row, written BEFORE the table exists: **a formula typed in one cell of a table column fills
   the whole column**, which made all the rows equal), the census of the types (spilled from H1) and the parameters in force; reference `flow/reconciliation.py`;
-  `modHealth.ReconciliationFindings` says `Reconciliation: n of m controls to review`. The art-metrics scenario types every list and control by hand.
+  `modHealth.ReconciliationFindings` says `Reconciliation: n of m controls to review` and counts the `REVIEW` rows only (the cut-off control is `INFO`: `reconciliation.INFO_ASSERTIONS`);
+  the statuses control counts the tickets that are not in "ART (other types)" and the unclassified statuses are listed by name from column O (`reconciliation.unclassified`). The art-metrics scenario types every list and control by hand.
 - **Python reference as oracle.** `flow/` (`intervals.py`, `itemflow.py`, `load.py`, `metrics.py`, `checks.py`) is a pure
   Python implementation of the same metrics and data checks. The scenarios in `tests/features/flow_excel.feature` run the
   real delivered workbook against the fake Jira and compare Excel with this reference **cell by cell** (Flow Load modes A

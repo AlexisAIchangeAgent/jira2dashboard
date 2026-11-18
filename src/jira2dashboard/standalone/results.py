@@ -146,7 +146,7 @@ def pistatustime_rows(results: Results, s: RunSettings) -> list[tuple]:
 
 def reconciliation_rows(results: Results, issues: list[FlowIssue], s: RunSettings) -> list[tuple]:
     """The rows of the table Reconciliation (formulas.RECONCILIATION_COLUMNS): control, assertion, expected, found, difference, result."""
-    return [(c.name, c.assertion, c.expected, c.found, c.found - c.expected, "OK" if c.passed else "REVIEW")
+    return [(c.name, c.assertion, c.expected, c.found, c.found - c.expected, c.verdict)
             for c in reconcile(issues, results.items, results.metrics, list(s.iterations), s.checks.pis, s.rules, results.flags)]
 
 

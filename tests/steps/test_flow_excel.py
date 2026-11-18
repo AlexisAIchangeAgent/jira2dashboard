@@ -688,8 +688,13 @@ def _reconciliation_generated(world):
     assert [r["Control"] for r in got] == [c.name for c in expected]
     for row, ref in zip(got, expected):
         assert abs(row["Expected"] - ref.expected) < 1e-3 and abs(row["Found"] - ref.found) < 1e-3, (ref, row)
-        assert row["Result"] == ("OK" if ref.passed else "REVIEW"), (ref, row)
+        assert row["Result"] == ref.verdict, (ref, row)
     ws = world["wb"].Worksheets(S.of("Reconciliation"))
+    from jira2dashboard.flow.reconciliation import unclassified
+    ref_unknown = unclassified(items)
+    if ref_unknown:                                                                           # the statuses that no rule classifies, by name
+        block = ws.Range(ws.Cells(2, 15), ws.Cells(1 + len(ref_unknown), 17)).Value2
+        assert sorted(tuple(row) for row in block) == sorted((s, float(c), float(o)) for s, c, o in ref_unknown), (block, ref_unknown)
     ref_census = census(items, iterations, pis)
     spilled = ws.Range(ws.Cells(2, 8), ws.Cells(1 + len(ref_census), 13)).Value2
     assert [tuple(row) for row in spilled] == [tuple(float(v) if isinstance(v, int) else v for v in row) for row in ref_census], (spilled, ref_census)

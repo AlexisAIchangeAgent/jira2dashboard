@@ -169,7 +169,8 @@ def manual(mandatory: tuple[str, ...]) -> list[tuple[str, str]]:
             "behind them: DoneIteration, DonePI, Account (every ticket is in exactly one account), WhyNotInFlowTime, BoundaryHours.",
             f"{S.of('Reconciliation')}: the controls an accountant would run, each with Expected, Found and a Result (OK, or REVIEW: look at it): the tickets "
             "read = the tickets of ItemFlow, every ticket in one account, the Velocity and the Flow Time recounted from the lists, no ticket twice, the tickets "
-            "near a boundary, the statuses all classified, FeatureTypes matching a ticket, consistent status histories, the done tickets found again in the "
+            "near a boundary (INFO: a point of attention, not counted on the Dashboard), the statuses of the counted tickets all classified (the statuses that "
+            "no rule classifies are listed by name right of the census), FeatureTypes matching a ticket, consistent status histories, the done tickets found again in the "
             "changelog. Next to them the census of the ticket types (how many, in the ART, left out, done, done in an iteration) and, below, the parameters "
             "in force (FeatureTypes, the statuses that start and end the flow, the dates of the iterations): compare them with Jira. The status of the "
             "Dashboard says how many controls are to review.",

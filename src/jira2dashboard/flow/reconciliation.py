@@ -11,7 +11,7 @@ from dataclasses import dataclass
 
 from jira2dashboard.flow.itemflow import ItemFlow
 from jira2dashboard.flow.metrics import TeamIterationMetrics
-from jira2dashboard.flow.model import ART, FlowIssue, Iteration, Rules
+from jira2dashboard.flow.model import ART, OTHER_TYPES, UNCLASSIFIED, FlowIssue, Iteration, Rules
 from jira2dashboard.flow.trace import ACCOUNT_COUNTED, ACCOUNT_OTHER, ACCOUNTS, CUTOFF_HOURS, MetricItems, account, metric_items, trace
 
 POPULATION = "Tickets read from Jira = tickets of ItemFlow"
@@ -22,7 +22,7 @@ FLOW_TIME_COUNT = "Flow Time count = tickets counted in the Done list"
 FLOW_TIME_DAYS = "Flow Time days recounted from the list"
 UNIQUE = "No ticket twice in the Done list"
 CUTOFF = f"Tickets done within {CUTOFF_HOURS} hours of an iteration boundary (to review)"
-CLASSIFIED = "Statuses of the changelog all classified in Workflows"
+CLASSIFIED = "Statuses of the changelog of the counted tickets all classified in Workflows"
 FEATURE_TYPES = "FeatureTypes matches at least one ticket of the Program"
 HISTORIES = "Status histories consistent (DC06, DC07)"
 EXISTENCE = "Done tickets of ItemFlow = open end-status intervals of the changelog"
@@ -31,6 +31,7 @@ CONTROLS = ((POPULATION, "Completeness"), (ACCOUNTS_ADD_UP, "Completeness"), (VE
             (FLOW_TIME_COUNT, "Accuracy"), (FLOW_TIME_DAYS, "Accuracy"), (UNIQUE, "Occurrence"), (CUTOFF, "Cut-off"), (CLASSIFIED, "Classification"),
             (FEATURE_TYPES, "Classification"), (HISTORIES, "Existence"), (EXISTENCE, "Existence"))
 TOLERANCE = 1e-6
+INFO_ASSERTIONS = ("Cut-off",)        # a control of these assertions that does not match is a point of attention (INFO), not an error to review
 
 
 @dataclass(frozen=True)
@@ -43,6 +44,11 @@ class Control:
     @property
     def passed(self) -> bool:
         return abs(self.found - self.expected) < TOLERANCE
+
+    @property
+    def verdict(self) -> str:
+        """OK, INFO (a point of attention: the Dashboard does not count it) or REVIEW (look at it: the Dashboard counts it)."""
+        return "OK" if self.passed else "INFO" if self.assertion in INFO_ASSERTIONS else "REVIEW"
 
 
 def reconcile(issues: list[FlowIssue], items: list[ItemFlow], metrics: list[TeamIterationMetrics], iterations: list[Iteration],
@@ -64,7 +70,7 @@ def reconcile(issues: list[FlowIssue], items: list[ItemFlow], metrics: list[Team
                              and not i.excluded_from_flow_time), sum(r[8] or 0 for r in counted if r[8] != "")),
         UNIQUE: (0, len(lists.done) - len({r[4] for r in lists.done})),
         CUTOFF: (0, len(lists.cutoff)),
-        CLASSIFIED: (0, sum(1 for item in items for visit in item.intervals if visit.category == "Unclassified")),
+        CLASSIFIED: (0, sum(1 for item in items if item.team != OTHER_TYPES for visit in item.intervals if visit.category == UNCLASSIFIED)),
         FEATURE_TYPES: (1, 1 if not program else min(1, sum(1 for i in items if i.team == ART))),
         HISTORIES: (0, sum(1 for ids in flags.values() for check in ("DC06", "DC07") if check in ids)),
         EXISTENCE: (sum(1 for i in items if i.done is not None),
@@ -72,6 +78,17 @@ def reconcile(issues: list[FlowIssue], items: list[ItemFlow], metrics: list[Team
                         if visit.is_open and rules.rule(issue.workflow, visit.status).is_end)),
     }
     return [Control(name, assertion, *values[name]) for name, assertion in CONTROLS]
+
+
+def unclassified(items: list[ItemFlow]) -> list[tuple]:
+    """The statuses that no rule classifies, one row per status in the order of the names: status, intervals of the counted tickets, intervals of the
+    tickets left out (the team "ART (other types)"): the first number is what the control counts, the second tells that it is not the ART's business."""
+    counted, left_out = Counter(), Counter()
+    for item in items:
+        for visit in item.intervals:
+            if visit.category == UNCLASSIFIED:
+                (left_out if item.team == OTHER_TYPES else counted)[visit.status] += 1
+    return [(status, counted[status], left_out[status]) for status in sorted(set(counted) | set(left_out))]
 
 
 def census(items: list[ItemFlow], iterations: list[Iteration], pis: dict) -> list[tuple]:

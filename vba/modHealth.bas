@@ -73,7 +73,8 @@ Private Function InAnIteration(ByVal serial As Double, ByVal starts As Collectio
 End Function
 
 Private Function ReconciliationFindings(ByVal wb As Object) As String
-    ' The controls of the sheet Reconciliation that are not OK: "Reconciliation: n of m controls to review", only when there is one.
+    ' The controls of the sheet Reconciliation to review: "Reconciliation: n of m controls to review", only when there is one. A row INFO (a point of
+    ' attention, such as the tickets near a boundary) is neither OK nor to review: it is not counted.
     Dim res As Variant, r As Long, n As Long, m As Long
     res = ColumnValues(TableOf(wb, "Reconciliation"), "Result")
     If IsEmpty(res) Then Exit Function
@@ -81,7 +82,7 @@ Private Function ReconciliationFindings(ByVal wb As Object) As String
         m = m + 1
         If IsError(res(r, 1)) Then
             n = n + 1
-        ElseIf StrComp(CStr(res(r, 1) & ""), "OK", vbBinaryCompare) <> 0 Then
+        ElseIf StrComp(CStr(res(r, 1) & ""), "REVIEW", vbBinaryCompare) = 0 Then
             n = n + 1
         End If
     Next r

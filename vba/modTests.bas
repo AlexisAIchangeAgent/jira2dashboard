@@ -2561,14 +2561,15 @@ Public Sub T_ReconciliationFindings()
     ' The status says how many controls of the sheet Reconciliation are not OK, and nothing when all are.
     Dim wb As Object, ws As Object
     Set wb = Workbooks.Add
-    PutRows wb, "Reconciliation", Array(Array("Control", "Result"), Array("a", "OK"), Array("b", "REVIEW"), Array("c", "REVIEW"))
+    PutRows wb, "Reconciliation", Array(Array("Control", "Result"), Array("a", "OK"), Array("b", "REVIEW"), Array("c", "REVIEW"), Array("d", "INFO"))
     For Each ws In wb.Worksheets
         If ws.Name = SheetName("Reconciliation") Then ws.ListObjects.Add(1, ws.UsedRange, , 1).Name = "Reconciliation"
     Next ws
     Application.DisplayAlerts = False
     wb.Worksheets(1).Delete
     Application.DisplayAlerts = True
-    Check "health", "two controls of three to review", "2 of 3", True, InStr(HealthFields(wb), " | Reconciliation: 2 of 3 controls to review (sheet Reconciliation_from_excel)") > 0
+    Check "health", "two controls of four to review, the INFO one is not counted", "2 of 4", True, _
+          InStr(HealthFields(wb), " | Reconciliation: 2 of 4 controls to review (sheet Reconciliation_from_excel)") > 0
     wb.Worksheets(SheetName("Reconciliation")).Range("B3:B4").Value = "OK"
     Check "health", "all OK: nothing is said", "(empty)", "", HealthFields(wb)
     Application.DisplayAlerts = False

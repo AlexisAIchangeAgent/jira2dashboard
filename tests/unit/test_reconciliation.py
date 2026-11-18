@@ -9,7 +9,7 @@ import pytest
 from jira2dashboard.flow.itemflow import item_flow
 from jira2dashboard.flow.metrics import team_iteration_metrics
 from jira2dashboard.flow.model import OTHER_TYPES, Change, FlowIssue, Iteration, Rules
-from jira2dashboard.flow.reconciliation import Control, census, reconcile
+from jira2dashboard.flow.reconciliation import Control, census, reconcile, unclassified
 from jira2dashboard.flow.trace import MetricItems, metric_items
 
 I1 = Iteration("I1", dt.datetime(2025, 5, 1), dt.datetime(2025, 5, 11))
@@ -71,7 +71,7 @@ def test_the_velocity_is_recounted_from_the_list_in_total_and_for_each_iteration
 def test_the_controls_that_ask_for_a_review_count_what_to_look_at():
     got = controls()
     assert got["Tickets done within 24 hours of an iteration boundary (to review)"].found == 1                  # C-1; the other team's S-1 is not listed
-    assert got["Statuses of the changelog all classified in Workflows"].found == 0
+    assert got["Statuses of the changelog of the counted tickets all classified in Workflows"].found == 0
     assert got["FeatureTypes matches at least one ticket of the Program"] == Control(
         "FeatureTypes matches at least one ticket of the Program", "Classification", 1, 1)
     assert got["Done tickets of ItemFlow = open end-status intervals of the changelog"].expected == 5            # A-1, W-2, C-1, A-3, S-1
@@ -91,7 +91,7 @@ def test_the_status_histories_control_counts_the_tickets_flagged_dc06_or_dc07():
 
 def test_a_status_missing_from_workflows_is_counted_as_unclassified():
     odd = issue("U-1", [("2025-05-02T00:00", "Inconnu")])
-    assert controls([odd])["Statuses of the changelog all classified in Workflows"].found == 1
+    assert controls([odd])["Statuses of the changelog of the counted tickets all classified in Workflows"].found == 1
 
 
 def test_the_census_counts_each_type_by_team_and_account_in_the_order_of_the_names():
@@ -109,3 +109,31 @@ def test_a_ticket_twice_in_the_ledger_is_found_by_the_uniqueness_control_and_the
     assert got["No ticket twice in the Done list"].found == 1
     assert not got["Velocity of all iterations = tickets of the Done list"].passed                         # 4 rows for a Velocity of 3
     assert not got["Velocity of each iteration and team recounted from the list (largest difference)"].passed
+
+
+NAME_CLASSIFIED = "Statuses of the changelog of the counted tickets all classified in Workflows"
+
+
+def test_an_unknown_status_of_a_left_out_ticket_is_not_an_error_but_one_of_a_feature_is():
+    left_out = issue("S-2", [("2025-05-02T00:00", "Inconnu")], team=OTHER_TYPES, type_="Sous-tâche")
+    feature = issue("U-2", [("2025-05-02T00:00", "Inconnu")])
+    assert controls([left_out])[NAME_CLASSIFIED].found == 0                    # the ART does not count that ticket
+    assert controls([feature])[NAME_CLASSIFIED].found == 1
+    assert controls([left_out, feature])[NAME_CLASSIFIED].found == 1
+
+
+def test_the_cut_off_control_is_a_point_of_attention_not_a_review_and_the_others_are_reviews():
+    got = controls()
+    assert got["Tickets done within 24 hours of an iteration boundary (to review)"].verdict == "INFO"          # C-1 is 4 h from a boundary
+    assert got[NAME_CLASSIFIED].verdict == "OK" and got["No ticket twice in the Done list"].verdict == "OK"
+    assert controls([issue("U-2", [("2025-05-02T00:00", "Inconnu")])])[NAME_CLASSIFIED].verdict == "REVIEW"
+    assert Control("x", "Accuracy", 1, 2).verdict == "REVIEW" and Control("x", "Cut-off", 0, 0).verdict == "OK"
+
+
+def test_the_unclassified_statuses_are_listed_by_name_with_the_intervals_of_the_counted_and_of_the_left_out_tickets():
+    population = [issue("U-1", [("2025-05-02T00:00", "Inconnu"), ("2025-05-03T00:00", "Autre")]),                 # Inconnu 1 interval, Autre 1 (open)
+                  issue("U-2", [("2025-05-02T00:00", "Inconnu")]),                                                  # Inconnu 1 (open)
+                  issue("S-3", [("2025-05-02T00:00", "Inconnu")], team=OTHER_TYPES, type_="Sous-tâche")]            # Inconnu 1, left out
+    items = [item_flow(i, AS_OF, RULES) for i in population]
+    assert unclassified(items) == [("Autre", 1, 0), ("Inconnu", 2, 1)]
+    assert unclassified([item_flow(i, AS_OF, RULES) for i in ISSUES]) == []
