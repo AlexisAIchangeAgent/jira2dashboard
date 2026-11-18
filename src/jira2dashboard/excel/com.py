@@ -31,6 +31,7 @@ VBEXT_CT_DOCUMENT = 100                   # ThisWorkbook and sheet modules (cann
 
 # HRESULT values (signed 32-bit, as pywin32 reports them)
 CO_E_CLASSSTRING = -2147221005            # 0x800401F3: Excel not installed / not registered
+CO_E_SERVER_EXEC_FAILURE = -2146959355    # 0x80080005: Excel failed to start (transient: seen when several Excel start at once)
 RPC_E_CALL_REJECTED = -2147418111         # 0x80010001: Excel busy, retry
 RPC_E_SERVERCALL_RETRYLATER = -2147417846 # 0x8001010A: Excel busy, retry
 DISP_E_EXCEPTION = -2147352567            # 0x80020009: Excel raised an error, see excepinfo
@@ -67,14 +68,20 @@ log = logging.getLogger(__name__)
 class ExcelNotInstalledError(RuntimeError):
     """Excel desktop is not installed or not registered for COM."""
 
-def start_excel():
-    """Start a new hidden Excel process."""
-    try:
-        app = win32.DispatchEx("Excel.Application")
-    except pywintypes.com_error as err:
-        if err.hresult == CO_E_CLASSSTRING:
-            raise ExcelNotInstalledError("Excel desktop is not installed.") from err
-        raise
+def start_excel(attempts: int = 3, delay_s: float = 1.0):
+    """Start a new hidden Excel process. "Server execution failed" is transient (CLAUDE.md; likelier when several Excel start together, pytest -n):
+    it is tried again after a pause, `attempts` times in all."""
+    for attempt in range(1, attempts + 1):
+        try:
+            app = win32.DispatchEx("Excel.Application")
+            break
+        except pywintypes.com_error as err:
+            if err.hresult == CO_E_CLASSSTRING:
+                raise ExcelNotInstalledError("Excel desktop is not installed.") from err
+            if err.hresult != CO_E_SERVER_EXEC_FAILURE or attempt == attempts:
+                raise
+            log.warning("Excel did not start (attempt %d of %d): trying again", attempt, attempts)
+            time.sleep(delay_s)
     pid = None
     try:
         pid = excel_pid(app)                       # known at once: a failure below must not orphan this Excel

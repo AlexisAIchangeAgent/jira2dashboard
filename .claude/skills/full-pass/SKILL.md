@@ -13,14 +13,15 @@ with its log in `$TEMP` (never in `out/`). Do not stop at the first red step: ru
 |---|---|---|---|
 | 1 | coverage | `powershell -NoProfile -ExecutionPolicy Bypass -File scripts/run.ps1 coverage -q` | `$TEMP/fp_coverage.log` |
 | 2 | vba-tests | `powershell -NoProfile -ExecutionPolicy Bypass -File scripts/run.ps1 vba-tests` | `$TEMP/fp_vba.log` |
-| 3 | test-excel | `powershell -NoProfile -ExecutionPolicy Bypass -File scripts/run.ps1 test-excel -q -k "not pipeline"` | `$TEMP/fp_excel.log` |
+| 3a | test-excel, the flow module in 4 parallel workers (2 min) | `powershell -NoProfile -ExecutionPolicy Bypass -File scripts/run.ps1 test-excel tests/steps/test_flow_excel.py -n 4 -q -k "not pipeline"` | `$TEMP/fp_excel_flow.log` |
+| 3b | test-excel, the other modules (about 2.5 min) | `powershell -NoProfile -ExecutionPolicy Bypass -File scripts/run.ps1 test-excel -q -k "not pipeline" --ignore=tests/steps/test_flow_excel.py` | `$TEMP/fp_excel_rest.log` |
 | 4 | test-scripts | `powershell -NoProfile -ExecutionPolicy Bypass -File scripts/run.ps1 test-scripts` | `$TEMP/fp_scripts.log` |
 | 5 | build | `powershell -NoProfile -ExecutionPolicy Bypass -File scripts/run.ps1 build` | `$TEMP/fp_build.log` |
 
 - Redirect outside PowerShell: `... > "$TEMP/fp_x.log" 2>&1; echo "exit $?"`. Never `cmd /c`, never `2>&1` inside
   PowerShell.
-- Timeout 600000 ms per step. `test-excel` takes about 5 to 7 minutes: run it with `run_in_background` and wait for the
-  notification; do not poll.
+- Timeout 600000 ms per step. `test-excel` (3a and 3b together) takes about 5 minutes: run each with `run_in_background` and wait for the
+  notification; do not poll. Run 3a and 3b one after the other, never together (3b shares workbook paths).
 - **Not in the pass (2026-11-18, measured):** `coverage` already runs every fast test, so `test` before it is a repeat (75 s); the two scenarios tagged `@pipeline`
   (`build_workbook.feature`: the offline VBA tests through the build pipeline, 55 s, and with the network, 46 s) rerun the whole VBA suite that step 2 just ran
   (`vba-tests` reports `net: n OK` and the marker coverage itself). Run them (`test-excel -k pipeline`, `test-network`) only after a change of `build_workbook.py`,

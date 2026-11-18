@@ -40,13 +40,16 @@ scenarios("../features/jira_config.feature")             # same workbook and fak
 scenarios("../features/first_use.feature")
 scenarios("../features/rovo_prompt.feature")
 
-TARGET = INTER_DIR / "flow_workbook.xlsm"
+WORKER = os.environ.get("PYTEST_XDIST_WORKER", "")       # gw0, gw1... when the module runs under pytest-xdist (`-n 3`), "" otherwise
+# Each worker builds and opens its OWN workbook, in its own folder: the VBA log (folder logs next to the workbook) and the files of the scenarios are then never shared.
+TARGET = INTER_DIR / f"flow_{WORKER}" / "flow_workbook.xlsm" if WORKER else INTER_DIR / "flow_workbook.xlsm"
 TOLERANCE = 1e-6                    # days (0.09 s): Excel dates are doubles, the reference works in whole seconds
 
 
 @pytest.fixture(scope="module")
 def built_workbook():
     """The workbook to deliver, built once per module by the same code as `run.ps1 build` (no test module in it)."""
+    TARGET.parent.mkdir(parents=True, exist_ok=True)
     build_delivery(TARGET)
     return TARGET
 

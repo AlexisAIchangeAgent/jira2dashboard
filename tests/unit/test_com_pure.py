@@ -206,3 +206,58 @@ def test_save_as_xlsm_creates_missing_folders(tmp_path):
     target = tmp_path / "new" / "deeper" / "a.xlsm"
     com.save_as_xlsm(FakeWorkbook(), target)
     assert target.exists()
+
+
+# --- start_excel tries again when Excel fails to start (transient: several Excel starting together) -----------------------------------------------------
+
+def _failing_dispatch(monkeypatch, codes):
+    """DispatchEx that raises the given hresult once per entry, then answers."""
+    import pywintypes
+    from jira2dashboard.excel import com
+    calls = []
+
+    def dispatch(name):
+        calls.append(name)
+        if len(calls) <= len(codes):
+            raise pywintypes.com_error(codes[len(calls) - 1], "x", None, None)
+        return "app"
+    monkeypatch.setattr(com.win32, "DispatchEx", dispatch)
+    monkeypatch.setattr(com, "excel_pid", lambda app: 1)
+    monkeypatch.setattr(com, "call_with_retry", lambda *a, **k: None)
+    monkeypatch.setattr(com.time, "sleep", lambda s: None)
+    return calls
+
+
+def test_server_execution_failed_is_tried_again_and_then_succeeds(monkeypatch):
+    from jira2dashboard.excel import com
+    calls = _failing_dispatch(monkeypatch, [com.CO_E_SERVER_EXEC_FAILURE, com.CO_E_SERVER_EXEC_FAILURE])
+    assert com.start_excel() == "app" and len(calls) == 3
+
+
+def test_server_execution_failed_three_times_raises(monkeypatch):
+    import pywintypes
+    import pytest
+    from jira2dashboard.excel import com
+    calls = _failing_dispatch(monkeypatch, [com.CO_E_SERVER_EXEC_FAILURE] * 3)
+    with pytest.raises(pywintypes.com_error):
+        com.start_excel()
+    assert len(calls) == 3
+
+
+def test_any_other_start_error_is_not_tried_again(monkeypatch):
+    import pywintypes
+    import pytest
+    from jira2dashboard.excel import com
+    calls = _failing_dispatch(monkeypatch, [-2147024891])
+    with pytest.raises(pywintypes.com_error):
+        com.start_excel()
+    assert len(calls) == 1
+
+
+def test_excel_not_installed_is_reported_at_once(monkeypatch):
+    import pytest
+    from jira2dashboard.excel import com
+    calls = _failing_dispatch(monkeypatch, [com.CO_E_CLASSSTRING])
+    with pytest.raises(com.ExcelNotInstalledError):
+        com.start_excel()
+    assert len(calls) == 1

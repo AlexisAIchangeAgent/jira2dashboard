@@ -92,8 +92,8 @@ click-to-zoom (wheel, drag, Esc; no script or font from outside: `chart_images.i
 scenarios. No note, or an old time, = the last run did not reach the export. Open the page by double-click. Rerun the scenario to
 refresh: `test-excel tests/steps/test_flow_excel.py -k "art_metrics or png"` (the second test is the `flow` one).
 
-Before finishing a change run the full pass: `coverage`, `vba-tests`, `test-excel -k "not pipeline"`, `test-scripts`, `build`
-(skill `/full-pass`; `test-network` and the `@pipeline` scenarios only when the build pipeline changes: they replay the VBA suite that `vba-tests` runs; a pass takes about 7 min). The Claude config is versioned in `.claude/` (like this file) but left out of the release
+Before finishing a change run the full pass: `coverage`, `vba-tests`, `test-excel` (flow module with `-n 4`, then the rest; both `-k "not pipeline"`), `test-scripts`, `build`
+(skill `/full-pass`; `test-network` and the `@pipeline` scenarios only when the build pipeline changes: they replay the VBA suite that `vba-tests` runs; a pass takes about 6 min). The Claude config is versioned in `.claude/` (like this file) but left out of the release
 (`export-ignore`); only `.claude/settings.local.json`, the personal settings, is gitignored. Hooks (`.claude/hooks`):
 `bas_guard.py` runs the VBA guard tests after an edit of `vba/*.bas`, and after a Bash/PowerShell command that changed a
 module (sizes and times kept in `%TEMP%\jira2dashboard\bas_guard.json`); `excel_kill_guard.py` asks before a command that
@@ -589,7 +589,9 @@ then `mermaid.parse`), and check every `](#anchor)` link against the headings.
   pick one that changes a result without raising). `Check` takes (area, label, input, expected, actual); the log cuts a line at 300 characters.
 - pywin32: `Range.Address` is a property (`cell.Address.replace("$", "")`), not a call with arguments; `ws.Cells(1, n).Value` reads a one-cell range as a scalar.
 - **`test-excel` by groups** (the whole run was killed once for memory, leaving an orphan `EXCEL.EXE`: stop it by PID): `tests/steps/test_build_workbook.py` (2 min),
-  `test_macro_check.py` + `test_manual_test.py` (2 min), `test_params.py` + `test_standalone.py` (2 min), `test_flow_excel.py` (7 min, foreground, `timeout 595`).
+  `test_macro_check.py` + `test_manual_test.py` (2 min), `test_params.py` + `test_standalone.py` (2 min), `test_flow_excel.py` (2 min with `-n 4`, 5 min without; foreground, `timeout 595`).
+  **`-n 4` (pytest-xdist) is for the flow module only** (2026-11-19, 5 runs in 5 green, 130 s against 290 s): each worker builds and opens its own workbook `out\interlow_gwN\` (`WORKER` in `test_flow_excel.py`),
+  so the VBA log and the files of a scenario are never shared; the other modules share workbook paths, never give them `-n`. `com.start_excel` tries again on "Server execution failed" (several Excel starting together).
   `-k` matches function AND module names: `-k scenario` ran all 26 tests of `test_flow_excel.py` (5 min); the two chart scenarios are
   `-k "art_metrics or png or PNG or graphiques"` (30 s). Read the `N passed` count: a `-k` that selects nothing or too much looks green.
 - **Calling a `scripts\*.ps1` with optional arguments: do not splat.** A hashtable splat shows as `-Port: 8100` in the Pester fakes
