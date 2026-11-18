@@ -11,6 +11,8 @@ Rules kept here:
 * a blank result is the empty text "", which COUNTIFS / MINIFS / SUMIFS ignore in numeric criteria.
 """
 from jira2dashboard.flow import check_formulas as C
+from jira2dashboard.flow import reconciliation as R
+from jira2dashboard.flow import trace as T
 from jira2dashboard.flow.model import ART, OTHER_TYPES
 from jira2dashboard.flow.refs import (HALF, IF_, IS, PIS_LAST, SI, TRANSITIONS_LAST, bounded, last_row_cell,
                                       row_index)
@@ -112,6 +114,17 @@ ITEMFLOW_COLUMNS = (
     ("Excluded", '=IF(OR([@SkippedStart]="Y",[@Reopened]>0),1,0)'),
     ("WorkTypeBucket", "=IF(OR(" + ",".join(f'[@WorkType]="{w}"' for w in WORK_TYPES) + '),[@WorkType],"Unmapped")'),
     ("EndUtc", f'=IF([@DoneUtc]<>"",[@DoneUtc],IF([@RemovedUtc]<>"",[@RemovedUtc],{FAR}))'),
+    # the trace of a ticket (flow/trace.py): the iteration and the PI where it was done, its account, why Flow Time leaves it out, its distance to a boundary.
+    # The iterations are those of the table Metrics (its key columns are values: no circular reference), the PIs those of PIMetrics.
+    ("DoneIterationRow", f'=IF([@DoneUtc]="","",IFERROR(MATCH(1,(Metrics[IterationStart]-{HALF}<=[@DoneUtc])*([@DoneUtc]<Metrics[IterationEnd]-{HALF}),0),""))'),
+    ("DoneIteration", '=IF([@DoneIterationRow]="","",INDEX(Metrics[Iteration-label],[@DoneIterationRow]))'),
+    ("DoneIterationStart", '=IF([@DoneIterationRow]="","",INDEX(Metrics[IterationStart],[@DoneIterationRow]))'),
+    ("DoneIterationEnd", '=IF([@DoneIterationRow]="","",INDEX(Metrics[IterationEnd],[@DoneIterationRow]))'),
+    ("DonePI", f'=IF([@DoneUtc]="","",IFERROR(INDEX(PIMetrics[PI],MATCH(1,IFERROR((PIMetrics[Start]-{HALF}<=[@DoneUtc])*([@DoneUtc]<PIMetrics[End]-{HALF}),0),0)),""))'),
+    ("Account", f'=IF([@Team]="{OTHER_TYPES}","{T.ACCOUNT_OTHER}",IF([@DoneUtc]<>"",IF([@DoneIteration]<>"","{T.ACCOUNT_COUNTED}","{T.ACCOUNT_OUTSIDE}"),'
+                f'IF([@RemovedUtc]<>"","{T.ACCOUNT_REMOVED}","{T.ACCOUNT_OPEN}")))'),
+    ("WhyNotInFlowTime", f'=IF([@Excluded]=0,"",TEXTJOIN(", ",TRUE,IF([@Reopened]>0,"{T.REOPENED}",""),IF([@SkippedStart]="Y","{T.NO_START}","")))'),
+    ("BoundaryHours", '=IF([@DoneUtc]="","",MIN(MIN(ABS(Metrics[IterationStart]-[@DoneUtc])),MIN(ABS(Metrics[IterationEnd]-[@DoneUtc])))*24)'),
     # data checks: raw fields, helpers and one 0/1 column per check (check_formulas.py, reference in checks.py)
 ) + C.ITEMFLOW_CHECK_COLUMNS
 
@@ -200,6 +213,75 @@ VELOCITYCHECK_COLUMNS = (
     ("Gap", "=[@Velocity]-[@CreatedDone]-([@ChangedToEnd]-[@ReopenedLater])"),
 )
 
+# --- the sheet MetricItems: the tickets behind the figures (AL, 2026-11-18) ---------------------------------------------------------
+# Three lists side by side, each column ONE spilled formula (Excel 365 dynamic arrays, as FILTER is already used): the tickets of ItemFlow that
+# fall in an account, sorted. No VBA writes a key: the lists follow the data. Reference: flow/trace.metric_items.
+_C = f'({IF_}[Account]="{T.ACCOUNT_COUNTED}")'
+_LEFT_OUT = f'({IF_}[DoneUtc]<>"")*({IF_}[Account]<>"{T.ACCOUNT_COUNTED}")'
+_NEAR = f'ISNUMBER({IF_}[BoundaryHours])*({IF_}[BoundaryHours]<={T.CUTOFF_HOURS})*({IF_}[Account]<>"{T.ACCOUNT_OTHER}")'
+
+
+def _col(column: str, cond: str, sort: tuple[str, ...], wrap: str = "{}") -> str:
+    """One column of a list: `column` of the rows of ItemFlow that meet `cond` (wrapped by `wrap`, "{}" = itself), sorted by `sort`. A column per
+    formula, all sorted by the same keys, so the cells of one row stay together; an empty result gives the empty text."""
+    def fil(name: str) -> str:
+        return f"FILTER({IF_}[{name}],{cond})"
+    keys = ",".join(f"{fil(c)},1" for c in sort)
+    return f'=IFERROR(SORTBY({wrap.format(fil(column))},{keys}),"")'
+
+
+METRICITEMS_TITLES = ("Done in an iteration: the tickets behind Velocity, Flow Time, Flow Efficiency and Flow Distribution",
+                      "Done but not counted: the missing ones, with the reason",
+                      f"Cut-off: done within {T.CUTOFF_HOURS} hours of an iteration boundary")
+_DONE_SORT = ("DoneIterationStart", "Team", "DoneUtc", "Key")
+METRICITEMS_DONE = tuple((name, _col(column, _C, _DONE_SORT, wrap)) for name, column, wrap in (
+    ("Iteration", "DoneIteration", "{}"), ("Start", "DoneIterationStart", "{}"), ("End", "DoneIterationEnd", "{}"), ("Team", "Team", "{}"),
+    ("Key", "Key", "{}"), ("Type", "Type", "{}"), ("DoneUtc", "DoneUtc", "{}"), ("FlowTimeCounted", "Excluded", "1-{}"),
+    ("FlowTimeDays", "FlowTimeDays", "{}"), ("WhyNotInFlowTime", "WhyNotInFlowTime", "{}")))
+_LEFT_SORT = ("Account", "DoneUtc", "Key")
+METRICITEMS_LEFT_OUT = tuple((name, _col(column, _LEFT_OUT, _LEFT_SORT)) for name, column in (
+    ("Key", "Key"), ("Type", "Type"), ("Team", "Team"), ("Iteration", "DoneIteration"), ("DoneUtc", "DoneUtc"), ("Account", "Account")))
+_NEAR_SORT = ("BoundaryHours", "Key")
+METRICITEMS_CUTOFF = tuple((name, _col(column, _NEAR, _NEAR_SORT, wrap)) for name, column, wrap in (
+    ("Key", "Key", "{}"), ("Team", "Team", "{}"), ("Iteration", "DoneIteration", "{}"), ("DoneUtc", "DoneUtc", "{}"),
+    ("Hours", "BoundaryHours", "ROUND({},1)")))
+METRICITEMS_BLOCKS = (METRICITEMS_DONE, METRICITEMS_LEFT_OUT, METRICITEMS_CUTOFF)
+
+# --- the sheet Reconciliation: the controls on the ledger, the census of the types, the parameters in force (AL, 2026-11-18) ------------
+# The table Reconciliation: one row per control (Control, Assertion: written by VBA from RECONCILIATION_CONTROLS), Expected and Found are a formula of
+# their own in each row (RECONCILIATION_EXPECTED / FOUND), Difference and Result are calculated columns. The ledger is the first list of MetricItems
+# (its spilled columns: A Iteration, D Team, E Key, H FlowTimeCounted, I FlowTimeDays) and the third (S Key). Reference: flow/reconciliation.py.
+_M = "MetricItems_from_excel"
+_LEDGER = {"iteration": f"{_M}!$A$3#", "team": f"{_M}!$D$3#", "key": f"{_M}!$E$3#", "counted": f"{_M}!$H$3#", "days": f"{_M}!$I$3#"}
+_ACCOUNTS_ARRAY = "{" + ",".join(f'"{a}"' for a in T.ACCOUNTS) + "}"
+RECONCILIATION_FORMULAS = {
+    R.POPULATION: ('=COUNTIF(Issues[Key],"?*")', '=COUNTIF(ItemFlow[Key],"?*")'),
+    R.ACCOUNTS_ADD_UP: ('=COUNTIF(ItemFlow[Key],"?*")', f"=SUMPRODUCT(COUNTIF(ItemFlow[Account],{_ACCOUNTS_ARRAY}))"),
+    R.VELOCITY_TOTAL: ("=SUM(Metrics[Velocity])", f'=COUNTIF({_LEDGER["key"]},"?*")'),
+    R.VELOCITY_ROWS: ("=0", f'=MAX(ABS(Metrics[Velocity]-COUNTIFS({_LEDGER["iteration"]},Metrics[Iteration-label],{_LEDGER["team"]},Metrics[Team])))'),
+    R.FLOW_TIME_COUNT: ("=SUM(Metrics[FlowTimeCount])", f'=SUM({_LEDGER["counted"]})'),
+    R.FLOW_TIME_DAYS: (f'=SUMIFS(ItemFlow[FlowTimeDays],ItemFlow[Account],"{T.ACCOUNT_COUNTED}",ItemFlow[Excluded],0)',
+                       f'=SUMIFS({_LEDGER["days"]},{_LEDGER["counted"]},1)'),
+    R.UNIQUE: ("=0", f'=COUNTIF({_LEDGER["key"]},"?*")-IFERROR(ROWS(UNIQUE(FILTER({_LEDGER["key"]},{_LEDGER["key"]}<>""))),0)'),
+    R.CUTOFF: ("=0", f'=COUNTIF({_M}!$S$3#,"?*")'),
+    R.CLASSIFIED: ("=0", f'=COUNTIFS({SI}[Category],"Unclassified")'),
+    R.FEATURE_TYPES: ("=1", f'=IF(COUNTIFS(ItemFlow[Role],"Program")=0,1,MIN(1,COUNTIFS(ItemFlow[Team],"{ART}")))'),
+    R.HISTORIES: ("=0", "=SUM(ItemFlow[DC06])+SUM(ItemFlow[DC07])"),
+    R.EXISTENCE: ("=COUNT(ItemFlow[DoneUtc])", f"=COUNTIFS({SI}[IsEnd],1,{SI}[IsOpen],TRUE)"),
+}
+assert tuple(RECONCILIATION_FORMULAS) == tuple(name for name, _ in R.CONTROLS), "one pair of formulas per control, in the order of the catalogue"
+RECONCILIATION_COLUMNS = (("Control", ""), ("Assertion", ""), ("Expected", ""), ("Found", ""),
+                          ("Difference", "=[@Found]-[@Expected]"), ("Result", '=IF(ABS([@Difference])<0.000001,"OK","REVIEW")'))
+# the census of the types (spilled formulas right of the table: the list of the types, then one count per type)
+_TYPES = "$H$2#"
+CENSUS_COLUMNS = (
+    ("Type", '=IFERROR(SORT(UNIQUE(ItemFlow[Type])),"")'),
+    ("Tickets", f'=IFERROR(COUNTIFS(ItemFlow[Type],{_TYPES}),"")'),
+    ("InART", f'=IFERROR(COUNTIFS(ItemFlow[Type],{_TYPES},ItemFlow[Team],"{ART}"),"")'),
+    ("LeftOut", f'=IFERROR(COUNTIFS(ItemFlow[Type],{_TYPES},ItemFlow[Team],"{OTHER_TYPES}"),"")'),
+    ("Done", f'=IFERROR(COUNTIFS(ItemFlow[Type],{_TYPES},ItemFlow[DoneUtc],">0"),"")'),
+    ("DoneInAnIteration", f'=IFERROR(COUNTIFS(ItemFlow[Type],{_TYPES},ItemFlow[DoneIteration],"?*"),"")'),
+)
 # --- the table PIMetrics: Feature Predictability per PI (AL's variant, 2026-11-12) -----------------------------
 # The key PI comes from the sheet PIs, then from the Features whose PI the sheet lacks (modFlowBuild.PiNames); its dates
 # are looked up in the sheet: a PI missing there or whose date is not a date gives "" and its figures are not computable.
@@ -312,6 +394,21 @@ AS_OF_CELL = ('=LET(v,' + CONFIG_VALUE.format(name="AsOf") + ',IF(ISNUMBER(v),v,
 MODE_CELL = "=UPPER(TRIM(" + CONFIG_VALUE.format(name="FlowLoadMode") + "))"
 PREDICTABILITY_MODE_CELL = "=UPPER(TRIM(" + CONFIG_VALUE.format(name="PredictabilityMode") + "))"
 TRANSITIONS_LAST_CELL, PIS_LAST_CELL = last_row_cell("Transitions"), last_row_cell("PIs")
+
+# the parameters in force: what the figures read, written next to them so that the person can compare it with Jira
+PARAMETERS_IN_FORCE = (
+    ("FeatureTypes (the types of the ART)", "=" + CONFIG_VALUE.format(name="FeatureTypes")),
+    ("Program project(s)", '=TEXTJOIN(", ",TRUE,FILTER(Projects_from_user!$A$2:$A$300,Projects_from_user!$B$2:$B$300="Program",""))'),
+    ("Statuses that start the flow (IsStart)", '=TEXTJOIN(", ",TRUE,FILTER(Workflows_from_user!$A$2:$A$500&": "&Workflows_from_user!$B$2:$B$500,'
+                                               'Workflows_from_user!$D$2:$D$500=1,""))'),
+    ("Statuses that end it (IsEnd)", '=TEXTJOIN(", ",TRUE,FILTER(Workflows_from_user!$A$2:$A$500&": "&Workflows_from_user!$B$2:$B$500,'
+                                     'Workflows_from_user!$E$2:$E$500=1,""))'),
+    ("First iteration start", "=MIN(Metrics[IterationStart])"),
+    ("Last iteration end (excluded)", "=MAX(Metrics[IterationEnd])"),
+    ("AsOf (UTC)", "=AsOfUtc"),
+    ("Team field", "=" + CONFIG_VALUE.format(name="TeamField")),
+    ("PI field", "=" + CONFIG_VALUE.format(name="PIField")),
+)
 
 TABLES = {
     "Issues": ISSUES,

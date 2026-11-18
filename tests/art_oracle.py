@@ -62,6 +62,9 @@ VELOCITY = {label: sum(1 for released in RELEASED.values() if released == label)
 # the 3 sub-tasks of the Program (TTT-26, 27 done in IT-2-1; TTT-28 in IT-3-4) are not Features: team "ART (other types)", counted by no ART figure
 OTHER_TYPES_DONE = {"IT-2-1": 2, "IT-3-4": 1}
 SUBTASKS = ("TTT-26", "TTT-27", "TTT-28")
+SUBTASK_ITERATION = {"TTT-26": "IT-2-1", "TTT-27": "IT-2-1", "TTT-28": "IT-3-4"}
+# the population by account (every ticket in exactly one): the 19 released Features, the 3 sub-tasks, the 6 deferred Features (open: a Backlog status)
+ACCOUNTS = {"Done in an iteration": 19, "Done outside the iterations": 0, "Left out: not a Feature": 3, "Removed": 0, "Open": 6}
 FLOW_TIME_DAYS = 8                                              # 7 statuses of 1 day, one of them lasting 2 days
 FLOW_EFFICIENCY = {"PI-1": 5 / 8, "PI-2": 5 / 8, "PI-3": 5 / 8, "PI-4": 4 / 8}      # Active: analyzing, doing, testing, deploying
 

@@ -50,7 +50,7 @@ Private Function TestNames() As Variant
     TestNames = Array("T_JsonNested", "T_JsonEscapes", "T_JsonEmpty", "T_JsonErrors", "T_JsonRoundTrip", _
         "T_JsonLarge", "T_Base64Auth", "T_UrlEncode", "T_Utf8RoundTrip", "T_JiraDates", "T_FieldToCell", _
         "T_SafeCell", "T_ProjectsJql", "T_SearchUrl", "T_SearchPagination", "T_Retry429", _
-        "T_HttpNetworkAndCancel", "T_RetryExhausted", "T_ChangelogChunks", "T_IssueRows", "T_WriteTable", "T_StatusIntervals", "T_IntervalsUnreadableDate", "T_StatusChangesUnreadableDate", "T_ChangelogRows", "T_UserFieldIds", "T_DateShape", "T_ParseJiraDateEpoch", "T_DateKind", "T_IsPlausibleDate", "T_FindDateKey", "T_ChangelogDateKey", "T_SkippedDatesWarning", "T_SheetName", "T_ProposeFromSheets", "T_ProposeIterations", "T_ReadSprints", "T_TeamNames", "T_ReadLinkTypes", "T_ProposeTypes", "T_ProposeKindOf", "T_ProposeValuesNotAdmin", "T_HealthFields", "T_NotFeatures", "T_CellKind", "T_FitsType", "T_ShapeOfCell", "T_TypeHints", "T_TypeProblems", "T_TypeEmptyTable", "T_TypeBlocks", "T_TypeFillLines", "T_WireTypes", _
+        "T_HttpNetworkAndCancel", "T_RetryExhausted", "T_ChangelogChunks", "T_IssueRows", "T_WriteTable", "T_StatusIntervals", "T_IntervalsUnreadableDate", "T_StatusChangesUnreadableDate", "T_ChangelogRows", "T_UserFieldIds", "T_DateShape", "T_ParseJiraDateEpoch", "T_DateKind", "T_IsPlausibleDate", "T_FindDateKey", "T_ChangelogDateKey", "T_SkippedDatesWarning", "T_SheetName", "T_ProposeFromSheets", "T_ProposeIterations", "T_ReadSprints", "T_TeamNames", "T_ReadLinkTypes", "T_ProposeTypes", "T_ProposeKindOf", "T_ProposeValuesNotAdmin", "T_HealthFields", "T_NotFeatures", "T_ReconciliationFindings", "T_CellKind", "T_FitsType", "T_ShapeOfCell", "T_TypeHints", "T_TypeProblems", "T_TypeEmptyTable", "T_TypeBlocks", "T_TypeFillLines", "T_WireTypes", _
         "T_StatusChanges", "T_RetryDelay", "T_SafeAccess", "T_FilesUtf8", "T_StringifyBadObject", _
         "T_TooManyPages", "T_BackgroundExport", "T_TextNotConverted", "T_ParamsTables", "T_ParamsOnWorkbook", _
         "T_TrimWhite", "T_ConfigSheet", "T_MandatoryConfig", "T_Locked", "T_PiIntervals", "T_ProxyDetect", "T_ProxyScript", "T_ProjectsSheet", "T_StatusNames", "T_ParseMoment", "T_ExtractFlowData", "T_ExtractJob", "T_ExtractCheckFields", "T_FlowBuild", "T_BaseUrlHttps", "T_Log", "T_LogInputsAndTimes", "T_StatusParts", "T_ErrorCodes", "T_LogHintAndOpen", "T_StepsSheet", "T_RovoPrompt", "T_RovoCsv", _
@@ -1347,6 +1347,10 @@ Public Sub T_FlowBuild()
     Check "flowbuild", "the table VelocityCheck has the rows of Metrics, the same Velocity and a control Gap of 0", "rows|Velocity|Gap", _
           TableRows("Metrics") & "|" & ColumnSum("Metrics", "Velocity") & "|0", _
           TableRows("VelocityCheck") & "|" & ColumnSum("VelocityCheck", "Velocity") & "|" & ColumnSum("VelocityCheck", "Gap")
+    Check "flowbuild", "the sheet MetricItems holds a formula under the header of each list (the lists themselves are checked by the Excel scenarios)", "E3 | S3", "yes|yes", _
+          IIf(ThisWorkbook.Worksheets(SheetName("MetricItems")).Range("E3").HasFormula, "yes", "no") & "|" & _
+          IIf(ThisWorkbook.Worksheets(SheetName("MetricItems")).Range("S3").HasFormula, "yes", "no")
+    Check "flowbuild", "the table Reconciliation has its 12 controls", "rows", 12, TableRows("Reconciliation")
     Check "flowbuild", "one series per work type in the Distribution chart", "flow_distribution", 5, dash.ChartObjects("flow_distribution").Chart.SeriesCollection.Count
     Check "flowbuild", "the Predictability chart has two more series: the 80-100 % band", "Predictability", teams + 2, dash.ChartObjects("flow_predictability").Chart.SeriesCollection.Count
     Check "flowbuild", "the daily Flow Load curve has one series per team and one point per day", "28 days", teams & "|" & 28, _
@@ -2552,6 +2556,25 @@ Private Function ProgramBook(ByVal withFeatures As Boolean) As Object
     Application.DisplayAlerts = True
     Set ProgramBook = wb
 End Function
+
+Public Sub T_ReconciliationFindings()
+    ' The status says how many controls of the sheet Reconciliation are not OK, and nothing when all are.
+    Dim wb As Object, ws As Object
+    Set wb = Workbooks.Add
+    PutRows wb, "Reconciliation", Array(Array("Control", "Result"), Array("a", "OK"), Array("b", "REVIEW"), Array("c", "REVIEW"))
+    For Each ws In wb.Worksheets
+        If ws.Name = SheetName("Reconciliation") Then ws.ListObjects.Add(1, ws.UsedRange, , 1).Name = "Reconciliation"
+    Next ws
+    Application.DisplayAlerts = False
+    wb.Worksheets(1).Delete
+    Application.DisplayAlerts = True
+    Check "health", "two controls of three to review", "2 of 3", True, InStr(HealthFields(wb), " | Reconciliation: 2 of 3 controls to review (sheet Reconciliation_from_excel)") > 0
+    wb.Worksheets(SheetName("Reconciliation")).Range("B3:B4").Value = "OK"
+    Check "health", "all OK: nothing is said", "(empty)", "", HealthFields(wb)
+    Application.DisplayAlerts = False
+    wb.Close False
+    Application.DisplayAlerts = True
+End Sub
 
 Public Sub T_NotFeatures()
     ' The Program tickets that are not Features are told (count, team, where to find them), and a FeatureTypes that matches nothing is named.

@@ -9,6 +9,7 @@ tested here without Excel and against the Python reference by the scenario flow_
 from jira2dashboard.flow import check_formulas as C
 from jira2dashboard.flow import dashboard_spec as D
 from jira2dashboard.flow import formulas as F
+from jira2dashboard.flow import reconciliation as R
 from jira2dashboard.flow.checks import CHECKS
 from jira2dashboard.flow.model import ART
 
@@ -49,6 +50,15 @@ def formula_rows() -> list[tuple[str, str, str]]:
     rows += [("VelocityCheck", key, "") for key in F.VELOCITYCHECK_KEYS]
     rows += [("VelocityCheck", name, text) for name, text in F.VELOCITYCHECK_COLUMNS]
     rows += [("Metrics", name, text) for name, text in F.METRICS_COLUMNS]
+    rows += [("Reconciliation", name, text) for name, text in F.RECONCILIATION_COLUMNS]
+    rows += [("ReconciliationControl", name, assertion) for name, assertion in R.CONTROLS]          # the keys: control, assertion
+    rows += [("ReconciliationExpected", name, F.RECONCILIATION_FORMULAS[name][0]) for name, _ in R.CONTROLS]
+    rows += [("ReconciliationFound", name, F.RECONCILIATION_FORMULAS[name][1]) for name, _ in R.CONTROLS]
+    rows += [("Census", name, text) for name, text in F.CENSUS_COLUMNS]
+    rows += [("ParametersInForce", name, text) for name, text in F.PARAMETERS_IN_FORCE]
+    rows += [("MetricItemsTitle", title, "") for title in F.METRICITEMS_TITLES]
+    for block, columns in zip(("MetricItemsDone", "MetricItemsLeftOut", "MetricItemsCutoff"), F.METRICITEMS_BLOCKS):
+        rows += [(block, name, text) for name, text in columns]
     rows += [("Controls", CONTROL_NAMES[0], F.AS_OF_CELL), ("Controls", CONTROL_NAMES[1], F.MODE_CELL),
              ("Controls", CONTROL_NAMES[2], F.TRANSITIONS_LAST_CELL), ("Controls", CONTROL_NAMES[3], F.PIS_LAST_CELL),
              ("Controls", CONTROL_NAMES[4], F.PREDICTABILITY_MODE_CELL)]

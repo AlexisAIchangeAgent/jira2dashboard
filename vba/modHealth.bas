@@ -25,7 +25,8 @@ Private Const HALF_SECOND As Double = 0.0000057870370370 ' a day is 1: half a se
 Public Function HealthFields(ByVal wb As Object) As String
     Cov "HLT01"
     On Error GoTo Failed
-    HealthFields = TypeProblems(wb) & NotFeatures(wb) & OutsideIterations(wb) & WithoutTeam(wb) & UnclassifiedStatuses(wb) & CellsInError(wb)
+    HealthFields = TypeProblems(wb) & NotFeatures(wb) & OutsideIterations(wb) & WithoutTeam(wb) & UnclassifiedStatuses(wb) & ReconciliationFindings(wb) & _
+                   CellsInError(wb)
     Exit Function
 Failed:
     Cov "HLT02"
@@ -69,6 +70,25 @@ Private Function InAnIteration(ByVal serial As Double, ByVal starts As Collectio
     For k = 1 To starts.Count
         If serial >= starts(k) And serial < ends(k) Then InAnIteration = True: Exit Function
     Next k
+End Function
+
+Private Function ReconciliationFindings(ByVal wb As Object) As String
+    ' The controls of the sheet Reconciliation that are not OK: "Reconciliation: n of m controls to review", only when there is one.
+    Dim res As Variant, r As Long, n As Long, m As Long
+    res = ColumnValues(TableOf(wb, "Reconciliation"), "Result")
+    If IsEmpty(res) Then Exit Function
+    For r = 1 To UBound(res, 1)
+        m = m + 1
+        If IsError(res(r, 1)) Then
+            n = n + 1
+        ElseIf StrComp(CStr(res(r, 1) & ""), "OK", vbBinaryCompare) <> 0 Then
+            n = n + 1
+        End If
+    Next r
+    If n > 0 Then
+        Cov "HLT62"
+        ReconciliationFindings = " | Reconciliation: " & n & " of " & m & " controls to review (sheet " & SheetName("Reconciliation") & ")"
+    End If
 End Function
 
 Private Function IsOtherTeam(ByVal team As Variant, ByVal r As Long) As Boolean

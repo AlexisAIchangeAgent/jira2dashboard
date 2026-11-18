@@ -193,6 +193,16 @@ python.log). `tests/unit/test_claude_hooks.py` and `test_claude_skills.py` test 
   (findable by key), the data checks and `VelocityCheck.OtherTypes`; `PIStatusTime` reads `Team = ART`, not the workflow; the Python `fill_teams` leaves the other team out.
   `modHealth.NotFeatures` says `Not Features: N of M` and, when the ART has no Feature, that `FeatureTypes "X" matches no ticket` (the client's type is "Fonctionnalité",
   the delivered default stays `Feature`). Scenario art-metrics holds 3 Program sub-tasks (TTT-26..28) that no ART figure counts. Sub-tasks of Team projects are still counted.
+- **MetricItems and Reconciliation (AL, 2026-11-18, "c'est de la comptabilite").** Every figure can be traced back to its tickets. `ItemFlow` gets the trace columns
+  `DoneIteration` (+ `DoneIterationStart/End`, found in the key columns of `Metrics`: no circular reference), `DonePI` (from `PIMetrics`), `Account` (the partition of the
+  population: done in an iteration / done outside the iterations / left out: not a Feature / removed / open), `WhyNotInFlowTime` (Reopened, No valid start),
+  `BoundaryHours` (distance of DoneUtc to the nearest iteration boundary); reference `flow/trace.py`. The sheet `MetricItems_from_excel` holds three lists of SPILLED
+  formulas side by side (columns A.. Done in an iteration: Iteration, Start, End, Team, Key, Type, DoneUtc, FlowTimeCounted, FlowTimeDays, WhyNotInFlowTime; L.. done but
+  not counted with the reason; S.. cut-off within 24 h), `modFlowBuild.BuildMetricItems`, python `trace.metric_items`; the rows of an iteration and team are its Velocity.
+  The sheet `Reconciliation_from_excel` has the table `Reconciliation` (12 controls Control | Assertion | Expected | Found | Difference | Result OK/REVIEW, in the order
+  of `reconciliation.CONTROLS`; Expected and Found are a formula of their own per row, written BEFORE the table exists: **a formula typed in one cell of a table column fills
+  the whole column**, which made all the rows equal), the census of the types (spilled from H1) and the parameters in force; reference `flow/reconciliation.py`;
+  `modHealth.ReconciliationFindings` says `Reconciliation: n of m controls to review`. The art-metrics scenario types every list and control by hand.
 - **Python reference as oracle.** `flow/` (`intervals.py`, `itemflow.py`, `load.py`, `metrics.py`, `checks.py`) is a pure
   Python implementation of the same metrics and data checks. The scenarios in `tests/features/flow_excel.feature` run the
   real delivered workbook against the fake Jira and compare Excel with this reference **cell by cell** (Flow Load modes A

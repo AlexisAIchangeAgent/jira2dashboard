@@ -83,3 +83,10 @@ def test_a_team_project_without_a_team_name_is_its_own_team():
     """AL, 2026-11-18: an empty Team is the project key; the Program stays ART, a team named twice counts once."""
     rows = [("PRG", "Program", None), ("TA", "Team", "Team A"), ("TB", "Team", None), ("TC", "Team", "Team A"), ("TD", "Team", " ")]
     assert B.team_names(rows) == ["ART", "Team A", "TB", "TD"]
+
+
+def test_the_labels_of_the_dates_of_the_parameters_in_force_are_the_ones_that_modflowbuild_formats():
+    """modFlowBuild.BuildReconciliation gives the date format to the rows whose label holds "iteration" or "AsOf": a renamed label would lose it."""
+    dated = {name for name, formula in F.PARAMETERS_IN_FORCE if "IterationStart" in formula or "IterationEnd" in formula or "AsOfUtc" in formula}
+    assert dated == {"First iteration start", "Last iteration end (excluded)", "AsOf (UTC)"}
+    assert all("iteration" in name.lower() or "asof" in name.lower() for name in dated)

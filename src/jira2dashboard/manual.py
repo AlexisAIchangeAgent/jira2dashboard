@@ -161,6 +161,18 @@ def manual(mandatory: tuple[str, ...]) -> list[tuple[str, str]]:
             "one per change (an item closed twice counts twice), ChangedToEndFeatures = of which Features (what the JQL status CHANGED TO "
             "... DURING counts in Jira); ReopenedLater = those changes that the item left again. Gap = Velocity - CreatedDone - "
             "(ChangedToEnd - ReopenedLater) is 0 when the table explains the Velocity.",
+            f"{S.of('MetricItems')}: the tickets BEHIND the figures, three lists side by side (formulas that follow the data). Left: every ticket done in "
+            "an iteration, by iteration, team, date and key, with its type, whether Flow Time counts it (FlowTimeCounted 1 or 0) and why not "
+            "(Reopened, No valid start): the rows of an iteration and team are its Velocity, so filter the list to see the keys of a chart point. Middle: the "
+            "done tickets that no figure counts, with the reason (done outside the iterations, or left out because they are not Features: the team "
+            f"ART (other types)): the missing ones. Right: the tickets done within 24 hours of an iteration boundary (cut-off). {ITEMFLOW} has the columns "
+            "behind them: DoneIteration, DonePI, Account (every ticket is in exactly one account), WhyNotInFlowTime, BoundaryHours.",
+            f"{S.of('Reconciliation')}: the controls an accountant would run, each with Expected, Found and a Result (OK, or REVIEW: look at it): the tickets "
+            "read = the tickets of ItemFlow, every ticket in one account, the Velocity and the Flow Time recounted from the lists, no ticket twice, the tickets "
+            "near a boundary, the statuses all classified, FeatureTypes matching a ticket, consistent status histories, the done tickets found again in the "
+            "changelog. Next to them the census of the ticket types (how many, in the ART, left out, done, done in an iteration) and, below, the parameters "
+            "in force (FeatureTypes, the statuses that start and end the flow, the dates of the iterations): compare them with Jira. The status of the "
+            "Dashboard says how many controls are to review.",
             f"{DATACHECKS}: the 29 data checks DC01-DC29, with Items and OK, KO or not computable. To see the work items, "
             f"filter the table ItemFlow (sheet {ITEMFLOW}) on its column DCxx = 1.",
             f"Do not edit the sheets {S.of('FlowFormulas')}, {S.of('ChartSpec')} and {S.of('ChecksSpec')}: they describe the formulas, the charts and "

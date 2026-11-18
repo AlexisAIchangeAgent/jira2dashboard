@@ -69,7 +69,7 @@ Private Sub DeleteDerived(ByVal wb As Object)
     alerts = Application.DisplayAlerts
     Application.DisplayAlerts = False
     On Error GoTo Restore
-    For Each nm In Array("ChartData", "ItemFlow", "DailyLoad", "Metrics", "IterationFeatures", "PIMetrics", "PIStatusTime", "VelocityCheck", "DataChecks", "FillRates", "Controls")
+    For Each nm In Array("ChartData", "ItemFlow", "DailyLoad", "Metrics", "IterationFeatures", "PIMetrics", "PIStatusTime", "VelocityCheck", "MetricItems", "Reconciliation", "DataChecks", "FillRates", "Controls")
         If SheetExists(wb, CStr(nm)) Then wb.Worksheets(SheetName(CStr(nm))).Delete
     Next nm
 Restore:
@@ -227,6 +227,81 @@ Private Sub FillFormulas(ByVal lo As Object, ByVal cols As Collection)
     Next i
 End Sub
 
+Private Sub BuildMetricItems(ByVal wb As Object, ByVal spec As Object)
+    ' The sheet MetricItems: the lists of the tickets behind the figures (flow/trace.metric_items), three blocks side by side with a blank column
+    ' between. Row 1 the title of a block, row 2 the names of its columns, row 3 one spilled formula per column: Excel fills the rows below by itself.
+    Cov "FLB56"
+    Dim ws As Object, blocks As Variant, b As Long, cols As Collection, titles As Collection, i As Long, c As Long, num As Long, desc As String, nm As String
+    Set ws = wb.Worksheets(SheetName("MetricItems"))
+    Set titles = spec("MetricItemsTitle")
+    blocks = Array("MetricItemsDone", "MetricItemsLeftOut", "MetricItemsCutoff")
+    c = 1
+    For b = 0 To UBound(blocks)
+        Set cols = spec(CStr(blocks(b)))
+        ws.Cells(1, c).Value = titles(b + 1)(0)
+        ws.Cells(1, c).Font.Bold = True
+        For i = 1 To cols.Count
+            nm = CStr(cols(i)(0))
+            ws.Cells(2, c + i - 1).Value = nm
+            ws.Cells(2, c + i - 1).Font.Bold = True
+            On Error Resume Next
+            ws.Cells(3, c + i - 1).Formula2 = cols(i)(1)
+            num = Err.Number: desc = Err.Description: Err.Clear
+            On Error GoTo 0
+            If num <> 0 Then Err.Raise vbObjectError + 707, "BuildFlowSheets", "Excel refused the formula of MetricItems." & blocks(b) & "." & nm & ": " & desc
+            If nm = "Start" Or nm = "End" Or nm = "DoneUtc" Then ws.Columns(c + i - 1).NumberFormat = "yyyy-mm-dd hh:mm"
+        Next i
+        c = c + cols.Count + 1
+    Next b
+    ws.Range(ws.Cells(2, 1), ws.Cells(60, c)).Columns.AutoFit                  ' the headers and the first rows: not the titles of row 1, not every spilled row
+End Sub
+
+Private Sub WriteOneFormula(ByVal cell As Object, ByVal formula As String, ByVal what As String)
+    ' One formula of a cell, with the error of the build when Excel refuses it.
+    Dim num As Long, desc As String
+    On Error Resume Next
+    cell.Formula2 = formula
+    num = Err.Number: desc = Err.Description: Err.Clear
+    On Error GoTo 0
+    If num <> 0 Then Err.Raise vbObjectError + 707, "BuildFlowSheets", "Excel refused the formula of " & what & ": " & desc
+End Sub
+
+Private Sub BuildReconciliation(ByVal wb As Object, ByVal spec As Object)
+    ' The sheet Reconciliation (flow/reconciliation.py): the table of controls A1:F13 (Expected and Found are a formula of their own in each row),
+    ' the census of the types (spilled formulas from H1) and, below the table, the parameters in force that the figures read.
+    Cov "FLB57"
+    Dim ws As Object, lo As Object, keys As Collection, expected As Collection, found As Collection, cols As Collection, census As Collection
+    Dim params As Collection, i As Long, top As Long
+    Set ws = wb.Worksheets(SheetName("Reconciliation"))
+    Set keys = spec("ReconciliationControl"): Set expected = spec("ReconciliationExpected"): Set found = spec("ReconciliationFound")
+    Set cols = spec("Reconciliation"): Set census = spec("Census"): Set params = spec("ParametersInForce")
+    ' the cells are written BEFORE the table exists: a formula typed in one cell of a table column fills the whole column
+    For i = 1 To keys.Count
+        ws.Cells(i + 1, 1).Value = keys(i)(0)
+        ws.Cells(i + 1, 2).Value = keys(i)(1)
+        WriteOneFormula ws.Cells(i + 1, 3), CStr(expected(i)(1)), "Reconciliation.Expected of " & keys(i)(0)
+        WriteOneFormula ws.Cells(i + 1, 4), CStr(found(i)(1)), "Reconciliation.Found of " & keys(i)(0)
+    Next i
+    Set lo = CreateTable(ws, "Reconciliation", cols, keys.Count)
+    FillFormulas lo, cols                                                       ' Difference and Result: the same formula in every row
+    For i = 1 To census.Count
+        ws.Cells(1, 7 + i).Value = census(i)(0)
+        ws.Cells(1, 7 + i).Font.Bold = True
+        WriteOneFormula ws.Cells(2, 7 + i), CStr(census(i)(1)), "Census." & census(i)(0)
+    Next i
+    top = keys.Count + 4
+    ws.Cells(top - 1, 1).Value = "Parameters in force (what the figures read: compare them with Jira)"
+    ws.Cells(top - 1, 1).Font.Bold = True
+    For i = 1 To params.Count
+        ws.Cells(top + i - 1, 1).Value = params(i)(0)
+        WriteOneFormula ws.Cells(top + i - 1, 2), CStr(params(i)(1)), "ParametersInForce." & params(i)(0)
+        If InStr(1, CStr(params(i)(0)), "iteration", vbTextCompare) > 0 Or InStr(1, CStr(params(i)(0)), "AsOf", vbTextCompare) > 0 Then
+            ws.Cells(top + i - 1, 2).NumberFormat = "yyyy-mm-dd hh:mm"           ' the labels of the dates (formulas.PARAMETERS_IN_FORCE, pinned by test_blueprint)
+        End If
+    Next i
+    ws.Columns(1).ColumnWidth = 70: ws.Columns(2).ColumnWidth = 26
+End Sub
+
 Private Function UsedRows(ByVal ws As Object) As Long
     UsedRows = ws.Cells(ws.Rows.Count, 1).End(-4162).Row - 1            ' -4162 = xlUp
 End Function
@@ -340,6 +415,8 @@ Private Sub BuildAll(ByVal wb As Object, ByVal spec As Object, ByVal teams As Co
     Set wsF = AddSheet(wb, "ItemFlow"): Set wsD = AddSheet(wb, "DailyLoad"): Set wsM = AddSheet(wb, "Metrics")
     Set wsC = AddSheet(wb, "DataChecks"): Set wsR = AddSheet(wb, "FillRates"): Set wsT = AddSheet(wb, "IterationFeatures")
     Set wsP = AddSheet(wb, "PIMetrics"): Set wsU = AddSheet(wb, "PIStatusTime"): Set wsV = AddSheet(wb, "VelocityCheck")
+    AddSheet wb, "MetricItems"
+    AddSheet wb, "Reconciliation"
     Set pis = PiNames(wb, SettingOf(spec, "Dashboard", "NoPI"))
     Set statuses = StatusNames(wb.Worksheets(SheetName("Workflows")))
     Set featureTeams = FeatureTeamNames(wb, SettingOf(spec, "Dashboard", "ProgramTeam"))
@@ -406,6 +483,12 @@ Private Sub BuildAll(ByVal wb As Object, ByVal spec As Object, ByVal teams As Co
     FillFormulas loV, spec("VelocityCheck")
     LogEnd "flow sheets: formulas VelocityCheck"
     wsV.Range(wsV.Columns(2), wsV.Columns(3)).NumberFormat = "yyyy-mm-dd"
+    LogBegin "flow sheets: MetricItems"
+    BuildMetricItems wb, spec
+    LogEnd "flow sheets: MetricItems"
+    LogBegin "flow sheets: Reconciliation"
+    BuildReconciliation wb, spec
+    LogEnd "flow sheets: Reconciliation"
     wsU.Range(wsU.Columns(3), wsU.Columns(4)).NumberFormat = "yyyy-mm-dd"
     wsU.Columns(7).NumberFormat = "0.0"                                          ' AverageDays
     wsU.Columns(8).NumberFormat = "0%"                                           ' Share

@@ -16,6 +16,8 @@ from jira2dashboard.flow.itemflow import ItemFlow, item_flow
 from jira2dashboard.flow.iteration_features import IterationFeatures, iteration_features
 from jira2dashboard.flow.load import ONE_DAY, daily_load, snapshot_days
 from jira2dashboard.flow.pi_history import pi_intervals
+from jira2dashboard.flow.reconciliation import reconcile
+from jira2dashboard.flow.trace import MetricItems, metric_items, trace
 from jira2dashboard.flow.pi_status_time import PIStatusTime, feature_statuses, pi_status_time
 from jira2dashboard.flow.metrics import (BUCKETS, PIPredictability, TeamIterationMetrics, pi_predictability,
                                          team_iteration_metrics)
@@ -27,12 +29,14 @@ ITEMFLOW = ("Key", "Project", "Type", "WorkType", "Role", "Workflow", "Team", "C
             "BacklogReturns", "DoneUtc", "RemovedUtc", "FlowTimeDays", "LeadTimeDays", "ActiveDays", "WaitDays",
             "UnclassifiedDays", "Reopened", "SkippedStart", "Excluded", "WorkTypeBucket", "Parent", "StatusCategory",
             "ResolvedUtc", "FixVersions", "StoryPoints", "PI", "BV", "TeamValue", "SprintState", "SprintStart",
-            "SprintEnd", "SprintCount", "TargetStart", "TargetEnd", "KeyChanges") + PER_ISSUE
+            "SprintEnd", "SprintCount", "TargetStart", "TargetEnd", "KeyChanges") + PER_ISSUE + (
+            "DoneIteration", "DoneIterationStart", "DoneIterationEnd", "DonePI", "Account", "WhyNotInFlowTime", "BoundaryHours")
 DAILY_LOAD = F.TABLES["DailyLoad"]
 METRICS = F.TABLES["Metrics"]
 PI_METRICS = F.TABLES["PIMetrics"]
 PI_STATUS_TIME = F.TABLES["PIStatusTime"]
 VELOCITY_CHECK = F.TABLES["VelocityCheck"]
+RECONCILIATION = tuple(name for name, _ in F.RECONCILIATION_COLUMNS)
 ITERATION_FEATURES = F.ITERATIONFEATURES_KEYS + F.ITERATIONFEATURES_NAMES
 FILL_RATES = F.TABLES["FillRates"]
 DATA_CHECKS = F.TABLES["DataChecks"]
@@ -86,7 +90,7 @@ def _bucket(work_type) -> str:
 
 
 def itemflow_rows(results: Results, rows: list[tuple], issues: list[FlowIssue],
-                  projects: list[tuple[str, str, str]]) -> list[tuple]:
+                  projects: list[tuple[str, str, str]], iterations=(), pis=None) -> list[tuple]:
     roles = {key: role for key, role, _team in projects}
     raw = {row[0]: row for row in rows}
     out = []
@@ -99,8 +103,15 @@ def itemflow_rows(results: Results, rows: list[tuple], issues: list[FlowIssue],
                     item.wait_days, item.unclassified_days, item.reopened, "Y" if item.skipped_start else "N",
                     1 if item.excluded_from_flow_time else 0, _bucket(item.work_type))
                    + tuple(row[_RAW[name]] for name in ITEMFLOW[22:37])
-                   + tuple(1 if check in ids else 0 for check in PER_ISSUE))
+                   + tuple(1 if check in ids else 0 for check in PER_ISSUE)
+                   + _trace_cells(item, list(iterations), pis or {}))
     return out
+
+
+def _trace_cells(item: ItemFlow, iterations: list, pis: dict) -> tuple:
+    """DoneIteration .. BoundaryHours (flow/trace.py): "" or None where the workbook's formula gives the empty text."""
+    t = trace(item, iterations, pis)
+    return (t.done_iteration, t.start, t.end, t.done_pi, t.account, t.why_not_in_flow_time, t.boundary_hours)
 
 
 def days_of(first: dt.datetime, end: dt.datetime) -> list[dt.datetime]:
@@ -131,6 +142,32 @@ def pistatustime_rows(results: Results, s: RunSettings) -> list[tuple]:
     """The rows of PIStatusTime (formulas.PISTATUSTIME_COLUMNS), one per PI of PIMetrics and Active / Wait status of the Feature workflow."""
     return [(r.pi, r.status, *s.checks.pis.get(r.pi, (None, None)), r.items, r.total_days, r.average_days, r.share)
             for r in results.status_time]
+
+
+def reconciliation_rows(results: Results, issues: list[FlowIssue], s: RunSettings) -> list[tuple]:
+    """The rows of the table Reconciliation (formulas.RECONCILIATION_COLUMNS): control, assertion, expected, found, difference, result."""
+    return [(c.name, c.assertion, c.expected, c.found, c.found - c.expected, "OK" if c.passed else "REVIEW")
+            for c in reconcile(issues, results.items, results.metrics, list(s.iterations), s.checks.pis, s.rules, results.flags)]
+
+
+def metricitems_sheet(results: Results, s: RunSettings) -> tuple[tuple, list[tuple]]:
+    """The sheet MetricItems of the Python path: the header (the names of the three blocks with an empty name between them) and the rows
+    (the three lists of flow/trace.metric_items side by side, the shorter ones padded with empty cells)."""
+    return metricitems_grid(metric_items(results.items, list(s.iterations), s.checks.pis))
+
+
+def metricitems_grid(lists: MetricItems) -> tuple[tuple, list[tuple]]:
+    blocks = [[name for name, _ in block] for block in F.METRICITEMS_BLOCKS]
+    header = tuple(name for names in blocks for name in names + [""])[:-1]
+    data = [lists.done, lists.left_out, lists.cutoff]
+    rows = []
+    for n in range(max(len(d) for d in data)):
+        row: list = []
+        for names, block in zip(blocks, data):
+            row += list(block[n]) if n < len(block) else [None] * len(names)
+            row.append(None)
+        rows.append(tuple(row[:-1]))
+    return header, rows
 
 
 def velocitycheck_rows(results: Results, s: RunSettings) -> list[tuple]:

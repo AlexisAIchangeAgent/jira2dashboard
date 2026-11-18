@@ -593,6 +593,129 @@ def _velocity_check_generated(world):
     assert any(e.changed_to_end > 0 for e in expected) and any(e.reopened_later > 0 for e in expected), expected[:6]
 
 
+@then("les colonnes de trace de ItemFlow reproduisent la référence Python sur les données générées")
+def _trace_generated(world):
+    """DoneIteration, its Start and End, DonePI, Account, WhyNotInFlowTime and BoundaryHours of every ticket against flow/trace, and the data holds
+    each account that the generated population can reach (else it would compare empty texts with empty texts)."""
+    from jira2dashboard.flow.trace import trace
+    excel = {row["Key"]: row for row in table_dicts(world["wb"], "ItemFlow")}
+    wrong, accounts, reasons = [], set(), set()
+    for item in world["items"]:
+        row, ref = excel[item.key], trace(item, world["iterations"], world["settings"].pis)
+        accounts.add(ref.account)
+        reasons.add(ref.why_not_in_flow_time)
+        checks = {"DoneIteration": row["DoneIteration"] == ref.done_iteration, "DoneIterationStart": same_moment(row["DoneIterationStart"], ref.start),
+                  "DoneIterationEnd": same_moment(row["DoneIterationEnd"], ref.end), "DonePI": row["DonePI"] == ref.done_pi,
+                  "Account": row["Account"] == ref.account, "WhyNotInFlowTime": row["WhyNotInFlowTime"] == ref.why_not_in_flow_time,
+                  "BoundaryHours": (row["BoundaryHours"] in ("", None)) if ref.boundary_hours is None else abs(row["BoundaryHours"] - ref.boundary_hours) < 1e-3}
+        wrong += [(item.key, column, row[column]) for column, ok in checks.items() if not ok]
+    assert wrong == [], wrong[:8]
+    assert {"Done in an iteration", "Done outside the iterations", "Open"} <= accounts, accounts
+    assert any(reasons - {""}), reasons                                                   # some done ticket is left out of the Flow Time, with its reason
+
+
+def metric_blocks(wb):
+    """The three lists of the sheet MetricItems as rows of values (dates and numbers as Excel serials, the empty text as ""): row 3 holds the
+    spilled formulas, a list with nothing to say shows one empty text. The blocks start at columns 1, 12 and 19 (10, 6 and 5 columns, a blank between)."""
+    from jira2dashboard.flow import formulas as F
+    ws = wb.Worksheets(S.of("MetricItems"))
+    widths = [len(block) for block in F.METRICITEMS_BLOCKS]
+    last = max(ws.Cells(ws.Rows.Count, c).End(-4162).Row for c in (1, 12, 19))
+    out, first = [], 1
+    for width in widths:
+        grid = ws.Range(ws.Cells(3, first), ws.Cells(max(last, 3), first + width - 1)).Value2
+        rows = [tuple("" if v is None else v for v in row) for row in grid]
+        out.append([r for r in rows if any(v != "" for v in r)])                          # a list with nothing to say shows one empty row
+        first += width + 1
+    return out
+
+
+def serial_rows(rows):
+    """Reference rows with the datetimes as Excel serials and None as the empty text."""
+    return [tuple(com.to_excel_serial(v) if isinstance(v, dt.datetime) else ("" if v is None else v) for v in row) for row in rows]
+
+
+def close_rows(got, expected) -> bool:
+    return len(got) == len(expected) and all(
+        len(a) == len(b) and all((abs(x - y) < 1e-3) if isinstance(y, float) and not isinstance(x, str) else x == y for x, y in zip(a, b))
+        for a, b in zip(got, expected))
+
+
+@then("les listes de la feuille MetricItems reproduisent la référence Python sur les données générées")
+def _metric_items_generated(world):
+    """The three lists against flow/trace.metric_items: the same tickets with the same figures (compared by iteration then key: the blocks are
+    sorted by the workbook's own text order), the blocks in the order of their keys (start of the iteration never goes back), real data in each."""
+    from jira2dashboard.flow.trace import metric_items
+    done, left_out, cutoff = metric_blocks(world["wb"])
+    ref = metric_items(world["items"], world["iterations"], world["settings"].pis)
+    assert len(ref.done) > 5 and len(ref.left_out) > 0, (len(ref.done), len(ref.left_out))
+    assert close_rows(sorted(done, key=lambda r: (r[0], r[4])), serial_rows(sorted(ref.done, key=lambda r: (r[0], r[4]))))
+    assert close_rows(sorted(left_out), serial_rows(sorted(ref.left_out)))
+    assert close_rows(sorted(cutoff), serial_rows(sorted(ref.cutoff)))
+    starts = [r[1] for r in done]
+    assert starts == sorted(starts), "the first list is sorted by the start of the iteration"
+    velocity = {}
+    for r in table_dicts(world["wb"], "Metrics"):
+        velocity[(r["Iteration-label"], r["Team"])] = r["Velocity"]
+    for (label, team), count in velocity.items():                                           # the tie-out: the list recounted is the figure
+        assert sum(1 for r in done if (r[0], r[3]) == (label, team)) == count, (label, team)
+
+
+@then("les listes de la feuille MetricItems sont celles calculées à la main et leur nombre de lignes est la vélocité")
+def _art_metric_items(world):
+    from art_oracle import RELEASED, SUBTASK_ITERATION, VELOCITY
+    done, left_out, cutoff = metric_blocks(world["wb"])
+    assert sorted((r[0], r[4]) for r in done) == sorted((label, f"TTT-{n}") for n, label in RELEASED.items())     # the 19 released Features
+    assert all((r[3], r[5], r[7]) == ("ART", "Feature", 1) for r in done)                                     # counted in the flow time, all Features
+    assert {label: sum(1 for r in done if r[0] == label) for label in VELOCITY} == VELOCITY                    # the rows of an iteration = its Velocity
+    assert [r[1] for r in done] == sorted(r[1] for r in done)                                                  # by the start of the iteration
+    assert sorted((r[0], r[3], r[2], r[5]) for r in left_out) == sorted(
+        (key, SUBTASK_ITERATION[key], "ART (other types)", "Left out: not a Feature") for key in SUBTASK_ITERATION)   # the 3 sub-tasks, with the reason
+    assert cutoff == [], cutoff                                                                               # every release is at day 10 of its iteration
+
+
+@then("la table Reconciliation reproduit la référence Python sur les données générées")
+def _reconciliation_generated(world):
+    """The twelve controls (expected, found, and the verdict) against flow/reconciliation, and the census of the types against its reference."""
+    from jira2dashboard.flow.metrics import team_iteration_metrics
+    from jira2dashboard.flow.reconciliation import census, reconcile
+    issues, items, iterations, pis = to_flow_issues(world["dataset"]), world["items"], world["iterations"], world["settings"].pis
+    metrics_rows = table_dicts(world["wb"], "Metrics")
+    by_name = {i.name: i for i in iterations}
+    metrics = [team_iteration_metrics(items, r["Team"], by_name[r["Iteration-label"]], "A", world["dataset"].as_of) for r in metrics_rows]
+    expected = reconcile(issues, items, metrics, iterations, pis, world["rules"], expected_flags(world))
+    got = table_dicts(world["wb"], "Reconciliation")
+    assert [r["Control"] for r in got] == [c.name for c in expected]
+    for row, ref in zip(got, expected):
+        assert abs(row["Expected"] - ref.expected) < 1e-3 and abs(row["Found"] - ref.found) < 1e-3, (ref, row)
+        assert row["Result"] == ("OK" if ref.passed else "REVIEW"), (ref, row)
+    ws = world["wb"].Worksheets(S.of("Reconciliation"))
+    ref_census = census(items, iterations, pis)
+    spilled = ws.Range(ws.Cells(2, 8), ws.Cells(1 + len(ref_census), 13)).Value2
+    assert [tuple(row) for row in spilled] == [tuple(float(v) if isinstance(v, int) else v for v in row) for row in ref_census], (spilled, ref_census)
+
+
+@then("tous les contrôles de la feuille Reconciliation sont OK avec les chiffres calculés à la main et le recensement des types est le bon")
+def _art_reconciliation(world):
+    from art_oracle import ACCOUNTS, FLOW_TIME_DAYS, VELOCITY
+    got = {r["Control"]: r for r in table_dicts(world["wb"], "Reconciliation")}
+    assert len(got) == 12 and {r["Result"] for r in got.values()} == {"OK"}, {k: (r["Expected"], r["Found"], r["Result"]) for k, r in got.items()}
+    released, tickets = sum(VELOCITY.values()), sum(ACCOUNTS.values())
+    typed = {"Tickets read from Jira = tickets of ItemFlow": (tickets, tickets), "Every ticket sits in one account": (tickets, tickets),
+             "Velocity of all iterations = tickets of the Done list": (released, released),
+             "Flow Time count = tickets counted in the Done list": (released, released),
+             "Flow Time days recounted from the list": (released * FLOW_TIME_DAYS, released * FLOW_TIME_DAYS),
+             "Done tickets of ItemFlow = open end-status intervals of the changelog": (released + 3, released + 3)}                 # + the 3 sub-tasks
+    for name, (expected, found) in typed.items():
+        assert abs(got[name]["Expected"] - expected) < 1e-6 and abs(got[name]["Found"] - found) < 1e-6, (name, got[name])
+    ws = world["wb"].Worksheets(S.of("Reconciliation"))
+    census_rows = [tuple(row) for row in ws.Range("H2:M3").Value2]
+    assert census_rows == [("Feature", 25.0, 25.0, 0.0, released, released), ("Sub-task", 3.0, 0.0, 3.0, 3.0, 3.0)]              # by hand
+    parameters = {ws.Cells(r, 1).Value: ws.Cells(r, 2).Value for r in range(16, 25)}
+    assert parameters["FeatureTypes (the types of the ART)"] == "Feature" and parameters["Statuses that end it (IsEnd)"] == "Feature: released"
+    assert parameters["Program project(s)"] == "TTT"
+
+
 @then("la table DataChecks et les colonnes DC de ItemFlow reproduisent les contrôles de la référence Python")
 def _data_checks(world):
     expected, settings = expected_flags(world), world["settings"]
@@ -1769,6 +1892,20 @@ def _art_other_types(world):
     assert {r["Team"] for k, r in flow.items() if k not in SUBTASKS} == {"ART"}                                # the 25 Features
     assert all(flow[key]["DoneUtc"] not in ("", None) for key in SUBTASKS)                                    # they are done: left out, not missing
     assert {r["Team"] for r in art_table(world, "Metrics")} == {"ART"}                                        # no row of metrics for the other team
+
+
+@then("chaque ticket est dans un seul compte de ItemFlow et les comptes sont ceux calculés à la main")
+def _art_accounts(world):
+    from collections import Counter
+    from art_oracle import ACCOUNTS, RELEASED, SUBTASK_ITERATION, SUBTASKS, VELOCITY
+    rows = art_table(world, "ItemFlow")
+    assert len({r["Key"] for r in rows}) == len(rows) == sum(ACCOUNTS.values())                           # 28 tickets, one line each
+    assert Counter(r["Account"] for r in rows) == {k: v for k, v in ACCOUNTS.items() if v}                # the trial balance, typed by hand
+    assert ACCOUNTS["Done in an iteration"] == sum(VELOCITY.values())                                     # the Velocity of the oracle is the same population
+    by_key = {r["Key"]: r for r in rows}
+    assert {n: by_key[f"TTT-{n}"]["DoneIteration"] for n in RELEASED} == RELEASED                         # the release iteration of each Feature
+    assert {k: by_key[k]["DoneIteration"] for k in SUBTASKS} == SUBTASK_ITERATION                         # known for the sub-tasks too, though left out
+    assert all(by_key[k]["WhyNotInFlowTime"] == "" for k in by_key)                                       # nothing is reopened or started late here
 
 
 @then("la table PIStatusTime est celle du calcul de référence et ses totaux sont les jours actifs et d'attente des mêmes Features")

@@ -1,0 +1,85 @@
+"""The reconciliation: the controls an accountant runs on the ledger of the figures (AL, 2026-11-18, "c'est de la comptabilite").
+
+Each control is (name, assertion, expected, found) and passes when found == expected (a count to REVIEW, such as the cut-off one, expects 0):
+the audit assertions are completeness (nothing lost between the extraction and the figures), accuracy (a total recounted from the ledger), occurrence
+(no ticket twice), cut-off (the tickets near an iteration boundary), classification (the statuses and the Feature types are the right ones) and
+existence (the done tickets exist as an end status in the changelog). The ledger is the sheet MetricItems (flow/trace.metric_items).
+Excel: the table Reconciliation (formulas.RECONCILIATION_*), the census is the block of spilled formulas next to it.
+"""
+from collections import Counter
+from dataclasses import dataclass
+
+from jira2dashboard.flow.itemflow import ItemFlow
+from jira2dashboard.flow.metrics import TeamIterationMetrics
+from jira2dashboard.flow.model import ART, FlowIssue, Iteration, Rules
+from jira2dashboard.flow.trace import ACCOUNT_COUNTED, ACCOUNT_OTHER, ACCOUNTS, CUTOFF_HOURS, MetricItems, account, metric_items, trace
+
+POPULATION = "Tickets read from Jira = tickets of ItemFlow"
+ACCOUNTS_ADD_UP = "Every ticket sits in one account"
+VELOCITY_TOTAL = "Velocity of all iterations = tickets of the Done list"
+VELOCITY_ROWS = "Velocity of each iteration and team recounted from the list (largest difference)"
+FLOW_TIME_COUNT = "Flow Time count = tickets counted in the Done list"
+FLOW_TIME_DAYS = "Flow Time days recounted from the list"
+UNIQUE = "No ticket twice in the Done list"
+CUTOFF = f"Tickets done within {CUTOFF_HOURS} hours of an iteration boundary (to review)"
+CLASSIFIED = "Statuses of the changelog all classified in Workflows"
+FEATURE_TYPES = "FeatureTypes matches at least one ticket of the Program"
+HISTORIES = "Status histories consistent (DC06, DC07)"
+EXISTENCE = "Done tickets of ItemFlow = open end-status intervals of the changelog"
+# (name, assertion), in the order of the sheet
+CONTROLS = ((POPULATION, "Completeness"), (ACCOUNTS_ADD_UP, "Completeness"), (VELOCITY_TOTAL, "Accuracy"), (VELOCITY_ROWS, "Accuracy"),
+            (FLOW_TIME_COUNT, "Accuracy"), (FLOW_TIME_DAYS, "Accuracy"), (UNIQUE, "Occurrence"), (CUTOFF, "Cut-off"), (CLASSIFIED, "Classification"),
+            (FEATURE_TYPES, "Classification"), (HISTORIES, "Existence"), (EXISTENCE, "Existence"))
+TOLERANCE = 1e-6
+
+
+@dataclass(frozen=True)
+class Control:
+    name: str
+    assertion: str
+    expected: float
+    found: float
+
+    @property
+    def passed(self) -> bool:
+        return abs(self.found - self.expected) < TOLERANCE
+
+
+def reconcile(issues: list[FlowIssue], items: list[ItemFlow], metrics: list[TeamIterationMetrics], iterations: list[Iteration],
+              pis: dict, rules: Rules, flags: dict[str, frozenset[str]], lists: MetricItems | None = None) -> list[Control]:
+    """`items[n]` is the ItemFlow of `issues[n]`; `metrics` the rows of the table Metrics; `flags` the data checks per key (checks.run_checks);
+    `lists` the ledger when it is not the one that metric_items builds (a test of the controls feeds a wrong one)."""
+    lists = lists or metric_items(items, iterations, pis)
+    counted = [r for r in lists.done if r[7] == 1]
+    accounts = Counter(account(item, trace(item, iterations, pis).done_iteration != "") for item in items)
+    rows = Counter((r[0], r[3]) for r in lists.done)
+    program = [i for i in issues if i.workflow == "Feature"]
+    values = {
+        POPULATION: (len(issues), len(items)),
+        ACCOUNTS_ADD_UP: (len(items), sum(accounts[a] for a in ACCOUNTS)),
+        VELOCITY_TOTAL: (sum(m.velocity for m in metrics), len(lists.done)),
+        VELOCITY_ROWS: (0, max((abs(m.velocity - rows[(m.iteration, m.team)]) for m in metrics), default=0)),
+        FLOW_TIME_COUNT: (sum(m.flow_time_count for m in metrics), len(counted)),
+        FLOW_TIME_DAYS: (sum(i.flow_time_days or 0 for i in items if account(i, trace(i, iterations, pis).done_iteration != "") == ACCOUNT_COUNTED
+                             and not i.excluded_from_flow_time), sum(r[8] or 0 for r in counted if r[8] != "")),
+        UNIQUE: (0, len(lists.done) - len({r[4] for r in lists.done})),
+        CUTOFF: (0, len(lists.cutoff)),
+        CLASSIFIED: (0, sum(1 for item in items for visit in item.intervals if visit.category == "Unclassified")),
+        FEATURE_TYPES: (1, 1 if not program else min(1, sum(1 for i in items if i.team == ART))),
+        HISTORIES: (0, sum(1 for ids in flags.values() for check in ("DC06", "DC07") if check in ids)),
+        EXISTENCE: (sum(1 for i in items if i.done is not None),
+                    sum(1 for issue, item in zip(issues, items) for visit in item.intervals
+                        if visit.is_open and rules.rule(issue.workflow, visit.status).is_end)),
+    }
+    return [Control(name, assertion, *values[name]) for name, assertion in CONTROLS]
+
+
+def census(items: list[ItemFlow], iterations: list[Iteration], pis: dict) -> list[tuple]:
+    """One row per ticket type, in the order of the names: type, tickets, in the team ART, left out (the other team), done, done in an iteration."""
+    out = []
+    for type_ in sorted({i.type for i in items}):
+        mine = [i for i in items if i.type == type_]
+        traces = [trace(i, iterations, pis) for i in mine]
+        out.append((type_, len(mine), sum(1 for i in mine if i.team == ART), sum(1 for t in traces if t.account == ACCOUNT_OTHER),
+                    sum(1 for i in mine if i.done is not None), sum(1 for t in traces if t.done_iteration != "")))
+    return out

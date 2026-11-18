@@ -57,6 +57,9 @@ Fonctionnalité: Le scénario art-metrics du faux Jira donne, dans le classeur l
     Alors la table VelocityCheck donne pour chaque itération de l'ART autant de passages vers l'état de fin que de Features livrées, sans création ni réouverture
     Et la table VelocityCheck est celle du calcul de référence et son écart est 0
     Et les sous-tâches du Program sont dans l'équipe « ART (other types) » et aucun chiffre de l'ART ne les compte
+    Et chaque ticket est dans un seul compte de ItemFlow et les comptes sont ceux calculés à la main
+    Et les listes de la feuille MetricItems sont celles calculées à la main et leur nombre de lignes est la vélocité
+    Et tous les contrôles de la feuille Reconciliation sont OK avec les chiffres calculés à la main et le recensement des types est le bon
 
   @excel
   Scénario: Une itération sans livraison montre sa vélocité à 0 et la note sous les graphiques dit pourquoi
