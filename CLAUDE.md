@@ -92,8 +92,8 @@ click-to-zoom (wheel, drag, Esc; no script or font from outside: `chart_images.i
 scenarios. No note, or an old time, = the last run did not reach the export. Open the page by double-click. Rerun the scenario to
 refresh: `test-excel tests/steps/test_flow_excel.py -k "art_metrics or png"` (the second test is the `flow` one).
 
-Before finishing a change run the full pass: `coverage`, `vba-tests`, `test-excel`, `test-network`, `build`
-(skill `/full-pass`). The Claude config is versioned in `.claude/` (like this file) but left out of the release
+Before finishing a change run the full pass: `coverage`, `vba-tests`, `test-excel -k "not pipeline"`, `test-scripts`, `build`
+(skill `/full-pass`; `test-network` and the `@pipeline` scenarios only when the build pipeline changes: they replay the VBA suite that `vba-tests` runs; a pass takes about 7 min). The Claude config is versioned in `.claude/` (like this file) but left out of the release
 (`export-ignore`); only `.claude/settings.local.json`, the personal settings, is gitignored. Hooks (`.claude/hooks`):
 `bas_guard.py` runs the VBA guard tests after an edit of `vba/*.bas`, and after a Bash/PowerShell command that changed a
 module (sizes and times kept in `%TEMP%\jira2dashboard\bas_guard.json`); `excel_kill_guard.py` asks before a command that
@@ -584,7 +584,7 @@ then `mermaid.parse`), and check every `](#anchor)` link against the headings.
 - After an Excel crash in a test, Office starts a new `EXCEL.EXE` (title "Excel" or "... - Récupération") at the same second:
   it belongs to the run; stop it by its PID once its start time is checked.
 - **A few VBA tests only:** copy `modTests.bas`, cut `TestNames()` to the tests wanted, run `vba-tests --offline`, restore with `cp`
-  (about 1 minute instead of 5; never commit the cut list).
+  (`vba-tests` takes about 1 minute whole, measured 2026-11-18: rarely worth it; never commit the cut list).
 - **Mutation of a VBA test:** no `summary:` line in the log = no proof (a mutation that raises inside a test, e.g. a type mismatch, loses the run:
   pick one that changes a result without raising). `Check` takes (area, label, input, expected, actual); the log cuts a line at 300 characters.
 - pywin32: `Range.Address` is a property (`cell.Address.replace("$", "")`), not a call with arguments; `ws.Cells(1, n).Value` reads a one-cell range as a scalar.

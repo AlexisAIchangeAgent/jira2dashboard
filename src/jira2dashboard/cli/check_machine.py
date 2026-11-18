@@ -345,7 +345,7 @@ def main(argv: list[str] | None = None) -> int:
     pid = None
     path = None
     try:
-        with R.excel_session() as app:
+        with R.excel_session(grace_s=5.0) as app:
             pid = R.excel_pid(app)
             path = build_and_check(app, trusted)
             if path and trusted:
@@ -368,7 +368,7 @@ def main(argv: list[str] | None = None) -> int:
         @step("child: compile detects error in another module")
         def s_bad():
             bad = OUT / "compile_error.xlsm"
-            with R.excel_session() as app2:
+            with R.excel_session(grace_s=5.0) as app2:
                 wb2 = R.new_workbook(app2)
                 R.add_or_replace_module(wb2, "modBad", "Option Explicit\r\nSub Broken()\r\n    x = 1\r\nEnd Sub\r\n")
                 R.add_or_replace_module(wb2, "modSelfTest", R.normalize_vba(R.MOD_SELF_TEST))

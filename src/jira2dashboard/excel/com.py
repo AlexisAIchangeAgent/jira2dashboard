@@ -93,9 +93,14 @@ def excel_pid(app) -> int:
     _thread_id, pid = win32process.GetWindowThreadProcessId(app.Hwnd)
     return pid
 
+EXIT_GRACE_S = 0.5      # measured 2026-11-18: after Quit() Excel needs about 3 s to leave when no COM reference is held and never leaves while the caller
+                        # holds `app` (it always does, inside the `with`): waiting 5 s only delayed the kill, 5 s for each of the 66 Excel tests of a pass
+
+
 @contextlib.contextmanager
-def excel_session():
-    """Yield a hidden Excel app and always close it."""
+def excel_session(grace_s: float = EXIT_GRACE_S):
+    """Yield a hidden Excel app and always close it: every workbook is closed without saving, then Quit(), then Excel is ended after `grace_s` if it is
+    still EXCEL.EXE (only this session's process, checked by its pid and its program name)."""
     pythoncom.CoInitialize()
     try:
         app = start_excel()
@@ -107,7 +112,7 @@ def excel_session():
             _quit_quietly(app)
             del app
             gc.collect()
-            _kill_if_still_excel(pid)
+            _kill_if_still_excel(pid, grace_s)
     finally:
         pythoncom.CoUninitialize()
 

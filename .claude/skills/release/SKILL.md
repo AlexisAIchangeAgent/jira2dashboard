@@ -15,7 +15,7 @@ publication itself. Talk to AL in French, short simple sentences.
    CLAUDE.md (section Commands, "are published"). The tags are on GitHub: `git fetch --tags` before reading them.
 2. **State.** `git status --porcelain` empty, `git rev-parse HEAD` == `git rev-parse origin/main` (push first),
    `gh auth status` logged in. No `EXCEL.EXE` of a run left (`tasklist | grep -c EXCEL`).
-3. **Full pass** (skill `/full-pass`): coverage, vba-tests, test-excel, test-network, build. A known Excel crash is
+3. **Full pass** (skill `/full-pass`) plus the steps it leaves out: coverage, vba-tests, test-excel (every scenario, the `@pipeline` ones too), test-network, test-scripts, build. A known Excel crash is
    rerun, not ignored.
 4. **Dry run:** `powershell -NoProfile -ExecutionPolicy Bypass -File scripts/release.ps1 -Version v0.0.0`
    (log `scripts\logs\release.log`). Check in `out\release\v0.0.0`: no zip, `notes.md` gives the MD5 and SHA256 of the workbook, and the workbook holds the

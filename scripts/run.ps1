@@ -27,7 +27,7 @@ Commands:
 USE CASES
   First time on a machine            powershell -ExecutionPolicy Bypass -File scripts\setup.ps1
   While you code                     .\scripts\run.ps1 test            (fast, no Excel); one test: .\scripts\run.ps1 test tests/unit/test_x.py::test_name
-  Before a commit                    .\scripts\run.ps1 coverage ; vba-tests ; test-excel ; test-network ; test-scripts ; build
+  Before a commit                    .\scripts\run.ps1 coverage ; vba-tests ; test-excel -k "not pipeline" ; test-scripts ; build   (test-network: after a change of the build pipeline, and before a release)
   Check the scripts of this folder   .\scripts\run.ps1 test-scripts        (Pester, coverage of the .ps1 under 93 % fails)
   The workbook to deliver            .\scripts\run.ps1 build           then .\scripts\release.ps1 -Version v1.0.0
   Try the macros against a fake Jira .\scripts\manual-test.ps1  (by hand)   or   .\scripts\scenario.ps1  (unattended)
@@ -74,7 +74,7 @@ if ($args.Count -lt 1 -or @("--help", "-h", "-help", "help", "/?") -contains $ar
     Write-Host ""
     Write-Host "Use cases:"
     Write-Host "  while you code          .\scripts\run.ps1 test"
-    Write-Host "  before a commit         coverage, vba-tests, test-excel, test-network, test-scripts, build"
+    Write-Host "  before a commit         coverage, vba-tests, test-excel -k 'not pipeline', test-scripts, build (test-network: build pipeline change, release)"
     Write-Host "  try the macros          .\scripts\manual-test.ps1 (by hand) or .\scripts\scenario.ps1 (unattended)"
     Write-Host "  a client machine        check-machine, then diagnose"
     if ($args.Count -lt 1) { exit 2 }

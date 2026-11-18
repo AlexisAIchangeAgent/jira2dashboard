@@ -45,6 +45,7 @@ pythonpath = ["src"]
 markers = [
     "excel: drives a real Excel through COM (slow)",
     "network: needs the network",
+    "pipeline: runs the whole VBA test suite again through the build pipeline (what vba-tests already does): left out of the full pass, run when the build changes",
 ]
 filterwarnings = ["ignore:'maxsplit' is passed as positional argument:DeprecationWarning:gherkin"]
 addopts ="-m 'not excel and not network'"
