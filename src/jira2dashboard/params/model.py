@@ -98,34 +98,26 @@ def _records(sheet: ParamSheet):
     return [(n, dict(zip(sheet.header, row))) for n, row in enumerate(sheet.rows, start=1)]
 
 
-def _check_workflows(sheet: ParamSheet, problems: list[str], team_needed: bool = True) -> None:
+def _check_workflows(sheet: ParamSheet, problems: list[str]) -> None:
+    """The sheet Workflows holds EXCEPTIONS to what Jira says (flow/status_rules.py, AL 2026-11-18): a row names a status, optionally a workflow
+    (empty = both), and any of Category, IsStart, IsEnd, IsFree; an empty cell takes Jira's value. So the sheet may be empty, and a workflow needs
+    no start or end status here."""
     seen: Counter = Counter()
     for number, rec in _records(sheet):
         where = f"Workflows row {number}"
-        if rec["Workflow"] not in WORKFLOWS:
-            problems.append(f"{where}: Workflow {rec['Workflow']!r} is not one of {', '.join(WORKFLOWS)}")
+        if rec["Workflow"] is not None and rec["Workflow"] not in WORKFLOWS:
+            problems.append(f"{where}: Workflow {rec['Workflow']!r} is not one of {', '.join(WORKFLOWS)} (or empty: both)")
         if not rec["Status"]:
             problems.append(f"{where}: Status is empty")
-        if rec["Category"] not in CATEGORIES:
-            problems.append(f"{where}: Category {rec['Category']!r} is not one of {', '.join(CATEGORIES)}")
+        if rec["Category"] is not None and rec["Category"] not in CATEGORIES:
+            problems.append(f"{where}: Category {rec['Category']!r} is not one of {', '.join(CATEGORIES)} (or empty: Jira's)")
         for flag in ("IsStart", "IsEnd", "IsFree"):
-            if rec[flag] not in (0, 1):
-                problems.append(f"{where}: {flag} must be 0 or 1, got {rec[flag]!r}")
+            if rec[flag] is not None and rec[flag] not in (0, 1):
+                problems.append(f"{where}: {flag} must be 0, 1 or empty, got {rec[flag]!r}")
         seen[(rec["Workflow"], rec["Status"])] += 1
     for (workflow, status), count in seen.items():
         if count > 1:
             problems.append(f"Workflows: workflow {workflow!r} lists status {status!r} twice")
-    for workflow in WORKFLOWS:
-        recs = [r for _n, r in _records(sheet) if r["Workflow"] == workflow]
-        if not recs and workflow == "Team" and not team_needed:
-            continue                                        # an ART of Features only: no Team project, no Team workflow
-        if not recs:
-            problems.append(f"Workflows: workflow {workflow!r} has no status")
-            continue
-        for flag in ("IsStart", "IsEnd"):
-            count = sum(1 for r in recs if r[flag] == 1)
-            if count != 1:
-                problems.append(f"Workflows: workflow {workflow!r} needs exactly one {flag} status, found {count}")
 
 
 def _statuses(workflows: ParamSheet) -> dict[str, set[str]]:
@@ -291,9 +283,8 @@ def shape_problems(sheets: dict[str, "ParamSheet | None"]) -> list[str]:
         _check_iterations(sheets["Iterations"], problems)
     if sheets.get("PIs"):
         _check_iterations(sheets["PIs"], problems, "PI")
-    if sheets.get("Workflows"):          # the Team workflow is needed once a Team project exists (or when Projects is not known)
-        team_needed = not sheets.get("Projects") or any(r[1] == "Team" for r in sheets["Projects"].rows)
-        _check_workflows(sheets["Workflows"], problems, team_needed)
+    if sheets.get("Workflows"):
+        _check_workflows(sheets["Workflows"], problems)
     if sheets.get("Transitions") and sheets.get("Workflows"):
         _check_transitions(sheets["Transitions"], sheets["Workflows"], problems)
     return problems

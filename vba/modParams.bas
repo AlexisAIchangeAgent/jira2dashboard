@@ -584,3 +584,116 @@ Public Function IsYes(ByVal text As String) As Boolean
     End Select
 End Function
 
+' ================= The status rules that come from Jira (flow/status_rules.py: the same rules, the same cases in T_StatusRules) =================
+
+Public Function JiraCategoryName(ByVal key As String) As String
+    ' Backlog, Active or Done for a status category of Jira (new, indeterminate, done; or the enum TODO, IN_PROGRESS, DONE), "" when unknown.
+    Select Case LCase$(TrimWhite(key))
+        Case "new", "todo", "to do": Cov "PRM56": JiraCategoryName = "Backlog"
+        Case "indeterminate", "in_progress", "in progress": Cov "PRM57": JiraCategoryName = "Active"
+        Case "done": Cov "PRM58": JiraCategoryName = "Done"
+    End Select
+End Function
+
+Public Function FirstInProgress(ByVal initial As String, ByVal moves As Collection, ByVal categories As Object) As String
+    ' The start of a workflow: the first status in progress (Jira category indeterminate) that a breadth-first search reaches from the status of creation
+    ' along moves (Array(from, to)): the nearest wins, the first listed breaks a tie; "" when nothing is reached. categories: status -> Jira category.
+    Cov "PRM59"
+    Dim graph As Object, seen As Object, queue As New Collection, mv As Variant, status As String, target As Variant, head As Long
+    If Len(initial) = 0 Then Exit Function
+    Set graph = CreateObject("Scripting.Dictionary"): Set seen = CreateObject("Scripting.Dictionary")
+    For Each mv In moves
+        If Not graph.Exists(CStr(mv(0))) Then Set graph(CStr(mv(0))) = New Collection
+        graph(CStr(mv(0))).Add CStr(mv(1))
+    Next mv
+    seen(initial) = True: queue.Add initial: head = 1
+    Do While head <= queue.Count
+        status = CStr(queue(head)): head = head + 1
+        If categories.Exists(status) Then
+            If JiraCategoryName(CStr(categories(status))) = "Active" Then Cov "PRM60": FirstInProgress = status: Exit Function
+        End If
+        If graph.Exists(status) Then
+            For Each target In graph(status)
+                If Not seen.Exists(CStr(target)) Then seen(CStr(target)) = True: queue.Add CStr(target)
+            Next target
+        End If
+    Loop
+End Function
+
+Private Function CellNumber(ByVal cell As Variant, ByRef value As Long) As Boolean
+    ' True (and the whole number in value) when a cell of the sheet Workflows is filled.
+    If Len(TrimWhite(CStr(cell & ""))) = 0 Then Exit Function
+    value = CLng(Val(CStr(cell)))
+    CellNumber = True
+End Function
+
+Public Function EffectiveRules(ByVal kinds As Variant, ByVal catalog As Object, ByVal currentOf As Object, ByVal starts As Object, _
+                               ByVal frees As Object, ByVal exceptions As Collection) As Collection
+    ' One rule per workflow kind and status: Array(kind, status, category, isStart, isEnd, isFree, source), the kinds in the order given then the names in
+    ' binary order. catalog: status -> Jira category, currentOf: the category Jira gives the tickets' current statuses, starts / frees: dictionaries
+    ' of the statuses the Jira workflows start with / reach freely. exceptions: Array(workflow, status, category, isStart, isEnd, isFree) of the sheet
+    ' Workflows, an empty cell is Empty or "": it takes Jira's value; a row without workflow touches both, a row of the workflow comes after it.
+    Cov "PRM61"
+    Dim names As Object, nm As Variant, ex As Variant, kind As Variant, sorted() As String, n As Long, i As Long, j As Long, tmp As String
+    Dim out As New Collection, cat As String, isStart As Long, isFree As Long, isEnd As Long, hasEnd As Boolean, applied As Boolean, pass As Long, v As Long
+    Set names = CreateObject("Scripting.Dictionary")
+    For Each nm In catalog.Keys: names(CStr(nm)) = True: Next nm
+    For Each nm In currentOf.Keys: names(CStr(nm)) = True: Next nm
+    For Each ex In exceptions: names(CStr(ex(1))) = True: Next ex
+    Set EffectiveRules = out
+    n = names.Count
+    If n = 0 Then Exit Function
+    ReDim sorted(1 To n)
+    For Each nm In names.Keys
+        i = i + 1: sorted(i) = CStr(nm)
+    Next nm
+    For i = 2 To n                                                   ' insertion sort, binary compare: the order of Python's sorted on the names
+        tmp = sorted(i): j = i - 1
+        Do While j >= 1
+            If StrComp(sorted(j), tmp, vbBinaryCompare) <= 0 Then Exit Do
+            sorted(j + 1) = sorted(j): j = j - 1
+        Loop
+        sorted(j + 1) = tmp
+    Next i
+    For Each kind In kinds
+        For i = 1 To n
+            nm = sorted(i): cat = ""
+            If catalog.Exists(nm) Then cat = JiraCategoryName(CStr(catalog(nm)))
+            If Len(cat) = 0 And currentOf.Exists(nm) Then Cov "PRM62": cat = JiraCategoryName(CStr(currentOf(nm)))
+            If Len(cat) = 0 Then Cov "PRM63": cat = "Unclassified"
+            isStart = IIf(starts.Exists(nm), 1, 0): isFree = IIf(frees.Exists(nm), 1, 0): hasEnd = False: applied = False
+            For pass = 0 To 1                                        ' the rows of both workflows, then those of this workflow (the more precise wins)
+                For Each ex In exceptions
+                    If CStr(ex(1)) = CStr(nm) And IIf(pass = 0, Len(CStr(ex(0) & "")) = 0, CStr(ex(0) & "") = CStr(kind)) Then
+                        Cov "PRM64"
+                        applied = True
+                        If Len(CStr(ex(2) & "")) > 0 Then cat = CStr(ex(2))
+                        If CellNumber(ex(3), v) Then isStart = v
+                        If CellNumber(ex(4), v) Then isEnd = v: hasEnd = True
+                        If CellNumber(ex(5), v) Then isFree = v
+                    End If
+                Next ex
+            Next pass
+            If Not hasEnd Then isEnd = IIf(cat = "Done", 1, 0)
+            out.Add Array(CStr(kind), CStr(nm), cat, isStart, isEnd, isFree, IIf(applied, "user", "Jira"))
+        Next i
+    Next kind
+End Function
+
+Public Function RuleCategories(ByVal rules As Collection, ByVal kind As String) As Object
+    ' status -> category of the rules of one workflow kind: what BuildStatusIntervals reads.
+    Dim out As Object, r As Variant
+    Set out = CreateObject("Scripting.Dictionary")
+    For Each r In rules
+        If CStr(r(0)) = kind Then out(CStr(r(1))) = CStr(r(2))
+    Next r
+    Set RuleCategories = out
+End Function
+
+Public Function HasWait(ByVal rules As Collection) As Boolean
+    ' True once a status is declared Wait: without one Flow Efficiency would be 100 % by construction, so it is not computable.
+    Dim r As Variant
+    For Each r In rules
+        If CStr(r(2)) = "Wait" Then Cov "PRM65": HasWait = True: Exit Function
+    Next r
+End Function

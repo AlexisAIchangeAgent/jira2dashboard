@@ -65,12 +65,6 @@ def test_flag_must_be_0_or_1(params_copy):
         model.load_all(params_copy)
 
 
-def test_each_workflow_needs_exactly_one_start_status(params_copy):
-    edit(params_copy, "workflows.md", "| Team | Prêt | Wait | 0 |", "| Team | Prêt | Wait | 1 |")
-    with pytest.raises(ParamsError, match="Team.*exactly one IsStart"):
-        model.load_all(params_copy)
-
-
 def test_a_status_cannot_appear_twice_in_a_workflow(params_copy):
     edit(params_copy, "workflows.md", "| Team | Planifié |", "| Team | Prêt |")
     with pytest.raises(ParamsError, match="Team.*'Prêt'.*twice"):
@@ -123,14 +117,6 @@ def test_an_empty_status_is_refused(params_copy):
 def test_transition_with_an_unknown_workflow_is_refused(params_copy):
     edit(params_copy, "transitions.md", "| Team | Nouveau | En analyse |", "| Equipe | Nouveau | En analyse |")
     with pytest.raises(ParamsError, match="Transitions row 1: Workflow 'Equipe'"):
-        model.load_all(params_copy)
-
-
-def test_a_workflow_without_any_status_is_refused(params_copy):
-    path = params_copy / "workflows.md"
-    lines = [ln for ln in path.read_text(encoding="utf-8").splitlines() if not ln.startswith("| Feature |")]
-    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
-    with pytest.raises(ParamsError, match="workflow 'Feature' has no status"):
         model.load_all(params_copy)
 
 
@@ -325,7 +311,8 @@ def test_open_log_on_error_defaults_to_yes_and_must_be_yes_or_no(params_copy):
     assert "OpenLogOnError must be Yes or No" in str(err.value)
 
 
-# --- an ART without Team projects: the Program and the Feature workflow are enough (AL, 2026-11-17, scenario art-metrics) -----
+# --- the sheet Workflows holds exceptions to what Jira says (AL, 2026-11-18) ---------------------------------------------------
+
 
 def _feature_only(workflows):
     return model.ParamSheet("Workflows", ("Workflow", "Status", "Category", "IsStart", "IsEnd", "IsFree"),
@@ -336,35 +323,20 @@ def _projects(*rows):
     return model.ParamSheet("Projects", ("Project", "Role", "Team"), tuple(rows))
 
 
-def test_a_program_without_team_projects_and_with_the_feature_workflow_only_is_valid():
-    real = model.load_all()
-    sheets = {"Projects": _projects(("TTT", "Program", None)), "Workflows": _feature_only(sheet(real, "Workflows"))}
-    assert model.shape_problems(sheets) == []
+
+def test_the_sheet_workflows_may_be_empty_and_a_row_may_leave_any_cell_empty():
+    """Exceptions only: no workflow needs a status, a start or an end here; an empty cell takes Jira's value, an empty Workflow touches both."""
+    header = ("Workflow", "Status", "Category", "IsStart", "IsEnd", "IsFree")
+    assert model.shape_problems({"Workflows": model.ParamSheet("Workflows", header, ())}) == []
+    rows = (("Team", "Attente", "Wait", None, None, None), (None, "Annule", "Removed", None, None, None), ("Feature", "Analyse", None, 1, None, None))
+    assert model.shape_problems({"Workflows": model.ParamSheet("Workflows", header, rows)}) == []
 
 
-def test_a_team_project_still_needs_the_team_workflow():
-    real = model.load_all()
-    sheets = {"Projects": _projects(("TTT", "Program", None), ("AAA", "Team", "AAA")),
-              "Workflows": _feature_only(sheet(real, "Workflows"))}
-    assert model.shape_problems(sheets) == ["Workflows: workflow 'Team' has no status"]
-
-
-def test_the_feature_workflow_is_always_needed():
-    real = model.load_all()
-    team_only = model.ParamSheet("Workflows", sheet(real, "Workflows").header, tuple(r for r in sheet(real, "Workflows").rows if r[0] == "Team"))
-    sheets = {"Projects": _projects(("TTT", "Program", None)), "Workflows": team_only}
-    assert model.shape_problems(sheets) == ["Workflows: workflow 'Feature' has no status"]
-
-
-def test_without_a_projects_sheet_both_workflows_stay_required():
-    real = model.load_all()
-    assert model.shape_problems({"Workflows": _feature_only(sheet(real, "Workflows"))}) == ["Workflows: workflow 'Team' has no status"]
-
-
-def test_a_listed_team_workflow_is_still_checked_without_team_projects():
-    real = model.load_all()
-    broken = model.ParamSheet("Workflows", sheet(real, "Workflows").header,
-                              tuple(r for r in sheet(real, "Workflows").rows if r[0] == "Feature")
-                              + (("Team", 1, "Nouveau", "Backlog", 0, 0, 0),))
-    sheets = {"Projects": _projects(("TTT", "Program", None)), "Workflows": broken}
-    assert any("workflow 'Team' needs exactly one IsStart" in p for p in model.shape_problems(sheets))
+def test_an_exception_is_still_checked_when_it_is_given():
+    header = ("Workflow", "Status", "Category", "IsStart", "IsEnd", "IsFree")
+    rows = (("Equipe", "A", None, None, None, None), (None, "", None, None, None, None), (None, "C", "Actif", None, None, None),
+            (None, "D", None, 2, None, None), (None, "E", None, None, None, None), (None, "E", None, None, None, None))
+    assert model.shape_problems({"Workflows": model.ParamSheet("Workflows", header, rows)}) == [
+        "Workflows row 1: Workflow 'Equipe' is not one of Team, Feature (or empty: both)", "Workflows row 2: Status is empty",
+        "Workflows row 3: Category 'Actif' is not one of Active, Wait, Done, Removed, Backlog, Unclassified (or empty: Jira's)",
+        "Workflows row 4: IsStart must be 0, 1 or empty, got 2", "Workflows: workflow None lists status 'E' twice"]

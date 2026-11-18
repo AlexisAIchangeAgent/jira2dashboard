@@ -50,7 +50,7 @@ Private Function TestNames() As Variant
     TestNames = Array("T_JsonNested", "T_JsonEscapes", "T_JsonEmpty", "T_JsonErrors", "T_JsonRoundTrip", _
         "T_JsonLarge", "T_Base64Auth", "T_UrlEncode", "T_Utf8RoundTrip", "T_JiraDates", "T_FieldToCell", _
         "T_SafeCell", "T_ProjectsJql", "T_SearchUrl", "T_SearchPagination", "T_Retry429", _
-        "T_HttpNetworkAndCancel", "T_RetryExhausted", "T_ChangelogChunks", "T_IssueRows", "T_WriteTable", "T_StatusIntervals", "T_IntervalsUnreadableDate", "T_StatusChangesUnreadableDate", "T_ChangelogRows", "T_UserFieldIds", "T_DateShape", "T_ParseJiraDateEpoch", "T_DateKind", "T_IsPlausibleDate", "T_FindDateKey", "T_ChangelogDateKey", "T_SkippedDatesWarning", "T_SheetName", "T_ProposeFromSheets", "T_ProposeIterations", "T_ReadSprints", "T_TeamNames", "T_ReadLinkTypes", "T_ProposeTypes", "T_ProposeKindOf", "T_ProposeValuesNotAdmin", "T_HealthFields", "T_NotFeatures", "T_ReconciliationFindings", "T_CellKind", "T_FitsType", "T_ShapeOfCell", "T_TypeHints", "T_TypeProblems", "T_TypeEmptyTable", "T_TypeBlocks", "T_TypeFillLines", "T_WireTypes", _
+        "T_HttpNetworkAndCancel", "T_RetryExhausted", "T_ChangelogChunks", "T_IssueRows", "T_WriteTable", "T_StatusIntervals", "T_IntervalsUnreadableDate", "T_StatusChangesUnreadableDate", "T_ChangelogRows", "T_UserFieldIds", "T_DateShape", "T_ParseJiraDateEpoch", "T_DateKind", "T_IsPlausibleDate", "T_FindDateKey", "T_ChangelogDateKey", "T_SkippedDatesWarning", "T_SheetName", "T_ProposeFromSheets", "T_ProposeIterations", "T_ReadSprints", "T_TeamNames", "T_ReadLinkTypes", "T_ProposeTypes", "T_ProposeKindOf", "T_ProposeValuesNotAdmin", "T_HealthFields", "T_StatusRules", "T_NotFeatures", "T_ReconciliationFindings", "T_CellKind", "T_FitsType", "T_ShapeOfCell", "T_TypeHints", "T_TypeProblems", "T_TypeEmptyTable", "T_TypeBlocks", "T_TypeFillLines", "T_WireTypes", _
         "T_StatusChanges", "T_RetryDelay", "T_SafeAccess", "T_FilesUtf8", "T_StringifyBadObject", _
         "T_TooManyPages", "T_BackgroundExport", "T_TextNotConverted", "T_ParamsTables", "T_ParamsOnWorkbook", _
         "T_TrimWhite", "T_ConfigSheet", "T_MandatoryConfig", "T_Locked", "T_PiIntervals", "T_ProxyDetect", "T_ProxyScript", "T_ProjectsSheet", "T_StatusNames", "T_ParseMoment", "T_ExtractFlowData", "T_ExtractJob", "T_ExtractCheckFields", "T_FlowBuild", "T_BaseUrlHttps", "T_Log", "T_LogInputsAndTimes", "T_StatusParts", "T_ErrorCodes", "T_LogHintAndOpen", "T_StepsSheet", "T_RovoPrompt", "T_RovoCsv", _
@@ -2575,6 +2575,84 @@ Public Sub T_ReconciliationFindings()
     Application.DisplayAlerts = False
     wb.Close False
     Application.DisplayAlerts = True
+End Sub
+
+Private Function Dict(ParamArray pairs() As Variant) As Object
+    ' A Dictionary from key, value, key, value...
+    Dim d As Object, i As Long
+    Set d = CreateObject("Scripting.Dictionary")
+    For i = LBound(pairs) To UBound(pairs) Step 2
+        d(CStr(pairs(i))) = pairs(i + 1)
+    Next i
+    Set Dict = d
+End Function
+
+Private Function RulesText(ByVal rules As Collection) As String
+    ' Each rule as kind|status|category|start|end|free|source, joined by ;
+    Dim r As Variant
+    For Each r In rules
+        RulesText = RulesText & IIf(Len(RulesText) > 0, ";", "") & Join(Array(CStr(r(0)), CStr(r(1)), CStr(r(2)), CStr(r(3)), CStr(r(4)), CStr(r(5)), CStr(r(6))), "|")
+    Next r
+End Function
+
+Private Function Moves(ParamArray pairs() As Variant) As Collection
+    Dim out As New Collection, i As Long
+    For i = LBound(pairs) To UBound(pairs) Step 2
+        out.Add Array(CStr(pairs(i)), CStr(pairs(i + 1)))
+    Next i
+    Set Moves = out
+End Function
+
+Public Sub T_StatusRules()
+    ' The same cases as tests/unit/test_status_rules.py: the two sides must agree.
+    Dim cats As Object, none As Object, rules As Collection, ex As Collection, r As Variant
+    Set none = Dict()
+    Check "rules", "the Jira categories in all their spellings", "new TODO indeterminate IN_PROGRESS done ?", "Backlog|Backlog|Active|Active|Done|", _
+          JiraCategoryName("new") & "|" & JiraCategoryName("TODO") & "|" & JiraCategoryName("indeterminate") & "|" & JiraCategoryName("In Progress") & "|" & _
+          JiraCategoryName("DONE") & "|" & JiraCategoryName("whatever")
+    Set cats = Dict("Nouveau", "new", "Analyse", "indeterminate", "Pret", "indeterminate", "Dev", "indeterminate", "Fini", "done", "Idee", "new")
+    Check "rules", "the start is the first status in progress from the creation status", "Analyse", "Analyse", _
+          FirstInProgress("Nouveau", Moves("Nouveau", "Analyse", "Analyse", "Pret", "Pret", "Dev", "Dev", "Fini"), cats)
+    Check "rules", "the nearest status in progress wins, the first listed breaks a tie", "Pret", "Pret", _
+          FirstInProgress("Nouveau", Moves("Nouveau", "Idee", "Idee", "Dev", "Nouveau", "Pret", "Nouveau", "Analyse"), cats)
+    Check "rules", "a loop and a status nobody leads to: none", "(empty)", "", FirstInProgress("Nouveau", Moves("Nouveau", "Idee", "Idee", "Nouveau", "Fini", "Dev"), cats)
+    Check "rules", "no creation status: none", "(empty)", "", FirstInProgress("", Moves("Nouveau", "Analyse"), cats)
+    Check "rules", "a creation status already in progress is the start", "Dev", "Dev", FirstInProgress("Dev", Moves("Dev", "Fini"), cats)
+    Set rules = EffectiveRules(Array("Feature"), Dict("Nouveau", "new", "Analyse", "indeterminate", "Fini", "done", "Parque", "new"), none, Dict("Analyse", True), _
+                               Dict("Parque", True), New Collection)
+    Check "rules", "without exception Jira gives category, end, start and free", "4 rules", _
+          "Feature|Analyse|Active|1|0|0|Jira;Feature|Fini|Done|0|1|0|Jira;Feature|Nouveau|Backlog|0|0|0|Jira;Feature|Parque|Backlog|0|0|1|Jira", RulesText(rules)
+    Set ex = New Collection
+    ex.Add Array("", "Attente", "Wait", Empty, Empty, Empty): ex.Add Array("", "Annule", "Removed", Empty, Empty, Empty)
+    ex.Add Array("", "Deploy", "Wait", "", "", ""): ex.Add Array("", "Analyse", "", "", "", 1)
+    Set rules = EffectiveRules(Array("Feature"), Dict("Analyse", "indeterminate", "Attente", "indeterminate", "Fini", "done", "Annule", "done", "Deploy", "done"), none, _
+                               Dict("Analyse", True), Dict(), ex)
+    Check "rules", "an exception wins field by field, an empty cell takes Jira's value, a Done turned Removed or Wait is no end", "5 rules", _
+          "Feature|Analyse|Active|1|0|1|user;Feature|Annule|Removed|0|0|0|user;Feature|Attente|Wait|0|0|0|user;Feature|Deploy|Wait|0|0|0|user;Feature|Fini|Done|0|1|0|Jira", RulesText(rules)
+    Set ex = New Collection
+    ex.Add Array("", "Fini", "", "", 0, ""): ex.Add Array("", "Suite", "", "", 1, "")
+    Set rules = EffectiveRules(Array("Feature"), Dict("Fini", "done", "Suite", "indeterminate"), none, Dict(), Dict(), ex)
+    Check "rules", "an explicit 0 or 1 beats the default, whatever the category", "Fini 0, Suite 1", "Feature|Fini|Done|0|0|0|user;Feature|Suite|Active|0|1|0|user", RulesText(rules)
+    Set ex = New Collection
+    ex.Add Array("Team", "Test", "Active", "", "", ""): ex.Add Array("", "Test", "Wait", "", "", "")
+    Set rules = EffectiveRules(Array("Feature", "Team"), Dict("Test", "indeterminate"), none, Dict(), Dict(), ex)
+    Check "rules", "a row of one workflow touches it only and beats the row of both, whatever their order", "Feature Wait, Team Active", _
+          "Feature|Test|Wait|0|0|0|user;Team|Test|Active|0|0|0|user", RulesText(rules)
+    Set ex = New Collection
+    ex.Add Array("", "Autre", "Wait", "", "", "")
+    Set rules = EffectiveRules(Array("Feature"), Dict("Fini", "done"), Dict("Vieux", "indeterminate", "Fini", "indeterminate"), Dict(), Dict(), ex)
+    Check "rules", "the current status category of a ticket is the second source, the catalog beats it, an exception alone is ruled", "3 rules", _
+          "Feature|Autre|Wait|0|0|0|user;Feature|Fini|Done|0|1|0|Jira;Feature|Vieux|Active|0|0|0|Jira", RulesText(rules)
+    Set rules = EffectiveRules(Array("Feature"), none, Dict("Vieux", "whatever"), Dict(), Dict(), New Collection)
+    Check "rules", "a status that no source knows stays Unclassified", "Vieux", "Feature|Vieux|Unclassified|0|0|0|Jira", RulesText(rules)
+    Set rules = EffectiveRules(Array("Feature", "Team"), Dict("B", "new", "A", "new"), none, Dict(), Dict(), New Collection)
+    Check "rules", "the kinds in the order given, then the names", "Feature A B, Team A B", "Feature|A|Backlog|0|0|0|Jira;Feature|B|Backlog|0|0|0|Jira;Team|A|Backlog|0|0|0|Jira;Team|B|Backlog|0|0|0|Jira", RulesText(rules)
+    Check "rules", "no source at all: no rule", "0", 0, EffectiveRules(Array("Feature"), none, none, none, none, New Collection).Count
+    Check "rules", "the categories of one kind", "Feature A", "Backlog", RuleCategories(rules, "Feature").Item("A")
+    Set ex = New Collection: ex.Add Array("", "A", "Wait", "", "", "")
+    Set rules = EffectiveRules(Array("Feature"), Dict("A", "indeterminate"), none, Dict(), Dict(), ex)
+    Check "rules", "a declared Wait status is told", "Wait", "Waitx", RuleCategories(rules, "Feature").Item("A") & IIf(HasWait(rules), "x", "")
+    Check "rules", "no Wait status declared: told too", "no", "no", IIf(HasWait(EffectiveRules(Array("Feature"), Dict("A", "indeterminate"), none, Dict(), Dict(), New Collection)), "yes", "no")
 End Sub
 
 Public Sub T_NotFeatures()

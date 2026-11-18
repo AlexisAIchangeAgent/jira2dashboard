@@ -70,7 +70,7 @@ def test_the_workflow_rules_name_the_two_workflows_the_workbook_accepts():
     from jira2dashboard.params.model import WORKFLOWS
     for name in ("Workflows", "Transitions"):
         assert all(workflow in RP.SHEET_RULES[name] for workflow in WORKFLOWS), name
-    assert "exactly one of each" in RP.SHEET_RULES["Workflows"]
+    assert "Leave a cell empty to keep Jira's value" in RP.SHEET_RULES["Workflows"]
     assert "same Workflow" in RP.SHEET_RULES["Transitions"]
 
 

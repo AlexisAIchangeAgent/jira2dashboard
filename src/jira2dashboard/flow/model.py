@@ -23,16 +23,25 @@ class StatusRule:
 
 
 class Rules:
-    """The status mapping (sheet Workflows). A status that is not listed is Unclassified."""
+    """The status rules: what Jira says (flow/status_rules.py) and the exceptions of the sheet Workflows. A status that no source knows is
+    Unclassified. `waits` is True once a status is declared Wait (Flow Efficiency needs one)."""
 
-    def __init__(self, rows: dict[tuple[str, str], StatusRule]):
+    def __init__(self, rows: dict[tuple[str, str], StatusRule], waits: bool = True):
         self._rows = rows
+        self.waits = waits
 
     @classmethod
-    def from_params(cls, sheets: list[ParamSheet] | None = None) -> "Rules":
+    def from_params(cls, sheets: list[ParamSheet] | None = None, catalog: dict[str, str] | None = None, current: dict[str, str] | None = None,
+                    starts: set[str] | None = None, free: set[str] | None = None) -> "Rules":
+        """The rules of the sheet Workflows (its rows are exceptions) over what Jira gives: `catalog` status -> Jira category, `current` the
+        category Jira gives the tickets' current statuses, `starts` / `free` the statuses that the Jira workflows start with / reach freely.
+        Without any Jira argument the rows alone rule (a complete sheet gives the rules of before)."""
+        from jira2dashboard.flow.status_rules import Exception_, effective_rules, has_wait
         workflows = next(s for s in (sheets or load_all()) if s.name == "Workflows")
-        return cls({(wf, status): StatusRule(category, bool(start), bool(end), bool(free))
-                    for wf, status, category, start, end, free in workflows.rows})
+        exceptions = [Exception_(wf, status, category, start, end, free_) for wf, status, category, start, end, free_ in workflows.rows]
+        rules = effective_rules(("Team", "Feature"), catalog or {}, current or {}, set(starts or ()), set(free or ()), exceptions)
+        return cls({(r.workflow, r.status): StatusRule(r.category, bool(r.is_start), bool(r.is_end), bool(r.is_free)) for r in rules},
+                   waits=has_wait(rules))
 
     def rule(self, workflow: str, status: str) -> StatusRule:
         return self._rows.get((workflow, status), StatusRule(UNCLASSIFIED, False, False, False))

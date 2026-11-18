@@ -45,13 +45,13 @@ SHEET_RULES = {
                   "Start = first day (yyyy-mm-dd, included). End = the day the next iteration starts (yyyy-mm-dd, excluded).",
     "PIs": "One row per Program Increment (the long cycle that holds several iterations). PI = the value of the PI field of "
            "Jira, of the form PI#01-2026. Start and End as for the iterations.",
-    "Workflows": "One row per status of each workflow. Workflow = Team for the statuses used by the issue types of the Team "
-                 "projects (stories, tasks, sub-tasks), Feature for the statuses used by the features of the Program project: "
-                 "only these two values (say in Note which Jira workflow and issue types the status comes from). Status = the "
-                 "status name exactly as in Jira, in the order of the normal flow (the rows are read in order). "
-                 "Category = Backlog, Active (work in progress), Wait (waiting), Done, Removed (cancelled) or Unclassified. "
-                 "IsStart = 1 for the status where the work starts and IsEnd = 1 for the final status: exactly one of each "
-                 "per Workflow. IsFree = 1 for a status reachable from any status; 0 otherwise.",
+    "Workflows": "One row per status for which the workbook must NOT simply take what Jira says (it reads the status categories and the "
+                 "workflows from Jira by itself). Status = the status name exactly as in Jira. Workflow = Team or Feature to limit the "
+                 "row to one of them, empty for both. Leave a cell empty to keep Jira's value. "
+                 "Category = Backlog, Active (work in progress), Wait (waiting), Done, Removed (cancelled): Jira cannot say Wait or "
+                 "Removed, and calls Done a status that is no delivery (cancelled, to deploy). IsStart = 1 for the status where the "
+                 "work starts, IsEnd = 1 for a status that ends it (every Done status does by default), IsFree = 1 for a status "
+                 "reachable from any status; 0 or empty otherwise.",
     "Transitions": "One row per allowed move between two statuses. Workflow = Team or Feature, as in the sheet " + S.of("Workflows") + ". "
                    "From and To = status names listed for that same Workflow in the sheet " + S.of("Workflows") + ".",
 }
