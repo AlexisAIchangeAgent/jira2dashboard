@@ -175,3 +175,26 @@ def test_a_wrong_type_is_a_warning_with_its_code_and_two_info_lines_and_stops_no
     assert ("INFO", "column types | tables 1 | columns 12 | checked 12 | problems 1") in records
     order = [text for _level, text in records]
     assert order.index(next(t for t in order if t.startswith("J2D-DATA-004"))) < order.index(next(t for t in order if t.startswith("types Changelog")))
+
+
+# --- what the status rules hold, and why a metric cannot be computed (AL, 2026-11-22) -------------------------------------------------------
+
+def test_the_log_counts_the_status_rules_of_each_workflow_kind(tmp_path, jira):
+    code, log = run(tmp_path, params(tmp_path, jira.base_url))
+    assert code == 0
+    assert re.search(r"INFO .*status rules \| Feature: start [1-9]\d*, active \d+, wait \d+, end \d+ \| Team: start [1-9]", log), log
+    assert "J2D-FLOW-010" not in log and "J2D-FLOW-011" not in log
+
+
+def test_without_the_project_administrator_right_the_workflows_are_not_asked(tmp_path, jira):
+    book = M.write_params_book(tmp_path / "params.xlsx", jira.base_url, {"ProxyServer": "DIRECT", "MaxRetries": "1", "IsUserProjectAdmin": "False"})
+    code, log = run(tmp_path, book)
+    assert code == 0
+    assert "workflows of Jira not read: IsUserProjectAdmin is False" in log
+    assert not [r for r in jira.requests if r.path.endswith("/workflows/preview")]
+
+
+def test_a_refused_workflow_reading_is_a_warning_with_its_code(tmp_path, jira):
+    jira.fail_next("POST", "/rest/api/3/workflows/preview", 403)
+    code, log = run(tmp_path, params(tmp_path, jira.base_url))
+    assert code == 0 and "J2D-JIRA-030 | the workflows of Jira could not be read" in log

@@ -534,23 +534,26 @@ Public Function ReadSprints(ByVal cfg As Object, ByVal keys As Collection, ByRef
     Set ReadSprints = out
 End Function
 
-Public Sub ReadWorkflowRules(ByVal cfg As Object, ByVal keys As Collection, ByVal starts As Object, ByVal frees As Object, Optional ByVal wb As Object = Nothing)
+Public Function ReadWorkflowRules(ByVal cfg As Object, ByVal keys As Collection, ByVal starts As Object, ByVal frees As Object, _
+                                  Optional ByVal wb As Object = Nothing, Optional ByRef failCode As String = "") As Long
     ' The light version of ReadJiraConfiguration, for an extraction that has no sheet JiraWorkflows yet: the projects and the previews of their workflows only,
     ' and from them the statuses that start a workflow (the first in progress from the creation status) and those that are free, added to starts / frees.
     ' When wb is given and Jira gave workflows, the sheets JiraIssueTypes, JiraWorkflows and JiraTransitions are written too (the same as the button Read the
     ' Jira configuration writes): the workflow of each issue type, the moves (the check DC28) and the creation status (the order of the chart Cycle time by status).
     ' It only improves what the run knows, so it never raises: a project or a workflow that cannot be read (no administrator right, an answer that is not
-    ' JSON) gives nothing.
+    ' JSON) gives nothing. It returns the number of projects whose workflows Jira refused (no project administrator right), -1 when the reading failed
+    ' (failCode: the support code of that error, never its text, which may hold the URL): the caller logs it (J2D-JIRA-030), because a workflow without a
+    ' start status makes Flow Time, Flow Efficiency and Flow Load not computable.
     Cov "JCF47"
     Dim projects As Collection, project As Variant, workflowOf As Object, seen As Object, flowRows As New Collection, moveRows As New Collection, row As Variant
-    Dim typeRows As New Collection, projectsOf As Object
+    Dim typeRows As New Collection, projectsOf As Object, refused As Long
     On Error GoTo Failed
     Set projects = ReadProjects(cfg, keys)
     Set seen = CreateObject("Scripting.Dictionary")
     Set projectsOf = CreateObject("Scripting.Dictionary")
     For Each project In projects
         Set workflowOf = CreateObject("Scripting.Dictionary")
-        ReadWorkflows cfg, project, workflowOf, seen, flowRows, moveRows
+        If Not ReadWorkflows(cfg, project, workflowOf, seen, flowRows, moveRows) Then Cov "JCF50": refused = refused + 1
         AddProjectOf CStr(JGet(project, "key") & ""), workflowOf, projectsOf
         AddIssueTypeRows project, workflowOf, typeRows
     Next project
@@ -559,11 +562,14 @@ Public Sub ReadWorkflowRules(ByVal cfg As Object, ByVal keys As Collection, ByVa
         If Val(CStr(row(5) & "")) = 1 Then frees(CStr(row(1))) = True
     Next row
     If Not wb Is Nothing And flowRows.Count > 0 Then Cov "JCF49": WriteWorkflowSheets wb, typeRows, WithProjects(flowRows, projectsOf), WithProjects(moveRows, projectsOf)
-    Exit Sub
+    ReadWorkflowRules = refused
+    Exit Function
 Failed:
     Cov "JCF48"
+    failCode = ErrorCode(Err.Number, Err.Description)                    ' before Err.Clear: the cause for the support (an HTTP status, the network...)
     Err.Clear
-End Sub
+    ReadWorkflowRules = -1
+End Function
 
 Public Function ReadStatusCatalog(ByVal cfg As Object) As Collection
     ' Id | Status | JiraCategory: every status of the instance, not only those of the workflows read (GET statuses/search, paged), so that a status of a

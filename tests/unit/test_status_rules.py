@@ -2,7 +2,8 @@
 exceptions the person typed in the sheet Workflows winning over what Jira says (AL, 2026-11-18: the metrics use the _from_Jira sheets, the
 _from_user sheet only corrects what Jira cannot decide). Every figure is typed by hand.
 """
-from jira2dashboard.flow.status_rules import Exception_, Rule, effective_rules, first_in_progress, has_wait, jira_category
+from jira2dashboard.flow.status_rules import (Exception_, KindCounts, Rule, counts_line, effective_rules, first_in_progress, has_wait, jira_category,
+                                              rule_counts, rule_warnings)
 
 NEW, IND, DONE = "new", "indeterminate", "done"
 
@@ -105,3 +106,52 @@ def test_the_rules_come_out_in_the_order_of_the_kinds_then_the_names():
 def test_flow_efficiency_needs_a_declared_wait_status():
     assert has_wait(list(effective_rules(("Feature",), {"A": IND}, {}, set(), set(), []))) is False
     assert has_wait(list(effective_rules(("Feature",), {"A": IND}, {}, set(), set(), [Exception_(None, "A", "Wait", None, None, None)]))) is True
+
+
+# --- what the log says about the rules, and the warnings when a metric cannot be computed (AL, 2026-11-22) ---------------------------
+
+def test_the_counts_of_each_kind_name_its_starts_actives_waits_and_ends():
+    got = effective_rules(("Feature", "Team"), {"Funnel": NEW, "Analyse": IND, "Dev": IND, "Done": DONE, "Cancelled": DONE}, {}, {"Analyse"}, set(),
+                          [Exception_("Team", "Dev", "Wait", None, None, None)])
+    counts = rule_counts(got, ("Feature", "Team"))
+    assert counts == [KindCounts("Feature", 1, 2, 0, 2), KindCounts("Team", 1, 1, 1, 2)]
+    assert counts_line(counts) == "status rules | Feature: start 1, active 2, wait 0, end 2 | Team: start 1, active 1, wait 1, end 2"
+
+
+def test_a_kind_with_tickets_and_no_start_status_is_warned_with_its_code():
+    counts = [KindCounts("Feature", 1, 2, 1, 1), KindCounts("Team", 0, 3, 0, 1)]
+    assert rule_warnings(counts, {"Feature", "Team"}) == [
+        "J2D-FLOW-010 | no start status in the Team workflow: Flow Time, Flow Efficiency and Flow Load cannot be computed"
+        " | declare IsStart = 1 for its first in-progress status in the sheet Workflows"]
+
+
+def test_a_kind_without_tickets_is_not_warned_and_no_ticket_at_all_gives_no_warning():
+    counts = [KindCounts("Feature", 0, 0, 0, 0), KindCounts("Team", 1, 1, 1, 1)]
+    assert rule_warnings(counts, {"Team"}) == []
+    assert rule_warnings([KindCounts("Feature", 0, 0, 0, 0), KindCounts("Team", 0, 0, 0, 0)], set()) == []
+
+
+def test_no_wait_status_in_any_kind_is_warned_once_after_the_starts():
+    counts = [KindCounts("Feature", 0, 1, 0, 1), KindCounts("Team", 1, 1, 0, 1)]
+    assert rule_warnings(counts, {"Feature", "Team"}) == [
+        "J2D-FLOW-010 | no start status in the Feature workflow: Flow Time, Flow Efficiency and Flow Load cannot be computed"
+        " | declare IsStart = 1 for its first in-progress status in the sheet Workflows",
+        "J2D-FLOW-011 | no status is declared Wait: Flow Efficiency cannot be computed"
+        " | declare Category = Wait in the sheet Workflows for the statuses where the work waits"]
+
+
+def test_the_vba_says_the_same_words():
+    from pathlib import Path
+    from jira2dashboard.flow import status_rules as R
+    vba = (Path(__file__).resolve().parents[2] / "vba" / "modParams.bas").read_text(encoding="ascii")
+    assert f'Private Const NO_START_TEXT As String = "{R.NO_START_TEXT}"' in vba
+    assert f'Private Const NO_WAIT_TEXT As String = "{R.NO_WAIT_TEXT}"' in vba
+    assert f'"{R.NO_START_CODE} | no start status in the " & CStr(kind) & NO_START_TEXT' in vba and f'"{R.NO_WAIT_CODE} | " & NO_WAIT_TEXT' in vba
+    assert '"status rules" & out' in vba and '": start " & KindCount' in vba
+
+
+def test_the_rules_of_the_python_path_are_counted_the_same_way():
+    from jira2dashboard.flow.model import Rules, StatusRule
+    rules = Rules({("Team", "Dev"): StatusRule("Active", True, False, False), ("Team", "Done"): StatusRule("Done", False, True, False),
+                   ("Feature", "Wait"): StatusRule("Wait", False, False, False)})
+    assert rule_counts(rules.listed(), ("Feature", "Team")) == [KindCounts("Feature", 0, 0, 1, 0), KindCounts("Team", 1, 1, 0, 1)]

@@ -26,7 +26,7 @@ DATE_COLUMNS = {("Iterations", "Start"), ("Iterations", "End"), ("PIs", "Start")
 EPOCH = dt.datetime(1899, 12, 30)
 WHITE = " \t\r\n "                                # what the VBA TrimWhite removes around a pasted value
 YES = ("yes", "oui", "true", "vrai", "1")             # modParams.IsYes
-DEFAULTS = {"ProxyWindowsAuth": "Yes", "TimeoutSeconds": "60", "MaxRetries": "4", "FlowLoadMode": "A",
+DEFAULTS = {"ProxyWindowsAuth": "Yes", "IsUserProjectAdmin": "True", "TimeoutSeconds": "60", "MaxRetries": "4", "FlowLoadMode": "A",
             "PredictabilityMode": "A", "LogLevel": "Steps", "OpenLogOnError": "Yes"}
 
 
@@ -182,6 +182,7 @@ class RunSettings:
     moves: Moves
     checks: CheckSettings
     workflows: JiraWorkflows = JiraWorkflows()      # what Jira says about the workflows (read at the run: standalone/workflows.py)
+    project_admin: bool = True         # IsUserProjectAdmin: False = the workflows of Jira are not read (they need the project administrator right)
 
 
 def _number(value: str, default: int, minimum: int) -> int:
@@ -219,4 +220,5 @@ def run_settings(sheets: list[ParamSheet]) -> RunSettings:
         as_of=as_of, mode=values["FlowLoadMode"].strip().upper(),
         predictability_mode=values["PredictabilityMode"].strip().upper(), iterations=iterations,
         projects=[tuple(row) for row in by_name["Projects"].rows],
-        rules=Rules.from_params(sheets), moves=Moves.from_params(sheets), checks=CheckSettings.from_params(sheets))
+        rules=Rules.from_params(sheets), moves=Moves.from_params(sheets), checks=CheckSettings.from_params(sheets),
+        project_admin=is_yes(values["IsUserProjectAdmin"]))

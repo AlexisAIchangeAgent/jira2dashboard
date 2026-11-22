@@ -120,3 +120,46 @@ def effective_rules(kinds: Iterable[str], catalog: dict[str, str], current: dict
 def has_wait(rules: Iterable[Rule]) -> bool:
     """True once a status is declared Wait: without one Flow Efficiency would be 100 % by construction, so it is not computable."""
     return any(r.category == WAIT for r in rules)
+
+
+# --- what the rules hold, and the warnings when a metric cannot be computed (AL, 2026-11-22: "flow metrics are still not computable") ----------
+# The texts are the same in the VBA (modParams.RuleCountsLine, RuleWarnings): tests/unit/test_status_rules.py reads them in modParams.bas.
+
+NO_START_CODE, NO_WAIT_CODE = "J2D-FLOW-010", "J2D-FLOW-011"
+NO_START_TEXT = (" workflow: Flow Time, Flow Efficiency and Flow Load cannot be computed | declare IsStart = 1 for its first in-progress status in the "
+                 "sheet Workflows")
+NO_WAIT_TEXT = ("no status is declared Wait: Flow Efficiency cannot be computed | declare Category = Wait in the sheet Workflows for the statuses where "
+                "the work waits")
+
+
+@dataclass(frozen=True)
+class KindCounts:
+    """How many statuses of one workflow kind start the flow, are Active, Wait, and end it."""
+    kind: str
+    start: int
+    active: int
+    wait: int
+    end: int
+
+
+def rule_counts(rules: Iterable[Rule], kinds: Iterable[str]) -> list[KindCounts]:
+    """The counts of each kind, in the order of `kinds`."""
+    rules = list(rules)
+    return [KindCounts(kind, sum(r.is_start == 1 for r in rules if r.workflow == kind), sum(r.category == ACTIVE for r in rules if r.workflow == kind),
+                       sum(r.category == WAIT for r in rules if r.workflow == kind), sum(r.is_end == 1 for r in rules if r.workflow == kind))
+            for kind in kinds]
+
+
+def counts_line(counts: Iterable[KindCounts]) -> str:
+    """The INFO line of the log: `status rules | Feature: start 1, active 2, wait 0, end 2 | Team: ...`."""
+    return "status rules | " + " | ".join(f"{c.kind}: start {c.start}, active {c.active}, wait {c.wait}, end {c.end}" for c in counts)
+
+
+def rule_warnings(counts: Iterable[KindCounts], kinds_with_tickets: set[str]) -> list[str]:
+    """The WARN lines: a kind that has tickets and no start status (no StartUtc, so no Flow Time, Flow Efficiency or Flow Load), then no Wait status in
+    any kind (Flow Efficiency reads the whole sheet StatusRules). Nothing when no kind has a ticket."""
+    counts = list(counts)
+    out = [f"{NO_START_CODE} | no start status in the {c.kind}{NO_START_TEXT}" for c in counts if c.kind in kinds_with_tickets and c.start == 0]
+    if kinds_with_tickets and not any(c.wait for c in counts):
+        out.append(f"{NO_WAIT_CODE} | {NO_WAIT_TEXT}")
+    return out

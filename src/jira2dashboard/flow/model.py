@@ -43,6 +43,11 @@ class Rules:
         return cls({(r.workflow, r.status): StatusRule(r.category, bool(r.is_start), bool(r.is_end), bool(r.is_free)) for r in rules},
                    waits=has_wait(rules))
 
+    def listed(self) -> list:
+        """The rules one by one (status_rules.Rule, source left empty): what status_rules.rule_counts reads."""
+        from jira2dashboard.flow.status_rules import Rule
+        return [Rule(wf, status, r.category, int(r.is_start), int(r.is_end), int(r.is_free), "") for (wf, status), r in self._rows.items()]
+
     def ended_statuses(self) -> set[str]:
         """The statuses that end the flow (IsEnd) in at least one workflow: what the sheet Reconciliation lists with the tickets that sit in them."""
         return {status for (_wf, status), rule in self._rows.items() if rule.is_end}

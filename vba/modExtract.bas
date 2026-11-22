@@ -431,7 +431,8 @@ Private Sub RulesInit()
     ' status of each ticket, the start and the free statuses of the workflows that "Read the Jira configuration" wrote in JiraWorkflows) under the exceptions
     ' of the sheet Workflows. A status that no source knows stays Unclassified.
     Cov "MEX16"
-    Dim catalog As Object, current As Object, starts As Object, frees As Object, row As Variant, jw As Object
+    Dim catalog As Object, current As Object, starts As Object, frees As Object, row As Variant, jw As Object, refused As Long, admin As Boolean
+    Dim kinds As Object, program As String, w As Variant, failCode As String
     LogBegin "status rules"
     Set catalog = CreateObject("Scripting.Dictionary")
     For Each row In ReadStatusCatalog(mCfg)
@@ -447,8 +448,32 @@ Private Sub RulesInit()
     Else
         Set starts = CreateObject("Scripting.Dictionary"): Set frees = CreateObject("Scripting.Dictionary")
     End If
-    If starts.Count = 0 Then Cov "MEX17": ReadWorkflowRules mCfg, ProjectKeys(mWsProjects), starts, frees, ThisWorkbook        ' no sheet JiraWorkflows read yet: ask Jira now, and keep its answer
+    admin = True
+    If SheetExists(ThisWorkbook, "Config") Then admin = IsYes(ConfigValue(ThisWorkbook.Worksheets(SheetName("Config")), "IsUserProjectAdmin", "True"))
+    If starts.Count = 0 Then                                            ' no sheet JiraWorkflows read yet: ask Jira now, and keep its answer
+        If admin Then
+            Cov "MEX17"
+            refused = ReadWorkflowRules(mCfg, ProjectKeys(mWsProjects), starts, frees, ThisWorkbook, failCode)
+            If refused <> 0 Then
+                Cov "MEX18"
+                LogLine "WARN", "J2D-JIRA-030 | the workflows of Jira could not be read (" & IIf(refused > 0, refused & " project(s) refused", failCode) & _
+                                "): the start of a flow comes from the sheet Workflows, the check DC28 from the sheet Transitions"
+            End If
+        Else
+            Cov "MEX19"
+            LogLine "INFO", "workflows of Jira not read: IsUserProjectAdmin is False (they need the project administrator right)"
+        End If
+    End If
     Set mRules = EffectiveRules(Array("Feature", "Team"), catalog, current, starts, frees, WorkflowExceptions(mWsWorkflows))
+    program = ProgramProject(mWsProjects)                               ' the kinds that have tickets: only they need a start status
+    Set kinds = CreateObject("Scripting.Dictionary")
+    For Each row In mRows
+        kinds(IIf(CStr(row(2) & "") = program, "Feature", "Team")) = True
+    Next row
+    LogLine "INFO", RuleCountsLine(mRules, Array("Feature", "Team"))
+    For Each w In RuleWarnings(mRules, Array("Feature", "Team"), kinds)
+        LogLine "WARN", CStr(w)
+    Next w
     LogEnd "status rules: " & mRules.Count & " rules, " & catalog.Count & " statuses in the catalog"
 End Sub
 

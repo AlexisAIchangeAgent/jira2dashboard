@@ -1221,6 +1221,7 @@ Public Sub T_ExtractCheckFields()
     ' The fields that the data checks read: team (object or text), sprints, points, PI, dates, fix versions, blocking links
     ' and the moves between projects. One Program feature with almost none of them, one team story with all of them.
     Dim cfg As Object, wsI As Object, wsV As Object, wsL As Object, st As Object, jql As String, ts As String
+    Dim wsC As Object, adminRow As Long, oldAdmin As Variant, r As Long, saved As String, file As String, text As String
     Set cfg = TestConfig()
     Set wsI = ThisWorkbook.Worksheets("TestScratch")
     Set wsV = ThisWorkbook.Worksheets("TestScratch2")
@@ -1269,8 +1270,27 @@ Public Sub T_ExtractCheckFields()
         "{'issues':[{'id':'11','key':'AAA-1','fields':{'project':{'key':'AAA'},'issuetype':{'name':'Story'},'created':'2026-10-01" & ts & "'," & _
         "'status':{'name':'En analyse'},'issuelinks':[{'type':{'name':'Blocks'},'outwardIssue':{'key':'AAA-2'}}]}}],'isLast':true}")
     FakeAdd "POST", cfg("BaseUrl") & "/rest/api/3/changelog/bulkfetch", 200, J("{'issueChangeLogs':[]}")
+    ' and IsUserProjectAdmin = False: the workflows of Jira are not asked (the log says it), the rules are counted in the log
+    Set wsC = ThisWorkbook.Worksheets(SheetName("Config"))
+    For r = 2 To LastRow(wsC)
+        If CStr(wsC.Cells(r, 1).Value) = "IsUserProjectAdmin" Then adminRow = r
+    Next r
+    If adminRow > 0 Then oldAdmin = wsC.Cells(adminRow, 2).Value: wsC.Cells(adminRow, 2).Value = "False"
+    saved = gLogPath
+    file = Environ$("TEMP") & "\j2d_not_admin_" & Format$(Now, "hhnnss") & Int(Rnd() * 1000) & ".log"
+    gLogPath = file
     ExtractFlowDataTo cfg, jql, "", DateSerial(2026, 10, 5), ThisWorkbook.Worksheets(SheetName("Projects")), ThisWorkbook.Worksheets(SheetName("Workflows")), _
                       wsI, wsV, False, st, wsL
+    gLogPath = saved
+    If adminRow > 0 Then wsC.Cells(adminRow, 2).Value = oldAdmin
+    text = FileText(file)
+    On Error Resume Next
+    Kill file
+    Err.Clear
+    On Error GoTo 0
+    Check "extract", "IsUserProjectAdmin False: the workflows of Jira are not asked, the log says why", "False", True, _
+          InStr(text, " INFO workflows of Jira not read: IsUserProjectAdmin is False") > 0 And InStr(text, "J2D-JIRA-030") = 0
+    Check "extract", "the log counts the rules of each workflow kind", "status rules", True, InStr(text, " INFO status rules | Feature: start ") > 0
     Check "extract", "no link type: no link row", "AAA-1", 0, LastRow(wsL) - 1
     Check "extract", "no sprint field: no sprint", "AAA-1", "|0", wsI.Range("P2").Value & "|" & wsI.Range("S2").Value
 End Sub
@@ -2476,7 +2496,7 @@ Public Sub T_ReadWorkflowRules()
         "{'type':'DIRECTED','name':'Close','toStatusReference':'r3','links':[{'fromStatusReference':'r2'}]}," & _
         "{'type':'GLOBAL','name':'Park','toStatusReference':'r4','links':[]}]}]}")
     Set wb = Workbooks.Add
-    ReadWorkflowRules cfg, keys, starts, frees, wb
+    Check "rules", "every project read: nothing refused", "0", 0, ReadWorkflowRules(cfg, keys, starts, frees, wb)
     Check "rules", "the start and the free status of the workflows of the projects", "Doing | Parked", "Doing|Parked", Join(starts.Keys, ",") & "|" & Join(frees.Keys, ",")
     Check "rules", "the workflow of each issue type is kept in a sheet", "PRG|Feature|WF-A", "PRG|Feature|WF-A", RowText(wb.Worksheets(SheetName("JiraIssueTypes")), 2, 3)
     Check "rules", "the creation status of the workflow is marked, the moves are kept", "Open", "Open|Start", _
@@ -2488,8 +2508,14 @@ Public Sub T_ReadWorkflowRules()
     FakeReset
     Set starts = Dict(): Set frees = Dict()
     Set wb = Workbooks.Add
-    ReadWorkflowRules cfg, keys, starts, frees, wb
+    Dim failCode As String
+    Check "rules", "a reading that fails is told to the caller, with the code of its error", "-1 J2D-JIRA-404", "-1 J2D-JIRA-404", _
+          ReadWorkflowRules(cfg, keys, starts, frees, wb, failCode) & " " & failCode
     Check "rules", "a call that fails gives nothing, writes no sheet and never raises", "404", 0, starts.Count + frees.Count + IIf(SheetExists(wb, "JiraWorkflows"), 1, 0)
+    FakeAdd "GET", ProjectSearchUrl(base, keys, 1, 0), 200, J("{'startAt':0,'isLast':true,'values':[{'id':'10100','key':'PRG','style':'classic'," & _
+        "'issueTypes':[{'id':'10001','name':'Feature','subtask':false,'hierarchyLevel':1}]}]}")
+    FakeAdd "POST", base & "/rest/api/3/workflows/preview", 403, J("{'errorMessages':['no permission']}")
+    Check "rules", "a project whose workflows Jira refuses (no administrator right) is counted", "1", 1, ReadWorkflowRules(cfg, keys, starts, frees, wb)
     Application.DisplayAlerts = False
     wb.Close False
     Application.DisplayAlerts = True
@@ -2708,7 +2734,7 @@ End Function
 
 Public Sub T_StatusRules()
     ' The same cases as tests/unit/test_status_rules.py: the two sides must agree.
-    Dim cats As Object, none As Object, rules As Collection, ex As Collection, r As Variant
+    Dim cats As Object, none As Object, rules As Collection, ex As Collection, r As Variant, warns As Collection, w As Variant, s As String
     Set none = Dict()
     Check "rules", "the Jira categories in all their spellings", "new TODO indeterminate IN_PROGRESS done ?", "Backlog|Backlog|Active|Active|Done|", _
           JiraCategoryName("new") & "|" & JiraCategoryName("TODO") & "|" & JiraCategoryName("indeterminate") & "|" & JiraCategoryName("In Progress") & "|" & _
@@ -2756,6 +2782,25 @@ Public Sub T_StatusRules()
     Set rules = EffectiveRules(Array("Feature"), Dict("A", "indeterminate"), none, Dict(), Dict(), ex)
     Check "rules", "a declared Wait status is told", "Wait", "Waitx", RuleCategories(rules, "Feature").Item("A") & IIf(HasWait(rules), "x", "")
     Check "rules", "no Wait status declared: told too", "no", "no", IIf(HasWait(EffectiveRules(Array("Feature"), Dict("A", "indeterminate"), none, Dict(), Dict(), New Collection)), "yes", "no")
+    Set ex = New Collection: ex.Add Array("Team", "Dev", "Wait", "", "", "")
+    Set rules = EffectiveRules(Array("Feature", "Team"), Dict("Funnel", "new", "Analyse", "indeterminate", "Dev", "indeterminate", "Done", "done", "Cancelled", "done"), _
+                               none, Dict("Analyse", True), Dict(), ex)
+    Check "rules", "the counts of each kind: starts, actives, waits, ends", "Feature 1 2 0 2, Team 1 1 1 2", _
+          "status rules | Feature: start 1, active 2, wait 0, end 2 | Team: start 1, active 1, wait 1, end 2", RuleCountsLine(rules, Array("Feature", "Team"))
+    Check "rules", "a start in each kind and a Wait somewhere: no warning", "0", 0, RuleWarnings(rules, Array("Feature", "Team"), Dict("Feature", True, "Team", True)).Count
+    Set rules = EffectiveRules(Array("Feature", "Team"), Dict("Dev", "indeterminate", "Done", "done"), none, Dict(), Dict(), New Collection)
+    Set warns = RuleWarnings(rules, Array("Feature", "Team"), Dict("Team", True))
+    For Each w In warns
+        s = s & IIf(Len(s) > 0, ";", "") & Left$(CStr(w), 48)
+    Next w
+    Check "rules", "the kind with tickets and no start, then no Wait: a warning each with its code", "Team, Wait", _
+          "J2D-FLOW-010 | no start status in the Team workf;J2D-FLOW-011 | no status is declared Wait: Flow ", s
+    s = ""
+    For Each w In warns                                             ' never warns(1): an empty collection would raise and hang the run
+        If InStr(CStr(w), "declare IsStart = 1") > 0 Or InStr(CStr(w), "declare Category = Wait") > 0 Then s = s & "x"
+    Next w
+    Check "rules", "the warnings name what to do", "IsStart, Wait", "xx", s
+    Check "rules", "no ticket at all: no warning", "0", 0, RuleWarnings(rules, Array("Feature", "Team"), Dict()).Count
 End Sub
 
 Public Sub T_WorkflowExceptions()

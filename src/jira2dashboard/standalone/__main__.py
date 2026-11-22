@@ -28,7 +28,9 @@ from jira2dashboard.cli.args import parser
 from jira2dashboard.flow import dashboard_spec as D
 from jira2dashboard.flow import raw_types
 from jira2dashboard.flow.formulas import CHANGELOG_RAW, INTERVALS_RAW, ISSUES, PIINTERVALS_RAW
+from jira2dashboard.flow.jira_workflows import JiraWorkflows
 from jira2dashboard.flow.model import UNCLASSIFIED, Rules
+from jira2dashboard.flow.status_rules import counts_line, rule_counts, rule_warnings
 from jira2dashboard.params.model import ParamsError
 from jira2dashboard.paths import RELEASE_DIR
 from jira2dashboard.standalone import jira_api as J
@@ -162,6 +164,15 @@ def parameter_lines(sheets) -> list[str]:
     return lines
 
 
+def log_rules(rules: Rules, kinds_with_tickets: set[str]) -> None:
+    """What the status rules hold (an INFO line: starts, actives, waits, ends of each workflow kind) and a WARN with its code when a metric cannot
+    be computed from them (no start status, no Wait status). The same lines as modExtract.RulesInit."""
+    counts = rule_counts(rules.listed(), ("Feature", "Team"))
+    log.info("%s", counts_line(counts))
+    for line in rule_warnings(counts, kinds_with_tickets):
+        log.warning("%s", line)
+
+
 def log_column_types(extract, intervals) -> raw_types.TypeReport:
     """The first filled value of each column written from Jira against the type of its label (flow/raw_types.py, the VBA side is
     modHealth.TypeProblems): a WARN and two INFO lines per problem with its J2D-DATA code, one INFO line per table and a summary.
@@ -210,8 +221,13 @@ def run(args, formatter: Scrubbed, collected: Collected, sleep=time.sleep, detec
                         settings.blocks_link_type, client.user_fields(), settings.checks.feature_types)
     current = {row[6]: row[8] for row in extract.rows if row[6] and row[8]}            # the category Jira gives the current status of a ticket
     catalog = client.status_catalog()
-    info = read_workflows(client, [row[0] for row in settings.projects])
+    if settings.project_admin:
+        info = read_workflows(client, [row[0] for row in settings.projects])
+    else:
+        log.info("workflows of Jira not read: IsUserProjectAdmin is False (they need the project administrator right)")
+        info = JiraWorkflows()
     settings = dataclasses.replace(settings, workflows=info, rules=Rules.from_params(settings.sheets, catalog, current, set(info.starts), set(info.free)))     # Jira's rules under the exceptions of the sheet
+    log_rules(settings.rules, {issue.workflow for issue in extract.flow})
     log.info("END Jira: %d issues, %d changelog items, %d links%s", len(extract.rows), extract.changelog_items,
              len(extract.links), took(step))
     key, kind, others = extract.date_key

@@ -102,7 +102,8 @@ def manual(mandatory: tuple[str, ...]) -> list[tuple[str, str]]:
             "of Done stay yours to type. In " + CONFIG + " a value that still is the delivered default (the same text as its Example) is "
             "replaced when Jira says otherwise, in yellow; a value you changed is never touched.",
             f"IsUserProjectAdmin in {CONFIG}: True (default) = you administer the Jira projects, the full workflows are read. "
-            "False = only the statuses and their categories are read (the right to browse is enough), without the moves.",
+            "False = only the statuses and their categories are read (the right to browse is enough), without the moves; the "
+            "extraction does not ask for the workflows either, so declare the start statuses (IsStart) in " + S.of("Workflows") + ".",
         ]),
         (f'Button "{ROVO_CAPTION}"', [
             f"It writes the sheet {S.of('RovoPrompt')}: a prompt that asks Rovo for every value to type in this workbook (the connection, "

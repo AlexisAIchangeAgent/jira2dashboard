@@ -70,5 +70,6 @@ def read_workflows(client, keys: list[str]) -> JiraWorkflows:
                     break
                 start += len(values)
     except J.JiraError as err:
-        log.warning("the workflows of Jira could not be read (%s): the start of a flow comes from the sheet Workflows, the check DC28 from the sheet Transitions", err.code)
+        log.warning("J2D-JIRA-030 | the workflows of Jira could not be read (%s): the start of a flow comes from the sheet Workflows, the check DC28 "
+                    "from the sheet Transitions", err.code)
     return JiraWorkflows(initial, frozenset(moves), frozenset(starts), frozenset(free), workflow_of)

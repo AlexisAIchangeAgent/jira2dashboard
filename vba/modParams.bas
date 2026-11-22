@@ -9,6 +9,9 @@ Public Const SHEET_WORKFLOWS As String = "Workflows"
 Public Const SHEET_TRANSITIONS As String = "Transitions"
 Public Const SHEET_ROVO_SPEC As String = "RovoPromptSpec"
 Public Const SHEET_ROVO As String = "RovoPrompt"
+' The warnings of RuleWarnings: the same texts as flow/status_rules.py (tests/unit/test_status_rules.py reads them here).
+Private Const NO_START_TEXT As String = " workflow: Flow Time, Flow Efficiency and Flow Load cannot be computed | declare IsStart = 1 for its first in-progress status in the sheet Workflows"
+Private Const NO_WAIT_TEXT As String = "no status is declared Wait: Flow Efficiency cannot be computed | declare Category = Wait in the sheet Workflows for the statuses where the work waits"
 
 Public Function ReadTable(ByVal ws As Object) As Collection
     ' Row 1 holds the headers. Returns one Dictionary (header -> cell value) per row whose first cell is not empty.
@@ -720,6 +723,50 @@ Public Function HasWait(ByVal rules As Collection) As Boolean
     For Each r In rules
         If CStr(r(2)) = "Wait" Then Cov "PRM65": HasWait = True: Exit Function
     Next r
+End Function
+
+' What the rules hold, and the warnings when a metric cannot be computed (flow/status_rules.py: rule_counts, counts_line, rule_warnings).
+
+Private Function KindCount(ByVal rules As Collection, ByVal kind As String, ByVal what As String) As Long
+    ' The rules of one kind that start the flow (what = "start"), end it ("end"), or have the category what.
+    Dim r As Variant, n As Long
+    For Each r In rules
+        If CStr(r(0)) = kind Then
+            Select Case what
+                Case "start": If Val(CStr(r(3) & "")) = 1 Then n = n + 1
+                Case "end": If Val(CStr(r(4) & "")) = 1 Then n = n + 1
+                Case Else: If CStr(r(2)) = what Then n = n + 1
+            End Select
+        End If
+    Next r
+    KindCount = n
+End Function
+
+Public Function RuleCountsLine(ByVal rules As Collection, ByVal kinds As Variant) As String
+    ' The INFO line of the log: "status rules | Feature: start 1, active 2, wait 0, end 2 | Team: ...".
+    Cov "PRM69"
+    Dim kind As Variant, out As String
+    For Each kind In kinds
+        out = out & " | " & CStr(kind) & ": start " & KindCount(rules, CStr(kind), "start") & ", active " & KindCount(rules, CStr(kind), "Active") & _
+              ", wait " & KindCount(rules, CStr(kind), "Wait") & ", end " & KindCount(rules, CStr(kind), "end")
+    Next kind
+    RuleCountsLine = "status rules" & out
+End Function
+
+Public Function RuleWarnings(ByVal rules As Collection, ByVal kinds As Variant, ByVal withTickets As Object) As Collection
+    ' The WARN lines: a kind that has tickets (withTickets: kind -> True) and no start status (no StartUtc, so no Flow Time, Flow Efficiency or Flow
+    ' Load), then no Wait status in any kind (Flow Efficiency reads the whole sheet StatusRules). None when no kind has a ticket.
+    Cov "PRM70"
+    Dim out As New Collection, kind As Variant
+    For Each kind In kinds
+        If withTickets.Exists(CStr(kind)) Then
+            If KindCount(rules, CStr(kind), "start") = 0 Then Cov "PRM71": out.Add "J2D-FLOW-010 | no start status in the " & CStr(kind) & NO_START_TEXT
+        End If
+    Next kind
+    If withTickets.Count > 0 Then
+        If Not HasWait(rules) Then Cov "PRM72": out.Add "J2D-FLOW-011 | " & NO_WAIT_TEXT
+    End If
+    Set RuleWarnings = out
 End Function
 
 Public Function WorkflowExceptions(ByVal wsWorkflows As Object) As Collection
