@@ -230,3 +230,23 @@ def flow_efficiency_check_of(world, expected):
     for label, want in expected.items():
         assert all((abs(g - w) < 1e-9) if isinstance(w, (int, float)) and not isinstance(w, bool) and w != "" else g == w
                    for g, w in zip(got[label], want)), (label, got[label], want)
+
+
+@then("la feuille FlowLoadCheck de l'ART est celle calculée à la main")
+def _flow_load_check(world):
+    from art_oracle import FLOW_LOAD_CHECK
+    flow_load_check_of(world, FLOW_LOAD_CHECK)
+
+
+@then("la feuille FlowLoadCheck de l'ART est celle calculée à la main, sans statut de départ")
+def _flow_load_check_no_start(world):
+    from art_oracle import FLOW_LOAD_CHECK_NO_START
+    flow_load_check_of(world, FLOW_LOAD_CHECK_NO_START)
+
+
+def flow_load_check_of(world, expected):
+    got = {r["Iteration-label"]: (tuple("" if r[c] is None else r[c] for c in ("Days", "DaysMeasured", "StartStatuses", "Gap", "Reason")),
+                                  "" if r["Average"] is None else r["Average"], "" if r["AtEnd"] is None else r["AtEnd"]) for r in sheet(world, "FlowLoadCheck") if r["Team"] == "ART"}
+    assert {label: figures for label, (figures, _average, _end) in got.items()} == expected
+    computable = {label: (average != "", at_end != "") for label, (_figures, average, at_end) in got.items()}
+    assert set(computable.values()) == ({(False, False)} if "no start status" in next(iter(expected.values()))[4] else {(True, True)}), computable

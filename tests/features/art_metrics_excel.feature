@@ -33,6 +33,7 @@ Fonctionnalité: Le scénario art-metrics du faux Jira donne, dans le classeur l
     Et chaque statut dure en moyenne 1 jour, 2 jours pour le statut long du PI de la Feature
     Et la table FlowTimeCheck de l'ART est celle calculée à la main
     Et la table FlowEfficiencyCheck de l'ART est celle calculée à la main
+    Et la table FlowLoadCheck de l'ART est celle calculée à la main
 
   @excel
   Scénario: Les statuts viennent de Jira : la feuille Workflows ne déclare que les trois statuts d'attente et les chiffres ne changent pas
@@ -120,6 +121,7 @@ Fonctionnalité: Le scénario art-metrics du faux Jira donne, dans le classeur l
     Et chaque Feature livrée est hors du Flow Time faute de statut de départ dans les règles
     Et la table FlowTimeCheck de l'ART est celle calculée à la main, sans statut de départ
     Et la table FlowEfficiencyCheck de l'ART est celle calculée à la main, sans statut Wait
+    Et la table FlowLoadCheck de l'ART est celle calculée à la main, sans statut de départ
     Et le journal et les champs de santé disent pourquoi, avec les codes calculés à la main
     Et la Reconciliation demande de revoir le statut de départ et le statut Wait
 

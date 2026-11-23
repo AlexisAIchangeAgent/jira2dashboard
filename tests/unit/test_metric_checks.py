@@ -113,3 +113,30 @@ def test_nothing_counted_and_a_wrong_efficiency_of_metrics():
     items = [item_flow(i, AS_OF, WAIT_RULES) for i in EFF]
     right = team_iteration_metrics(items, "ART", I1, "A", AS_OF, True)
     assert efficiency(metric=right.__class__(**{**right.__dict__, "flow_efficiency": 0.5})).gap == 0.3
+
+
+# --- FlowLoadCheck: the tickets EFF (E-1 in process from 05-02 to 05-06: Analyse, Attente, Analyse; E-2 from 05-02 to 05-03) ---------------
+# Mode A, a snapshot at midnight of D + 1, the entry included: D = 05-01 to 05-04 hold E-1 (Fini at 05-06 00:00), D = 05-01 holds E-2 (Fini at
+# 05-03 00:00): 5 item-days over the 10 days of I1.
+
+def load(rules=WAIT_RULES, iteration=I1, as_of=AS_OF, metric=None):
+    items = [item_flow(i, as_of, rules) for i in EFF]
+    metric = metric or team_iteration_metrics(items, "ART", iteration, "A", as_of, rules.waits, rules.has_start("Feature"))
+    return MC.flow_load_check(items, iteration, "ART", rules, "A", as_of, metric)
+
+
+def test_the_days_the_snapshots_and_the_load_recounted_give_the_figures_of_metrics():
+    assert load() == MC.FlowLoadCheck("I1", "ART", days=10, days_measured=10, start_statuses=1, average=0.5, at_end=0, gap=0.0, reason="")
+
+
+def test_no_start_status_and_no_day_before_asof_are_the_two_reasons():
+    no_start = Rules({**WAIT_RULES._rows, ("Feature", "Analyse"): rule("Active")})
+    assert load(no_start) == MC.FlowLoadCheck("I1", "ART", 10, 10, 0, None, None, 0.0, MC.NO_START_STATUS)
+    assert load(as_of=dt.datetime(2025, 5, 1, 12)).reason == MC.AFTER_AS_OF                  # 05-01 has not ended: no snapshot
+    assert load(as_of=dt.datetime(2025, 5, 4)).days_measured == 3                              # 05-01, 05-02, 05-03
+
+
+def test_a_wrong_load_at_the_end_of_metrics_shows_in_the_gap():
+    items = [item_flow(i, AS_OF, WAIT_RULES) for i in EFF]
+    right = team_iteration_metrics(items, "ART", I1, "A", AS_OF)
+    assert load(metric=right.__class__(**{**right.__dict__, "flow_load_end": 2})).gap == -2.0

@@ -676,6 +676,29 @@ def _flow_efficiency_check_generated(world):
     assert all(abs(r["Gap"]) < 1e-9 for r in got) and any(e.active_days > 0 and e.wait_days > 0 for e in expected), expected[:6]
 
 
+@then("la table FlowLoadCheck reproduit la référence Python sur les données générées")
+def _flow_load_check_generated(world):
+    """Why the Flow Load of each point is what it is, on generated data: every row against flow/metric_checks, cell by cell; the Gap is 0; the
+    Reason is "" exactly where Flow Load is computable; the data holds items in process at the end of an iteration."""
+    from jira2dashboard.flow.metric_checks import flow_load_check
+    from jira2dashboard.flow.metrics import team_iteration_metrics
+    rules, as_of = world["rules"], world["dataset"].as_of
+    iterations = {p.name: p for p in world["iterations"]}
+    got, metrics = table_dicts(world["wb"], "FlowLoadCheck"), table_dicts(world["wb"], "Metrics")
+    assert [(r["Iteration-label"], r["Team"]) for r in got] == [(r["Iteration-label"], r["Team"]) for r in metrics] and got
+    expected = [flow_load_check(world["items"], iterations[r["Iteration-label"]], r["Team"], rules, "A", as_of,
+                                team_iteration_metrics(world["items"], r["Team"], iterations[r["Iteration-label"]], "A", as_of)) for r in got]
+    for row, ref in zip(got, expected):
+        for column, attribute in (("Days", "days"), ("DaysMeasured", "days_measured"), ("StartStatuses", "start_statuses"), ("Reason", "reason"),
+                                  ("AtEnd", "at_end")):
+            want = "" if getattr(ref, attribute) is None else getattr(ref, attribute)
+            assert row[column] == want, (ref.iteration, ref.team, column, row[column], want)
+        assert (row["Average"] == "") == (ref.average is None) and (ref.average is None or abs(row["Average"] - ref.average) < 1e-9), (row, ref)
+    for row, metric in zip(got, metrics):
+        assert (row["Reason"] == "") == (metric["FlowLoadAverage"] != "not computable"), (row, metric["FlowLoadAverage"])
+    assert all(abs(r["Gap"]) < 1e-9 for r in got) and any((e.at_end or 0) > 0 for e in expected), expected[:6]
+
+
 @then("les colonnes de trace de ItemFlow reproduisent la référence Python sur les données générées")
 def _trace_generated(world):
     """DoneIteration, its Start and End, DonePI, Account, WhyNotInFlowTime and BoundaryHours of every ticket against flow/trace, and the data holds
@@ -766,7 +789,7 @@ def _reconciliation_generated(world):
     metrics_rows = table_dicts(world["wb"], "Metrics")
     by_name = {i.name: i for i in iterations}
     metrics = [team_iteration_metrics(items, r["Team"], by_name[r["Iteration-label"]], "A", world["dataset"].as_of) for r in metrics_rows]
-    expected = reconcile(issues, items, metrics, iterations, pis, world["rules"], expected_flags(world))
+    expected = reconcile(issues, items, metrics, iterations, pis, world["rules"], expected_flags(world), mode="A", as_of=world["dataset"].as_of)
     got = table_dicts(world["wb"], "Reconciliation")
     assert [r["Control"] for r in got] == [c.name for c in expected]
     for row, ref in zip(got, expected):
@@ -791,7 +814,7 @@ def _reconciliation_generated(world):
 def _art_reconciliation(world):
     from art_oracle import ACCOUNTS, FLOW_TIME_DAYS, VELOCITY
     got = {r["Control"]: r for r in table_dicts(world["wb"], "Reconciliation")}
-    assert len(got) == 16 and {r["Result"] for r in got.values()} == {"OK"}, {k: (r["Expected"], r["Found"], r["Result"]) for k, r in got.items()}
+    assert len(got) == 17 and {r["Result"] for r in got.values()} == {"OK"}, {k: (r["Expected"], r["Found"], r["Result"]) for k, r in got.items()}
     released, tickets = sum(VELOCITY.values()), sum(ACCOUNTS.values())
     typed = {"Tickets read from Jira = tickets of ItemFlow": (tickets, tickets), "Every ticket sits in one account": (tickets, tickets),
              "Velocity of all iterations = tickets of the Done list": (released, released),
@@ -1914,6 +1937,26 @@ def art_flow_efficiency_check(world, expected):
     for label, want in expected.items():
         assert all((abs(g - w) < 1e-9) if isinstance(w, (int, float)) and not isinstance(w, bool) and w != "" else g == w
                    for g, w in zip(got[label], want)), (label, got[label], want)
+
+
+@then("la table FlowLoadCheck de l'ART est celle calculée à la main")
+def _art_flow_load_check(world):
+    from art_oracle import FLOW_LOAD_CHECK
+    art_flow_load_check(world, FLOW_LOAD_CHECK)
+
+
+@then("la table FlowLoadCheck de l'ART est celle calculée à la main, sans statut de départ")
+def _art_flow_load_check_no_start(world):
+    from art_oracle import FLOW_LOAD_CHECK_NO_START
+    art_flow_load_check(world, FLOW_LOAD_CHECK_NO_START)
+
+
+def art_flow_load_check(world, expected):
+    got = {r["Iteration-label"]: (tuple("" if r[c] is None else r[c] for c in ("Days", "DaysMeasured", "StartStatuses", "Gap", "Reason")),
+                                  "" if r["Average"] is None else r["Average"], "" if r["AtEnd"] is None else r["AtEnd"]) for r in art_table(world, "FlowLoadCheck") if r["Team"] == "ART"}
+    assert {label: figures for label, (figures, _average, _end) in got.items()} == expected
+    computable = {label: (average != "", at_end != "") for label, (_figures, average, at_end) in got.items()}
+    assert set(computable.values()) == ({(False, False)} if "no start status" in next(iter(expected.values()))[4] else {(True, True)}), computable
 
 
 @then("la Reconciliation demande de revoir le statut de départ et le statut Wait")

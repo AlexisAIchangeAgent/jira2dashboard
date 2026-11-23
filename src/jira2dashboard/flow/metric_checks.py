@@ -9,11 +9,13 @@ FlowTimeCheck: Done is counted again from the status intervals (an open end stat
 done items left out of Flow Time each under ONE reason, the first that applies: reopened, then no start status in the rules of their workflow (a setting
 to fix: IsStart in the sheet Workflows), then no start after their last backlog entry; Counted is Metrics.FlowTimeCount. Gap = Done - the three - Counted.
 """
+import datetime as dt
 from dataclasses import dataclass
 
 from jira2dashboard.flow.itemflow import ItemFlow
+from jira2dashboard.flow.load import ONE_DAY, in_process_at, snapshot_days
 from jira2dashboard.flow.metrics import TeamIterationMetrics
-from jira2dashboard.flow.model import ACTIVE, WAIT, FlowIssue, Iteration, Rules
+from jira2dashboard.flow.model import ACTIVE, ART, WAIT, FlowIssue, Iteration, Rules
 
 NO_ITEM = "no item done in the iteration"
 ALL, LEFT_OUT = "all ", " done items left out: "
@@ -112,3 +114,43 @@ def flow_efficiency_check(items: list[ItemFlow], iteration: Iteration, team: str
     else:
         gap = 1.0                                                   # computable here, not in Metrics: a difference to look at
     return FlowEfficiencyCheck(iteration.name, team, len(counted), with_unclassified, active, wait, waits, efficiency, gap, reason)
+
+
+# --- FlowLoadCheck: the days of the iteration, those that have a snapshot (not after AsOf), the start statuses of the workflow of the team, the
+# average load and the load at the end of the last measured day counted again (Excel: SUMPRODUCT over StatusIntervals in mode A, over ItemFlow in
+# mode B: another writing of the rule than the COUNTIFS of DailyLoad), Gap against Metrics where it is computable, and the Reason.
+NO_START_STATUS = "the workflow of the team has no start status (set IsStart in Workflows)"
+AFTER_AS_OF = "every day of the iteration is after the as-of date (AsOf)"
+
+
+@dataclass(frozen=True)
+class FlowLoadCheck:
+    iteration: str
+    team: str
+    days: int                    # days of the iteration
+    days_measured: int           # of which a snapshot exists (the end of the day is not after AsOf)
+    start_statuses: int          # rules of the workflow of the team that start the flow (IsStart)
+    average: float | None        # the load averaged over the measured days; None when not computable
+    at_end: int | None           # the items in process at the end of the last measured day
+    gap: float
+    reason: str
+
+
+def flow_load_check(items: list[ItemFlow], iteration: Iteration, team: str, rules: Rules, mode: str, as_of: dt.datetime,
+                    metric: TeamIterationMetrics) -> FlowLoadCheck:
+    """One row; the ART follows the Feature workflow, a team of a Team project the Team workflow."""
+    workflow = "Feature" if team == ART else "Team"
+    measured = snapshot_days(iteration.start, iteration.end, as_of)
+    starts = sum(1 for r in rules.listed() if r.workflow == workflow and r.is_start == 1)
+    reason = NO_START_STATUS if starts == 0 else AFTER_AS_OF if not measured else ""
+    days = (iteration.end - iteration.start).days
+    if reason:
+        return FlowLoadCheck(iteration.name, team, days, len(measured), starts, None, None, 0.0, reason)
+    mine = [i for i in items if i.team == team]
+    loads = [sum(1 for i in mine if in_process_at(i, day + ONE_DAY, mode)) for day in measured]
+    average, at_end = sum(loads) / len(loads), loads[-1]
+    if isinstance(metric.flow_load_average, float) and isinstance(metric.flow_load_end, int):
+        gap = round(average - metric.flow_load_average, GAP_DIGITS) + (at_end - metric.flow_load_end)
+    else:
+        gap = 1.0
+    return FlowLoadCheck(iteration.name, team, days, len(measured), starts, average, at_end, gap, "")

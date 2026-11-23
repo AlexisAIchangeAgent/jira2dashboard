@@ -382,7 +382,7 @@ Private Function CellsInError(ByVal wb As Object) As String
     ' Table.Column x n, for the first columns of the flow tables that hold an Excel error (the charts' own #N/A are gaps on purpose
     ' and are not read here). A column with an error is a formula that fails on the data.
     Dim name As Variant, lo As Object, col As Object, n As Double, found As String, columns As Long, shown As Long
-    For Each name In Array("StatusIntervals", "ItemFlow", "DailyLoad", "Metrics", "IterationFeatures", "PIMetrics", "PIStatusTime", "VelocityCheck", "FlowTimeCheck", "FlowEfficiencyCheck", "PIIntervals", "DataChecks", "FillRates", "IssueLinks")
+    For Each name In Array("StatusIntervals", "ItemFlow", "DailyLoad", "Metrics", "IterationFeatures", "PIMetrics", "PIStatusTime", "VelocityCheck", "FlowTimeCheck", "FlowEfficiencyCheck", "FlowLoadCheck", "PIIntervals", "DataChecks", "FillRates", "IssueLinks")
         Set lo = TableOf(wb, CStr(name))
         If Not lo Is Nothing Then
             If Not lo.DataBodyRange Is Nothing Then

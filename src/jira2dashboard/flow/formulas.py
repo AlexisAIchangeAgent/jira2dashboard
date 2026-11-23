@@ -275,6 +275,26 @@ FLOWEFFICIENCYCHECK_COLUMNS = (
                f'[@WithUnclassified]&"{MC.UNCLASSIFIED_TIME}",IF([@ActiveDays]+[@WaitDays]=0,"{MC.NO_TIME}",""))))'),
 )
 
+# --- the table FlowLoadCheck: why the Flow Load of each iteration and team is what it is (AL, 2026-11-22) ----------------------------------------
+# The keys of Metrics. The days of the iteration, those with a snapshot (not after AsOf), the start statuses of the workflow of the team, the average
+# of DailyLoad over the measured days, the items in process at the end of the last measured day counted again with SUMPRODUCT (another writing of
+# the rule than the COUNTIFS of DailyLoad: mode A over StatusIntervals, mode B over ItemFlow), Gap against Metrics, Reason. Reference: metric_checks.
+_LOAD_END = f"[@IterationStart]+[@DaysMeasured]+{HALF}"
+_IN_PROCESS_A = (f'SUMPRODUCT(({SI}[Team]=[@Team])*({SI}[Counted]=1)*({SI}[EnteredUtc]<=t)*({SI}[LeftEff]>t)*({SI}[FirstStart]<>"")'
+                 f'*({SI}[FirstStart]<=t))')
+_IN_PROCESS_B = f'SUMPRODUCT(({IF_}[Team]=[@Team])*({IF_}[StartUtc]<>"")*({IF_}[StartUtc]<=t)*({IF_}[EndUtc]>t))'
+FLOWLOADCHECK_KEYS = METRICS_KEYS
+FLOWLOADCHECK_COLUMNS = (
+    ("Days", "=[@IterationEnd]-[@IterationStart]"),
+    ("DaysMeasured", f"=IFERROR(MAX(0,MIN([@IterationEnd],INT(AsOfUtc+{HALF}))-[@IterationStart]),0)"),      # AsOf unreadable: no snapshot
+    ("StartStatuses", f"={_starts_of(_TEAM_WORKFLOW)}"),
+    ("Average", f'=IF([@Reason]<>"","",SUMIFS(DailyLoad[Load],{_LOAD_WINDOW})/[@DaysMeasured])'),
+    ("AtEnd", f'=IF([@Reason]<>"","",LET(t,{_LOAD_END},IF(cfg_FlowLoadMode="A",{_IN_PROCESS_A},{_IN_PROCESS_B})))'),
+    ("Gap", f'=IF([@Reason]<>"",0,IFERROR(ROUND([@Average]-{_METRIC_OF_ROW.format(column="FlowLoadAverage")},{MC.GAP_DIGITS})'
+            f'+([@AtEnd]-{_METRIC_OF_ROW.format(column="FlowLoadEnd")}),1))'),
+    ("Reason", f'=IF([@StartStatuses]=0,"{MC.NO_START_STATUS}",IF([@DaysMeasured]=0,"{MC.AFTER_AS_OF}",""))'),
+)
+
 # --- the sheet MetricItems: the tickets behind the figures (AL, 2026-11-18) ---------------------------------------------------------
 # Three lists side by side, each column ONE spilled formula (Excel 365 dynamic arrays, as FILTER is already used): the tickets of ItemFlow that
 # fall in an account, sorted. No VBA writes a key: the lists follow the data. Reference: flow/trace.metric_items.
@@ -326,6 +346,7 @@ RECONCILIATION_FORMULAS = {
                        f'=SUMIFS({_LEDGER["days"]},{_LEDGER["counted"]},1)'),
     R.FLOW_TIME_GAP: ("=0", "=SUMPRODUCT(ABS(FlowTimeCheck[Gap]))"),
     R.FLOW_EFFICIENCY_GAP: ("=0", "=SUMPRODUCT(ABS(FlowEfficiencyCheck[Gap]))"),
+    R.FLOW_LOAD_GAP: ("=0", "=SUMPRODUCT(ABS(FlowLoadCheck[Gap]))"),
     R.UNIQUE: ("=0", f'=COUNTIF({_LEDGER["key"]},"?*")-IFERROR(ROWS(UNIQUE(FILTER({_LEDGER["key"]},{_LEDGER["key"]}<>""))),0)'),
     R.CUTOFF: ("=0", f'=COUNTIF({_M}!$S$3#,"?*")'),
     R.CLASSIFIED: ("=0", f'=COUNTIFS({SI}[Category],"Unclassified",{SI}[Team],"<>{OTHER_TYPES}")'),
@@ -512,4 +533,5 @@ TABLES = {
     "VelocityCheck": VELOCITYCHECK_KEYS + tuple(name for name, _ in VELOCITYCHECK_COLUMNS),
     "FlowTimeCheck": FLOWTIMECHECK_KEYS + tuple(name for name, _ in FLOWTIMECHECK_COLUMNS),
     "FlowEfficiencyCheck": FLOWEFFICIENCYCHECK_KEYS + tuple(name for name, _ in FLOWEFFICIENCYCHECK_COLUMNS),
+    "FlowLoadCheck": FLOWLOADCHECK_KEYS + tuple(name for name, _ in FLOWLOADCHECK_COLUMNS),
 }
