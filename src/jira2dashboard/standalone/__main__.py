@@ -287,6 +287,7 @@ def run(args, formatter: Scrubbed, collected: Collected, sleep=time.sleep, detec
         Sheet(S.of("PIStatusTime"), R.PI_STATUS_TIME, R.pistatustime_rows(results, settings)),
         Sheet(S.of("VelocityCheck"), R.VELOCITY_CHECK, R.velocitycheck_rows(results, settings)),
         Sheet(S.of("FlowTimeCheck"), R.FLOW_TIME_CHECK, R.flowtimecheck_rows(results, settings)),
+        Sheet(S.of("FlowEfficiencyCheck"), R.FLOW_EFFICIENCY_CHECK, R.flowefficiencycheck_rows(results, settings)),
         Sheet(S.of("MetricItems"), *R.metricitems_sheet(results, settings)),
         Sheet(S.of("Reconciliation"), R.RECONCILIATION, reconciliation),
         Sheet(S.of("IterationFeatures"), R.ITERATION_FEATURES, R.iterationfeatures_rows(results)),

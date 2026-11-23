@@ -106,3 +106,14 @@ NO_START_CONTROLS = {"Every workflow kind with tickets has a start status (IsSta
 FLOW_TIME_CHECK = {label: (v, 0, 0, 0, v, 0, "" if v else "no item done in the iteration") for label, v in VELOCITY.items()}
 FLOW_TIME_CHECK_NO_START = {label: (v, 0, v, 0, 0, 0, f"all {v} done items left out: {v} no start status in the rules (set IsStart in Workflows)"
                                     if v else "no item done in the iteration") for label, v in VELOCITY.items()}
+
+# --- FlowEfficiencyCheck (AL, 2026-11-22): each released Feature spends FLOW_TIME_DAYS days between its start and its release, of which the share
+# FLOW_EFFICIENCY of its PI active, the rest waiting; the 3 Wait statuses of the sheet Workflows are exceptions of the Feature workflow
+# (3 rows of StatusRules). An iteration with no release has nothing counted. Without a Wait status (the variant), every row says to declare one.
+WAIT_RULES = 3
+NO_WAIT_REASON = "no status is declared Wait (set Category = Wait in Workflows)"
+NOTHING_COUNTED_REASON = "no item counted in Flow Time (see FlowTimeCheck)"
+FLOW_EFFICIENCY_CHECK = {label: (v, 0, v * FLOW_TIME_DAYS * FLOW_EFFICIENCY["PI-" + label[3]], v * FLOW_TIME_DAYS * (1 - FLOW_EFFICIENCY["PI-" + label[3]]),
+                                 WAIT_RULES, FLOW_EFFICIENCY["PI-" + label[3]], 0, "") if v else (0, 0, 0, 0, WAIT_RULES, "", 0, NOTHING_COUNTED_REASON)
+                         for label, v in VELOCITY.items()}
+FLOW_EFFICIENCY_CHECK_NO_START = {label: (0, 0, 0, 0, 0, "", 0, NO_WAIT_REASON) for label in VELOCITY}

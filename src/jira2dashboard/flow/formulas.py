@@ -256,6 +256,25 @@ FLOWTIMECHECK_COLUMNS = (
                f'IF([@ExclReopened]>0,[@ExclReopened]&"{MC.REOPENED}",""))))'),
 )
 
+# --- the table FlowEfficiencyCheck: why the Flow Efficiency of each iteration and team is what it is (AL, 2026-11-22) ----------------------------
+# The keys of Metrics. Counted (Metrics.FlowTimeCount), the counted items with time in a status no rule knows, the Active and Wait days summed again
+# from StatusIntervals (InCycle: the window of ItemFlow.ActiveDays / WaitDays, an independent path), the Wait statuses of StatusRules, the efficiency
+# recounted, Reason in the order of the formula of Metrics, Gap = recount - Metrics.FlowEfficiency where it is computable. Reference: metric_checks.py.
+_ITEM_DONE_IN = f'{SI}[ItemDone],">="&([@IterationStart]-{HALF}),{SI}[ItemDone],"<"&([@IterationEnd]-{HALF})'
+_METRIC_OF_ROW = "XLOOKUP(1,(Metrics[Iteration-label]=[@[Iteration-label]])*(Metrics[Team]=[@Team]),Metrics[{column}])"
+FLOWEFFICIENCYCHECK_KEYS = METRICS_KEYS
+FLOWEFFICIENCYCHECK_COLUMNS = (
+    ("Counted", "=SUMIFS(Metrics[FlowTimeCount],Metrics[Iteration-label],[@[Iteration-label]],Metrics[Team],[@Team])"),
+    ("WithUnclassified", f'=COUNTIFS({DONE_IN},{IF_}[Excluded],0,{IF_}[UnclassifiedDays],">0")'),
+    ("ActiveDays", f'=SUMIFS({SI}[DurationDays],{SI}[Team],[@Team],{SI}[InCycle],1,{SI}[Category],"Active",{_ITEM_DONE_IN})'),
+    ("WaitDays", f'=SUMIFS({SI}[DurationDays],{SI}[Team],[@Team],{SI}[InCycle],1,{SI}[Category],"Wait",{_ITEM_DONE_IN})'),
+    ("WaitStatuses", f'=COUNTIF({RULES_SHEET}!$C$2:$C$5000,"Wait")'),
+    ("Efficiency", '=IF([@ActiveDays]+[@WaitDays]=0,"",[@ActiveDays]/([@ActiveDays]+[@WaitDays]))'),
+    ("Gap", f'=IF([@Reason]<>"",0,IFERROR(ROUND([@Efficiency]-{_METRIC_OF_ROW.format(column="FlowEfficiency")},{MC.GAP_DIGITS}),1))'),
+    ("Reason", f'=IF([@WaitStatuses]=0,"{MC.NO_WAIT}",IF([@Counted]=0,"{MC.NOTHING_COUNTED}",IF([@WithUnclassified]>0,'
+               f'[@WithUnclassified]&"{MC.UNCLASSIFIED_TIME}",IF([@ActiveDays]+[@WaitDays]=0,"{MC.NO_TIME}",""))))'),
+)
+
 # --- the sheet MetricItems: the tickets behind the figures (AL, 2026-11-18) ---------------------------------------------------------
 # Three lists side by side, each column ONE spilled formula (Excel 365 dynamic arrays, as FILTER is already used): the tickets of ItemFlow that
 # fall in an account, sorted. No VBA writes a key: the lists follow the data. Reference: flow/trace.metric_items.
@@ -306,6 +325,7 @@ RECONCILIATION_FORMULAS = {
     R.FLOW_TIME_DAYS: (f'=SUMIFS(ItemFlow[FlowTimeDays],ItemFlow[Account],"{T.ACCOUNT_COUNTED}",ItemFlow[Excluded],0)',
                        f'=SUMIFS({_LEDGER["days"]},{_LEDGER["counted"]},1)'),
     R.FLOW_TIME_GAP: ("=0", "=SUMPRODUCT(ABS(FlowTimeCheck[Gap]))"),
+    R.FLOW_EFFICIENCY_GAP: ("=0", "=SUMPRODUCT(ABS(FlowEfficiencyCheck[Gap]))"),
     R.UNIQUE: ("=0", f'=COUNTIF({_LEDGER["key"]},"?*")-IFERROR(ROWS(UNIQUE(FILTER({_LEDGER["key"]},{_LEDGER["key"]}<>""))),0)'),
     R.CUTOFF: ("=0", f'=COUNTIF({_M}!$S$3#,"?*")'),
     R.CLASSIFIED: ("=0", f'=COUNTIFS({SI}[Category],"Unclassified",{SI}[Team],"<>{OTHER_TYPES}")'),
@@ -491,4 +511,5 @@ TABLES = {
     "PIStatusTime": PISTATUSTIME_KEYS + tuple(name for name, _ in PISTATUSTIME_COLUMNS),
     "VelocityCheck": VELOCITYCHECK_KEYS + tuple(name for name, _ in VELOCITYCHECK_COLUMNS),
     "FlowTimeCheck": FLOWTIMECHECK_KEYS + tuple(name for name, _ in FLOWTIMECHECK_COLUMNS),
+    "FlowEfficiencyCheck": FLOWEFFICIENCYCHECK_KEYS + tuple(name for name, _ in FLOWEFFICIENCYCHECK_COLUMNS),
 }

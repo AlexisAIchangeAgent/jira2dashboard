@@ -13,7 +13,7 @@ from dataclasses import dataclass
 
 from jira2dashboard.flow.itemflow import ItemFlow
 from jira2dashboard.flow.metrics import TeamIterationMetrics
-from jira2dashboard.flow.model import FlowIssue, Iteration, Rules
+from jira2dashboard.flow.model import ACTIVE, WAIT, FlowIssue, Iteration, Rules
 
 NO_ITEM = "no item done in the iteration"
 ALL, LEFT_OUT = "all ", " done items left out: "
@@ -57,3 +57,58 @@ def flow_time_check(issues: list[FlowIssue], items: list[ItemFlow], iteration: I
     counted = metric.flow_time_count
     return FlowTimeCheck(iteration.name, team, done, reopened, no_start_rule, not_started, counted,
                          done - reopened - no_start_rule - not_started - counted, flow_time_reason(done, reopened, no_start_rule, not_started, counted))
+
+
+# --- FlowEfficiencyCheck: Counted (as Flow Time), the counted items that spent time in a status no rule knows, the Active and Wait days summed
+# again from the status intervals (Excel: StatusIntervals.InCycle, an independent path from ItemFlow.ActiveDays / WaitDays), the Wait statuses of
+# the rules, the efficiency recounted, Gap = recount - Metrics.FlowEfficiency where it is computable (0 elsewhere), and the Reason in the order of the
+# formula of Metrics: no Wait status, nothing counted, unclassified time, no active or wait time.
+NO_WAIT = "no status is declared Wait (set Category = Wait in Workflows)"
+NOTHING_COUNTED = "no item counted in Flow Time (see FlowTimeCheck)"
+UNCLASSIFIED_TIME = " items spent time in statuses no rule knows (Unclassified)"
+NO_TIME = "no active or wait time"
+GAP_DIGITS = 9                     # the Gap is rounded: two sums of days in another order differ in the last bits
+
+
+@dataclass(frozen=True)
+class FlowEfficiencyCheck:
+    iteration: str
+    team: str
+    counted: int                 # the items behind Flow Time and Flow Efficiency (Metrics.FlowTimeCount)
+    with_unclassified: int       # of which with time in an Unclassified status
+    active_days: float           # summed from the intervals of the counted items, from their start (included) to their end (excluded)
+    wait_days: float
+    wait_statuses: int           # rules whose category is Wait (both workflow kinds)
+    efficiency: float | None     # active / (active + wait); None without any time
+    gap: float
+    reason: str
+
+
+def flow_efficiency_reason(wait_statuses: int, counted: int, with_unclassified: int, active: float, wait: float) -> str:
+    if wait_statuses == 0:
+        return NO_WAIT
+    if counted == 0:
+        return NOTHING_COUNTED
+    if with_unclassified > 0:
+        return f"{with_unclassified}{UNCLASSIFIED_TIME}"
+    return NO_TIME if active + wait == 0 else ""
+
+
+def flow_efficiency_check(items: list[ItemFlow], iteration: Iteration, team: str, rules: Rules, metric: TeamIterationMetrics) -> FlowEfficiencyCheck:
+    """One row, `metric` the row of Metrics of the same iteration and team."""
+    counted = [i for i in items if i.team == team and iteration.contains(i.done) and not i.excluded_from_flow_time]
+
+    def days(category: str) -> float:
+        return sum(v.duration_days for i in counted for v in i.intervals if v.category == category and i.start <= v.entered < i.done)
+    active, wait = days(ACTIVE), days(WAIT)
+    with_unclassified = sum(1 for i in counted if (i.unclassified_days or 0) > 0)
+    waits = sum(1 for r in rules.listed() if r.category == WAIT)
+    efficiency = active / (active + wait) if active + wait > 0 else None
+    reason = flow_efficiency_reason(waits, len(counted), with_unclassified, active, wait)
+    if reason:
+        gap = 0.0
+    elif isinstance(metric.flow_efficiency, float) and efficiency is not None:
+        gap = round(efficiency - metric.flow_efficiency, GAP_DIGITS)
+    else:
+        gap = 1.0                                                   # computable here, not in Metrics: a difference to look at
+    return FlowEfficiencyCheck(iteration.name, team, len(counted), with_unclassified, active, wait, waits, efficiency, gap, reason)

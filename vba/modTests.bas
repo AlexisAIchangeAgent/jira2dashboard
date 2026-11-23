@@ -1486,7 +1486,9 @@ Public Sub T_FlowBuild()
     Check "flowbuild", "the sheet MetricItems holds a formula under the header of each list (the lists themselves are checked by the Excel scenarios)", "E3 | S3", "yes|yes", _
           IIf(ThisWorkbook.Worksheets(SheetName("MetricItems")).Range("E3").HasFormula, "yes", "no") & "|" & _
           IIf(ThisWorkbook.Worksheets(SheetName("MetricItems")).Range("S3").HasFormula, "yes", "no")
-    Check "flowbuild", "the table Reconciliation has its 15 controls", "rows", 15, TableRows("Reconciliation")
+    Check "flowbuild", "the table Reconciliation has its 16 controls", "rows", 16, TableRows("Reconciliation")
+    Check "flowbuild", "the table FlowEfficiencyCheck has the rows of Metrics and a control Gap of 0", "rows|Gap", TableRows("Metrics") & "|0", _
+          TableRows("FlowEfficiencyCheck") & "|" & ColumnSum("FlowEfficiencyCheck", "Gap")
     Check "flowbuild", "the table FlowTimeCheck has the rows of Metrics, the Flow Time count and a control Gap of 0", "rows|Counted|Gap", _
           TableRows("Metrics") & "|" & ColumnSum("Metrics", "FlowTimeCount") & "|0", _
           TableRows("FlowTimeCheck") & "|" & ColumnSum("FlowTimeCheck", "Counted") & "|" & ColumnSum("FlowTimeCheck", "Gap")

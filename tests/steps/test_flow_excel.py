@@ -651,6 +651,31 @@ def _flow_time_check_generated(world):
     assert all(r["Gap"] == 0 for r in got) and any(e.excl_reopened + e.excl_not_started > 0 for e in expected), expected[:6]
 
 
+@then("la table FlowEfficiencyCheck reproduit la référence Python sur les données générées")
+def _flow_efficiency_check_generated(world):
+    """Why the Flow Efficiency of each point is what it is, on generated data: every row against flow/metric_checks, cell by cell (days with a
+    tolerance); the Gap is 0; the Reason is "" exactly where Flow Efficiency is computable; the data holds active and wait days."""
+    from jira2dashboard.flow.metric_checks import flow_efficiency_check
+    from jira2dashboard.flow.metrics import team_iteration_metrics
+    rules = world["rules"]
+    iterations = {p.name: p for p in world["iterations"]}
+    got, metrics = table_dicts(world["wb"], "FlowEfficiencyCheck"), table_dicts(world["wb"], "Metrics")
+    assert [(r["Iteration-label"], r["Team"]) for r in got] == [(r["Iteration-label"], r["Team"]) for r in metrics] and got
+    expected = [flow_efficiency_check(world["items"], iterations[r["Iteration-label"]], r["Team"], rules,
+                                      team_iteration_metrics(world["items"], r["Team"], iterations[r["Iteration-label"]], "A", world["dataset"].as_of,
+                                                             rules.waits)) for r in got]
+    for row, ref in zip(got, expected):
+        for column, attribute in (("Counted", "counted"), ("WithUnclassified", "with_unclassified"), ("WaitStatuses", "wait_statuses"),
+                                  ("Reason", "reason")):
+            assert row[column] == getattr(ref, attribute), (ref.iteration, ref.team, column, row[column], getattr(ref, attribute))
+        for column, attribute in (("ActiveDays", "active_days"), ("WaitDays", "wait_days"), ("Gap", "gap")):
+            assert abs(row[column] - getattr(ref, attribute)) < 1e-6, (ref.iteration, ref.team, column, row[column], getattr(ref, attribute))
+        assert (row["Efficiency"] == "") == (ref.efficiency is None) and (ref.efficiency is None or abs(row["Efficiency"] - ref.efficiency) < 1e-9)
+    for row, metric in zip(got, metrics):
+        assert (row["Reason"] == "") == (metric["FlowEfficiency"] != "not computable"), (row, metric["FlowEfficiency"])
+    assert all(abs(r["Gap"]) < 1e-9 for r in got) and any(e.active_days > 0 and e.wait_days > 0 for e in expected), expected[:6]
+
+
 @then("les colonnes de trace de ItemFlow reproduisent la référence Python sur les données générées")
 def _trace_generated(world):
     """DoneIteration, its Start and End, DonePI, Account, WhyNotInFlowTime and BoundaryHours of every ticket against flow/trace, and the data holds
@@ -766,7 +791,7 @@ def _reconciliation_generated(world):
 def _art_reconciliation(world):
     from art_oracle import ACCOUNTS, FLOW_TIME_DAYS, VELOCITY
     got = {r["Control"]: r for r in table_dicts(world["wb"], "Reconciliation")}
-    assert len(got) == 15 and {r["Result"] for r in got.values()} == {"OK"}, {k: (r["Expected"], r["Found"], r["Result"]) for k, r in got.items()}
+    assert len(got) == 16 and {r["Result"] for r in got.values()} == {"OK"}, {k: (r["Expected"], r["Found"], r["Result"]) for k, r in got.items()}
     released, tickets = sum(VELOCITY.values()), sum(ACCOUNTS.values())
     typed = {"Tickets read from Jira = tickets of ItemFlow": (tickets, tickets), "Every ticket sits in one account": (tickets, tickets),
              "Velocity of all iterations = tickets of the Done list": (released, released),
@@ -1867,6 +1892,28 @@ def art_flow_time_check(world, expected):
     got = {r["Iteration-label"]: tuple(r[c] for c in ("Done", "ExclReopened", "ExclNoStartRule", "ExclNotStarted", "Counted", "Gap", "Reason"))
            for r in art_table(world, "FlowTimeCheck") if r["Team"] == "ART"}
     assert got == expected, {k: (got.get(k), v) for k, v in expected.items() if got.get(k) != v}
+
+
+@then("la table FlowEfficiencyCheck de l'ART est celle calculée à la main")
+def _art_flow_efficiency_check(world):
+    from art_oracle import FLOW_EFFICIENCY_CHECK
+    art_flow_efficiency_check(world, FLOW_EFFICIENCY_CHECK)
+
+
+@then("la table FlowEfficiencyCheck de l'ART est celle calculée à la main, sans statut Wait")
+def _art_flow_efficiency_check_no_wait(world):
+    from art_oracle import FLOW_EFFICIENCY_CHECK_NO_START
+    art_flow_efficiency_check(world, FLOW_EFFICIENCY_CHECK_NO_START)
+
+
+def art_flow_efficiency_check(world, expected):
+    got = {r["Iteration-label"]: tuple("" if r[c] is None else r[c] for c in ("Counted", "WithUnclassified", "ActiveDays", "WaitDays", "WaitStatuses",
+                                                                           "Efficiency", "Gap", "Reason"))
+           for r in art_table(world, "FlowEfficiencyCheck") if r["Team"] == "ART"}
+    assert set(got) == set(expected)
+    for label, want in expected.items():
+        assert all((abs(g - w) < 1e-9) if isinstance(w, (int, float)) and not isinstance(w, bool) and w != "" else g == w
+                   for g, w in zip(got[label], want)), (label, got[label], want)
 
 
 @then("la Reconciliation demande de revoir le statut de départ et le statut Wait")

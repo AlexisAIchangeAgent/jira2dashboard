@@ -10,7 +10,7 @@ from collections import Counter
 from dataclasses import dataclass
 
 from jira2dashboard.flow.itemflow import ItemFlow
-from jira2dashboard.flow.metric_checks import flow_time_check
+from jira2dashboard.flow.metric_checks import flow_efficiency_check, flow_time_check
 from jira2dashboard.flow.metrics import TeamIterationMetrics
 from jira2dashboard.flow.model import ART, OTHER_TYPES, UNCLASSIFIED, WAIT, FlowIssue, Iteration, Rules
 from jira2dashboard.flow.trace import ACCOUNT_COUNTED, ACCOUNT_OTHER, ACCOUNTS, CUTOFF_HOURS, MetricItems, account, metric_items, trace
@@ -22,6 +22,7 @@ VELOCITY_ROWS = "Velocity of each iteration and team recounted from the list (la
 FLOW_TIME_COUNT = "Flow Time count = tickets counted in the Done list"
 FLOW_TIME_DAYS = "Flow Time days recounted from the list"
 FLOW_TIME_GAP = "Flow Time counted = done minus the left out, every iteration and team (FlowTimeCheck)"
+FLOW_EFFICIENCY_GAP = "Flow Efficiency recounted from the status intervals, every iteration and team (FlowEfficiencyCheck)"
 UNIQUE = "No ticket twice in the Done list"
 CUTOFF = f"Tickets done within {CUTOFF_HOURS} hours of an iteration boundary (to review)"
 CLASSIFIED = "Statuses of the changelog of the counted tickets all classified in Workflows"
@@ -33,7 +34,8 @@ HISTORIES = "Status histories consistent (DC06, DC07)"
 EXISTENCE = "Done tickets of ItemFlow = open end-status intervals of the changelog"
 # (name, assertion), in the order of the sheet
 CONTROLS = ((POPULATION, "Completeness"), (ACCOUNTS_ADD_UP, "Completeness"), (VELOCITY_TOTAL, "Accuracy"), (VELOCITY_ROWS, "Accuracy"),
-            (FLOW_TIME_COUNT, "Accuracy"), (FLOW_TIME_DAYS, "Accuracy"), (FLOW_TIME_GAP, "Accuracy"), (UNIQUE, "Occurrence"), (CUTOFF, "Cut-off"), (CLASSIFIED, "Classification"),
+            (FLOW_TIME_COUNT, "Accuracy"), (FLOW_TIME_DAYS, "Accuracy"), (FLOW_TIME_GAP, "Accuracy"), (FLOW_EFFICIENCY_GAP, "Accuracy"),
+            (UNIQUE, "Occurrence"), (CUTOFF, "Cut-off"), (CLASSIFIED, "Classification"),
             (FEATURE_TYPES, "Classification"), (START_STATUS, "Classification"), (WAIT_STATUS, "Classification"), (HISTORIES, "Existence"),
             (EXISTENCE, "Existence"))
 TOLERANCE = 1e-6
@@ -76,6 +78,7 @@ def reconcile(issues: list[FlowIssue], items: list[ItemFlow], metrics: list[Team
         FLOW_TIME_DAYS: (sum(i.flow_time_days or 0 for i in items if account(i, trace(i, iterations, pis).done_iteration != "") == ACCOUNT_COUNTED
                              and not i.excluded_from_flow_time), sum(r[8] or 0 for r in counted if r[8] != "")),
         FLOW_TIME_GAP: (0, sum(abs(flow_time_check(issues, items, by_name[m.iteration], m.team, rules, m).gap) for m in metrics)),
+        FLOW_EFFICIENCY_GAP: (0, sum(abs(flow_efficiency_check(items, by_name[m.iteration], m.team, rules, m).gap) for m in metrics)),
         UNIQUE: (0, len(lists.done) - len({r[4] for r in lists.done})),
         CUTOFF: (0, len(lists.cutoff)),
         CLASSIFIED: (0, sum(1 for item in items if item.team != OTHER_TYPES for visit in item.intervals if visit.category == UNCLASSIFIED)),

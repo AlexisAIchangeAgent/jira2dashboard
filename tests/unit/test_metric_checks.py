@@ -71,3 +71,45 @@ def test_a_wrong_count_of_the_metric_shows_in_the_gap():
 def test_the_reason_lists_the_causes_in_their_order_and_only_the_ones_that_apply():
     assert MC.flow_time_reason(5, 2, 0, 3, 0) == "all 5 done items left out: 3 no start after the backlog, 2 reopened"
     assert MC.flow_time_reason(5, 2, 0, 3, 1) == "" and MC.flow_time_reason(0, 0, 0, 0, 0) == MC.NO_ITEM
+
+
+# --- FlowEfficiencyCheck: a small workflow typed here (Nouveau backlog, Analyse active and start, Attente wait, Fini done and end) ---------
+
+def rule(category, start=False, end=False):
+    return StatusRule(category, start, end, False)
+
+
+WAIT_RULES = Rules({("Feature", "Nouveau"): rule("Backlog"), ("Feature", "Analyse"): rule("Active", start=True),
+                    ("Feature", "Attente"): rule("Wait"), ("Feature", "Fini"): rule("Done", end=True)})
+NO_WAIT_RULES = Rules({**WAIT_RULES._rows, ("Feature", "Attente"): rule("Active")}, waits=False)
+EFF = [ticket("E-1", [("2025-05-02T00:00", "Analyse"), ("2025-05-03T00:00", "Attente"), ("2025-05-04T00:00", "Analyse"), ("2025-05-06T00:00", "Fini")]),
+       ticket("E-2", [("2025-05-02T00:00", "Analyse"), ("2025-05-03T00:00", "Fini")])]          # E-1: 3 active days, 1 wait; E-2: 1 active day
+
+
+def efficiency(issues=EFF, rules=WAIT_RULES, iteration=I1, metric=None):
+    items = [item_flow(i, AS_OF, rules) for i in issues]
+    metric = metric or team_iteration_metrics(items, "ART", iteration, "A", AS_OF, rules.waits)
+    return MC.flow_efficiency_check(items, iteration, "ART", rules, metric)
+
+
+def test_the_active_and_wait_days_of_the_counted_items_give_the_efficiency_of_metrics():
+    assert efficiency() == MC.FlowEfficiencyCheck("I1", "ART", counted=2, with_unclassified=0, active_days=4.0, wait_days=1.0, wait_statuses=1,
+                                                  efficiency=0.8, gap=0.0, reason="")
+
+
+def test_without_a_wait_status_the_reason_says_to_declare_one():
+    got = efficiency(rules=NO_WAIT_RULES)
+    assert (got.wait_statuses, got.active_days, got.wait_days, got.efficiency, got.gap, got.reason) == (0, 5.0, 0.0, 1.0, 0.0, MC.NO_WAIT)
+
+
+def test_time_in_a_status_no_rule_knows_is_counted_and_said():
+    odd = ticket("E-3", [("2025-05-02T00:00", "Analyse"), ("2025-05-03T00:00", "Mystere"), ("2025-05-05T00:00", "Fini")])
+    got = efficiency(EFF + [odd])
+    assert (got.counted, got.with_unclassified, got.reason) == (3, 1, "1 items spent time in statuses no rule knows (Unclassified)")
+
+
+def test_nothing_counted_and_a_wrong_efficiency_of_metrics():
+    assert efficiency(iteration=EMPTY).reason == MC.NOTHING_COUNTED
+    items = [item_flow(i, AS_OF, WAIT_RULES) for i in EFF]
+    right = team_iteration_metrics(items, "ART", I1, "A", AS_OF, True)
+    assert efficiency(metric=right.__class__(**{**right.__dict__, "flow_efficiency": 0.5})).gap == 0.3

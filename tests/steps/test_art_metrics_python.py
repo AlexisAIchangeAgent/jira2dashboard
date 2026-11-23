@@ -208,3 +208,25 @@ def flow_time_check_of(world, expected):
                                                                                     "Counted", "Gap", "Reason"))
            for r in sheet(world, "FlowTimeCheck") if r["Team"] == "ART"}
     assert got == expected, {k: (got.get(k), v) for k, v in expected.items() if got.get(k) != v}
+
+
+@then("la feuille FlowEfficiencyCheck de l'ART est celle calculée à la main")
+def _flow_efficiency_check(world):
+    from art_oracle import FLOW_EFFICIENCY_CHECK
+    flow_efficiency_check_of(world, FLOW_EFFICIENCY_CHECK)
+
+
+@then("la feuille FlowEfficiencyCheck de l'ART est celle calculée à la main, sans statut Wait")
+def _flow_efficiency_check_no_wait(world):
+    from art_oracle import FLOW_EFFICIENCY_CHECK_NO_START
+    flow_efficiency_check_of(world, FLOW_EFFICIENCY_CHECK_NO_START)
+
+
+def flow_efficiency_check_of(world, expected):
+    got = {r["Iteration-label"]: tuple("" if r[c] is None else r[c] for c in ("Counted", "WithUnclassified", "ActiveDays", "WaitDays", "WaitStatuses",
+                                                                           "Efficiency", "Gap", "Reason"))
+           for r in sheet(world, "FlowEfficiencyCheck") if r["Team"] == "ART"}
+    assert set(got) == set(expected)
+    for label, want in expected.items():
+        assert all((abs(g - w) < 1e-9) if isinstance(w, (int, float)) and not isinstance(w, bool) and w != "" else g == w
+                   for g, w in zip(got[label], want)), (label, got[label], want)

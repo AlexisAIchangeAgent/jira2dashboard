@@ -188,6 +188,9 @@ def manual(mandatory: tuple[str, ...]) -> list[tuple[str, str]]:
             f"{S.of('FlowTimeCheck')}: why the Flow Time of each iteration and team is what it is (the rows of Metrics): Done (counted again from "
             "the status intervals), the done items left out of Flow Time, each under one reason (reopened, no start status in the rules: set IsStart "
             "in Workflows, no start after the backlog), Counted (the Flow Time count), Gap (0) and Reason: why the point is not computable, in clear.",
+            f"{S.of('FlowEfficiencyCheck')}: the same for Flow Efficiency: the counted items, those with time in a status no rule knows, the active "
+            "and wait days summed again from the status intervals, the Wait statuses of the rules, the efficiency recounted, Gap (0) and Reason "
+            "(no Wait status: declare one in Workflows; nothing counted; unclassified time; no active or wait time).",
             f"{S.of('VelocityCheck')}: the Velocity counted again from the status changes of the changelog, one row per iteration and team "
             "(the rows of Metrics). Velocity = the items done in the iteration (the chart); VelocityFeatures = of which the types of "
             "FeatureTypes (the team ART holds every type of the Program project); CreatedDone = done because they were CREATED in the end "
