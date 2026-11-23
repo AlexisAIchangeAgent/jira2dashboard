@@ -103,6 +103,21 @@ def test_a_projects_page_that_is_not_the_last_asks_for_the_next_one():
     assert read_workflows(client, ["A"]).workflow_of == {} and len(client.calls) == 2
 
 
+def test_a_project_whose_workflows_are_refused_does_not_stop_the_next_one_and_the_warning_counts_it(caplog):
+    """As the VBA (modJiraConfig.ReadWorkflowRules): the first project refused (no project administrator right), the second one read."""
+    two = {"isLast": True, "values": [{"id": "1", "key": "TEAM", "issueTypes": [{"id": "10002", "name": "Story"}]}] + PROJECTS["values"]}
+    client = Client([two, J.JiraError(602, "HTTP 403: no right"), PREVIEW])
+    info = read_workflows(client, ["TEAM", "PRG"])
+    assert info.starts == {"Doing"} and info.workflow_of == {("PRG", "Feature"): "WF-A"}
+    assert "J2D-JIRA-030 | the workflows of Jira could not be read (1 project(s) refused)" in caplog.text
+
+
+def test_another_error_stops_the_reading_and_the_warning_gives_its_support_code(caplog):
+    client = Client([PROJECTS, J.JiraError(602, "HTTP 500: Jira is down")])
+    assert read_workflows(client, ["PRG"]) == JiraWorkflows()
+    assert "J2D-JIRA-030 | the workflows of Jira could not be read (J2D-JIRA-500)" in caplog.text
+
+
 def test_a_refused_call_gives_nothing_and_never_raises():
     client = Client([PROJECTS, J.JiraError(602, "no right")])
     assert read_workflows(client, ["PRG"]) == JiraWorkflows()

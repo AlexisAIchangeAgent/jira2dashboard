@@ -291,7 +291,8 @@ RECONCILIATION_FORMULAS = {
     R.CUTOFF: ("=0", f'=COUNTIF({_M}!$S$3#,"?*")'),
     R.CLASSIFIED: ("=0", f'=COUNTIFS({SI}[Category],"Unclassified",{SI}[Team],"<>{OTHER_TYPES}")'),
     R.FEATURE_TYPES: ("=1", f'=IF(COUNTIFS(ItemFlow[Role],"Program")=0,1,MIN(1,COUNTIFS(ItemFlow[Team],"{ART}")))'),
-    R.START_STATUS: ("=0", "=" + "+".join(f'(COUNTIFS(ItemFlow[Workflow],"{k}")>0)*({_starts_of(chr(34) + k + chr(34))}=0)' for k in ("Feature", "Team"))),
+    R.START_STATUS: ("=0", "=" + "+".join(f'(COUNTIFS(ItemFlow[Workflow],"{k}",ItemFlow[Key],"?*")>0)*({_starts_of(chr(34) + k + chr(34))}=0)'
+                                          for k in ("Feature", "Team"))),
     R.WAIT_STATUS: ("=1", f'=IF(COUNTIF(ItemFlow[Key],"?*")=0,1,MIN(1,COUNTIF({RULES_SHEET}!$C$2:$C$5000,"Wait")))'),
     R.HISTORIES: ("=0", "=SUM(ItemFlow[DC06])+SUM(ItemFlow[DC07])"),
     R.EXISTENCE: ("=COUNT(ItemFlow[DoneUtc])", f"=COUNTIFS({SI}[IsEnd],1,{SI}[IsOpen],TRUE)"),
@@ -417,11 +418,13 @@ ITERATIONFEATURES_NAMES = tuple(name for name, _ in ITERATIONFEATURES_COLUMNS)
 
 CONFIG_VALUE = 'INDEX(Config_from_user!$B:$B,MATCH("{name}",Config_from_user!$A:$A,0))'
 # A date typed in the cell is a number, ISO text (2026-11-03 18:00) is parsed, an empty cell is #N/A (not 1900).
+# A final Z (UTC) and a non-breaking space (a value pasted from Confluence) are dropped, as modParams.ParseMoment and params/model._parse_moment do.
 AS_OF_CELL = ('=LET(v,' + CONFIG_VALUE.format(name="AsOf") + ',IF(ISNUMBER(v),v,'
-              'LET(t,SUBSTITUTE(TRIM(v),"T"," "),'
+              'LET(t,SUBSTITUTE(SUBSTITUTE(SUBSTITUTE(TRIM(SUBSTITUTE(v,CHAR(160)," ")),"Z",""),"z",""),"T"," "),'
               'IF(t="",NA(),DATEVALUE(LEFT(t,10))+IF(LEN(t)>10,TIMEVALUE(MID(t,12,8)),0)))))')
-MODE_CELL = "=UPPER(TRIM(" + CONFIG_VALUE.format(name="FlowLoadMode") + "))"
-PREDICTABILITY_MODE_CELL = "=UPPER(TRIM(" + CONFIG_VALUE.format(name="PredictabilityMode") + "))"
+# TRIM keeps a non-breaking space: "A" pasted with one passed modFlowBuild.CheckModes and made every Flow Load #N/A (parity check, 2026-11-23)
+MODE_CELL = '=UPPER(TRIM(SUBSTITUTE(CLEAN(' + CONFIG_VALUE.format(name="FlowLoadMode") + '),CHAR(160)," ")))'
+PREDICTABILITY_MODE_CELL = '=UPPER(TRIM(SUBSTITUTE(CLEAN(' + CONFIG_VALUE.format(name="PredictabilityMode") + '),CHAR(160)," ")))'
 TRANSITIONS_LAST_CELL, PIS_LAST_CELL = last_row_cell("Transitions"), last_row_cell("PIs")
 
 # the statuses that no rule classifies, by name (spilled formulas right of the census, from column O): the intervals of the counted tickets (what the

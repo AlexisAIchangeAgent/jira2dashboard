@@ -153,6 +153,24 @@ def test_a_cell_is_read_like_a_pasted_value():
     assert P.serial_to_iso(46329.75) == "2026-11-03 18:00:00" and P.serial_to_iso(46174) == "2026-06-01"
 
 
+def test_dates_of_iterations_and_pis_that_end_with_z_are_read_as_naive_utc():
+    """The check accepts a final Z (as the VBA): the run must read it as the check does, never as an aware datetime (a TypeError later)."""
+    from jira2dashboard.flow.checks import CheckSettings
+    from jira2dashboard.params.model import ParamSheet
+    filled = [s if s.name != "PIs" else ParamSheet(s.name, s.header, (("PI#01-2026", "2026-10-05Z", "2026-12-01T00:00:00Z"),)) for s in load_all()]
+    pis = CheckSettings.from_params(filled).pis
+    assert pis == {"PI#01-2026": (dt.datetime(2026, 10, 5), dt.datetime(2026, 12, 1))} and pis["PI#01-2026"][0].tzinfo is None
+
+
+def test_an_iteration_that_ends_with_z_is_read_by_the_run_as_naive_utc(tmp_path):
+    def change(sheets):
+        it = named(sheets, "Iterations")
+        replace(sheets, "Iterations", Sheet(it.name, it.header, [("I1", "2026-10-05T00:00:00Z", "2026-10-19Z")]))
+    settings = P.run_settings(P.read_params(book(tmp_path, change=change)))
+    assert [(i.start, i.end) for i in settings.iterations] == [(dt.datetime(2026, 10, 5), dt.datetime(2026, 10, 19))]
+    assert settings.iterations[0].start.tzinfo is None
+
+
 def test_a_number_that_is_no_date_from_2000_to_2099_stays_a_number_for_the_checks():
     """20261005 typed for a date was the year 57 000 (OverflowError); 5 was 1900-01-04. The VBA refuses both (errors 701, 604)."""
     assert P.serial_to_iso(20261005) == "20261005" and P.serial_to_iso(5) == "5" and P.serial_to_iso(46300) == "2026-10-05"

@@ -468,8 +468,8 @@ Private Sub LoadPlan(ByVal wb As Object, ByRef spec As Object, ByRef teams As Co
 End Sub
 
 Private Sub CheckPis(ByVal wsPIs As Object)
-    ' The rows of the sheet PIs as the Python path checks them (params/model.py): whole days from 2000 to 2099 (a date, or ISO text 2026-10-05), Start
-    ' before End. A PI date the formulas read and the VBA did not (a French text 05/10/2026), or the reverse (2026-10-05T00:00:00), made Feature
+    ' The dates of the rows of the sheet PIs that have a PI name (ReadTable reads no other row), as the Python path checks them (params/model.py): whole
+    ' days from 2000 to 2099 (a date, or ISO text 2026-10-05), Start before End. Not here, unlike the Python path: a row without a name, a name twice. A PI date the formulas read and the VBA did not (a French text 05/10/2026), or the reverse (2026-10-05T00:00:00), made Feature
     ' Predictability not computable without a word (audit of the dates, 2026-11-23).
     Cov "FLB64"
     Dim row As Variant, s As Variant, e As Variant, pi As String, bad As Boolean

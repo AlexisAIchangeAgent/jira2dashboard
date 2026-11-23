@@ -12,6 +12,8 @@ from jira2dashboard.standalone import jira_api as J
 
 log = logging.getLogger("jira2dashboard.extract")
 KEYS_PER_CALL, PROJECTS_PER_PAGE, TYPES_PER_PREVIEW, MAX_PAGES = 50, 50, 25, 100
+REFUSED = ("J2D-JIRA-401", "J2D-JIRA-403", "J2D-JIRA-404")        # no project administrator right (modJiraConfig.IsNotAllowed): the next project may be readable
+WARNING = "J2D-JIRA-030 | the workflows of Jira could not be read (%s): the start of a flow comes from the sheet Workflows, the check DC28 from the sheet Transitions"
 
 
 def parse_preview(answer: dict, project: str, type_names: dict[str, str], workflow_of: dict, seen: set, initial: dict, moves: set,
@@ -49,8 +51,9 @@ def parse_preview(answer: dict, project: str, type_names: dict[str, str], workfl
 
 
 def read_workflows(client, keys: list[str]) -> JiraWorkflows:
-    """The JiraWorkflows of the projects `keys` (empty when Jira says nothing: no right, an unreadable answer)."""
-    workflow_of, seen, initial, moves, starts, free = {}, set(), {}, set(), set(), set()
+    """The JiraWorkflows of the projects `keys` (empty when Jira says nothing: no right, an unreadable answer). A project whose preview Jira refuses
+    (401, 403, 404) is counted and the next one is read, as the VBA does; another error stops the reading. One WARN line says either."""
+    workflow_of, seen, initial, moves, starts, free, refused = {}, set(), {}, set(), set(), set(), 0
     try:
         for first in range(0, len(keys), KEYS_PER_CALL):
             start = 0
@@ -62,14 +65,21 @@ def read_workflows(client, keys: list[str]) -> JiraWorkflows:
                 for project in values:
                     types = {str(t.get("id")): t.get("name") or "" for t in project.get("issueTypes") or []}
                     ids = list(types)
-                    for n in range(0, len(ids), TYPES_PER_PREVIEW):
-                        body = json.dumps({"projectId": str(project.get("id")), "issueTypeIds": ids[n:n + TYPES_PER_PREVIEW]}).encode("utf-8")
-                        answer = client.call("POST", "/rest/api/3/workflows/preview", "workflows", body)
-                        parse_preview(answer, project.get("key") or "", types, workflow_of, seen, initial, moves, starts, free)
+                    try:
+                        for n in range(0, len(ids), TYPES_PER_PREVIEW):
+                            body = json.dumps({"projectId": str(project.get("id")), "issueTypeIds": ids[n:n + TYPES_PER_PREVIEW]}).encode("utf-8")
+                            answer = client.call("POST", "/rest/api/3/workflows/preview", "workflows", body)
+                            parse_preview(answer, project.get("key") or "", types, workflow_of, seen, initial, moves, starts, free)
+                    except J.JiraError as err:
+                        if err.support_code not in REFUSED:
+                            raise
+                        refused += 1
                 if page.get("isLast") is True or not values:
                     break
                 start += len(values)
     except J.JiraError as err:
-        log.warning("J2D-JIRA-030 | the workflows of Jira could not be read (%s): the start of a flow comes from the sheet Workflows, the check DC28 "
-                    "from the sheet Transitions", err.code)
+        log.warning(WARNING, err.support_code)
+    else:
+        if refused:
+            log.warning(WARNING, f"{refused} project(s) refused")
     return JiraWorkflows(initial, frozenset(moves), frozenset(starts), frozenset(free), workflow_of)

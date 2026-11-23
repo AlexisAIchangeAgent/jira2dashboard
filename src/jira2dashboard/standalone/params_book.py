@@ -203,8 +203,7 @@ def run_settings(sheets: list[ParamSheet]) -> RunSettings:
     missing = missing_mandatory(config)
     if missing:
         raise ParamsError(f"Fill these values of the Config sheet first (Mandatory = True): {', '.join(missing)}", "J2D-CFG-002")
-    iterations = [Iteration(name, dt.datetime.fromisoformat(start), dt.datetime.fromisoformat(end))
-               for name, start, end in by_name["Iterations"].rows]
+    iterations = [Iteration(name, _parse_moment(start), _parse_moment(end)) for name, start, end in by_name["Iterations"].rows]
     if not iterations:
         raise ParamsError("Sheet Iterations has no iteration: type the iterations (Iteration-label | Start | End) to compute",
                           "J2D-CFG-012")

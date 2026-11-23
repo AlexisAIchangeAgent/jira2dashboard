@@ -118,8 +118,8 @@ class CheckSettings:
     def from_params(cls, sheets: list[ParamSheet] | None = None) -> "CheckSettings":
         by_name = {s.name: s for s in (sheets or load_all())}
         config = {row[0]: row[1] for row in by_name["Config"].rows}
-        pis = {name: (dt.datetime.fromisoformat(start), dt.datetime.fromisoformat(end))
-               for name, start, end in by_name["PIs"].rows}
+        from jira2dashboard.params.model import _parse_moment                       # the reading of the check: a final Z, naive UTC
+        pis = {name: (_parse_moment(start), _parse_moment(end)) for name, start, end in by_name["PIs"].rows}
         return cls(parent_types=_list(config["ParentRequiredTypes"]), feature_types=_list(config["FeatureTypes"]),
                    subtask_types=_list(config["SubTaskTypes"]), points_types=_list(config["PointsRequiredTypes"]),
                    fields={name: str(config.get(name) or "") for name in FIELD_PARAMETERS},
