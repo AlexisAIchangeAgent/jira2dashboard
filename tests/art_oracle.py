@@ -83,3 +83,19 @@ PLANS_TAKING_THE_MOVES = {"analyzing>ready4PI": 25}
 # The 3 sub-tasks go todo -> analyzing -> doing -> released: analyzing -> doing and doing -> released are no move of the workflow (2 moves each, DC28).
 DC28_SUBTASKS = ("TTT-26", "TTT-27", "TTT-28")
 DC28_BAD_MOVES_PER_SUBTASK = 2
+
+
+# --- the same scenario with no start status and no Wait status (AL, 2026-11-22: "flow metrics are still not computable") ----------------------
+# Jira refuses the workflows (no project administrator right: no start status from Jira) and the sheet Workflows declares nothing (no IsStart, no Wait).
+# Velocity does not change; Flow Time, Flow Efficiency and Flow Load are not computable in every iteration (never a 0); each of the 19 released Features
+# is left out of Flow Time with the reason below; and the workbook says why, with its codes. Typed by hand.
+NO_START_RELEASED = 19
+NO_START_REASON = "No start status in the rules"
+NO_START_HEALTH = ("No start status: Feature (no Flow Time, Flow Efficiency or Flow Load): set IsStart = 1 on the first in-progress status in "
+                   "Workflows_from_user",
+                   "No Wait status (no Flow Efficiency): set Category = Wait on the statuses where the work waits in Workflows_from_user")
+NO_START_WARNINGS = ("J2D-JIRA-030 | the workflows of Jira could not be read",
+                     "J2D-FLOW-010 | no start status in the Feature workflow: Flow Time, Flow Efficiency and Flow Load cannot be computed",
+                     "J2D-FLOW-011 | no status is declared Wait: Flow Efficiency cannot be computed")
+NO_START_CONTROLS = {"Every workflow kind with tickets has a start status (IsStart)": (0, 1, "REVIEW"),
+                     "A status is declared Wait (Flow Efficiency)": (1, 0, "REVIEW")}

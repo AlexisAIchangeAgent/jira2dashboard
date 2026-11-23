@@ -14,6 +14,7 @@ from jira2dashboard.mockjira.server import MOCK_EMAIL, MOCK_TOKEN, MockJira
 from jira2dashboard.standalone import __main__ as extract
 from jira2dashboard.standalone.proxy import Detected
 from jira2dashboard.standalone.xlsx_read import read_sheets
+from jira2dashboard.standalone.xlsx_write import Sheet, write_xlsx
 
 scenarios("../features/art_metrics.feature")
 
@@ -45,9 +46,22 @@ def _value(world, name, value):
     world["values"][name] = value
 
 
+@given("le faux Jira refuse la lecture des workflows")
+def _no_workflows(world):
+    world["jira"].fail_next("POST", "/rest/api/3/workflows/preview", 403, times=50)          # no project administrator right
+
+
+@given("la feuille Workflows du classeur de paramètres est vide")
+def _no_exception(world):
+    world["no_exception"] = True
+
+
 @when("je lance l'extraction Python sur ce scénario")
 def _run(world):
-    book = M.write_params_book(world["tmp"] / "params.xlsx", world["jira"].base_url, world["values"], world["scenario"])
+    sheets = M.params_book(world["jira"].base_url, world["values"], world["scenario"])
+    if world.get("no_exception"):
+        sheets = [Sheet(s.name, s.header, []) if S.logical(s.name) == "Workflows" else s for s in sheets]
+    book = write_xlsx(world["tmp"] / "params.xlsx", sheets)
     world["code"] = extract.main(["--workbook", str(book), "--out", str(world["out"]), "--log", str(world["log"])],
                                  sleep=lambda seconds: None, detect=lambda url: Detected("", "", "direct (test)"))
     world["log_text"] = world["log"].read_text(encoding="utf-8") if world["log"].exists() else ""
@@ -142,3 +156,36 @@ def _status_durations(world):
         expected = 2.0 if status == LONG_STATUS[pi] else 1.0
         assert all(abs(d - expected) < 1e-6 for d in days), (pi, status, days)
     assert ITERATION_STARTS
+
+
+# --- no start status, no Wait status (AL, 2026-11-22) ------------------------------------------------------------------------------------------
+
+@then("Flow Time, Flow Efficiency et Flow Load de l'ART ne sont calculables dans aucune itération")
+def _not_computable(world):
+    rows = [r for r in sheet(world, "Metrics") if r["Team"] == "ART"]
+    assert len(rows) == len(VELOCITY)
+    for column in ("FlowTimeMedian", "FlowTimeP85", "FlowEfficiency", "FlowLoadAverage", "FlowLoadEnd"):
+        assert {r[column] for r in rows} == {"not computable"}, column
+    assert {r["Load"] for r in sheet(world, "DailyLoad") if r["Team"] == "ART"} <= {None, ""}          # no day: never a false 0
+
+
+@then("chaque Feature livrée est hors du Flow Time faute de statut de départ dans les règles")
+def _left_out(world):
+    from art_oracle import NO_START_REASON, NO_START_RELEASED
+    done = [r for r in sheet(world, "ItemFlow") if r["Account"] == "Done in an iteration"]
+    assert len(done) == NO_START_RELEASED and {r["WhyNotInFlowTime"] for r in done} == {NO_START_REASON}
+
+
+@then("le journal et la feuille Run disent pourquoi, avec les codes calculés à la main")
+def _told(world):
+    from art_oracle import NO_START_HEALTH, NO_START_WARNINGS
+    assert all(w in world["log_text"] for w in NO_START_WARNINGS), world["log_text"][-3000:]
+    health = next(r[1] for r in read_sheets(world["out"])[extract.RUN_SHEET] if r and r[0] == "Health")
+    assert all(field in health for field in NO_START_HEALTH), health
+
+
+@then("la Reconciliation demande de revoir le statut de départ et le statut Wait")
+def _controls(world):
+    from art_oracle import NO_START_CONTROLS
+    rows = {r["Control"]: (r["Expected"], r["Found"], r["Result"]) for r in sheet(world, "Reconciliation")}
+    assert {name: rows[name] for name in NO_START_CONTROLS} == NO_START_CONTROLS

@@ -1742,6 +1742,45 @@ def _no_exception(world):
     set_workflow_exceptions(world, [])
 
 
+@given("le faux Jira refuse la lecture des workflows")
+def _art_no_workflows(world):
+    world["jira"].fail_next("POST", "/rest/api/3/workflows/preview", 403, times=50)          # no project administrator right
+
+
+@then("Flow Time, Flow Efficiency et Flow Load de l'ART ne sont calculables dans aucune itération")
+def _art_not_computable(world):
+    from art_oracle import VELOCITY
+    rows = [r for r in art_table(world, "Metrics") if r["Team"] == "ART"]
+    assert len(rows) == len(VELOCITY)
+    for column in ("FlowTimeMedian", "FlowTimeP85", "FlowEfficiency", "FlowLoadAverage", "FlowLoadEnd"):
+        assert {r[column] for r in rows} == {"not computable"}, (column, [r[column] for r in rows])
+    assert {r["Load"] for r in art_table(world, "DailyLoad") if r["Team"] == "ART"} <= {None, ""}       # no day: never a false 0
+
+
+@then("chaque Feature livrée est hors du Flow Time faute de statut de départ dans les règles")
+def _art_left_out(world):
+    from art_oracle import NO_START_REASON, NO_START_RELEASED
+    done = [r for r in art_table(world, "ItemFlow") if r["Account"] == "Done in an iteration"]
+    assert len(done) == NO_START_RELEASED and {r["WhyNotInFlowTime"] for r in done} == {NO_START_REASON}
+
+
+@then("le journal et les champs de santé disent pourquoi, avec les codes calculés à la main")
+def _art_told(world):
+    from art_oracle import NO_START_HEALTH, NO_START_WARNINGS
+    wb = world["wb"]
+    text = log_file(world).read_bytes()[world.get("log_from", 0):].decode("ascii")
+    assert all(w in text for w in NO_START_WARNINGS), text[-3000:]
+    health = wb.Application.Run(f"'{wb.Name}'!modHealth.HealthFields", wb)
+    assert all(f" | {field}" in health for field in NO_START_HEALTH), health
+
+
+@then("la Reconciliation demande de revoir le statut de départ et le statut Wait")
+def _art_controls(world):
+    from art_oracle import NO_START_CONTROLS
+    rows = {r["Control"]: (r["Expected"], r["Found"], r["Result"]) for r in art_table(world, "Reconciliation")}
+    assert {name: rows[name] for name in NO_START_CONTROLS} == NO_START_CONTROLS
+
+
 @when("j'extrais et calcule")
 def _art_run(world):
     wb = world["wb"]

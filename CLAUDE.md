@@ -219,7 +219,7 @@ python.log). `tests/unit/test_claude_hooks.py` and `test_claude_skills.py` test 
   `BoundaryHours` (distance of DoneUtc to the nearest iteration boundary); reference `flow/trace.py`. The sheet `MetricItems_from_excel` holds three lists of SPILLED
   formulas side by side (columns A.. Done in an iteration: Iteration, Start, End, Team, Key, Type, DoneUtc, FlowTimeCounted, FlowTimeDays, WhyNotInFlowTime; L.. done but
   not counted with the reason; S.. cut-off within 24 h), `modFlowBuild.BuildMetricItems`, python `trace.metric_items`; the rows of an iteration and team are its Velocity.
-  The sheet `Reconciliation_from_excel` has the table `Reconciliation` (12 controls Control | Assertion | Expected | Found | Difference | Result OK/REVIEW, in the order
+  The sheet `Reconciliation_from_excel` has the table `Reconciliation` (14 controls since 2026-11-22: + a start status per workflow kind with tickets, a Wait status; Control | Assertion | Expected | Found | Difference | Result OK/REVIEW, in the order
   of `reconciliation.CONTROLS`; Expected and Found are a formula of their own per row, written BEFORE the table exists: **a formula typed in one cell of a table column fills
   the whole column**, which made all the rows equal), the census of the types (spilled from H1) and the parameters in force; reference `flow/reconciliation.py`;
   `modHealth.ReconciliationFindings` says `Reconciliation: n of m controls to review` and counts the `REVIEW` rows only (the cut-off control is `INFO`: `reconciliation.INFO_ASSERTIONS`);
@@ -281,7 +281,12 @@ python.log). `tests/unit/test_claude_hooks.py` and `test_claude_skills.py` test 
   (error 701: a typo such as 1026 would write 365 000 days per team); two changes in one second are ordered by their id as a NUMBER (`model.change_order`), as the
   VBA keeps Jira's order; the iterations span is the earliest start to the latest end (`results.iteration_span`). Known and left: the logs use local time (VBA and
   python.log, unlabelled) while `Run` and `Errors` use UTC; an unreadable `created` crashes the Python path and gives a huge first duration in VBA (Jira always sends it);
-  the fake Jira always sends `+0200` (no DST mix); `ParseJiraDate` of `...T09:12-0500` (no seconds) reads the offset as 0.
+  the fake Jira always sends `+0200` (no DST mix). **Guards of the audit of 2026-11-23** (same rules in VBA and Python): the time of a Jira date is read by its
+  separators (`...T09:12+0200` read `02` as seconds); dates of Iterations, PIs and AsOf are from 2000 to 2099 (`20261005` typed as a number was the year 57 000),
+  Iterations and PIs in whole days, the PIs checked at the build (error 710, `J2D-CFG-013`: a French text `05/10/2026` was read by `DATEVALUE` and not by the VBA),
+  an offset in a parameter text refused (a final `Z` accepted), FlowLoadMode / PredictabilityMode checked (error 711, `J2D-CFG-007`). Known and left: a start
+  entered in the same second as the last backlog entry gives no StartUtc (milliseconds dropped, the start must be strictly after): counted by a health field,
+  the rule is AL's to decide; Propose rounds a sprint that starts at local midnight one day early (D7 of the audit).
 - **Support codes.** Every error shown or logged carries `J2D-<AREA>-<NNN>` (`CFG`, `JIRA`, `NET`, `DATA`, `FLOW`, `ROVO`, `SYS`, `VBA`, `GEN`):
   the table is `src/jira2dashboard/error_codes.py` (code, vba number, meaning, cause, check, what support asks), shown in the sheet
   `ErrorCodes`; `modLog.ErrorCode(number, description)` is the VBA rule (602 has two causes: BaseUrl check, HTTP status = `JIRA-<status>`,
@@ -322,7 +327,14 @@ python.log). `tests/unit/test_claude_hooks.py` and `test_claude_skills.py` test 
 - **After an extraction (modHealth, AL 2026-11-13).** `ExtractSlice` appends `HealthFields` to the final status, each field only when there is something to see:
   `Done outside the iterations: N of M` (no metric counts a ticket done outside every iteration: the usual cause of empty charts), `Without a team`,
   `Statuses not in Workflows` (their names), `Cells in error: Table.Column x n` (a formula that fails on real data; the charts' own #N/A are not read).
-  Numbers and status names only, never a value of a ticket; it never raises. The synchronous `ExtractAndCompute` (tests) does not write it. The fake data holds tickets
+  Since 2026-11-22 (AL: "flow metrics are still not computable") also, in this order: `No start status: Feature, Team` and `No Wait status` first, then
+  `Started in the second of the backlog entry`, `AsOf before the data`, `VelocityCheck gap`; they run in a log step `health`. **The Python twin is `flow/health.py`**
+  (same fields, order and words, `tests/unit/test_health.py` reads `modHealth.bas`): the Python path writes them in its sheet `Run` (row Health) and `python.log`.
+  The cause they name most: no IsStart status (Jira's workflows not read, none in Workflows) leaves every done ticket without StartUtc: Flow Time, Flow Efficiency
+  and Flow Load not computable while Velocity counts; the log says it at the extraction (`INFO status rules | Feature: start n, active n, wait n, end n | Team: ...`,
+  `WARN J2D-FLOW-010` / `J2D-FLOW-011`), `IsUserProjectAdmin` False skips Jira's workflows at the extraction too, a refusal is `WARN J2D-JIRA-030`; `WhyNotInFlowTime`
+  says "No start status in the rules" or "No start after the backlog"; Flow Load is not computable (DailyLoad empty, never a false 0) when the workflow of the team
+  has no start status. Numbers and status names only, never a value of a ticket; it never raises. The synchronous `ExtractAndCompute` (tests) does not write it. The fake data holds tickets
   done before the first iteration of the scenarios (9 of 26 on 2026-11-13): a "clean run" assertion checks the other fields (`Column types` included) only.
 - **Column types of the raw sheets (AL, 2026-11-15).** After v0.7.0 wrote an empty date column and nobody saw it, the first FILLED cell of each column written from Jira
   (Issues, StatusIntervals, IssueLinks, Changelog; not the `Jira...` proposals) is checked against the type its label promises (a `...Utc` column holds a datetime). The spec is data:
@@ -438,7 +450,9 @@ then `mermaid.parse`), and check every `](#anchor)` link against the headings.
 - **VBA traps.** A one-cell `Range.Value` is not an array; assigning an object to a Variant needs `Set` (error 450);
   `Application.OnTime` has a 1 s granularity; a COM call to an Excel that runs a macro is rejected (see `retry()` in
   `tests/steps/test_flow_excel.py`). `Empty - Date` is a negative DATE in VBA, and a `Range.Value = block` that holds one fails with
-  error 7 "Out of memory" (it is no memory error): subtract through `CDbl` (`modFlow.DaysBetween`).
+  error 7 "Out of memory" (it is no memory error): subtract through `CDbl` (`modFlow.DaysBetween`). A `Const` (or any module-level declaration) written
+  after a procedure is COMPILE_FAILED (`--bisect` then blames an early module): declarations go at the top. A test cell that held a date keeps the date format:
+  a number written there later (20261120) makes `.Value` fail before the code under test runs; set `NumberFormat = "General"` first.
 - **VBA speed traps** (measured on the dev machine, 2026-11-07: the full extraction of the fake Jira, 1 244 issues, went from
   245 s to 24 s). `TypeName(object)` costs about 0.3 ms: use `TypeOf x Is Collection` or an `On Error` probe, never in a loop
   (`JGet` was 300 us, now 2 us). The first call on a fresh `Scripting.Dictionary` costs about 0.65 ms, even `Exists`

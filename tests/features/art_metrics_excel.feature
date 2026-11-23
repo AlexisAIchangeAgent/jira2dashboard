@@ -105,3 +105,16 @@ Fonctionnalité: Le scénario art-metrics du faux Jira donne, dans le classeur l
     Quand j'extrais et calcule
     Alors la feuille IterationCharts a ses 5 graphiques avec une série pour l'ART et une par équipe
     Et chaque graphique montre pour l'ART les chiffres calculés à la main
+
+  @excel
+  Scénario: Sans statut de départ ni statut Wait, Flow Time, Flow Efficiency et Flow Load ne sont pas calculables et le classeur dit pourquoi
+    Soit le faux Jira du scénario art-metrics
+    Et le faux Jira refuse la lecture des workflows
+    Et le classeur à livrer rempli pour ce scénario
+    Et la feuille Workflows est vide
+    Quand j'extrais et calcule
+    Alors la vélocité par itération de l'ART est celle du scénario
+    Et Flow Time, Flow Efficiency et Flow Load de l'ART ne sont calculables dans aucune itération
+    Et chaque Feature livrée est hors du Flow Time faute de statut de départ dans les règles
+    Et le journal et les champs de santé disent pourquoi, avec les codes calculés à la main
+    Et la Reconciliation demande de revoir le statut de départ et le statut Wait
