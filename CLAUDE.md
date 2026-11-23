@@ -235,7 +235,7 @@ python.log). `tests/unit/test_claude_hooks.py` and `test_claude_skills.py` test 
   `Metrics`). Flow Time: Done recounted from the intervals minus the left-out items (reopened / no start status in the rules / no start after the backlog) vs `FlowTimeCount`.
   Flow Efficiency: Active and Wait days summed from `StatusIntervals` (`InCycle`) vs `ItemFlow`. Flow Load: the load at the end by SUMPRODUCT (mode A over `StatusIntervals`,
   B over `ItemFlow`) vs the COUNTIFS of `DailyLoad`; reasons no start status, every day after AsOf. Flow Distribution: COUNTIFS on the RAW `ItemFlow.WorkType` vs
-  `DistDone* x Velocity`, a `Note` when every done item is Unmapped (WorkTypeField empty, or no known work type). **The work-type bucket ignores case and keeps the canonical
+  `DistDone* x Velocity` (in Python both sides go through `work_type_bucket`: there the Gap is 0 by construction, only Excel's is a real check), a `Note` when every done item is Unmapped (WorkTypeField empty, or no known work type). **The work-type bucket ignores case and keeps the canonical
   name on both sides** (`model.work_type_bucket`, nested IF of `WorkTypeBucket`: Excel's `=` counted "feature" as Feature, Python did not; a number is Unmapped, never a
   crash; the generated data holds "defect" and tickets with no work type, so the Excel scenarios see both). Hand-typed oracle in
   `tests/art_oracle.py` (`FLOW_*_CHECK`, with and without a start status); one Reconciliation control "Gap = 0" per table.
