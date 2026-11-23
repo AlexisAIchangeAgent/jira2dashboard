@@ -199,8 +199,11 @@ MOMENT = re.compile(r"^\d{4}-\d{2}-\d{2}([ T]\d{2}:\d{2}(:\d{2})?)?$")
 
 
 def _parse_moment(text: str):
-    "A date or date and time as the workbook formulas read them (2026-11-03, 2026-11-03 18:00, ...T18:00:00), else None."
+    """A date or date and time as the workbook reads them (2026-11-03, 2026-11-03 18:00, ...T18:00:00, a Z at the end), else None: an offset
+    (+01:00) or milliseconds are refused, not dropped (modParams.ParseMoment)."""
     text = text.strip()
+    if text.endswith(("Z", "z")):
+        text = text[:-1]
     if not MOMENT.match(text):
         return None
     try:
@@ -221,6 +224,8 @@ def _check_iterations(sheet: ParamSheet, problems: list[str], column: str = "Ite
             problems.append(f"{where}: {column} needs a name")
         if start is None or end is None:
             problems.append(f"{where}: Start and End must be dates such as 2026-10-05, got {rec['Start']!r} and {rec['End']!r}")
+        elif not (2000 <= start.year <= 2099 and 2000 <= end.year <= 2099):
+            problems.append(f"{where}: Start and End must be dates from 2000 to 2099, got {rec['Start']!r} and {rec['End']!r}")
         elif start.time() != dt.time() or end.time() != dt.time():
             problems.append(f"{where}: Start and End are whole days (no time): the daily load and the PI window count days")
         elif start >= end:

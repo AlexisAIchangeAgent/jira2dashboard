@@ -44,8 +44,14 @@ def parse_jira_date(value) -> dt.datetime | None:
         day = dt.datetime(int(text[:4]), int(text[5:7]), int(text[8:10]))
         if len(text) == 10:
             return day
-        moment = day + dt.timedelta(hours=int(text[11:13]), minutes=int(text[14:16]), seconds=int(text[17:19]))
-        tail = text[19:]
+        rest, n = text[11:], 0                                       # the time by its separators: H:MM or H:MM:SS (by position, the 02 of
+        while n < len(rest) and rest[n] in "0123456789:":            # +0200 was read as seconds when Jira sent none: 2 hours wrong)
+            n += 1
+        parts = rest[:n].split(":")
+        if len(parts) not in (2, 3):
+            return None
+        moment = day + dt.timedelta(hours=int(parts[0]), minutes=int(parts[1]), seconds=int(parts[2]) if len(parts) == 3 else 0)
+        tail = rest[n:]
         while tail and tail[0] not in "+-Zz":
             tail = tail[1:]                                          # skip ".123"
         offset = 0

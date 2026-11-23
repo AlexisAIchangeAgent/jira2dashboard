@@ -1055,6 +1055,8 @@ Public Sub T_ParseMoment()
     Check "asof", "a UTC suffix after the seconds is ignored, as the sheet ignores it", "...:00Z", CDbl(DateSerial(2026, 11, 3) + TimeSerial(18, 0, 0)), CDbl(ParseMoment("2026-11-03T18:00:00Z"))
     Check "asof", "an hour without minutes is no time", "2026-11-03 18", True, IsEmpty(ParseMoment("2026-11-03 18"))
     Check "asof", "a time that does not exist", "25:00", True, IsEmpty(ParseMoment("2026-11-03 25:00")) And IsEmpty(ParseMoment("2026-11-03 18:60"))
+    Check "asof", "an offset is refused, not dropped (1 or 2 hours wrong)", "+01:00", True, IsEmpty(ParseMoment("2026-11-03T18:00:00+01:00")) And _
+          IsEmpty(ParseMoment("2026-11-03T18:00:00.000Z"))
     Dim ws As Object, raised As Boolean
     Set ws = ThisWorkbook.Worksheets("TestScratch")
     ConfigRows ws, Array("AsOf", "2026-11-03 18:00")
@@ -1075,6 +1077,21 @@ Public Sub T_ParseMoment()
     raised = (Err.Number = vbObjectError + 604): Err.Clear
     On Error GoTo 0
     Check "asof", "a number such as 5 is refused, not read as 1900-01-05", "5", True, raised
+    ws.Cells(2, 2).NumberFormat = "General"                                      ' digits typed in a plain cell (the cell above was a date)
+    ws.Cells(2, 2).Value = 20261120                                              ' yyyymmdd typed as a number: the year 57 000 (it raised Overflow)
+    raised = False
+    On Error Resume Next
+    Call AsOfFromConfig(ws)
+    raised = (Err.Number = vbObjectError + 604): Err.Clear
+    On Error GoTo 0
+    Check "asof", "20261120 typed as a number is refused with the code of AsOf", "20261120", True, raised
+    ConfigRows ws, Array("AsOf", "2126-11-03 18:00")
+    raised = False
+    On Error Resume Next
+    Call AsOfFromConfig(ws)
+    raised = (Err.Number = vbObjectError + 604): Err.Clear
+    On Error GoTo 0
+    Check "asof", "a year from 2100 on is refused", "2126", True, raised
 End Sub
 
 Public Sub T_ExtractFlowData()
@@ -1388,7 +1405,7 @@ End Function
 Private Function PiRows() As Variant
     Dim rows(1 To 2, 1 To 3) As Variant
     rows(1, 1) = "PI#01-2026": rows(1, 2) = DateSerial(2026, 9, 1): rows(1, 3) = DateSerial(2026, 10, 15)
-    rows(2, 1) = "PI#02-2026": rows(2, 2) = "'2026-10-15": rows(2, 3) = "'2026-12-01"   ' text, as Load settings CSV writes it
+    rows(2, 1) = "PI#02-2026": rows(2, 2) = "'2026-10-15": rows(2, 3) = "'2026-12-01T00:00:00"   ' text, as Load settings CSV or Rovo writes it
     PiRows = rows
 End Function
 
@@ -1406,6 +1423,25 @@ Public Sub T_FlowBuild()
     Check "flowbuild", "a year before 2000 is a typo, not an iteration (it would make 365 000 days of DailyLoad)", "1026", 701, FlowBuildError()
     FlowIterations DateSerial(2026, 10, 15), DateSerial(2026, 10, 1)
     Check "flowbuild", "an iteration that ends before it starts is refused", "15 Oct -> 1 Oct", 704, FlowBuildError()
+    FlowIterations "2126-10-01", "2126-10-15"
+    Check "flowbuild", "a year from 2100 on is a typo too (20261005 typed as a number is the year 57 000)", "2126", 701, FlowBuildError()
+    FlowIterations "2026-10-01 08:00", "2026-10-15 08:00"
+    Check "flowbuild", "an iteration is whole days: a time of day is refused, as the Python path refuses it", "08:00", 701, FlowBuildError()
+    FlowIterations DateSerial(2026, 10, 1), DateSerial(2026, 10, 15)
+    wb.Worksheets(SheetName("PIs")).Range("A2:C2").Value = Array("PI#01-2026", "'05/10/2026", "'2026-10-19")
+    Check "flowbuild", "a PI date in French text is refused (the French DATEVALUE read it, the VBA did not)", "05/10/2026", 710, FlowBuildError()
+    wb.Worksheets(SheetName("PIs")).Range("A2:C2").Value = Array("PI#01-2026", "'2026-10-19", "'2026-10-05")
+    Check "flowbuild", "a PI that ends before it starts is refused", "19 Oct -> 5 Oct", 710, FlowBuildError()
+    wb.Worksheets(SheetName("PIs")).Range("A2:C2").ClearContents
+    Dim modeCell As Object, oldMode As Variant, cr As Long
+    For cr = 2 To LastRow(wb.Worksheets(SheetName("Config")))
+        If CStr(wb.Worksheets(SheetName("Config")).Cells(cr, 1).Value) = "FlowLoadMode" Then Set modeCell = wb.Worksheets(SheetName("Config")).Cells(cr, 2)
+    Next cr
+    If Not modeCell Is Nothing Then
+        oldMode = modeCell.Value: modeCell.Value = "Mode A"
+        Check "flowbuild", "FlowLoadMode Mode A is refused (every Flow Load was not computable)", "Mode A", 711, FlowBuildError()
+        modeCell.Value = oldMode
+    End If
     wb.Worksheets(SheetName("Iterations")).Range("A2:C10").ClearContents
     Check "flowbuild", "no iteration is refused", "empty Iterations", 703, FlowBuildError()
     FlowIterations DateSerial(2026, 10, 1), DateSerial(2026, 10, 15), True
@@ -1736,7 +1772,11 @@ Public Sub T_JiraDates()
     Check "text", "null", "Null", Empty, ParseJiraDate(Null)
     Check "text", "too short", "2026", Empty, ParseJiraDate("2026")
     Check "text", "not a date", "abcdefghijkl", Empty, ParseJiraDate("abcdefghijkl")
-    Check "text", "a time without seconds does not raise", "2026-10-01T09:12Z", True, IsEmpty(ParseJiraDate("2026-10-01T09:12Z"))
+    Check "text", "a time without seconds, Z", "2026-10-01T09:12Z", CDbl(base + TimeSerial(9, 12, 0)), CDbl(ParseJiraDate("2026-10-01T09:12Z"))
+    Check "text", "a time without seconds, +0200: the offset is not read as seconds", "2026-10-01T09:12+0200", CDbl(base + TimeSerial(7, 12, 0)), _
+          CDbl(ParseJiraDate("2026-10-01T09:12+0200"))
+    Check "text", "a time without seconds, -05:00", "2026-10-01T09:12-05:00", CDbl(base + TimeSerial(14, 12, 0)), CDbl(ParseJiraDate("2026-10-01T09:12-05:00"))
+    Check "text", "an hour alone is no time", "2026-10-01T09+0200", True, IsEmpty(ParseJiraDate("2026-10-01T09+0200"))
     Check "text", "letters in the date do not raise", "20x6-10-01T09:12:33Z", True, IsEmpty(ParseJiraDate("20x6-10-01T09:12:33Z"))
 End Sub
 

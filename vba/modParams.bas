@@ -87,7 +87,8 @@ Public Function ParseMoment(ByVal text As String) As Variant
     Dim s As String, d As Date, parts() As String, h As Long, m As Long, sec As Long
     ParseMoment = Empty
     s = TrimWhite(text)
-    If Len(s) < 10 Then Exit Function
+    If UCase$(Right$(s, 1)) = "Z" Then s = Left$(s, Len(s) - 1)         ' UTC said in so many words
+    If Len(s) < 10 Or Len(s) > 19 Then Exit Function                  ' longer: an offset (+01:00) or milliseconds, refused as the Python path refuses them
     If Mid$(s, 5, 1) <> "-" Or Mid$(s, 8, 1) <> "-" Then Exit Function
     On Error GoTo Invalid
     d = DateSerial(CInt(Left$(s, 4)), CInt(Mid$(s, 6, 2)), CInt(Mid$(s, 9, 2)))
@@ -116,7 +117,7 @@ Public Function AsOfFromConfig(ByVal wsConfig As Object) As Date
     Next row
     If VarType(v) = vbDate Or VarType(v) = vbDouble Then
         Cov "PRM24"                                  ' typed as a date: Excel keeps the date, not the text
-        If CDbl(v) < 36526 Then                      ' before 2000-01-01: a plain number such as 5 was typed, not a date
+        If CDbl(v) < 36526 Or CDbl(v) >= 73051 Then  ' 2000 to 2099: a plain number such as 5 or 20261120 was typed, not a date
             Cov "PRM25"
             Err.Raise vbObjectError + 604, "AsOfFromConfig", "AsOf in the Config sheet is not a date (" & CStr(v) & "): type a UTC date and time such as 2026-11-03 18:00"
         End If
@@ -126,6 +127,10 @@ Public Function AsOfFromConfig(ByVal wsConfig As Object) As Date
     If IsEmpty(v) Then
         Cov "PRM23"
         Err.Raise vbObjectError + 604, "AsOfFromConfig", "Type AsOf in the Config sheet: a UTC date and time such as 2026-11-03 18:00"
+    End If
+    If CDbl(v) < 36526 Or CDbl(v) >= 73051 Then
+        Cov "PRM73"
+        Err.Raise vbObjectError + 604, "AsOfFromConfig", "AsOf in the Config sheet must be from 2000 to 2099: type a UTC date and time such as 2026-11-03 18:00"
     End If
     AsOfFromConfig = v
 End Function

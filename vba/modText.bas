@@ -242,7 +242,7 @@ End Function
 Public Function ParseJiraDate(ByVal value As Variant) As Variant
     ' "2026-10-01T09:12:33.123+0200", "...+02:00", "...Z" -> Date in UTC.
     ' "2026-10-01" -> that date. Empty or invalid -> Empty (never raises).
-    Dim s As String, d As Date, offsetMin As Long, tail As String, sign As Long
+    Dim s As String, d As Date, offsetMin As Long, tail As String, sign As Long, rest As String, n As Long, parts As Variant, secs As Integer
     ParseJiraDate = Empty
     On Error GoTo Invalid
     If IsNull(value) Or IsEmpty(value) Then Cov "TXT06": Exit Function
@@ -257,8 +257,16 @@ Public Function ParseJiraDate(ByVal value As Variant) As Variant
     d = DateSerial(CInt(Left$(s, 4)), CInt(Mid$(s, 6, 2)), CInt(Mid$(s, 9, 2)))
     If Len(s) = 10 Then Cov "TXT09": ParseJiraDate = d: Exit Function
     Cov "TXT10"
-    d = d + TimeSerial(CInt(Mid$(s, 12, 2)), CInt(Mid$(s, 15, 2)), CInt(Mid$(s, 18, 2)))
-    tail = Mid$(s, 20)
+    rest = Mid$(s, 12)                                      ' after the T: H:MM or H:MM:SS read by its separators (by position, the 02 of +0200 was
+    Do While n < Len(rest)                                  ' read as seconds when Jira sent no seconds: 2 hours wrong)
+        If InStr("0123456789:", Mid$(rest, n + 1, 1)) = 0 Then Exit Do
+        n = n + 1
+    Loop
+    parts = Split(Left$(rest, n), ":")
+    If UBound(parts) < 1 Or UBound(parts) > 2 Then GoTo Invalid
+    If UBound(parts) = 2 Then secs = CInt(parts(2))
+    d = d + TimeSerial(CInt(parts(0)), CInt(parts(1)), secs)
+    tail = Mid$(rest, n + 1)
     Do While Len(tail) > 0 And InStr("+-Zz", Left$(tail, 1)) = 0
         tail = Mid$(tail, 2)                              ' skip ".123"
     Loop

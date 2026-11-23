@@ -76,7 +76,7 @@ _PI_END = f'INDEX(PIs_from_user!$C:$C,MATCH([@PI],PIs_from_user!$A:$A,0))'
 
 
 def _date(cell: str) -> str:
-    return f"LET(v,{cell},IF(ISNUMBER(v),v,DATEVALUE(v)))"
+    return f"LET(v,{cell},IF(ISNUMBER(v),v,DATEVALUE(LEFT(TRIM(v),10))))"
 
 
 _PI_WINDOW = (f"LET(s,{_date(_PI_START)},e,{_date(_PI_END)},"

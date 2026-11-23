@@ -322,8 +322,10 @@ _PI_ART = 'IterationFeatures[PI],[@PI],IterationFeatures[Team],"ART"'
 
 
 def _pi_date(column: str) -> str:
-    # a date typed in Excel is a number; Load settings CSV writes an ISO text ('2026-12-01): DATEVALUE reads it, as DC18
-    return f'=IFERROR(LET(v,INDEX(PIs_from_user!${column}:${column},MATCH([@PI],PIs_from_user!$A:$A,0)),IF(ISNUMBER(v),IF(v>0,v,""),DATEVALUE(v))),"")'
+    # a date typed in Excel is a number; Load settings CSV writes an ISO text ('2026-12-01, '2026-12-01T00:00:00): DATEVALUE of its first 10
+    # characters reads it, as DC18 and as the VBA (modFlowBuild.CheckPis refuses the rest)
+    return (f'=IFERROR(LET(v,INDEX(PIs_from_user!${column}:${column},MATCH([@PI],PIs_from_user!$A:$A,0)),IF(ISNUMBER(v),IF(v>0,v,""),'
+            f'DATEVALUE(LEFT(TRIM(v),10)))),"")')
 
 
 PIMETRICS_COLUMNS = (

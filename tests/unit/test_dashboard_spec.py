@@ -117,4 +117,4 @@ def test_the_feature_predictability_point_is_a_gap_without_a_planned_feature_or_
     assert "IterationFeatures[ReleasedPlanned]" in done and "IterationFeatures[Released]" in done and 'cfg_PredictabilityMode="B"' in done
     assert '"not computable"' in ratio
     start, end = (dict(f.PIMETRICS_COLUMNS)[c] for c in ("Start", "End"))
-    assert "PIs_from_user!$B:$B" in start and "PIs_from_user!$C:$C" in end and all("DATEVALUE(v)" in t for t in (start, end))   # CSV dates are text
+    assert "PIs_from_user!$B:$B" in start and "PIs_from_user!$C:$C" in end and all("DATEVALUE(LEFT(TRIM(v),10))" in t for t in (start, end))   # CSV dates are text, with or without a time

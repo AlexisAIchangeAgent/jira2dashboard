@@ -151,3 +151,17 @@ def test_a_cell_is_read_like_a_pasted_value():
     assert [P.text(v) for v in (None, "", "  x\t\r\n", True, False, 60.0, 2.5, 7)] == [
         None, None, "x", "True", "False", "60", "2.5", "7"]
     assert P.serial_to_iso(46329.75) == "2026-11-03 18:00:00" and P.serial_to_iso(46174) == "2026-06-01"
+
+
+def test_a_number_that_is_no_date_from_2000_to_2099_stays_a_number_for_the_checks():
+    """20261005 typed for a date was the year 57 000 (OverflowError); 5 was 1900-01-04. The VBA refuses both (errors 701, 604)."""
+    assert P.serial_to_iso(20261005) == "20261005" and P.serial_to_iso(5) == "5" and P.serial_to_iso(46300) == "2026-10-05"
+    config = next(s for s in load_all() if s.name == "Config")
+    value = config.header.index("Value")
+
+    def problems_with(as_of):
+        rows = tuple(r[:value] + (as_of,) + r[value + 1:] if r[0] == "AsOf" else r for r in config.rows)
+        return P.config_problems(config.__class__(config.name, config.header, rows))
+    assert any("AsOf must be a UTC date" in p for p in problems_with("2126-11-03 18:00"))
+    assert any("AsOf must be a UTC date" in p for p in problems_with("2026-11-03T18:00:00+01:00"))
+    assert not any("AsOf" in p for p in problems_with("2026-11-03T18:00:00Z"))

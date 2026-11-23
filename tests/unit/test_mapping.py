@@ -93,6 +93,9 @@ def test_the_rows_have_the_columns_of_the_sheets_and_the_program_comes_first():
     ("2026-10-01", dt.datetime(2026, 10, 1)),
     ("2026-13-01", None), ("01/10/2026", None), ("2026-10", None), ("", None), (None, None), ({"a": 1}, None),
     ("2026-10-01T09:12:33+02", None),
+    ("2026-10-01T09:12Z", dt.datetime(2026, 10, 1, 9, 12)),                     # no seconds: the time by its separators, not by position
+    ("2026-10-01T09:12+0200", dt.datetime(2026, 10, 1, 7, 12)), ("2026-10-01T09:12-05:00", dt.datetime(2026, 10, 1, 14, 12)),
+    ("2026-10-01T09+0200", None),
 ])
 def test_jira_dates_become_utc_like_in_the_vba(text, moment):
     assert M.parse_jira_date(text) == moment

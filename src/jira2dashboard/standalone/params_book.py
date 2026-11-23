@@ -35,7 +35,10 @@ def is_yes(value) -> bool:
 
 
 def serial_to_iso(serial: float) -> str:
-    """An Excel date as ISO text: 2026-06-01, or 2026-11-03 18:00:00 when it has a time (rounded to the second)."""
+    """An Excel date as ISO text: 2026-06-01, or 2026-11-03 18:00:00 when it has a time (rounded to the second). A number outside 2000 to 2099
+    (20261005 typed for a date, 5) stays a number in text, which the checks refuse (it raised OverflowError)."""
+    if not 36526 <= serial < 73051:
+        return str(int(serial)) if float(serial).is_integer() else str(serial)
     moment = EPOCH + dt.timedelta(seconds=round(serial * 86400))
     return f"{moment:%Y-%m-%d}" if moment.time() == dt.time() else f"{moment:%Y-%m-%d %H:%M:%S}"
 
@@ -144,7 +147,8 @@ def config_problems(config: ParamSheet) -> list[str]:
     threshold = values["FillRateThreshold"]
     if threshold and not (threshold.isdecimal() and 0 <= int(threshold) <= 100):
         problems.append(f"Config: FillRateThreshold must be a whole number between 0 and 100, got {threshold!r}")
-    if values["AsOf"] and _parse_moment(values["AsOf"]) is None:
+    as_of = _parse_moment(values["AsOf"]) if values["AsOf"] else None
+    if values["AsOf"] and (as_of is None or not 2000 <= as_of.year <= 2099):
         problems.append("Config: AsOf must be a UTC date or date and time such as 2026-11-03 18:00, "
                         f"got {values['AsOf']!r}")
     base = values["BaseUrl"]

@@ -258,11 +258,16 @@ Private Function IterationRows(ByVal wsIterations As Object) As Collection
     Dim out As New Collection, row As Variant, s As Variant, e As Variant
     For Each row In ReadTable(wsIterations)
         s = SerialOf(row("Start")): e = SerialOf(row("End"))
-        If Not IsEmpty(s) Then If s < 36526 Then s = Empty             ' before 2000-01-01: a typo (1026 for 2026), not an iteration
-        If Not IsEmpty(e) Then If e < 36526 Then e = Empty
+        If Not IsEmpty(s) Then If s < 36526 Or s >= 73051 Then s = Empty   ' 2000 to 2099: 1026 for 2026, or 20261005 typed as a number, is a typo
+        If Not IsEmpty(e) Then If e < 36526 Or e >= 73051 Then e = Empty
         If IsEmpty(s) Or IsEmpty(e) Then
             Cov "FLB28"
-            Err.Raise vbObjectError + 701, "BuildFlowSheets", "Sheet Iterations: Start and End of iteration " & row("Iteration-label") & " must be dates (2000 or later)."
+            Err.Raise vbObjectError + 701, "BuildFlowSheets", "Sheet Iterations: Start and End of iteration " & row("Iteration-label") & " must be dates from 2000 to 2099."
+        End If
+        If s <> Int(s) Or e <> Int(e) Then                              ' a time of day: the daily load counts whole days (the Python path refuses it too)
+            Cov "FLB63"
+            Err.Raise vbObjectError + 701, "BuildFlowSheets", "Sheet Iterations: Start and End of iteration " & row("Iteration-label") & _
+                      " are whole days (no time of day): the daily load counts days."
         End If
         If e <= s Then
             Cov "FLB27"
@@ -458,6 +463,45 @@ Private Sub LoadPlan(ByVal wb As Object, ByRef spec As Object, ByRef teams As Co
         Cov "FLB15"
         Err.Raise vbObjectError + 703, "BuildFlowSheets", "Sheet Iterations has no iteration: fill Iteration-label, Start and End first."
     End If
+    CheckPis wb.Worksheets(SheetName("PIs"))
+    CheckModes wb.Worksheets(SheetName("Config"))
+End Sub
+
+Private Sub CheckPis(ByVal wsPIs As Object)
+    ' The rows of the sheet PIs as the Python path checks them (params/model.py): whole days from 2000 to 2099 (a date, or ISO text 2026-10-05), Start
+    ' before End. A PI date the formulas read and the VBA did not (a French text 05/10/2026), or the reverse (2026-10-05T00:00:00), made Feature
+    ' Predictability not computable without a word (audit of the dates, 2026-11-23).
+    Cov "FLB64"
+    Dim row As Variant, s As Variant, e As Variant, pi As String, bad As Boolean
+    For Each row In ReadTable(wsPIs)
+        pi = TrimWhite(CStr(row("PI") & ""))
+        If Len(pi) > 0 Or Len(TrimWhite(CStr(row("Start") & ""))) > 0 Or Len(TrimWhite(CStr(row("End") & ""))) > 0 Then
+            s = SerialOf(row("Start")): e = SerialOf(row("End"))
+            If IsEmpty(s) Or IsEmpty(e) Then
+                bad = True
+            Else
+                bad = (s < 36526 Or s >= 73051 Or e < 36526 Or e >= 73051 Or s <> Int(s) Or e <> Int(e) Or e <= s)
+            End If
+            If bad Then
+                Cov "FLB65"
+                Err.Raise vbObjectError + 710, "BuildFlowSheets", "Sheet PIs: Start and End of PI " & pi & " must be whole days from 2000 to 2099 " & _
+                          "(a date, or 2026-10-05 as text), Start before End."
+            End If
+        End If
+    Next row
+End Sub
+
+Private Sub CheckModes(ByVal wsConfig As Object)
+    ' FlowLoadMode and PredictabilityMode are A or B, empty reads A (the Python path refuses anything else): "Mode A" made every Flow Load not
+    ' computable without a word.
+    Dim nm As Variant, v As String
+    For Each nm In Array("FlowLoadMode", "PredictabilityMode")
+        v = UCase$(ConfigValue(wsConfig, CStr(nm), "A"))
+        If v <> "A" And v <> "B" Then
+            Cov "FLB66"
+            Err.Raise vbObjectError + 711, "BuildFlowSheets", "Config: " & CStr(nm) & " must be A or B, got """ & ConfigValue(wsConfig, CStr(nm)) & """."
+        End If
+    Next nm
 End Sub
 
 Public Sub ValidateBuildInputs(ByVal wb As Object)

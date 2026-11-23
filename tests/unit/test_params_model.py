@@ -247,6 +247,19 @@ def test_iteration_rows_are_checked(params_copy):
     assert "Iterations row 3: Start must be before End" in text and "Iterations row 4: Iteration-label needs a name" in text
 
 
+def test_iteration_dates_are_from_2000_to_2099(params_copy):
+    path = params_copy / "iterations.md"
+    path.write_text(path.read_text(encoding="utf-8") + "| I1 | 2126-10-05 | 2126-10-19 |\n", encoding="utf-8")
+    with pytest.raises(ParamsError) as err:
+        model.load_all(params_copy)
+    assert "Iterations row 1: Start and End must be dates from 2000 to 2099" in str(err.value)
+
+
+def test_a_moment_may_end_with_z_but_an_offset_is_refused():
+    assert model._parse_moment("2026-11-03T18:00:00Z") == model._parse_moment("2026-11-03 18:00:00")
+    assert model._parse_moment("2026-11-03T18:00:00+01:00") is None and model._parse_moment("2026-11-03T18:00:00.000Z") is None
+
+
 def test_valid_iteration_rows_are_accepted(params_copy):
     path = params_copy / "iterations.md"
     path.write_text(path.read_text(encoding="utf-8") + "| I1 | 2026-10-05 | 2026-10-19 |\n| I2 | 2026-10-19 | 2026-11-02 |\n",
