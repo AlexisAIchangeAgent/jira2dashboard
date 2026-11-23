@@ -783,13 +783,16 @@ Public Sub T_RovoPrompt()
     Next ln
     wsC.Cells(rowBaseUrl, 2).Value = saved
     Check "rovo", "the first line is the first row of the spec", "intro", CStr(ReadTable(ThisWorkbook.Worksheets(SheetName(SHEET_ROVO_SPEC)))(1)("Text")), CStr(lines(1))
-    Check "rovo", "a parameter of Config: name, mandatory, meaning", "BaseUrl", True, InStr(text, "- BaseUrl (mandatory): ") > 0
-    Check "rovo", "an optional parameter says so", "ProxyServer", True, InStr(text, "- ProxyServer (optional): ") > 0
+    Check "rovo", "a parameter of Config: name, mandatory, meaning", "FlowLoadMode", True, InStr(text, "- FlowLoadMode (mandatory): ") > 0
+    Check "rovo", "an optional parameter says so", "Filter", True, InStr(text, "- Filter (optional): ") > 0
+    Check "rovo", "no connection parameter at all, nor what the workbook reads in Jira", "BaseUrl ProxyServer PIField MaxRetries", "0000", _
+          InStr(text, "BaseUrl") & InStr(text, "ProxyServer") & InStr(text, "- PIField") & InStr(text, "- MaxRetries")
     Check "rovo", "the example of the form of the value follows", "Example:", True, InStr(text, " Example: ") > 0
     Check "rovo", "no Value of Config is in the prompt", "SECRET-HOST", 0, InStr(text, "SECRET-HOST")
     Check "rovo", "a sheet: its header row, then its rule", "Projects", True, InStr(text, "SHEET Projects_from_user - columns: Project | Role | Team. ") > 0
-    Check "rovo", "the column Example of a sheet is not a column to fill", "Iterations", True, _
-          InStr(text, "SHEET Iterations_from_user - columns: Iteration-label | Start | End. ") > 0
+    Check "rovo", "the column Example of a sheet is not a column to fill", "PIs", True, InStr(text, "SHEET PIs_from_user - columns: PI | Start | End. ") > 0
+    Check "rovo", "no sheet that the workbook reads in Jira (sprints, moves)", "Iterations Transitions", "00", _
+          InStr(text, "SHEET Iterations_from_user") & InStr(text, "SHEET Transitions_from_user")
     Check "rovo", "the format asks for a CSV with its columns", "Sheet,Row,Column,Value,Note", True, InStr(text, "Sheet,Row,Column,Value,Note") > 0
     n = WriteRovoPrompt(ThisWorkbook)
     Set ws = ThisWorkbook.Worksheets(SheetName(SHEET_ROVO))

@@ -229,12 +229,20 @@ Public Function RovoPromptLines(ByVal wb As Object) As Collection
     ' The prompt for Rovo, one line per item: the rows of the sheet RovoPromptSpec (Part | Name | Text) in order. A text row
     ' is a line as it is, "config" becomes one line per parameter of the sheet Config, "sheet" one line for a parameter sheet.
     ' The Value column of Config is never read: it may hold the address, the e-mail or the token.
+    ' The parameters of the parts "keep" (the connection) and "skip" (what the workbook reads in Jira) are not listed (AL, 2026-11-23).
     Cov "PRM30"
-    Dim out As New Collection, spec As Variant
-    For Each spec In ReadTable(wb.Worksheets(SheetName(SHEET_ROVO_SPEC)))
+    Dim out As New Collection, spec As Variant, specs As Collection, unasked As Object
+    Set specs = ReadTable(wb.Worksheets(SheetName(SHEET_ROVO_SPEC)))
+    Set unasked = CreateObject("Scripting.Dictionary")
+    For Each spec In specs
         Select Case LCase$(CStr(spec("Part") & ""))
-            Case "keep"                                                  ' a connection parameter: not part of the prompt text
-            Case "config": Cov "PRM31": AddConfigLines wb.Worksheets(SheetName("Config")), out
+            Case "keep", "skip": unasked(LCase$(CStr(spec("Name") & ""))) = True
+        End Select
+    Next spec
+    For Each spec In specs
+        Select Case LCase$(CStr(spec("Part") & ""))
+            Case "keep", "skip", "load"                                  ' a parameter or a sheet that Rovo is not asked for: no line
+            Case "config": Cov "PRM31": AddConfigLines wb.Worksheets(SheetName("Config")), out, unasked
             Case "sheet": Cov "PRM32": out.Add SheetLine(wb, CStr(spec("Name") & ""), CStr(spec("Text") & ""))
             Case Else: Cov "PRM33": out.Add CStr(spec("Text") & "")
         End Select
@@ -242,15 +250,18 @@ Public Function RovoPromptLines(ByVal wb As Object) As Collection
     Set RovoPromptLines = out
 End Function
 
-Private Sub AddConfigLines(ByVal wsConfig As Object, ByVal out As Collection)
-    ' "- Name (mandatory): meaning. Example: form of the value", from the columns Parameter, Mandatory, Description, Example.
+Private Sub AddConfigLines(ByVal wsConfig As Object, ByVal out As Collection, ByVal unasked As Object)
+    ' "- Name (mandatory): meaning. Example: form of the value", from the columns Parameter, Mandatory, Description, Example; not for the parameters
+    ' that Rovo is not asked for (unasked: lower-case name -> True).
     Dim row As Variant, text As String, example As String
     For Each row In ReadTable(wsConfig)
+        If unasked.Exists(LCase$(CStr(row("Parameter") & ""))) Then Cov "PRM74": GoTo NextRow
         text = "- " & CStr(row("Parameter") & "") & IIf(IsYes(CStr(row("Mandatory") & "")), " (mandatory): ", " (optional): ") & _
                CStr(row("Description") & "")
         example = CStr(row("Example") & "")
         If Len(example) > 0 Then text = text & " Example: " & example
         out.Add text
+NextRow:
     Next row
 End Sub
 
@@ -386,7 +397,9 @@ Public Function RovoCsvRead(ByVal wb As Object, ByVal text As String) As Object
     Set res("protected") = protected
     allowed("config") = True
     For Each spec In ReadTable(wb.Worksheets(SheetName(SHEET_ROVO_SPEC)))
-        If LCase$(CStr(spec("Part") & "")) = "sheet" Then allowed(LCase$(LogicalSheet(CStr(spec("Name") & "")))) = True     ' the spec names the real sheets
+        Select Case LCase$(CStr(spec("Part") & ""))                 ' a sheet of the prompt, or one the CSV may fill though the prompt does not ask for it
+            Case "sheet", "load": allowed(LCase$(LogicalSheet(CStr(spec("Name") & "")))) = True     ' the spec names the real sheets
+        End Select
         If LCase$(CStr(spec("Part") & "")) = "keep" Then protected(LCase$(CStr(spec("Name") & ""))) = True
     Next spec
     For Each rec In recs

@@ -116,10 +116,14 @@ def csv_value(value) -> str:
     return "" if value is None else str(value)
 
 
+CSV_SHEETS = (*RP.SHEET_RULES, *RP.LOADED_TOO)      # the sheets of the configuration CSV of the fake Jira: those the prompt asks and those it may load
+
+
 def rovo_csv(port: int = 8099, scenario: Scenario | None = None) -> str:
-    """The answer Rovo would give for the fake Jira, in the CSV the button Load settings CSV reads (rovo_prompt.CSV_COLUMNS):
-    the Config values of config_values but the connection (rovo_prompt.PROTECTED, never loaded from a CSV), then every row
-    of the sheets the prompt asks for (rovo_prompt.SHEET_RULES), with a BOM as Excel writes a UTF-8 CSV."""
+    """The whole configuration of the fake Jira in the CSV the button Load settings CSV reads (rovo_prompt.CSV_COLUMNS), a stand-in for
+    the answer of Rovo that fills the copy of the manual test: the Config values of config_values but the connection (rovo_prompt.PROTECTED,
+    never loaded from a CSV), then every row of CSV_SHEETS (more than the prompt asks: the workbook would read them in Jira), with a BOM as
+    Excel writes a UTF-8 CSV."""
     out = io.StringIO()
     writer = csv.writer(out, lineterminator="\r\n")
     writer.writerow(RP.CSV_COLUMNS)
@@ -127,7 +131,7 @@ def rovo_csv(port: int = 8099, scenario: Scenario | None = None) -> str:
         if name not in RP.PROTECTED:
             writer.writerow((S.of("Config"), "", name, value, CSV_NOTE))
     for sheet in params_book(base_url(port), scenario=scenario):
-        if S.logical(sheet.name) in RP.SHEET_RULES:
+        if S.logical(sheet.name) in CSV_SHEETS:
             for number, row in enumerate(sheet.rows, start=1):
                 for column, value in zip(sheet.header, row):
                     writer.writerow((sheet.name, number, column, csv_value(value), ""))

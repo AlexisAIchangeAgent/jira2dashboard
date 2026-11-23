@@ -108,8 +108,9 @@ def manual(mandatory: tuple[str, ...]) -> list[tuple[str, str]]:
             "extraction does not ask for the workflows either, so declare the start statuses (IsStart) in " + S.of("Workflows") + ".",
         ]),
         (f'Button "{ROVO_CAPTION}"', [
-            f"It writes the sheet {S.of('RovoPrompt')}: a prompt that asks Rovo for every value to type in this workbook (the connection, "
-            "the flow metrics, the projects, iterations, PIs, workflows and transitions). The lines are selected: Ctrl+C, "
+            f"It writes the sheet {S.of('RovoPrompt')}: a prompt that asks Rovo for what the workbook cannot read in Jira by itself (the "
+            "parameters of the flow metrics, the projects, the PIs, the statuses that wait or are no delivery). It names no parameter "
+            "of the connection, no field id, no issue type, no sprint and no move: the workbook reads them. The lines are selected: Ctrl+C, "
             "then paste them into Rovo.",
             "Rovo answers with a table; export it as CSV (Sheet, Row, Column, Value, Note) and type the values in the "
             "sheets. The prompt holds no value of this workbook (no address, e-mail or token): only the names and the meaning "

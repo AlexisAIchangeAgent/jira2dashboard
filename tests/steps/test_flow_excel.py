@@ -1338,14 +1338,16 @@ def _rovo_click(world):
     world["config_before"] = [(r[0], r[1]) for r in wb.Worksheets(S.of("Config")).UsedRange.Value[1:]]
 
 
-@then("la feuille RovoPrompt liste chaque paramètre de la feuille Config avec son caractère obligatoire")
+@then("la feuille RovoPrompt liste chaque paramètre de la feuille Config que le classeur ne lit pas dans Jira, avec son caractère obligatoire")
 def _rovo_config(world):
     text = "\n".join(rovo_lines(world))
     rows = param_rows("Config")
     assert len(rows) > 20
     for name, _value, _example, mandatory, _description in rows:
         kind = "mandatory" if str(mandatory).lower() == "true" else "optional"
-        assert f"- {name} ({kind}): " in text, name
+        listed = f"- {name} ({kind}): " in text
+        assert listed == (name not in RP.PROTECTED + RP.CONNECTION_SETTINGS + RP.FROM_JIRA), name
+    assert not any(name in text for name in RP.PROTECTED), [name for name in RP.PROTECTED if name in text]       # never named
 
 
 @then("la feuille RovoPrompt nomme chaque feuille à remplir avec ses colonnes")
@@ -1377,7 +1379,7 @@ def _rovo_no_value(world):
 def _rovo_no_dc_code(world):
     text = "\n".join(rovo_lines(world))
     assert not re.search(r"\bDC\d\d", text), re.findall(r"\bDC\d\d", text)       # Rovo knows no DC code: the title tells the check
-    assert "Story or task without parent" in text
+    assert "Story or task without parent" not in text            # ParentRequiredTypes is read in Jira: not asked of Rovo (AL, 2026-11-23)
 
 
 @then("l'état du tableau de bord dit combien de lignes sont sélectionnées pour Rovo")

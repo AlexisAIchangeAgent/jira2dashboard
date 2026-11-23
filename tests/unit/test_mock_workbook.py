@@ -33,7 +33,8 @@ def test_the_rovo_csv_gives_the_configuration_of_the_fake_jira_but_never_the_con
     assert cells[(S.of("Iterations"), 1, "Iteration-label")] == first.name and cells[(S.of("Iterations"), 1, "Start")] == f"{first.start:%Y-%m-%d}"
     assert len([1 for sheet, row, column in cells if sheet == S.of("Iterations") and column == "End"]) == len(M.iterations())
     assert cells[(S.of("PIs"), 1, "PI")] == PI
-    assert {S.logical(sheet) for sheet, _row, _column in cells} == set(RP.SHEET_RULES)
+    assert {S.logical(sheet) for sheet, _row, _column in cells} == set(M.CSV_SHEETS)          # more than the prompt asks: the copy is complete
+    assert set(RP.SHEET_RULES) <= set(M.CSV_SHEETS)
     projects = next(sheet for sheet in load_all() if sheet.name == "Projects")
     assert len([1 for sheet, _row, column in cells if sheet == S.of("Projects") and column == "Project"]) == len(projects.rows)
 

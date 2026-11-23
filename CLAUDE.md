@@ -379,8 +379,11 @@ python.log). `tests/unit/test_claude_hooks.py` and `test_claude_skills.py` test 
   sheet `RovoPrompt`: Config read live (name, mandatory, meaning, example, never the Value), each sheet with its header, and the CSV
   format asked of Rovo (Sheet, Row, Column, Value, Note). No clipboard call (the VBA creates only two COM objects): the lines are selected.
   Rovo knows no data-check code: the Config descriptions (`params/config.md`, copied into the prompt as they are) name a check by its
-  exact title ("Story or task without parent"), never DC01 (`tests/unit/test_rovo_prompt.py` pins it). The prompt tells Rovo to leave the
-  connection parameters out and to write Workflow = Team or Feature, so the CSV it answers loads without a Problem.
+  exact title, never DC01 (`tests/unit/test_rovo_prompt.py` pins it). **Since 2026-11-23 (AL) the prompt asks only what the workbook cannot read
+  in Jira:** no connection parameter at all, not even named (spec part `keep`: `PROTECTED`, which the CSV load refuses; part `skip`: `CONNECTION_SETTINGS`
+  IsUserProjectAdmin, TimeoutSeconds, MaxRetries and `FROM_JIRA`, the field ids, issue-type lists and BlocksLinkType that Propose reads), and no sheet
+  Iterations (sprints) nor Transitions (moves): the sheets asked are Projects, PIs and the exceptions of Workflows (Workflow = Team or Feature). Part
+  `load` (`LOADED_TOO`) keeps Iterations and Transitions loadable from a CSV (the configuration CSV of the fake Jira, `mock_workbook.CSV_SHEETS`).
   The button Load settings CSV (`BtnLoadRovoCsv`, cell `A5`: a dialog at each click, opened in the folder of the workbook, the CSV in any folder; `ImportRovoCsvFile(path)` is its work without the dialogs) reads Rovo's CSV
   (`modParams.ParseCsv`, `RovoCsvRead`, `RovoCsvApply`: comma, semicolon or tab, UTF-8 with or without BOM): Config gets the Value
   of each parameter named, every other sheet of the file has all its rows replaced; UNKNOWN, empty and the token placeholder are

@@ -16,7 +16,8 @@ def test_the_spec_has_one_config_part_and_one_sheet_part_per_rule_in_order():
     assert [part for part, _name, _text in rows].count(RP.CONFIG) == 1
     parts = [part for part, _name, _text in rows]
     assert parts.index(RP.CONFIG) < parts.index(RP.SHEET)             # Config first, then the sheets, then the format
-    assert {part for part, _name, _text in rows} == {RP.TEXT, RP.CONFIG, RP.SHEET, RP.KEEP}
+    assert {part for part, _name, _text in rows} == {RP.TEXT, RP.CONFIG, RP.SHEET, RP.KEEP, RP.SKIP, RP.LOAD}
+    assert [name for part, name, _text in rows if part == RP.LOAD] == [S.of(name) for name in RP.LOADED_TOO]   # the CSV may still fill them
     assert all(part and (part != RP.SHEET or name) for part, name, _text in rows)        # a row is never read without a Part
 
 
@@ -68,13 +69,19 @@ def test_rovo_is_given_the_title_of_a_data_check_never_its_code():
 
 def test_the_workflow_rules_name_the_two_workflows_the_workbook_accepts():
     from jira2dashboard.params.model import WORKFLOWS
-    for name in ("Workflows", "Transitions"):
-        assert all(workflow in RP.SHEET_RULES[name] for workflow in WORKFLOWS), name
+    assert all(workflow in RP.SHEET_RULES["Workflows"] for workflow in WORKFLOWS)
     assert "Leave a cell empty to keep Jira's value" in RP.SHEET_RULES["Workflows"]
-    assert "same Workflow" in RP.SHEET_RULES["Transitions"]
 
 
-def test_rovo_is_told_to_leave_the_connection_parameters_out_so_the_csv_loads_without_a_problem():
-    text = "\n".join(text for part, _name, text in RP.spec_rows() if part == RP.TEXT)
-    assert "do not write a line for them" in text and "except the connection parameters" in text
-    assert "for information" not in text
+def test_rovo_is_asked_only_what_the_workbook_cannot_read_in_jira():
+    """AL, 2026-11-23: no connection parameter at all, nothing that Propose values from Jira reads (field ids, issue types, link type), no sprint
+    (Iterations) and no move (Transitions)."""
+    from jira2dashboard.params.model import CONFIG_PARAMETERS
+    assert set(RP.SHEET_RULES) == {"Projects", "PIs", "Workflows"}
+    assert set(RP.FROM_JIRA) <= set(CONFIG_PARAMETERS) and {"PIField", "TeamField", "WorkTypeField", "FeatureTypes", "BlocksLinkType"} <= set(RP.FROM_JIRA)
+    assert [name for part, name, _text in RP.spec_rows() if part == RP.SKIP] == list(RP.CONNECTION_SETTINGS + RP.FROM_JIRA)
+    assert set(RP.CONNECTION_SETTINGS) <= set(CONFIG_PARAMETERS)
+    text = "\n".join(text for part, _name, text in RP.spec_rows() if part in (RP.TEXT, RP.SHEET))
+    unasked = RP.PROTECTED + RP.CONNECTION_SETTINGS + RP.FROM_JIRA
+    assert not [name for name in unasked if name in text], [name for name in unasked if name in text]
+    assert "connection" not in text.lower() and "listed above" in text and "for information" not in text
