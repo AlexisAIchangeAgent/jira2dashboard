@@ -189,3 +189,22 @@ def _controls(world):
     from art_oracle import NO_START_CONTROLS
     rows = {r["Control"]: (r["Expected"], r["Found"], r["Result"]) for r in sheet(world, "Reconciliation")}
     assert {name: rows[name] for name in NO_START_CONTROLS} == NO_START_CONTROLS
+
+
+@then("la feuille FlowTimeCheck de l'ART est celle calculée à la main")
+def _flow_time_check(world):
+    from art_oracle import FLOW_TIME_CHECK
+    flow_time_check_of(world, FLOW_TIME_CHECK)
+
+
+@then("la feuille FlowTimeCheck de l'ART est celle calculée à la main, sans statut de départ")
+def _flow_time_check_no_start(world):
+    from art_oracle import FLOW_TIME_CHECK_NO_START
+    flow_time_check_of(world, FLOW_TIME_CHECK_NO_START)
+
+
+def flow_time_check_of(world, expected):
+    got = {r["Iteration-label"]: tuple(r[c] if r[c] is not None else "" for c in ("Done", "ExclReopened", "ExclNoStartRule", "ExclNotStarted",
+                                                                                    "Counted", "Gap", "Reason"))
+           for r in sheet(world, "FlowTimeCheck") if r["Team"] == "ART"}
+    assert got == expected, {k: (got.get(k), v) for k, v in expected.items() if got.get(k) != v}

@@ -99,3 +99,10 @@ NO_START_WARNINGS = ("J2D-JIRA-030 | the workflows of Jira could not be read",
                      "J2D-FLOW-011 | no status is declared Wait: Flow Efficiency cannot be computed")
 NO_START_CONTROLS = {"Every workflow kind with tickets has a start status (IsStart)": (0, 1, "REVIEW"),
                      "A status is declared Wait (Flow Efficiency)": (1, 0, "REVIEW")}
+
+# --- FlowTimeCheck (AL, 2026-11-22): why the Flow Time of each iteration of the ART is what it is. Every released Feature is counted (it went through
+# analyzing, a start status), nothing is left out; an iteration with no release says it. Without a start status (the variant above) every released
+# Feature is left out for that reason. Typed by hand from VELOCITY.
+FLOW_TIME_CHECK = {label: (v, 0, 0, 0, v, 0, "" if v else "no item done in the iteration") for label, v in VELOCITY.items()}
+FLOW_TIME_CHECK_NO_START = {label: (v, 0, v, 0, 0, 0, f"all {v} done items left out: {v} no start status in the rules (set IsStart in Workflows)"
+                                    if v else "no item done in the iteration") for label, v in VELOCITY.items()}

@@ -49,6 +49,8 @@ def formula_rows() -> list[tuple[str, str, str]]:
     rows += [("PIStatusTime", name, text) for name, text in F.PISTATUSTIME_COLUMNS]
     rows += [("VelocityCheck", key, "") for key in F.VELOCITYCHECK_KEYS]
     rows += [("VelocityCheck", name, text) for name, text in F.VELOCITYCHECK_COLUMNS]
+    rows += [("FlowTimeCheck", key, "") for key in F.FLOWTIMECHECK_KEYS]
+    rows += [("FlowTimeCheck", name, text) for name, text in F.FLOWTIMECHECK_COLUMNS]
     rows += [("Metrics", name, text) for name, text in F.METRICS_COLUMNS]
     rows += [("Reconciliation", name, text) for name, text in F.RECONCILIATION_COLUMNS]
     rows += [("ReconciliationControl", name, assertion) for name, assertion in R.CONTROLS]          # the keys: control, assertion

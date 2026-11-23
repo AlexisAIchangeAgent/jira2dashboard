@@ -1483,7 +1483,10 @@ Public Sub T_FlowBuild()
     Check "flowbuild", "the sheet MetricItems holds a formula under the header of each list (the lists themselves are checked by the Excel scenarios)", "E3 | S3", "yes|yes", _
           IIf(ThisWorkbook.Worksheets(SheetName("MetricItems")).Range("E3").HasFormula, "yes", "no") & "|" & _
           IIf(ThisWorkbook.Worksheets(SheetName("MetricItems")).Range("S3").HasFormula, "yes", "no")
-    Check "flowbuild", "the table Reconciliation has its 14 controls", "rows", 14, TableRows("Reconciliation")
+    Check "flowbuild", "the table Reconciliation has its 15 controls", "rows", 15, TableRows("Reconciliation")
+    Check "flowbuild", "the table FlowTimeCheck has the rows of Metrics, the Flow Time count and a control Gap of 0", "rows|Counted|Gap", _
+          TableRows("Metrics") & "|" & ColumnSum("Metrics", "FlowTimeCount") & "|0", _
+          TableRows("FlowTimeCheck") & "|" & ColumnSum("FlowTimeCheck", "Counted") & "|" & ColumnSum("FlowTimeCheck", "Gap")
     Check "flowbuild", "one series per work type in the Distribution chart", "flow_distribution", 5, dash.ChartObjects("flow_distribution").Chart.SeriesCollection.Count
     Check "flowbuild", "the Predictability chart has two more series: the 80-100 % band", "Predictability", teams + 2, dash.ChartObjects("flow_predictability").Chart.SeriesCollection.Count
     Check "flowbuild", "the daily Flow Load curve has one series per team and one point per day", "28 days", teams & "|" & 28, _

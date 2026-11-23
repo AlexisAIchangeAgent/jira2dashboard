@@ -184,6 +184,9 @@ def manual(mandatory: tuple[str, ...]) -> list[tuple[str, str]]:
             "Feature workflow: the Features released in the PI, the average days each spent in the status, and its share of the total (the "
             "statuses of a PI add up to 100 %). The chart Cycle time by status stacks these shares, one bar per PI: the biggest block "
             "is the status that takes most of the cycle time.",
+            f"{S.of('FlowTimeCheck')}: why the Flow Time of each iteration and team is what it is (the rows of Metrics): Done (counted again from "
+            "the status intervals), the done items left out of Flow Time, each under one reason (reopened, no start status in the rules: set IsStart "
+            "in Workflows, no start after the backlog), Counted (the Flow Time count), Gap (0) and Reason: why the point is not computable, in clear.",
             f"{S.of('VelocityCheck')}: the Velocity counted again from the status changes of the changelog, one row per iteration and team "
             "(the rows of Metrics). Velocity = the items done in the iteration (the chart); VelocityFeatures = of which the types of "
             "FeatureTypes (the team ART holds every type of the Program project); CreatedDone = done because they were CREATED in the end "

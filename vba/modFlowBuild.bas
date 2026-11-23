@@ -79,7 +79,7 @@ End Sub
 
 Private Sub DeleteTables(ByVal wb As Object)
     ' The calculated sheets (tables and formulas); the raw sheets stay.
-    DeleteSheets wb, Array("ItemFlow", "DailyLoad", "Metrics", "IterationFeatures", "PIMetrics", "PIStatusTime", "VelocityCheck", "MetricItems", "Reconciliation", _
+    DeleteSheets wb, Array("ItemFlow", "DailyLoad", "Metrics", "IterationFeatures", "PIMetrics", "PIStatusTime", "VelocityCheck", "FlowTimeCheck", "MetricItems", "Reconciliation", _
                            "DataChecks", "FillRates", "Controls")
 End Sub
 
@@ -603,6 +603,7 @@ Private Sub BuildAll(ByVal wb As Object, ByVal spec As Object, ByVal teams As Co
     Dim loI As Object, loS As Object, loF As Object, loD As Object, loM As Object, loC As Object, loL As Object, loR As Object
     Dim wsP As Object, loP As Object, pis As Collection, wsQ As Object, loQ As Object, wsT As Object, loT As Object
     Dim featureTeams As Collection, keys As Collection, statuses As Collection, wsU As Object, loU As Object, wsV As Object, loV As Object
+    Dim wsFT As Object, loFT As Object
     LogBegin "flow sheets: prepare"
     DeleteDerived wb
     Set wsI = wb.Worksheets(SheetName("Issues")): Set wsS = wb.Worksheets(SheetName("StatusIntervals"))
@@ -621,6 +622,7 @@ Private Sub BuildAll(ByVal wb As Object, ByVal spec As Object, ByVal teams As Co
     Set wsF = AddSheet(wb, "ItemFlow"): Set wsD = AddSheet(wb, "DailyLoad"): Set wsM = AddSheet(wb, "Metrics")
     Set wsC = AddSheet(wb, "DataChecks"): Set wsR = AddSheet(wb, "FillRates"): Set wsT = AddSheet(wb, "IterationFeatures")
     Set wsP = AddSheet(wb, "PIMetrics"): Set wsU = AddSheet(wb, "PIStatusTime"): Set wsV = AddSheet(wb, "VelocityCheck")
+    Set wsFT = AddSheet(wb, "FlowTimeCheck")
     AddSheet wb, "MetricItems"
     AddSheet wb, "Reconciliation"
     Set pis = PiNames(wb, SettingOf(spec, "Dashboard", "NoPI"))
@@ -630,6 +632,7 @@ Private Sub BuildAll(ByVal wb As Object, ByVal spec As Object, ByVal teams As Co
     WriteDailyKeys wsD, iterations, teams
     WriteMetricKeys wsM, iterations, teams
     WriteMetricKeys wsV, iterations, teams                                      ' VelocityCheck has the keys of Metrics
+    WriteMetricKeys wsFT, iterations, teams                                     ' FlowTimeCheck too
     WritePiKeys wsP, pis
     WritePiStatusKeys wsU, pis, statuses
     WriteIterationFeatureKeys wsT, keys
@@ -651,6 +654,7 @@ Private Sub BuildAll(ByVal wb As Object, ByVal spec As Object, ByVal teams As Co
     Set loP = CreateTable(wsP, "PIMetrics", spec("PIMetrics"), pis.Count)
     Set loU = CreateTable(wsU, "PIStatusTime", spec("PIStatusTime"), pis.Count * statuses.Count)
     Set loV = CreateTable(wsV, "VelocityCheck", spec("VelocityCheck"), iterations.Count * teams.Count)
+    Set loFT = CreateTable(wsFT, "FlowTimeCheck", spec("FlowTimeCheck"), iterations.Count * teams.Count)
     LogEnd "flow sheets: tables"
     LogBegin "flow sheets: formulas StatusIntervals"
     FillFormulas loS, spec("StatusIntervals")
@@ -688,7 +692,11 @@ Private Sub BuildAll(ByVal wb As Object, ByVal spec As Object, ByVal teams As Co
     LogBegin "flow sheets: formulas VelocityCheck"
     FillFormulas loV, spec("VelocityCheck")
     LogEnd "flow sheets: formulas VelocityCheck"
+    LogBegin "flow sheets: formulas FlowTimeCheck"
+    FillFormulas loFT, spec("FlowTimeCheck")
+    LogEnd "flow sheets: formulas FlowTimeCheck"
     wsV.Range(wsV.Columns(2), wsV.Columns(3)).NumberFormat = "yyyy-mm-dd"
+    wsFT.Range(wsFT.Columns(2), wsFT.Columns(3)).NumberFormat = "yyyy-mm-dd"
     LogBegin "flow sheets: MetricItems"
     BuildMetricItems wb, spec
     LogEnd "flow sheets: MetricItems"

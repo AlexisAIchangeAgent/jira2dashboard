@@ -11,6 +11,7 @@ Rules kept here:
 * a blank result is the empty text "", which COUNTIFS / MINIFS / SUMIFS ignore in numeric criteria.
 """
 from jira2dashboard.flow import check_formulas as C
+from jira2dashboard.flow import metric_checks as MC
 from jira2dashboard.flow import reconciliation as R
 from jira2dashboard.flow import trace as T
 from jira2dashboard.flow.model import ART, OTHER_TYPES
@@ -238,6 +239,23 @@ VELOCITYCHECK_COLUMNS = (
     ("Gap", "=[@Velocity]-[@CreatedDone]-([@ChangedToEnd]-[@ReopenedLater])"),
 )
 
+# --- the table FlowTimeCheck: why the Flow Time of each iteration and team is what it is (AL, 2026-11-22) ----------------------------------------
+# The keys of Metrics. Done counted again from the intervals (an open end status entered in the iteration: an independent path), the done items left
+# out of Flow Time each under ONE reason (reopened, then no start status in the rules, then no start after the backlog: WhyNotInFlowTime), Counted
+# = Metrics.FlowTimeCount, Gap = Done - the three - Counted (0), Reason in clear when the point is not computable. Reference: flow/metric_checks.py.
+FLOWTIMECHECK_KEYS = METRICS_KEYS
+FLOWTIMECHECK_COLUMNS = (
+    ("Done", f"=COUNTIFS({_END_IN},{SI}[IsOpen],TRUE)"),
+    ("ExclReopened", f'=COUNTIFS({DONE_IN},{IF_}[Reopened],">0")'),
+    ("ExclNoStartRule", f'=COUNTIFS({DONE_IN},{IF_}[Reopened],0,{IF_}[WhyNotInFlowTime],"{T.NO_START_RULE}")'),
+    ("ExclNotStarted", f'=COUNTIFS({DONE_IN},{IF_}[Reopened],0,{IF_}[WhyNotInFlowTime],"{T.NO_START}")'),
+    ("Counted", "=SUMIFS(Metrics[FlowTimeCount],Metrics[Iteration-label],[@[Iteration-label]],Metrics[Team],[@Team])"),
+    ("Gap", "=[@Done]-[@ExclReopened]-[@ExclNoStartRule]-[@ExclNotStarted]-[@Counted]"),
+    ("Reason", f'=IF([@Counted]>0,"",IF([@Done]=0,"{MC.NO_ITEM}","{MC.ALL}"&[@Done]&"{MC.LEFT_OUT}"&TEXTJOIN(", ",TRUE,'
+               f'IF([@ExclNoStartRule]>0,[@ExclNoStartRule]&"{MC.NO_START_RULE}",""),IF([@ExclNotStarted]>0,[@ExclNotStarted]&"{MC.NOT_STARTED}",""),'
+               f'IF([@ExclReopened]>0,[@ExclReopened]&"{MC.REOPENED}",""))))'),
+)
+
 # --- the sheet MetricItems: the tickets behind the figures (AL, 2026-11-18) ---------------------------------------------------------
 # Three lists side by side, each column ONE spilled formula (Excel 365 dynamic arrays, as FILTER is already used): the tickets of ItemFlow that
 # fall in an account, sorted. No VBA writes a key: the lists follow the data. Reference: flow/trace.metric_items.
@@ -287,6 +305,7 @@ RECONCILIATION_FORMULAS = {
     R.FLOW_TIME_COUNT: ("=SUM(Metrics[FlowTimeCount])", f'=SUM({_LEDGER["counted"]})'),
     R.FLOW_TIME_DAYS: (f'=SUMIFS(ItemFlow[FlowTimeDays],ItemFlow[Account],"{T.ACCOUNT_COUNTED}",ItemFlow[Excluded],0)',
                        f'=SUMIFS({_LEDGER["days"]},{_LEDGER["counted"]},1)'),
+    R.FLOW_TIME_GAP: ("=0", "=SUMPRODUCT(ABS(FlowTimeCheck[Gap]))"),
     R.UNIQUE: ("=0", f'=COUNTIF({_LEDGER["key"]},"?*")-IFERROR(ROWS(UNIQUE(FILTER({_LEDGER["key"]},{_LEDGER["key"]}<>""))),0)'),
     R.CUTOFF: ("=0", f'=COUNTIF({_M}!$S$3#,"?*")'),
     R.CLASSIFIED: ("=0", f'=COUNTIFS({SI}[Category],"Unclassified",{SI}[Team],"<>{OTHER_TYPES}")'),
@@ -471,4 +490,5 @@ TABLES = {
     "PIMetrics": PIMETRICS_KEYS + tuple(name for name, _ in PIMETRICS_COLUMNS),
     "PIStatusTime": PISTATUSTIME_KEYS + tuple(name for name, _ in PISTATUSTIME_COLUMNS),
     "VelocityCheck": VELOCITYCHECK_KEYS + tuple(name for name, _ in VELOCITYCHECK_COLUMNS),
+    "FlowTimeCheck": FLOWTIMECHECK_KEYS + tuple(name for name, _ in FLOWTIMECHECK_COLUMNS),
 }

@@ -630,6 +630,27 @@ def _velocity_check_generated(world):
     assert any(e.changed_to_end > 0 for e in expected) and any(e.reopened_later > 0 for e in expected), expected[:6]
 
 
+@then("la table FlowTimeCheck reproduit la référence Python sur les données générées")
+def _flow_time_check_generated(world):
+    """Why the Flow Time of each point is what it is, on generated data (reopened and unstarted items): every row against flow/metric_checks, cell by
+    cell; the Gap is 0; the Reason is "" exactly where the Flow Time is computable; the data holds left out items."""
+    from jira2dashboard.flow.metric_checks import flow_time_check
+    from jira2dashboard.flow.metrics import team_iteration_metrics
+    issues, rules = to_flow_issues(world["dataset"]), world["rules"]
+    iterations = {p.name: p for p in world["iterations"]}
+    got, metrics = table_dicts(world["wb"], "FlowTimeCheck"), table_dicts(world["wb"], "Metrics")
+    assert [(r["Iteration-label"], r["Team"]) for r in got] == [(r["Iteration-label"], r["Team"]) for r in metrics] and got
+    expected = [flow_time_check(issues, world["items"], iterations[r["Iteration-label"]], r["Team"], rules,
+                                team_iteration_metrics(world["items"], r["Team"], iterations[r["Iteration-label"]], "A", world["dataset"].as_of)) for r in got]
+    for row, ref in zip(got, expected):
+        for column, attribute in (("Done", "done"), ("ExclReopened", "excl_reopened"), ("ExclNoStartRule", "excl_no_start_rule"),
+                                  ("ExclNotStarted", "excl_not_started"), ("Counted", "counted"), ("Gap", "gap"), ("Reason", "reason")):
+            assert row[column] == getattr(ref, attribute), (ref.iteration, ref.team, column, row[column], getattr(ref, attribute))
+    for row, metric in zip(got, metrics):
+        assert (row["Reason"] == "") == (metric["FlowTimeMedian"] != "not computable"), (row, metric["FlowTimeMedian"])
+    assert all(r["Gap"] == 0 for r in got) and any(e.excl_reopened + e.excl_not_started > 0 for e in expected), expected[:6]
+
+
 @then("les colonnes de trace de ItemFlow reproduisent la référence Python sur les données générées")
 def _trace_generated(world):
     """DoneIteration, its Start and End, DonePI, Account, WhyNotInFlowTime and BoundaryHours of every ticket against flow/trace, and the data holds
@@ -745,7 +766,7 @@ def _reconciliation_generated(world):
 def _art_reconciliation(world):
     from art_oracle import ACCOUNTS, FLOW_TIME_DAYS, VELOCITY
     got = {r["Control"]: r for r in table_dicts(world["wb"], "Reconciliation")}
-    assert len(got) == 14 and {r["Result"] for r in got.values()} == {"OK"}, {k: (r["Expected"], r["Found"], r["Result"]) for k, r in got.items()}
+    assert len(got) == 15 and {r["Result"] for r in got.values()} == {"OK"}, {k: (r["Expected"], r["Found"], r["Result"]) for k, r in got.items()}
     released, tickets = sum(VELOCITY.values()), sum(ACCOUNTS.values())
     typed = {"Tickets read from Jira = tickets of ItemFlow": (tickets, tickets), "Every ticket sits in one account": (tickets, tickets),
              "Velocity of all iterations = tickets of the Done list": (released, released),
@@ -1826,6 +1847,24 @@ def _art_told(world):
     assert all(w in text for w in NO_START_WARNINGS), text[-3000:]
     health = wb.Application.Run(f"'{wb.Name}'!modHealth.HealthFields", wb)
     assert all(f" | {field}" in health for field in NO_START_HEALTH), health
+
+
+@then("la table FlowTimeCheck de l'ART est celle calculée à la main")
+def _art_flow_time_check(world):
+    from art_oracle import FLOW_TIME_CHECK
+    art_flow_time_check(world, FLOW_TIME_CHECK)
+
+
+@then("la table FlowTimeCheck de l'ART est celle calculée à la main, sans statut de départ")
+def _art_flow_time_check_no_start(world):
+    from art_oracle import FLOW_TIME_CHECK_NO_START
+    art_flow_time_check(world, FLOW_TIME_CHECK_NO_START)
+
+
+def art_flow_time_check(world, expected):
+    got = {r["Iteration-label"]: tuple(r[c] for c in ("Done", "ExclReopened", "ExclNoStartRule", "ExclNotStarted", "Counted", "Gap", "Reason"))
+           for r in art_table(world, "FlowTimeCheck") if r["Team"] == "ART"}
+    assert got == expected, {k: (got.get(k), v) for k, v in expected.items() if got.get(k) != v}
 
 
 @then("la Reconciliation demande de revoir le statut de départ et le statut Wait")

@@ -6,7 +6,7 @@ and DataChecks. Same names as formulas.TABLES, so whatever reads the workbook's 
 reads these too.
 """
 import datetime as dt
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 
 from jira2dashboard.flow import dashboard_spec as D
 from jira2dashboard.flow import formulas as F
@@ -22,6 +22,7 @@ from jira2dashboard.flow.pi_status_time import PIStatusTime, feature_statuses, p
 from jira2dashboard.flow.metrics import (BUCKETS, PIPredictability, TeamIterationMetrics, pi_predictability,
                                          team_iteration_metrics)
 from jira2dashboard.flow.model import ART, NOT_COMPUTABLE, OTHER_TYPES, UNMAPPED, WORK_TYPES, FlowIssue
+from jira2dashboard.flow.metric_checks import FlowTimeCheck, flow_time_check
 from jira2dashboard.flow.velocity_check import VelocityCheck, velocity_check
 from jira2dashboard.standalone.params_book import RunSettings
 
@@ -36,6 +37,7 @@ METRICS = F.TABLES["Metrics"]
 PI_METRICS = F.TABLES["PIMetrics"]
 PI_STATUS_TIME = F.TABLES["PIStatusTime"]
 VELOCITY_CHECK = F.TABLES["VelocityCheck"]
+FLOW_TIME_CHECK = F.TABLES["FlowTimeCheck"]
 RECONCILIATION = tuple(name for name, _ in F.RECONCILIATION_COLUMNS)
 ITERATION_FEATURES = F.ITERATIONFEATURES_KEYS + F.ITERATIONFEATURES_NAMES
 FILL_RATES = F.TABLES["FillRates"]
@@ -55,6 +57,7 @@ class Results:
     iteration_features: list[IterationFeatures]   # the Features per iteration, PI and team: what the PI figures are summed from
     status_time: list[PIStatusTime]           # where the cycle time of the Features goes, status by status, PI by PI
     velocity_check: list[VelocityCheck]       # the Velocity counted again from the status changes, every iteration x team
+    flow_time_check: list[FlowTimeCheck] = field(default_factory=list)      # why the Flow Time is what it is, every iteration x team
 
 
 def iteration_span(iterations) -> tuple[dt.datetime, dt.datetime]:
@@ -88,13 +91,15 @@ def compute(issues: list[FlowIssue], s: RunSettings) -> Results:
     predictability = pi_predictability(rows, issues, s.checks, s.predictability_mode)
     pi_names = [p.pi for p in predictability] or [D.NO_PI]               # the keys of PIMetrics, also those of PIStatusTime
     status_time = pi_status_time(items, feature_statuses(items, s.workflows.feature_depths([k for k, role, _t in s.projects if role == "Program"], s.checks.feature_types)) or [D.NO_STATUS], pi_names, s.checks.pis)
-    return Results(items, flags, teams,
-                   [team_iteration_metrics(items, team, iteration, s.mode, s.as_of, s.rules.waits, s.rules.has_start(team_workflow(team)))
-                    for iteration in s.iterations for team in teams],
+    metrics = [team_iteration_metrics(items, team, iteration, s.mode, s.as_of, s.rules.waits, s.rules.has_start(team_workflow(team)))
+               for iteration in s.iterations for team in teams]
+    iteration_of = {i.name: i for i in s.iterations}
+    return Results(items, flags, teams, metrics,
                    {team: daily_load(items, s.mode, team, first, end, s.as_of, s.rules.has_start(team_workflow(team))) for team in teams}, fill,
                    predictability, rows, status_time,
                    [velocity_check(issues, items, iteration, team, s.rules, s.checks.feature_types)
-                    for iteration in s.iterations for team in teams])
+                    for iteration in s.iterations for team in teams],
+                   [flow_time_check(issues, items, iteration_of[m.iteration], m.team, s.rules, m) for m in metrics])
 
 
 def _bucket(work_type) -> str:
@@ -187,6 +192,13 @@ def velocitycheck_rows(results: Results, s: RunSettings) -> list[tuple]:
     iterations = {p.name: p for p in s.iterations}
     return [(r.iteration, iterations[r.iteration].start, iterations[r.iteration].end, r.team, r.velocity, r.velocity_features,
              r.other_types, r.created_done, r.changed_to_end, r.changed_to_end_features, r.reopened_later, r.gap) for r in results.velocity_check]
+
+
+def flowtimecheck_rows(results: Results, s: RunSettings) -> list[tuple]:
+    """The rows of FlowTimeCheck (formulas.FLOWTIMECHECK_COLUMNS), one per iteration and team, in the order of Metrics."""
+    iterations = {p.name: p for p in s.iterations}
+    return [(r.iteration, iterations[r.iteration].start, iterations[r.iteration].end, r.team, r.done, r.excl_reopened, r.excl_no_start_rule,
+             r.excl_not_started, r.counted, r.gap, r.reason) for r in results.flow_time_check]
 
 
 def piinterval_rows(issues: list[FlowIssue]) -> list[tuple]:

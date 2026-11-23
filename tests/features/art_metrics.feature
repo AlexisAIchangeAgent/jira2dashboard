@@ -32,6 +32,7 @@ Fonctionnalité: Le scénario art-metrics du faux Jira donne, par le chemin Pyth
     Et la vélocité par itération est celle du scénario
     Et chaque itération qui livre a un Flow Time de 8 jours et le Flow Efficiency de son PI
     Et chaque statut dure en moyenne 1 jour, 2 jours pour le statut long du PI de la Feature
+    Et la feuille FlowTimeCheck de l'ART est celle calculée à la main
 
   Scénario: Sans statut de départ ni statut Wait, Flow Time, Flow Efficiency et Flow Load ne sont pas calculables et le résultat dit pourquoi
     Soit le faux Jira du scénario art-metrics
@@ -42,5 +43,6 @@ Fonctionnalité: Le scénario art-metrics du faux Jira donne, par le chemin Pyth
     Et la vélocité par itération est celle du scénario
     Et Flow Time, Flow Efficiency et Flow Load de l'ART ne sont calculables dans aucune itération
     Et chaque Feature livrée est hors du Flow Time faute de statut de départ dans les règles
+    Et la feuille FlowTimeCheck de l'ART est celle calculée à la main, sans statut de départ
     Et le journal et la feuille Run disent pourquoi, avec les codes calculés à la main
     Et la Reconciliation demande de revoir le statut de départ et le statut Wait
