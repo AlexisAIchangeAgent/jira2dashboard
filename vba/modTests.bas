@@ -1373,6 +1373,13 @@ Private Function AxisEnds(ByVal ch As Object, ByVal asNumber As Boolean) As Stri
     Err.Clear
 End Function
 
+Private Function ChartsBuildError() As Long
+    On Error Resume Next
+    BuildChartsIn ThisWorkbook
+    ChartsBuildError = Err.Number - vbObjectError
+    Err.Clear
+End Function
+
 Private Function FlowBuildError() As Long
     On Error Resume Next
     BuildFlowSheetsIn ThisWorkbook
@@ -1447,6 +1454,7 @@ Public Sub T_FlowBuild()
     FlowIterations DateSerial(2026, 10, 1), DateSerial(2026, 10, 15), True
     ClearFlowSheets wb
     Check "flowbuild", "no extracted data is refused", "empty Issues", 702, FlowBuildError()
+    Check "flowbuild", "the charts need the tables: 3. Draw before 2. Compute is refused", "no Metrics", 712, ChartsBuildError()
     FlowRaw True
     BuildFlowSheetsIn wb
     teams = 9                                                    ' ART and the eight team projects of params\projects.md
@@ -1511,6 +1519,11 @@ Public Sub T_FlowBuild()
     Check "flowbuild", "smaller data: FillRates follows the issue types", "3 x 9 x 1", 27, TableRows("FillRates")
     Check "flowbuild", "the sheets are the same", "count", sheetCount, wb.Worksheets.Count
     Check "flowbuild", "still ten charts", "Charts", 10, dash.ChartObjects.Count
+    BuildTablesIn wb
+    Check "flowbuild", "2. Compute: the tables made again, no chart (they read the tables)", "0 charts, Metrics", "0|yes|no", _
+          dash.ChartObjects.Count & "|" & IIf(SheetExists(wb, "Metrics"), "yes", "no") & "|" & IIf(SheetExists(wb, "ChartData"), "yes", "no")
+    BuildChartsIn wb
+    Check "flowbuild", "3. Draw: the ten charts again from the tables", "10 charts", "10|yes", dash.ChartObjects.Count & "|" & IIf(SheetExists(wb, "ChartData"), "yes", "no")
     Check "flowbuild", "an unknown team in the selector goes back to All teams", "Nowhere", "All teams", dash.Range("B2").Value
     dash.Range("B2").Value = "AAA"
     wb.Worksheets(SheetName("PIs")).Range("A2:C3").Value = PiRows()                 ' two PIs: the PI axis lists them in order

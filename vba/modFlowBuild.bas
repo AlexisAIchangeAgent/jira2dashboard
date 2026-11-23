@@ -57,20 +57,38 @@ Public Sub ClearFlowSheets(ByVal wb As Object)
 End Sub
 
 Private Sub DeleteDerived(ByVal wb As Object)
+    ' Every result of a build: the charts, then the tables (the charts read the tables).
     Cov "FLB04"
-    Dim nm As Variant, i As Long, alerts As Boolean
+    DeleteCharts wb
+    DeleteTables wb
+End Sub
+
+Private Sub DeleteCharts(ByVal wb As Object)
+    ' The charts, the notes under them and the sheet ChartData; the chart sheets and their selector stay.
+    Dim nm As Variant, i As Long
     For Each nm In Array(CHARTS_SHEET, ITERATION_CHARTS_SHEET)
-        If SheetExists(wb, CStr(nm)) Then                 ' the charts and the notes under them; the sheet and its selector stay
+        If SheetExists(wb, CStr(nm)) Then
             For i = wb.Worksheets(SheetName(CStr(nm))).ChartObjects.Count To 1 Step -1
                 wb.Worksheets(SheetName(CStr(nm))).ChartObjects(i).Delete
             Next i
             wb.Worksheets(SheetName(CStr(nm))).Range("A4:R400").ClearContents
         End If
     Next nm
+    DeleteSheets wb, Array("ChartData")
+End Sub
+
+Private Sub DeleteTables(ByVal wb As Object)
+    ' The calculated sheets (tables and formulas); the raw sheets stay.
+    DeleteSheets wb, Array("ItemFlow", "DailyLoad", "Metrics", "IterationFeatures", "PIMetrics", "PIStatusTime", "VelocityCheck", "MetricItems", "Reconciliation", _
+                           "DataChecks", "FillRates", "Controls")
+End Sub
+
+Private Sub DeleteSheets(ByVal wb As Object, ByVal names As Variant)
+    Dim nm As Variant, alerts As Boolean
     alerts = Application.DisplayAlerts
     Application.DisplayAlerts = False
     On Error GoTo Restore
-    For Each nm In Array("ChartData", "ItemFlow", "DailyLoad", "Metrics", "IterationFeatures", "PIMetrics", "PIStatusTime", "VelocityCheck", "MetricItems", "Reconciliation", "DataChecks", "FillRates", "Controls")
+    For Each nm In names
         If SheetExists(wb, CStr(nm)) Then wb.Worksheets(SheetName(CStr(nm))).Delete
     Next nm
 Restore:
@@ -512,16 +530,42 @@ Public Sub ValidateBuildInputs(ByVal wb As Object)
 End Sub
 
 Public Sub BuildFlowSheetsIn(ByVal wb As Object)
+    ' The tables and formulas, then the charts (the extraction in one go, the tests).
     Cov "FLB14"
+    RunBuild wb, True, True
+End Sub
+
+Public Sub BuildTablesIn(ByVal wb As Object)
+    ' The tables and formulas from the raw sheets and the parameter sheets (button "2. Compute the metrics"); the charts are deleted: they read the
+    ' tables that are made again.
+    RunBuild wb, True, False
+End Sub
+
+Public Sub BuildChartsIn(ByVal wb As Object)
+    ' The charts and their sheet ChartData from the tables (button "3. Draw the charts"); error 712 when the tables were not built.
+    RunBuild wb, False, True
+End Sub
+
+Private Sub RunBuild(ByVal wb As Object, ByVal tables As Boolean, ByVal charts As Boolean)
     Dim spec As Object, teams As Collection, iterations As Collection, calcMode As Long, screen As Boolean
     Dim num As Long, desc As String
     LoadPlan wb, spec, teams, iterations
+    If Not tables Then
+        If Not SheetExists(wb, "Metrics") Then
+            Cov "FLB67"
+            Err.Raise vbObjectError + 712, "BuildFlowSheets", "The metrics are not computed: click 2. Compute the metrics first."
+        End If
+    End If
     calcMode = Application.Calculation
     screen = Application.ScreenUpdating
     On Error GoTo Failed                                              ' from here Failed gives both back
     Application.ScreenUpdating = False
     Application.Calculation = XL_CALC_MANUAL
-    BuildAll wb, spec, teams, iterations
+    If tables Then BuildAll wb, spec, teams, iterations Else DeleteCharts wb
+    If charts Then
+        BuildCharts wb, spec, teams, FeatureTeamNames(wb, SettingOf(spec, "Dashboard", "ProgramTeam")), iterations, _
+                    PiNames(wb, SettingOf(spec, "Dashboard", "NoPI")), StatusNames(wb)      ' its steps: "flow sheets: charts: ..." (one per chart)
+    End If
     LogBegin "flow sheets: calculation"
     Application.Calculation = calcMode                   ' back to automatic: Excel calculates everything now
     If calcMode <> XL_CALC_AUTOMATIC Then Cov "FLB36": Application.CalculateFull      ' Excel left in manual mode by the user
@@ -644,7 +688,6 @@ Private Sub BuildAll(ByVal wb As Object, ByVal spec As Object, ByVal teams As Co
     wsT.Columns(6).NumberFormat = "yyyy-mm-dd"                                 ' Baseline
     wsQ.Range(wsQ.Columns(3), wsQ.Columns(4)).NumberFormat = "yyyy-mm-dd hh:mm:ss"
     wsP.Columns(6).NumberFormat = "0%"
-    BuildCharts wb, spec, teams, featureTeams, iterations, pis, statuses    ' its steps: "flow sheets: charts: ..." (one per chart)
 End Sub
 
 Private Sub BuildControls(ByVal wb As Object, ByVal spec As Object)
