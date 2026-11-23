@@ -219,7 +219,7 @@ field, and whether **get changelog** appears in the Studio tool list.
 
 ## 6. How to compare with the workbook
 
-1. In the workbook, run **Extract from Jira and compute** with the same `Filter`. Note the iteration.
+1. In the workbook, run **1. Extract from Jira**, **2. Compute the metrics** and **3. Draw the charts** with the same `Filter`. Note the iteration.
 2. Ask the agent: `Flow metrics of project <name>, iteration <start> to <end>, filter: <Filter>`.
 3. Compare:
 

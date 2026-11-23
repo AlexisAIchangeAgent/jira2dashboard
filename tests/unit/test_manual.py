@@ -34,6 +34,7 @@ def test_the_manual_has_a_heading_per_section_and_one_per_button():
     headings = [text for kind, text in manual.manual(MANDATORY) if kind == manual.HEADING]
     assert headings[0] == "jira2dashboard - user manual"
     assert f'Button "{D.CONFIG_CAPTION}"' in headings and f'Button "{D.EXTRACT_CAPTION}"' in headings
+    assert f'Button "{D.COMPUTE_CAPTION}"' in headings and f'Button "{D.DRAW_CAPTION}"' in headings
     assert {kind for kind, _text in manual.manual(MANDATORY)} == {manual.HEADING, manual.TEXT}
 
 

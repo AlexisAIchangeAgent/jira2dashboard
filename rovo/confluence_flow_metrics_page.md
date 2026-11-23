@@ -4,7 +4,7 @@ The page where the RTE publishes the workbook's figures, one page per PI. The ag
 (`rovo_train_steering.md`) reads it to explain the figures and draft a steering note. People read it in meetings.
 
 **Who:** the RTE.
-**When:** after each **Extract from Jira and compute**, at least at the end of each iteration and of each PI.
+**When:** after each run of **1. Extract from Jira**, **2. Compute the metrics** and **3. Draw the charts**, at least at the end of each iteration and of each PI.
 
 Publishing these figures on Confluence is a **client policy decision** (`rovo/rovo-guide.md` section 4):
 - the page holds client data;
@@ -73,7 +73,7 @@ the RTE".
 
 ## 2. How to fill it from the workbook
 
-1. Run **Extract from Jira and compute**. Wait for the status cell to say it is done, and note the as-of date.
+1. Run **1. Extract from Jira**, **2. Compute the metrics** and **3. Draw the charts**. Wait for the status cell to say Drawn, and note the as-of date.
    When the macros fail, `scripts\run.ps1 extract` writes `jira2dashboard.xlsx` with the same `Metrics` and
    `DataChecks` columns (values) and the charts as pictures: fill the page from it the same way.
 2. **Rows:** the sheet `Metrics` has one row per iteration of the `Iterations` sheet and per team, for all PIs. Paste

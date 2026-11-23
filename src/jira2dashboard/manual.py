@@ -5,7 +5,7 @@ parameters come from their sources, so the manual follows the code. The sheets a
 (`Config_from_user`): the suffix says where the data of a sheet comes from (sheet_names.py).
 """
 from jira2dashboard import sheet_names as S
-from jira2dashboard.flow.dashboard_spec import (CANCEL_CAPTION, CONFIG_CAPTION, EXTRACT_CAPTION, PROPOSE_CAPTION,
+from jira2dashboard.flow.dashboard_spec import (CANCEL_CAPTION, COMPUTE_CAPTION, CONFIG_CAPTION, DRAW_CAPTION, EXTRACT_CAPTION, PROPOSE_CAPTION,
                                                 ROVO_CAPTION, ROVO_LOAD_CAPTION, STATUS_CELL)
 from jira2dashboard.params.model import TYPED_AT_CLIENT
 
@@ -34,7 +34,8 @@ def first_steps() -> list[str]:
         f"4. Check the yellow cells it wrote in the sheets {CONFIG} and {ITERATIONS}, then type what is left. The statuses, their categories, the start and the end of "
         f"each flow and the moves are read from Jira by the workbook itself: type in {WORKFLOWS} only what Jira cannot say (a status that waits, a Done status that is "
         "no delivery, such as cancelled).",
-        f'5. Click "{EXTRACT_CAPTION}" and wait for the bar to reach the end. "{CANCEL_CAPTION}" stops it.',
+        f'5. Click "{EXTRACT_CAPTION}" and wait for the bar to reach the end ("{CANCEL_CAPTION}" stops it), then "{COMPUTE_CAPTION}", then '
+        f'"{DRAW_CAPTION}". After a change of {WORKFLOWS}, {ITERATIONS} or {PIS}, click only the last two: Jira is not read again.',
         f"6. Read the charts in the sheet {CHARTS}, the figures in the sheet {METRICS} and the data checks in the sheet {DATACHECKS}.",
         LEGEND,
         f"Before you send this workbook to anyone: empty ApiToken in the sheet {CONFIG}.",
@@ -65,8 +66,9 @@ def manual(mandatory: tuple[str, ...]) -> list[tuple[str, str]]:
         (f"Sheet {CONFIG}", [
             "One row per parameter: Parameter, Value, Example, Mandatory, Description.",
             "Example shows the expected form of the value (it is never read: only Value counts).",
-            f'Mandatory = True: "{EXTRACT_CAPTION}" stops before calling Jira while the value is empty, and names it. '
-            f'"{CONFIG_CAPTION}" needs only BaseUrl, Email and ApiToken.',
+            f'Mandatory = True: a button stops while a value it needs is empty, and names it. "{EXTRACT_CAPTION}" needs BaseUrl, Email, '
+            f'ApiToken, AsOf and BlocksLinkType (it stops before calling Jira), "{COMPUTE_CAPTION}" needs FlowLoadMode, PredictabilityMode, AsOf, '
+            f'FeatureTypes and FillRateThreshold, "{CONFIG_CAPTION}" only BaseUrl, Email and ApiToken.',
             'Mandatory = False: an empty value is allowed. A default is used, nothing is added (no filter, no proxy), '
             'or the data checks that need the value show "not computable".',
             f"The mandatory parameters: {', '.join(mandatory)}.",
@@ -124,18 +126,39 @@ def manual(mandatory: tuple[str, ...]) -> list[tuple[str, str]]:
             "cell stays empty. The summary on the Dashboard says what was loaded and the first problem, if any. Save a copy "
             "of the workbook first if you want to keep the current values.",
         ]),
+        ("Three steps: which button after a change", [
+            f'"{EXTRACT_CAPTION}" reads Jira, "{COMPUTE_CAPTION}" makes the tables and the figures, "{DRAW_CAPTION}" draws the charts. The last two '
+            "never call Jira and take a few seconds: correct a parameter, then compute and draw again.",
+            f'A change of the connection, the proxy, Filter, the projects listed in {PROJECTS}, a field id of {CONFIG} (the ...Field values, WorkTypeField) '
+            f'or BlocksLinkType: "{EXTRACT_CAPTION}", then the two others.',
+            f'A change of {WORKFLOWS} (a status that waits, a start status), {TRANSITIONS}, {ITERATIONS}, {PIS}, the Role or the Team of {PROJECTS}, '
+            f'AsOf, FeatureTypes, FlowLoadMode, PredictabilityMode or FillRateThreshold: "{COMPUTE_CAPTION}", then "{DRAW_CAPTION}".',
+            f"Each step ends with a status in cell {STATUS_CELL} (under the buttons) and its details in the rows under it, one per line (name in "
+            'column A, value in column B). A status that starts with "Stopped" gives the error, with its code (J2D-...): read it to the support. '
+            f'The sheet {S.of("ErrorCodes")} says what each code means and what to check. The local log tells more (below).',
+        ]),
         (f'Button "{EXTRACT_CAPTION}"', [
-            f"It reads Jira in small slices: the bar moves, cell {STATUS_CELL} (under the buttons) says what happens, and "
-            f"Excel stays usable. At the end, {STATUS_CELL} gives the result and the rows under it its details, one per line "
-            "(name in column A, value in column B).",
-            f'"{CANCEL_CAPTION}" stops it before the raw sheets are written: the previous results stay.',
-            "When something keeps a figure empty, the status adds a field: Not Features (the tickets of the Program that are not of a type of "
+            f"It reads Jira in small slices: the bar moves, cell {STATUS_CELL} says what happens, and Excel stays usable. At the end it says "
+            f'Extracted, the number of issues, status intervals and changelog rows read, and that "{COMPUTE_CAPTION}" comes next.',
+            f'"{CANCEL_CAPTION}" stops it before the raw sheets are written: the previous results stay. Once they are written, the results of the '
+            "previous computation are deleted: never old figures next to new data.",
+            f"Besides the raw sheets it keeps what Jira said about the statuses ({S.of('JiraStatusCatalog')}, {S.of('JiraWorkflows')}): "
+            f'"{COMPUTE_CAPTION}" reads them, so that a change of {WORKFLOWS} needs no new extraction.',
+        ]),
+        (f'Button "{COMPUTE_CAPTION}"', [
+            f"It makes the rules of the statuses again (what Jira says, under the exceptions of {WORKFLOWS}: the sheet "
+            f"{S.of('StatusRules')}), then the tables and formulas of the figures. It never calls Jira. The charts are deleted (they read the "
+            f'tables made again): click "{DRAW_CAPTION}".',
+            "When something keeps a figure empty, the status adds a field: No start status (a workflow with tickets and no IsStart status: no Flow "
+            f"Time, Flow Efficiency or Flow Load; set IsStart in {WORKFLOWS}), No Wait status (no Flow Efficiency), Not Features (the tickets of the "
+            "Program that are not of a type of "
             "FeatureTypes are in the team ART (other types) of ItemFlow, left out of the ART metrics; if the ART has no Feature, FeatureTypes is "
             "not the name of Jira), Done outside the iterations (add iterations), Without a team, "
-            f"Statuses not in Workflows (no Jira source knows them either: give them a Category in {WORKFLOWS}) and Cells in error (Table.Column x n: a formula that fails on your data).",
-            f"At the end the sheets {ITEMFLOW}, {S.of('DailyLoad')}, {METRICS}, {S.of('PIMetrics')}, {S.of('ChartData')} and the charts are rebuilt to the size of "
-            "the new data. Run it as often as needed.",
-            f"The charts are in the sheet {CHARTS}, right of the Dashboard. Its cell B2: the team of the Flow Distribution chart.",
+            f"Statuses not in Workflows (no Jira source knows them either: give them a Category in {WORKFLOWS}), Started in the second of the "
+            "backlog entry, AsOf before the data, VelocityCheck gap, Reconciliation (controls to review) and Cells in error (Table.Column x n: a "
+            "formula that fails on your data).",
+            f"The sheets {ITEMFLOW}, {S.of('DailyLoad')}, {METRICS}, {S.of('PIMetrics')} and the others are rebuilt to the size of the data. Run it "
+            "as often as needed.",
             f"Feature Predictability, per PI of the sheet {PIS}: the Features released in the PI over the Features engaged in it at "
             "its start, read in the history of the PI field (the start of the first iteration of the PI): a Feature deferred later "
             "(its PI field emptied or moved) stays planned, a cancelled one stays planned, not done, and a Feature added after the "
@@ -147,8 +170,11 @@ def manual(mandatory: tuple[str, ...]) -> list[tuple[str, str]]:
             f"The sheet {S.of('IterationFeatures')} gives, per iteration, PI and team (the ART, then the teams of the Features: the "
             "Team field), the Features engaged at its start, added, deferred, released and carried over; the PI figures are sums of "
             f"it. Its charts are in the sheet {S.of('IterationCharts')}.",
-            f'A status that starts with "Stopped" gives the error, with its code (J2D-...): read it to the support. The sheet {S.of("ErrorCodes")} '
-            'says what each code means and what to check. The local log tells more (below).',
+        ]),
+        (f'Button "{DRAW_CAPTION}"', [
+            f'It draws the charts from the tables of "{COMPUTE_CAPTION}", in a few seconds, without calling Jira: the sheet {CHARTS}, right of '
+            f"the Dashboard (its cell B2: the team of the Flow Distribution chart), and the sheet {S.of('IterationCharts')}. Its status repeats "
+            "the fields of what to look at.",
         ]),
         ("Results", [
             f'{METRICS}: one row per iteration and team. A figure that cannot be computed reads "not computable", never 0.',

@@ -523,8 +523,8 @@ Private Sub CheckModes(ByVal wsConfig As Object)
 End Sub
 
 Public Sub ValidateBuildInputs(ByVal wb As Object)
-    ' Called before the extraction: a bad Iterations sheet or an old Excel must not be found after ten minutes of reading Jira,
-    ' with the earlier results already cleared.
+    ' The inputs of the metrics (Iterations, PIs, the modes, an Excel with dynamic arrays): checked by 2. Compute the metrics before it changes
+    ' anything, and by ExtractAndCompute before it reads Jira.
     Dim spec As Object, teams As Collection, iterations As Collection
     LoadPlan wb, spec, teams, iterations
 End Sub
@@ -533,6 +533,12 @@ Public Sub BuildFlowSheetsIn(ByVal wb As Object)
     ' The tables and formulas, then the charts (the extraction in one go, the tests).
     Cov "FLB14"
     RunBuild wb, True, True
+End Sub
+
+Public Sub ComputeTablesIn(ByVal wb As Object)
+    ' Button "2. Compute the metrics": the status rules made again (modExtract.RefreshRules) inside the build, once the old tables and the helper
+    ' columns of the raw sheets are gone and the calculation is manual (written before, they recalculated the old tables several times), then the tables.
+    RunBuild wb, True, False, True
 End Sub
 
 Public Sub BuildTablesIn(ByVal wb As Object)
@@ -546,12 +552,12 @@ Public Sub BuildChartsIn(ByVal wb As Object)
     RunBuild wb, False, True
 End Sub
 
-Private Sub RunBuild(ByVal wb As Object, ByVal tables As Boolean, ByVal charts As Boolean)
+Private Sub RunBuild(ByVal wb As Object, ByVal tables As Boolean, ByVal charts As Boolean, Optional ByVal refresh As Boolean = False)
     Dim spec As Object, teams As Collection, iterations As Collection, calcMode As Long, screen As Boolean
     Dim num As Long, desc As String
     LoadPlan wb, spec, teams, iterations
     If Not tables Then
-        If Not SheetExists(wb, "Metrics") Then
+        If Not TablesBuilt(wb) Then
             Cov "FLB67"
             Err.Raise vbObjectError + 712, "BuildFlowSheets", "The metrics are not computed: click 2. Compute the metrics first."
         End If
@@ -561,7 +567,7 @@ Private Sub RunBuild(ByVal wb As Object, ByVal tables As Boolean, ByVal charts A
     On Error GoTo Failed                                              ' from here Failed gives both back
     Application.ScreenUpdating = False
     Application.Calculation = XL_CALC_MANUAL
-    If tables Then BuildAll wb, spec, teams, iterations Else DeleteCharts wb
+    If tables Then BuildAll wb, spec, teams, iterations, refresh Else DeleteCharts wb
     If charts Then
         BuildCharts wb, spec, teams, FeatureTeamNames(wb, SettingOf(spec, "Dashboard", "ProgramTeam")), iterations, _
                     PiNames(wb, SettingOf(spec, "Dashboard", "NoPI")), StatusNames(wb)      ' its steps: "flow sheets: charts: ..." (one per chart)
@@ -581,7 +587,17 @@ Failed:
     Err.Raise num, "BuildFlowSheets", desc
 End Sub
 
-Private Sub BuildAll(ByVal wb As Object, ByVal spec As Object, ByVal teams As Collection, ByVal iterations As Collection)
+Private Function TablesBuilt(ByVal wb As Object) As Boolean
+    ' The tables of 2. Compute the metrics were all made: the table Reconciliation is the last one (a build that stopped halfway left Metrics).
+    Dim lo As Object
+    If Not SheetExists(wb, "Reconciliation") Then Exit Function
+    On Error Resume Next
+    Set lo = wb.Worksheets(SheetName("Reconciliation")).ListObjects("Reconciliation")
+    On Error GoTo 0
+    TablesBuilt = Not lo Is Nothing
+End Function
+
+Private Sub BuildAll(ByVal wb As Object, ByVal spec As Object, ByVal teams As Collection, ByVal iterations As Collection, Optional ByVal refresh As Boolean = False)
     Cov "FLB16"
     Dim wsI As Object, wsS As Object, wsF As Object, wsD As Object, wsM As Object, wsC As Object, wsL As Object, wsR As Object
     Dim loI As Object, loS As Object, loF As Object, loD As Object, loM As Object, loC As Object, loL As Object, loR As Object
@@ -600,6 +616,7 @@ Private Sub BuildAll(ByVal wb As Object, ByVal spec As Object, ByVal teams As Co
     issues = UsedRows(wsI)
     BuildControls wb, spec
     LogEnd "flow sheets: prepare"
+    If refresh Then RefreshRules wb                                    ' its own log steps; the raw sheets are plain ranges here
     LogBegin "flow sheets: keys"
     Set wsF = AddSheet(wb, "ItemFlow"): Set wsD = AddSheet(wb, "DailyLoad"): Set wsM = AddSheet(wb, "Metrics")
     Set wsC = AddSheet(wb, "DataChecks"): Set wsR = AddSheet(wb, "FillRates"): Set wsT = AddSheet(wb, "IterationFeatures")

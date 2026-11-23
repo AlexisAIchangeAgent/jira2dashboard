@@ -7,7 +7,7 @@ Fonctionnalité: Première utilisation du classeur
   @excel
   Scénario: Le Dashboard donne l'ordre des boutons et l'onglet Manual suit le Dashboard
     Soit le classeur à livrer
-    Alors le Dashboard donne les premières étapes, avec « Read the Jira configuration » avant « Extract from Jira and compute »
+    Alors le Dashboard donne les premières étapes, avec « Read the Jira configuration » avant « 1. Extract from Jira »
     Et l'onglet Manual suit le Dashboard et reproduit le manuel
     Et la feuille Config a les colonnes Example et Mandatory
 
@@ -21,9 +21,9 @@ Fonctionnalité: Première utilisation du classeur
   Scénario: Un paramètre obligatoire vide arrête l'extraction avant tout appel à Jira
     Soit un faux Jira avec 30 tickets générés avec les projets des paramètres
     Et le classeur à livrer dont la feuille Config pointe sur ce faux Jira avec FlowLoadMode "A"
-    Quand je vide le paramètre "FeatureTypes" de la feuille Config
-    Et je clique sur le bouton Extraire et calculer
-    Alors l'état du tableau de bord nomme les paramètres obligatoires vides "FeatureTypes"
+    Quand je vide le paramètre "BlocksLinkType" de la feuille Config
+    Et je clique sur le bouton « 1. Extract from Jira »
+    Alors l'état du tableau de bord nomme les paramètres obligatoires vides "BlocksLinkType"
     Et le faux Jira n'a reçu aucune requête
 
   @excel

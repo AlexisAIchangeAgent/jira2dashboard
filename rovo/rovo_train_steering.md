@@ -32,7 +32,7 @@ How it relates to the other agents of this folder:
 |---|---|---|---|---|
 | 0 | Jira configuration matches the workbook parameters | Settings Analyser agent | Rovo Chat | once per client, then each quarter |
 | 1 | Data ready: data checks | this agent, job `readiness`; Jira dashboard `jira_dashboard_data_quality.md` | Rovo Chat, Jira | before each extraction |
-| 2 | Extract and compute | the RTE, button **Extract from Jira and compute** | the workbook, on the client machine | end of iteration, end of PI |
+| 2 | Extract and compute | the RTE, buttons **1. Extract from Jira**, **2. Compute the metrics** and **3. Draw the charts** | the workbook, on the client machine | end of iteration, end of PI |
 | 3 | Publish | the RTE, from `confluence_flow_metrics_page.md` | Confluence, one page per PI | after step 2 |
 | 4 | Explain the figures | this agent, job `explain` | Rovo Chat | on request |
 | 5 | Steering note | this agent, job `steering`; the RTE reviews it and pastes it into the page | Rovo Chat, then Confluence | before an iteration review, Inspect and Adapt, PI planning |

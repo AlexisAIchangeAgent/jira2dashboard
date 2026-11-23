@@ -118,3 +118,16 @@ Fonctionnalité: Le scénario art-metrics du faux Jira donne, dans le classeur l
     Et chaque Feature livrée est hors du Flow Time faute de statut de départ dans les règles
     Et le journal et les champs de santé disent pourquoi, avec les codes calculés à la main
     Et la Reconciliation demande de revoir le statut de départ et le statut Wait
+
+  @excel
+  Scénario: Corriger la feuille Workflows puis recalculer sans relire Jira : le Flow Efficiency suit la correction, dans les deux sens
+    Soit le faux Jira du scénario art-metrics
+    Et le classeur à livrer rempli pour ce scénario
+    Quand j'extrais et calcule
+    Et je vide la feuille Workflows puis je calcule et je dessine
+    Alors chaque itération qui livre a un Flow Time de 8 jours et un Flow Efficiency non calculable
+    Et la feuille StatusRules ne contient que des règles venues de Jira, sans statut d'attente
+    Et le faux Jira n'a reçu aucune requête pendant le calcul et le dessin
+    Quand je remets les trois statuts d'attente puis je calcule et je dessine
+    Alors chaque itération qui livre a un Flow Time de 8 jours et le Flow Efficiency de son PI
+    Et le faux Jira n'a reçu aucune requête pendant le calcul et le dessin

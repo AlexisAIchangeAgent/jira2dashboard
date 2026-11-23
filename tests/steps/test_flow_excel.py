@@ -286,21 +286,40 @@ def wait_for(world, done, seconds=180):
     raise TimeoutError(samples[-3:])
 
 
-@when("je clique sur le bouton Extraire et calculer sans attendre la fin")
+@when("je clique sur le bouton « 1. Extract from Jira » sans attendre la fin")
 def _click(world, request):
     request.addfinalizer(lambda: macro(world, "AbortExtraction"))        # no slice must outlive the scenario
     world["before"] = {name: len(table_dicts(world["wb"], name)) for name in ("Issues", "ItemFlow")}         if "items" in world else None
     world["log_from"] = log_file(world).stat().st_size if log_file(world).exists() else 0
-    macro(world, "BtnExtractAndCompute")
+    macro(world, "BtnExtract")
     reference(world)
+
+
+@when("je clique sur « 2. Compute the metrics » puis sur « 3. Draw the charts »")
+def _compute_and_draw(world):
+    """The two steps that never call Jira, one go each (AL, 2026-11-22)."""
+    world["requests_before"] = len(world["jira"].requests) if "jira" in world else None
+    macro(world, "BtnComputeMetrics")
+    world["computed"] = macro(world, "ProgressSnapshot").partition("|")[2]
+    macro(world, "BtnDrawCharts")
+    world["status"] = macro(world, "ProgressSnapshot").partition("|")[2]
+
+
+@then("le calcul puis le dessin se terminent et les résultats sont complets")
+def _drawn(world):
+    assert world["computed"].startswith("Computed | Figures: "), world["computed"]
+    assert world["status"].startswith("Drawn | Charts: "), world["status"]
+    wb = world["wb"]
+    assert wb.Worksheets(S.of("ItemFlow")).ListObjects("ItemFlow").ListRows.Count == len(world["items"])
+    assert wb.Worksheets(S.of("Charts")).ChartObjects().Count == 10
 
 
 @when("j'annule dès que la barre a avancé")
 def _cancel(world):
-    world["samples"] = wait_for(world, lambda text: text.startswith("Reading") and "page 2" in text or text.startswith("Done"))
-    assert not world["samples"][-1][0].startswith("Done"), "the extraction ended before the cancel"
+    world["samples"] = wait_for(world, lambda text: text.startswith("Reading") and "page 2" in text or text.startswith("Extracted"))
+    assert not world["samples"][-1][0].startswith("Extracted"), "the extraction ended before the cancel"
     macro(world, "BtnCancelExtraction")
-    world["samples"] += wait_for(world, lambda text: text.startswith(("Cancelled", "Stopped", "Done")))
+    world["samples"] += wait_for(world, lambda text: text.startswith(("Cancelled", "Stopped", "Extracted")))
 
 
 @then("la barre de progression avance sans reculer, le classeur répond entre deux tranches et l'extraction se termine")
@@ -315,18 +334,19 @@ def _progress(world):
             checks += 1
             retry(lambda: put(dash, ticks))
             assert retry(lambda: dash.Range("R1").Value2) == ticks
-        return text.startswith(("Done", "Stopped"))
+        return text.startswith(("Extracted", "Stopped"))
 
     samples = wait_for(world, usable)
     assert checks >= 3, f"the workbook was written only {checks} times during the run"
     bars = [bar for _text, bar in samples]
-    assert samples[-1][0].startswith("Done"), samples[-1]
+    assert samples[-1][0].startswith("Extracted | Issues: "), samples[-1]
+    assert "| Next: click 2. Compute the metrics" in samples[-1][0], samples[-1]
     assert bars == sorted(bars) and bars[-1] > 0.99, bars[-5:]
     assert len({round(b, 2) for b in bars}) >= 4, "the bar did not move step by step"
     kinds = {text.split(":")[0] for text, _bar in samples}
     assert "Reading Jira" in kinds, kinds        # the search has many slices; the other steps are one slice each (not always seen)
     dash.Range("R1").ClearContents()
-    assert retry(lambda: wb.Worksheets(S.of("ItemFlow")).ListObjects("ItemFlow").ListRows.Count) == len(world["items"])
+    assert retry(lambda: wb.Worksheets(S.of("Issues")).UsedRange.Rows.Count) - 1 == len(world["items"])     # the raw sheet: the tables come with 2.
 
 
 def status_rows(world) -> list[tuple[str, str]]:
@@ -352,15 +372,27 @@ def log_file(world) -> Path:
 TIMED = re.compile(r" \| \d+\.\d{3} s$")                       # "END ... | 0.235 s", "RUN end ok | 11.834 s"
 
 
-def logged_run(world, how: str) -> tuple[list[list[str]], str]:
-    """The lines of the run in the log since world["log_from"] ([KIND, text]) and their text, checked for what every run
+def logged_run(world, how: str | tuple[str, ...]) -> tuple[list[list[str]], str]:
+    """The lines of the run(s) in the log since world["log_from"] ([KIND, text]) and their text, checked for what every run
     gives to debug it: its RUN line, then its inputs (PARAM, no value of the client), then steps that each end before the
-    next with their time, and RUN end ok with the time of the run."""
+    next with their time, and RUN end ok with the time of the run. `how` a tuple: one run per button, in that order (the three steps)."""
     raw = log_file(world).read_bytes()
     start = world["log_from"] if len(raw) >= world["log_from"] else 0                 # a new file when the log was big
     text = raw[start:].decode("ascii")                                                  # plain ASCII, or this fails
     lines = [line.split(" ", 3)[2:] for line in text.splitlines()                      # date time KIND text
              if " RUN previous run did not end " not in line]                           # an earlier scenario crashed
+    if isinstance(how, tuple):
+        starts = [n for n, line in enumerate(lines) if line[0] == "RUN" and not line[1].startswith(("end ", "cancel"))]
+        assert len(starts) == len(how), [lines[n] for n in starts]
+        for n, (first, name) in enumerate(zip(starts, how)):
+            check_run(lines[first:starts[n + 1] if n + 1 < len(starts) else len(lines)], name)
+        return lines, text
+    check_run(lines, how)
+    return lines, text
+
+
+def check_run(lines: list[list[str]], how: str) -> None:
+    """One run of the log: see logged_run."""
     kinds = [kind for kind, *_ in lines]
     assert lines[0][0] == "RUN" and lines[0][1].startswith(how + " | Excel "), lines[0]
     assert re.search(r" \| jira2dashboard commit [0-9a-f]{7,}( with local changes)?, built \d{4}-\d\d-\d\d \d\d:\d\d$",
@@ -376,7 +408,6 @@ def logged_run(world, how: str) -> tuple[list[list[str]], str]:
     assert steps == ["BEGIN", "END"] * (len(steps) // 2), kinds                          # each step ends before the next
     ends = [rest[0] for kind, *rest in lines if kind == "END"]
     assert all(TIMED.search(end) for end in ends), ends[:3]                             # each step gives its time
-    return lines, text
 
 
 @then("la feuille Steps montre chaque étape avec son statut et son temps")
@@ -389,13 +420,16 @@ def _steps_sheet(world):
     assert any(s.startswith("search page 1") for s in steps) and any(s.startswith("changelogs from issue") for s in steps), steps
 
 
+STEPS = ("button 1. Extract from Jira", "button 2. Compute the metrics", "button 3. Draw the charts")     # the runs of the three buttons
+
+
 @then("le journal local décrit l'exécution étape par étape, avec ses paramètres et le temps de chaque étape, sans jeton, "
       "adresse ni réponse de Jira")
 def _log(world):
-    lines, text = logged_run(world, "button Extract from Jira and compute")
+    lines, text = logged_run(world, STEPS)
     begun = [rest[0] for kind, *rest in lines if kind == "BEGIN"]
     for name in ("search page 1", "changelogs from issue 1 of 150", "raw sheets: write Issues 150", "raw sheets: write StatusIntervals",
-                 "flow sheets: charts"):
+                 "status rules", "flow sheets: tables", "flow sheets: charts"):
         assert any(b.startswith(name) for b in begun), (name, begun[:5])      # the write of each table is a step of its own
     for secret in ("tok-123", "me@example.com", "127.0.0.1", "http", "{"):
         assert secret not in text, secret
@@ -405,7 +439,7 @@ def _log(world):
 def _wire_and_types(world):
     """The lines that show a failure such as v0.7.0 at once: the JSON type Jira sent for each field read, then the check of the first
     filled cell of each column; a clean run has no J2D-DATA-004..013 line."""
-    lines, text = logged_run(world, "button Extract from Jira and compute")
+    lines, text = logged_run(world, STEPS)
     assert " INFO wire types issue | id string, key string, fields.created string, fields.resolutiondate string, fields.status.name string" in text
     assert " INFO wire types configured fields | WorkTypeField string, SprintField not set, StoryPointsField not set" in text
     assert " INFO wire types changelog | id string, created number, fieldId string, from string, to string" in text      # epoch ms, as Jira
@@ -893,7 +927,8 @@ def _the_sheets_by_source(world):
     assert {S.of(n) for n in ("Config", "Projects", "Iterations", "PIs", "Workflows", "Transitions")} <= names
     assert {name for name in names if name.endswith(S.FROM_USER)} == {S.of(n) for n in S.USER}
     assert {name for name in names if name.endswith(S.FROM_JIRA)} == {S.of(n) for n in ("Issues", "StatusIntervals", "IssueLinks", "Changelog", "PIIntervals",
-                                                                                           "JiraIssueTypes", "JiraWorkflows", "JiraTransitions")}     # read by the extraction
+                                                                                           "JiraIssueTypes", "JiraWorkflows", "JiraTransitions",
+                                                                                           "JiraStatusCatalog")}     # read by the extraction, kept for 2. Compute
     assert S.of("Dashboard") in names and S.of("Charts") in names and S.of("Manual") in names
 
 
@@ -1472,7 +1507,7 @@ def _delivered(world, flow_workbook):
     world["wb"] = flow_workbook["wb"]
 
 
-@then("le Dashboard donne les premières étapes, avec « Read the Jira configuration » avant « Extract from Jira and compute »")
+@then("le Dashboard donne les premières étapes, avec « Read the Jira configuration » avant « 1. Extract from Jira »")
 def _first_steps(world):
     dash, steps = world["wb"].Worksheets(S.of("Dashboard")), manual.first_steps()
     first = dash.Range(D.STEPS_CELL)
@@ -1480,7 +1515,7 @@ def _first_steps(world):
     assert first.Font.Bold
     order = [next(n for n, line in enumerate(steps) if caption in line) for caption in (D.CONFIG_CAPTION, D.EXTRACT_CAPTION)]
     assert order[0] < order[1], order
-    assert {D.CONFIG_CAPTION, D.EXTRACT_CAPTION, D.CANCEL_CAPTION} <= set(dashboard_buttons(world["wb"]))
+    assert {D.CONFIG_CAPTION, D.EXTRACT_CAPTION, D.COMPUTE_CAPTION, D.DRAW_CAPTION, D.CANCEL_CAPTION} <= set(dashboard_buttons(world["wb"]))
 
 
 @then("l'onglet Manual suit le Dashboard et reproduit le manuel")
@@ -1506,7 +1541,7 @@ def _empty_parameter(world, name):
     set_config(world["wb"], name, "")
 
 
-@when("je clique sur le bouton Extraire et calculer")
+@when("je clique sur le bouton « 1. Extract from Jira »")
 def _click_extract(world, request):
     request.addfinalizer(lambda: macro(world, "AbortExtraction"))        # no slice must outlive the scenario
     on_action = dashboard_buttons(world["wb"])[D.EXTRACT_CAPTION]          # the button the user clicks
@@ -1674,10 +1709,11 @@ def _one_iteration(world):
     ws.Range(ws.Cells(3, 1), ws.Cells(ws.Rows.Count, 3)).ClearContents()
 
 
-@when("j'attends la fin de l'extraction du bouton")
+@when("j'attends la fin de l'extraction du bouton, puis je calcule et je dessine")
 def _wait_for_the_button(world):
-    samples = wait_for(world, lambda text: text.startswith(("Done", "Stopped")))
-    assert samples[-1][0].startswith("Done"), samples[-1]
+    samples = wait_for(world, lambda text: text.startswith(("Extracted", "Stopped")))
+    assert samples[-1][0].startswith("Extracted"), samples[-1]
+    _compute_and_draw(world)
 
 
 @then("l'état du tableau de bord dit combien de tickets terminés sont hors des itérations")
@@ -1740,6 +1776,24 @@ def _only_waits(world):
 @given("la feuille Workflows est vide")
 def _no_exception(world):
     set_workflow_exceptions(world, [])
+
+
+@when("je vide la feuille Workflows puis je calcule et je dessine")
+def _art_no_exception_again(world):
+    set_workflow_exceptions(world, [])
+    _compute_and_draw(world)
+
+
+@when("je remets les trois statuts d'attente puis je calcule et je dessine")
+def _art_waits_again(world):
+    set_workflow_exceptions(world, [("", name, "Wait", None, None, None) for name in ("ready4PI", "ready2test", "ready2deploy")])
+    _compute_and_draw(world)
+
+
+@then("le faux Jira n'a reçu aucune requête pendant le calcul et le dessin")
+def _art_no_request(world):
+    assert len(world["jira"].requests) == world["requests_before"], world["jira"].requests[world["requests_before"]:]
+    assert world["status"].startswith("Drawn | "), world["status"]
 
 
 @given("le faux Jira refuse la lecture des workflows")

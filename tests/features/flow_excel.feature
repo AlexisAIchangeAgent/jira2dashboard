@@ -86,15 +86,17 @@ Fonctionnalité: Le classeur livré extrait Jira et calcule les mêmes chiffres 
     Et le graphique Flow Distribution suit l'équipe choisie dans la cellule B2
 
   @excel
-  Scénario: Le bouton extrait par tranches : la barre avance, Excel répond entre deux tranches, puis les résultats sont complets
+  Scénario: Le bouton 1 extrait par tranches : la barre avance, Excel répond entre deux tranches, puis les boutons 2 et 3 donnent des résultats complets
     Soit un faux Jira lent avec 150 tickets générés avec les projets des paramètres
     Et le classeur à livrer dont la feuille Config pointe sur ce faux Jira avec FlowLoadMode "A"
     Et les itérations de 14 jours depuis le "2026-08-17" jusqu'à la date de référence dans la feuille Iterations
-    Quand je clique sur le bouton Extraire et calculer sans attendre la fin
+    Quand je clique sur le bouton « 1. Extract from Jira » sans attendre la fin
     Alors la barre de progression avance sans reculer, le classeur répond entre deux tranches et l'extraction se termine
+    Et la feuille Steps montre chaque étape avec son statut et son temps
+    Quand je clique sur « 2. Compute the metrics » puis sur « 3. Draw the charts »
+    Alors le calcul puis le dessin se terminent et les résultats sont complets
     Et le journal local décrit l'exécution étape par étape, avec ses paramètres et le temps de chaque étape, sans jeton, adresse ni réponse de Jira
     Et le journal local dit ce que Jira a envoyé et que chaque colonne écrite a le type de son étiquette
-    Et la feuille Steps montre chaque étape avec son statut et son temps
     Et aucune cellule des feuilles de flux ne montre une erreur Excel
     Et la table ItemFlow reproduit les calculs de la référence Python
     Et la table Metrics reproduit la référence Python en mode "A"
@@ -116,7 +118,7 @@ Fonctionnalité: Le classeur livré extrait Jira et calcule les mêmes chiffres 
     Et le classeur à livrer dont la feuille Config pointe sur ce faux Jira avec FlowLoadMode "A"
     Et les itérations de 14 jours depuis le "2026-08-17" jusqu'à la date de référence dans la feuille Iterations
     Quand j'exécute la macro Extraire et calculer du classeur
-    Et je clique sur le bouton Extraire et calculer sans attendre la fin
+    Et je clique sur le bouton « 1. Extract from Jira » sans attendre la fin
     Et j'annule dès que la barre a avancé
     Alors les résultats du premier calcul sont conservés et l'état dit « Cancelled »
 
@@ -126,6 +128,6 @@ Fonctionnalité: Le classeur livré extrait Jira et calcule les mêmes chiffres 
     Et le classeur à livrer dont la feuille Config pointe sur ce faux Jira avec FlowLoadMode "A"
     Et les itérations de 14 jours depuis le "2026-08-17" jusqu'à la date de référence dans la feuille Iterations
     Et seule la première itération reste dans la feuille Iterations
-    Quand je clique sur le bouton Extraire et calculer sans attendre la fin
-    Et j'attends la fin de l'extraction du bouton
+    Quand je clique sur le bouton « 1. Extract from Jira » sans attendre la fin
+    Et j'attends la fin de l'extraction du bouton, puis je calcule et je dessine
     Alors l'état du tableau de bord dit combien de tickets terminés sont hors des itérations

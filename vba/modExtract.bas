@@ -16,17 +16,20 @@ Private mKeys As Collection, mIdToKey As Object, mRaw As Collection, mNextChunk 
 Private mPhase As Long                  ' 0 no job, 1 search, 2 changelogs, 3 issue rows, 4 intervals, 5 write
 Private mRows As Collection, mLinks As Collection, mChanges As Collection, mMoved As Object, mIntervals As Collection
 Private mRules As Collection                                     ' the status rules of the run (modParams.EffectiveRules), written to the sheet StatusRules
+Private mCatalogRows As Collection                               ' the status catalog of Jira, written to JiraStatusCatalog with the raw sheets
 Private mPiChanges As Collection                                  ' the changes of the PI field (Config.PIField), from the changelogs
 Private mIds As Variant, mBlocksType As String, mRowNext As Long, mWfNext As Long
 Public gRowBatch As Long                ' issues per step of phase 3 (0: ROW_BATCH); a test sets a small one
 Private Const ROW_BATCH As Long = 100   ' about 20 ms per batch on the development machine: a step stays short
+' The mandatory parameters the extraction needs (AL, 2026-11-22: the other ones are checked by 2. Compute the metrics, so that a client can extract first
+' and fill Iterations and PIs afterwards)
+Private Const EXTRACT_PARAMETERS As String = "BaseUrl,Email,ApiToken,AsOf,BlocksLinkType"
 
 Private Sub ExtractParameters(ByRef cfg As Object, ByRef jql As String, ByRef settings As Object)
     Dim wsConfig As Object
     Set wsConfig = ThisWorkbook.Worksheets(SheetName("Config"))
-    RequireMandatory wsConfig                        ' first, as in the first steps: an empty mandatory value would fail a
-                                                     ' request or give wrong figures
-    ValidateBuildInputs ThisWorkbook                 ' before any call to Jira: nothing is read or cleared if the build cannot run
+    RequireMandatory wsConfig, EXTRACT_PARAMETERS    ' first: an empty value the extraction needs would fail a request; the inputs of
+                                                     ' the metrics (Iterations, PIs, the modes) are checked by 2. Compute the metrics
     Set cfg = JiraConfigFromSheet(wsConfig)
     jql = ExtractionJql(ThisWorkbook.Worksheets(SheetName("Projects")), wsConfig)
     Set settings = FieldSettings(wsConfig)
@@ -354,7 +357,7 @@ Public Sub ExtractJobAbort()
     mPhase = 0
     Set mIssues = Nothing: Set mKeys = Nothing: Set mRaw = Nothing: Set mIdToKey = Nothing: Set mNames = Nothing
     Set mRows = Nothing: Set mLinks = Nothing: Set mChanges = Nothing: Set mMoved = Nothing: Set mIntervals = Nothing: Set mPiChanges = Nothing
-    Set mRules = Nothing
+    Set mRules = Nothing: Set mCatalogRows = Nothing
     Set mCfg = Nothing: Set mSettings = Nothing: Set mChangelog = Nothing: Set mWsChangelog = Nothing: Set mUserFields = Nothing
     Set mWsProjects = Nothing: Set mWsWorkflows = Nothing: Set mWsIssues = Nothing: Set mWsIntervals = Nothing: Set mWsLinks = Nothing
 End Sub
@@ -432,12 +435,14 @@ Private Sub RulesInit()
     ' of the sheet Workflows. A status that no source knows stays Unclassified.
     Cov "MEX16"
     Dim catalog As Object, current As Object, starts As Object, frees As Object, row As Variant, jw As Object, refused As Long, admin As Boolean
-    Dim kinds As Object, program As String, w As Variant, failCode As String
+    Dim kinds As Object, program As String, failCode As String, catalogRows As Collection
     LogBegin "status rules"
     Set catalog = CreateObject("Scripting.Dictionary")
-    For Each row In ReadStatusCatalog(mCfg)
+    Set catalogRows = ReadStatusCatalog(mCfg)
+    For Each row In catalogRows
         catalog(CStr(row(1))) = CStr(row(2))
     Next row
+    Set mCatalogRows = catalogRows                                      ' written with the raw sheets (phase 5): 2. Compute reads THIS catalog
     Set current = CreateObject("Scripting.Dictionary")
     For Each row In mRows
         If Len(CStr(row(6) & "")) > 0 And Len(CStr(row(8) & "")) > 0 Then current(CStr(row(6))) = CStr(row(8))
@@ -454,6 +459,10 @@ Private Sub RulesInit()
         If admin Then
             Cov "MEX17"
             refused = ReadWorkflowRules(mCfg, ProjectKeys(mWsProjects), starts, frees, ThisWorkbook, failCode)
+            If SheetExists(ThisWorkbook, "JiraWorkflows") Then              ' what the sheet holds now: what 2. Compute reads (RefreshRules)
+                Set jw = ThisWorkbook.Worksheets(SheetName("JiraWorkflows"))
+                Set starts = FlaggedStatuses(jw, "IsStart"): Set frees = FlaggedStatuses(jw, "IsFree")
+            End If
             If refused <> 0 Then
                 Cov "MEX18"
                 LogLine "WARN", "J2D-JIRA-030 | the workflows of Jira could not be read (" & IIf(refused > 0, refused & " project(s) refused", failCode) & _
@@ -470,12 +479,131 @@ Private Sub RulesInit()
     For Each row In mRows
         kinds(IIf(CStr(row(2) & "") = program, "Feature", "Team")) = True
     Next row
-    LogLine "INFO", RuleCountsLine(mRules, Array("Feature", "Team"))
-    For Each w In RuleWarnings(mRules, Array("Feature", "Team"), kinds)
-        LogLine "WARN", CStr(w)
-    Next w
+    LogRules mRules, kinds
     LogEnd "status rules: " & mRules.Count & " rules, " & catalog.Count & " statuses in the catalog"
 End Sub
+
+Private Sub LogRules(ByVal rules As Collection, ByVal kinds As Object)
+    ' What the rules hold (INFO) and the warnings when a metric cannot be computed from them (WARN J2D-FLOW-010 / 011).
+    Dim w As Variant
+    LogLine "INFO", RuleCountsLine(rules, Array("Feature", "Team"))
+    For Each w In RuleWarnings(rules, Array("Feature", "Team"), kinds)
+        LogLine "WARN", CStr(w)
+    Next w
+End Sub
+
+Public Sub RefreshRules(ByVal wb As Object)
+    ' Button 2. Compute the metrics (AL, 2026-11-22): the status rules made again from what the extraction kept of Jira (the sheets JiraStatusCatalog and
+    ' JiraWorkflows, the current status of each ticket in Issues) under the exceptions of the sheet Workflows, then the columns of StatusIntervals that
+    ' follow from them and from the parameters (RefreshIntervals). A change of Workflows, of the roles of Projects or of AsOf takes effect without reading
+    ' Jira again. The same rules as RulesInit gives at the extraction: the scenarios compute right after extracting and compare with the reference.
+    Cov "MEX20"
+    Dim catalog As Object, current As Object, starts As Object, frees As Object, rules As Collection, kinds As Object, projectOf As Object
+    Dim data As Variant, n As Long, r As Long, cS As Long, cC As Long, cK As Long, cP As Long, program As String, key As String, jw As Object
+    Dim asOf As Double
+    asOf = CDbl(AsOfFromConfig(wb.Worksheets(SheetName("Config"))))      ' every input read before the first write (error 604 changes nothing)
+    LogBegin "status rules"
+    Set catalog = CreateObject("Scripting.Dictionary"): Set current = CreateObject("Scripting.Dictionary")
+    Set kinds = CreateObject("Scripting.Dictionary"): Set projectOf = CreateObject("Scripting.Dictionary")
+    data = SheetData(wb, "JiraStatusCatalog", n)
+    If n > 0 Then
+        cS = DataColumn(data, "Status"): cC = DataColumn(data, "JiraCategory")
+        If cS > 0 And cC > 0 Then
+            For r = 2 To n + 1
+                If Len(CStr(data(r, cS) & "")) > 0 Then catalog(CStr(data(r, cS))) = CStr(data(r, cC) & "")
+            Next r
+        End If
+    End If
+    program = ProgramProject(wb.Worksheets(SheetName("Projects")))
+    data = SheetData(wb, "Issues", n)
+    If n > 0 Then
+        cK = DataColumn(data, "Key"): cP = DataColumn(data, "Project"): cS = DataColumn(data, "Status"): cC = DataColumn(data, "StatusCategory")
+        If cK > 0 And cP > 0 And cS > 0 And cC > 0 Then
+            For r = 2 To n + 1
+                key = CStr(data(r, cK) & "")
+                If Len(key) > 0 Then                                        ' the one blank row of an empty table is no ticket
+                    If Len(CStr(data(r, cS) & "")) > 0 And Len(CStr(data(r, cC) & "")) > 0 Then current(CStr(data(r, cS))) = CStr(data(r, cC))
+                    projectOf(key) = CStr(data(r, cP) & "")
+                    kinds(IIf(CStr(data(r, cP) & "") = program, "Feature", "Team")) = True
+                End If
+            Next r
+        End If
+    End If
+    If SheetExists(wb, "JiraWorkflows") Then
+        Set jw = wb.Worksheets(SheetName("JiraWorkflows"))
+        Set starts = FlaggedStatuses(jw, "IsStart"): Set frees = FlaggedStatuses(jw, "IsFree")
+    Else
+        Set starts = CreateObject("Scripting.Dictionary"): Set frees = CreateObject("Scripting.Dictionary")
+    End If
+    Set rules = EffectiveRules(Array("Feature", "Team"), catalog, current, starts, frees, WorkflowExceptions(wb.Worksheets(SheetName("Workflows"))))
+    LogRules rules, kinds
+    WriteTable wb.Worksheets(SheetName("StatusRules")), Array("Workflow", "Status", "Category", "IsStart", "IsEnd", "IsFree", "Source"), rules
+    LogEnd "status rules: " & rules.Count & " rules, " & catalog.Count & " statuses in the catalog"
+    RefreshIntervals wb, rules, projectOf, program, asOf
+End Sub
+
+Private Sub RefreshIntervals(ByVal wb As Object, ByVal rules As Collection, ByVal projectOf As Object, ByVal program As String, ByVal asOf As Double)
+    ' The columns of StatusIntervals that follow from the rules and the parameters, rewritten in place (one read, one write per column): Workflow (the
+    ' role of the project of the ticket in Projects), Category (the rules of that workflow; Unclassified when no rule knows the status) and DurationDays
+    ' of the open intervals (up to AsOf). The category only labels a row: no row is added, merged or cut.
+    Dim ws As Object, data As Variant, n As Long, r As Long, cK As Long, cW As Long, cS As Long, cC As Long, cE As Long, cD As Long, cO As Long
+    Dim catF As Object, catT As Object, cats As Object, wf As String, key As String, status As String, isOpen As Boolean
+    Dim wfCol() As Variant, catCol() As Variant, durCol() As Variant
+    LogBegin "status intervals: workflow, category, open durations"
+    data = SheetData(wb, "StatusIntervals", n)
+    If n > 0 Then
+        cK = DataColumn(data, "Key"): cW = DataColumn(data, "Workflow"): cS = DataColumn(data, "Status"): cC = DataColumn(data, "Category")
+        cE = DataColumn(data, "EnteredUtc"): cD = DataColumn(data, "DurationDays"): cO = DataColumn(data, "IsOpen")
+    End If
+    If n > 0 And cK > 0 And cW > 0 And cS > 0 And cC > 0 And cE > 0 And cD > 0 And cO > 0 Then
+        Set catF = RuleCategories(rules, "Feature"): Set catT = RuleCategories(rules, "Team")
+        ReDim wfCol(1 To n, 1 To 1): ReDim catCol(1 To n, 1 To 1): ReDim durCol(1 To n, 1 To 1)
+        For r = 1 To n
+            key = CStr(data(r + 1, cK) & "")
+            wfCol(r, 1) = data(r + 1, cW): catCol(r, 1) = data(r + 1, cC): durCol(r, 1) = data(r + 1, cD)
+            If Len(key) > 0 Then                                            ' the one blank row of an empty table stays blank
+                If projectOf.Exists(key) Then
+                    If CStr(projectOf(key)) = program Then wf = "Feature" Else wf = "Team"
+                Else
+                    Cov "MEX23"
+                    wf = CStr(data(r + 1, cW) & "")                         ' a ticket that Issues lacks keeps its workflow
+                End If
+                If wf = "Feature" Then Set cats = catF Else Set cats = catT
+                status = CStr(data(r + 1, cS) & "")
+                wfCol(r, 1) = SafeCell(wf)                                   ' text kept as text, as the extraction writes it (WriteTable)
+                If cats.Exists(status) Then catCol(r, 1) = SafeCell(CStr(cats(status))) Else Cov "MEX22": catCol(r, 1) = "Unclassified"
+                If VarType(data(r + 1, cO)) = vbBoolean Then isOpen = data(r + 1, cO) Else isOpen = (UCase$(CStr(data(r + 1, cO) & "")) = "TRUE")
+                If isOpen Then Cov "MEX21": durCol(r, 1) = asOf - CDbl(data(r + 1, cE))      ' an unreadable date is Empty, 0: as modFlow.DaysBetween
+            End If
+        Next r
+        Set ws = wb.Worksheets(SheetName("StatusIntervals"))
+        ws.Range(ws.Cells(2, cW), ws.Cells(n + 1, cW)).Value = wfCol
+        ws.Range(ws.Cells(2, cC), ws.Cells(n + 1, cC)).Value = catCol
+        ws.Range(ws.Cells(2, cD), ws.Cells(n + 1, cD)).Value = durCol
+    End If
+    LogEnd "status intervals: " & n & " rows"
+End Sub
+
+Private Function SheetData(ByVal wb As Object, ByVal name As String, ByRef n As Long) As Variant
+    ' The cells of a sheet from A1 (row 1 = its headers) in one read, a table or a plain range; n = the rows under the headers (0: none, no data).
+    Dim ws As Object, last As Long, lastCol As Long
+    n = 0
+    If Not SheetExists(wb, name) Then Exit Function
+    Set ws = wb.Worksheets(SheetName(name))
+    last = ws.Cells(ws.Rows.Count, 1).End(-4162).Row                    ' xlUp: the first column is the key, filled on every row
+    lastCol = ws.Cells(1, ws.Columns.Count).End(-4159).Column            ' xlToLeft
+    If last < 2 Or lastCol < 2 Then Exit Function
+    n = last - 1
+    SheetData = ws.Range(ws.Cells(1, 1), ws.Cells(last, lastCol)).Value
+End Function
+
+Private Function DataColumn(ByVal data As Variant, ByVal header As String) As Long
+    ' The column of a header in row 1 of a block of SheetData; 0 when missing.
+    Dim c As Long
+    For c = 1 To UBound(data, 2)
+        If StrComp(CStr(data(1, c) & ""), header, vbTextCompare) = 0 Then DataColumn = c: Exit Function
+    Next c
+End Function
 
 Private Function PiRows() As Collection
     ' The stretches of the PI field of every issue (flow/pi_history.py): its creation date and current PI from the rows of Issues, its
@@ -533,6 +661,7 @@ Private Sub WriteRawSheetsCore()
     LogBegin "raw sheets: write StatusRules " & mRules.Count
     WriteTable SheetNamed("StatusRules"), Array("Workflow", "Status", "Category", "IsStart", "IsEnd", "IsFree", "Source"), mRules
     Set mRules = Nothing
+    If Not mCatalogRows Is Nothing Then WriteStatusCatalog ThisWorkbook, mCatalogRows, True: Set mCatalogRows = Nothing     ' always, even empty
     LogEnd "raw sheets: write StatusRules"
     LogBegin "raw sheets: write PIIntervals " & piStretches.Count
     WriteTable SheetNamed("PIIntervals"), PiIntervalsHeader(), piStretches

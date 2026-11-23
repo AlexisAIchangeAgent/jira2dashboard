@@ -9,13 +9,13 @@ Try a workbook by hand against the fake Jira, without the automatic tests.
    Jira (.\scripts\run.ps1 mock-workbook). The workbook given is not changed. out\manual_test is never cleaned.
 4. Starts the fake Jira, 1200 issues and the known anomalies, in a minimized window (start-mock.ps1).
 5. Opens the copy in a new Excel of its own, so that a crash cannot take other workbooks with it. Then click
-   "Read the Jira configuration", then "Extract from Jira and compute".
+   "Read the Jira configuration", then "1. Extract from Jira", "2. Compute the metrics", "3. Draw the charts".
    With -Python: runs the Python extraction on the copy instead (.\scripts\run.ps1 extract, no macro), then opens
    out\manual_test\jira2dashboard.xlsx (values and SVG charts) in a new Excel.
 Stop the fake Jira with .\scripts\stop-mock.ps1. Close the copy before running this script again.
 ASCII only: PowerShell 5.1 reads a file without BOM as ANSI.
 USE CASES
-  Click through the macros           .\scripts\manual-test.ps1                       (Read the Jira configuration, then Extract from Jira and compute)
+  Click through the macros           .\scripts\manual-test.ps1                       (Read the Jira configuration, then the three steps)
   Try the Python path, no macro      .\scripts\manual-test.ps1 -Python
   Only the scenario art-metrics      .\scripts\manual-test.ps1 -Scenario art-metrics        (own fake Jira on 8101, own copy, only its data)
   The same, nothing to click         .\scripts\manual-test.ps1 -Scenario art-metrics -Run   (extracts, exports the charts, opens their page)
@@ -144,6 +144,6 @@ Write-Host "manual-test: Excel may crash right after the last search page (known
 Start-Process excel.exe -ArgumentList "/x", "`"$copy`""
 Write-Host "manual-test: $copy opens in a new Excel. Enable the content, then click the Dashboard buttons in this order:"
 Write-Host "  1. Read the Jira configuration"
-Write-Host "  2. Extract from Jira and compute"
+Write-Host "  2. 1. Extract from Jira, then 2. Compute the metrics, then 3. Draw the charts"
 Write-Host "manual-test: stop the fake Jira with .\scripts\stop-mock.ps1 -Port $Port"
 exit 0

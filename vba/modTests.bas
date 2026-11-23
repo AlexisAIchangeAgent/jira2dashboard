@@ -50,7 +50,7 @@ Private Function TestNames() As Variant
     TestNames = Array("T_JsonNested", "T_JsonEscapes", "T_JsonEmpty", "T_JsonErrors", "T_JsonRoundTrip", _
         "T_JsonLarge", "T_Base64Auth", "T_UrlEncode", "T_Utf8RoundTrip", "T_JiraDates", "T_FieldToCell", _
         "T_SafeCell", "T_ProjectsJql", "T_SearchUrl", "T_SearchPagination", "T_Retry429", _
-        "T_HttpNetworkAndCancel", "T_RetryExhausted", "T_ChangelogChunks", "T_IssueRows", "T_WriteTable", "T_StatusIntervals", "T_IntervalsUnreadableDate", "T_StatusChangesUnreadableDate", "T_ChangelogRows", "T_UserFieldIds", "T_DateShape", "T_ParseJiraDateEpoch", "T_DateKind", "T_IsPlausibleDate", "T_FindDateKey", "T_ChangelogDateKey", "T_SkippedDatesWarning", "T_SheetName", "T_ProposeFromSheets", "T_ProposeIterations", "T_ReadSprints", "T_TeamNames", "T_ReadStatusCatalog", "T_ReadWorkflowRules", "T_ReadLinkTypes", "T_ProposeTypes", "T_ProposeValuesNotAdmin", "T_HealthFields", "T_StatusRules", "T_WorkflowExceptions", "T_NotFeatures", "T_ReconciliationFindings", "T_CellKind", "T_FitsType", "T_ShapeOfCell", "T_TypeHints", "T_TypeProblems", "T_TypeEmptyTable", "T_TypeBlocks", "T_TypeFillLines", "T_WireTypes", _
+        "T_HttpNetworkAndCancel", "T_RetryExhausted", "T_ChangelogChunks", "T_IssueRows", "T_WriteTable", "T_StatusIntervals", "T_IntervalsUnreadableDate", "T_StatusChangesUnreadableDate", "T_ChangelogRows", "T_UserFieldIds", "T_DateShape", "T_ParseJiraDateEpoch", "T_DateKind", "T_IsPlausibleDate", "T_FindDateKey", "T_ChangelogDateKey", "T_SkippedDatesWarning", "T_SheetName", "T_ProposeFromSheets", "T_ProposeIterations", "T_ReadSprints", "T_TeamNames", "T_ReadStatusCatalog", "T_ReadWorkflowRules", "T_ReadLinkTypes", "T_ProposeTypes", "T_ProposeValuesNotAdmin", "T_HealthFields", "T_StatusRules", "T_RefreshRules", "T_WorkflowExceptions", "T_NotFeatures", "T_ReconciliationFindings", "T_CellKind", "T_FitsType", "T_ShapeOfCell", "T_TypeHints", "T_TypeProblems", "T_TypeEmptyTable", "T_TypeBlocks", "T_TypeFillLines", "T_WireTypes", _
         "T_StatusChanges", "T_RetryDelay", "T_SafeAccess", "T_FilesUtf8", "T_StringifyBadObject", _
         "T_TooManyPages", "T_BackgroundExport", "T_TextNotConverted", "T_ParamsTables", "T_ParamsOnWorkbook", _
         "T_TrimWhite", "T_ConfigSheet", "T_MandatoryConfig", "T_Locked", "T_PiIntervals", "T_ProxyDetect", "T_ProxyScript", "T_ProjectsSheet", "T_StatusNames", "T_ParseMoment", "T_ExtractFlowData", "T_ExtractJob", "T_ExtractCheckFields", "T_FlowBuild", "T_BaseUrlHttps", "T_Log", "T_LogInputsAndTimes", "T_StatusParts", "T_ErrorCodes", "T_LogHintAndOpen", "T_StepsSheet", "T_RovoPrompt", "T_RovoCsv", _
@@ -2868,6 +2868,63 @@ Public Sub T_StatusRules()
     Next w
     Check "rules", "the warnings name what to do", "IsStart, Wait", "xx", s
     Check "rules", "no ticket at all: no warning", "0", 0, RuleWarnings(rules, Array("Feature", "Team"), Dict()).Count
+End Sub
+
+Public Sub T_RefreshRules()
+    ' 2. Compute the metrics makes the rules again from what the extraction kept of Jira under the sheet Workflows, and the columns of StatusIntervals that
+    ' follow: an exception, a role of Projects or AsOf changed after the extraction takes effect without reading Jira (AL, 2026-11-22).
+    Dim wb As Object, ws As Object, d0 As Date, d1 As Date, row As Variant, found As String, n As Long
+    d0 = DateSerial(2026, 10, 1): d1 = DateSerial(2026, 10, 3)
+    Set wb = Workbooks.Add
+    PutRows wb, "Config", Array(Array("Parameter", "Value", "Example", "Mandatory", "Description"), Array("AsOf", "'2026-10-11", "", "True", ""))
+    PutRows wb, "Projects", Array(Array("Project", "Role", "Team"), Array("TTT", "Program", ""), Array("AAA", "Team", "Alpha"))
+    PutRows wb, "Workflows", Array(Array("Workflow", "Status", "Category", "IsStart", "IsEnd", "IsFree"), Array("", "Review", "Wait", "", "", ""))
+    PutRows wb, "JiraStatusCatalog", Array(Array("Id", "Status", "JiraCategory"), Array("1", "Todo", "TODO"), Array("2", "Doing", "IN_PROGRESS"), _
+                                           Array("3", "Review", "IN_PROGRESS"), Array("4", "Done", "DONE"))
+    PutRows wb, "JiraWorkflows", Array(Array("Workflow", "Status", "IsStart", "IsFree"), Array("WF", "Doing", 1, 0))
+    PutRows wb, "Issues", Array(Array("Key", "Project", "Status", "StatusCategory"), Array("TTT-1", "TTT", "Doing", "indeterminate"), _
+                                Array("AAA-1", "AAA", "Review", "indeterminate"))
+    PutRows wb, "StatusIntervals", Array(Array("Key", "Workflow", "Seq", "Status", "Category", "EnteredUtc", "LeftUtc", "DurationDays", "IsOpen", "ChangeId", "Check"), _
+                                         Array("TTT-1", "Feature", 1, "Todo", "Backlog", d0, d1, 2, False, "c1", ""), _
+                                         Array("TTT-1", "Feature", 2, "Doing", "Unclassified", d1, "", 99, True, "", ""), _
+                                         Array("AAA-1", "Team", 1, "Review", "Active", d0, "", 99, True, "", ""))
+    PutRows wb, "StatusRules", Array(Array("Workflow", "Status", "Category", "IsStart", "IsEnd", "IsFree", "Source"))
+    Set ws = wb.Worksheets(SheetName("StatusIntervals"))
+    RefreshRules wb
+    For Each row In ReadTable(wb.Worksheets(SheetName("StatusRules")))
+        n = n + 1
+        If CStr(row("Status")) = "Review" Or CStr(row("Status")) = "Doing" Then
+            found = found & CStr(row("Workflow")) & "|" & CStr(row("Status")) & "|" & CStr(row("Category")) & "|" & CStr(row("IsStart")) & "|" & CStr(row("Source")) & ";"
+        End If
+    Next row
+    Check "rules", "the rules made again from the catalog, the starts of Jira and the exceptions (2 kinds x 4 statuses)", "8 rules", _
+          "8|Feature|Doing|Active|1|Jira;Feature|Review|Wait|0|user;Team|Doing|Active|1|Jira;Team|Review|Wait|0|user;", n & "|" & found
+    Check "rules", "the open intervals get the categories of the rules and their duration up to AsOf; a closed one keeps its own", "Active 8, Wait 10", _
+          "Backlog|2|Active|8|Team|Wait|10", ws.Cells(2, 5).Value & "|" & ws.Cells(2, 8).Value & "|" & ws.Cells(3, 5).Value & "|" & ws.Cells(3, 8).Value & "|" & _
+          ws.Cells(4, 2).Value & "|" & ws.Cells(4, 5).Value & "|" & ws.Cells(4, 8).Value
+    PutRows wb, "Projects", Array(Array("Project", "Role", "Team"), Array("TTT", "Team", "Beta"), Array("AAA", "Program", ""))
+    wb.Worksheets(SheetName("Config")).Range("B2").Value = "'2026-10-13"
+    RefreshRules wb
+    Check "rules", "a role of Projects and AsOf changed after the extraction", "Team | Feature, 10 | 12", "Team|Feature|10|12", _
+          ws.Cells(3, 2).Value & "|" & ws.Cells(4, 2).Value & "|" & ws.Cells(3, 8).Value & "|" & ws.Cells(4, 8).Value
+    PutRows wb, "Workflows", Array(Array("Workflow", "Status", "Category", "IsStart", "IsEnd", "IsFree"))
+    RefreshRules wb
+    Check "rules", "the Wait exception removed: Review is what Jira says (in progress)", "Active", "Active", ws.Cells(4, 5).Value
+    ws.Cells(5, 1).Value = "ZZZ-9": ws.Cells(5, 2).Value = "Team": ws.Cells(5, 3).Value = 1: ws.Cells(5, 4).Value = "Ghost": ws.Cells(5, 5).Value = "Active"
+    ws.Cells(5, 6).Value = d0: ws.Cells(5, 8).Value = 3: ws.Cells(5, 9).Value = False
+    WriteStatusCatalog wb, New Collection, True                         ' the extraction writes it even empty (Jira refused statuses/search)
+    Application.DisplayAlerts = False
+    wb.Worksheets(SheetName("JiraWorkflows")).Delete                     ' no workflow of Jira read
+    Application.DisplayAlerts = True
+    RefreshRules wb
+    Check "rules", "an empty catalog is written with its header only", "evenEmpty", "Id|", _
+          CStr(wb.Worksheets(SheetName("JiraStatusCatalog")).Cells(1, 1).Value) & "|" & CStr(wb.Worksheets(SheetName("JiraStatusCatalog")).Cells(2, 1).Value)
+    Check "rules", "no catalog: a status no ticket is in now is Unclassified; a ticket that Issues lacks keeps its workflow; no start without the workflows", _
+          "Todo, ZZZ-9", "Unclassified|Team|Unclassified|0", ws.Cells(2, 5).Value & "|" & ws.Cells(5, 2).Value & "|" & ws.Cells(5, 5).Value & "|" & _
+          CStr(Application.WorksheetFunction.CountIf(wb.Worksheets(SheetName("StatusRules")).Range("D:D"), 1))
+    Application.DisplayAlerts = False
+    wb.Close False
+    Application.DisplayAlerts = True
 End Sub
 
 Public Sub T_WorkflowExceptions()

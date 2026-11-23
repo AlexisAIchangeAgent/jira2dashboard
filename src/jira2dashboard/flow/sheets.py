@@ -45,6 +45,8 @@ def error_cells(wb) -> dict[str, int]:
 
 
 CANCEL_MACRO = "modActions.BtnCancelExtraction"
+COMPUTE_MACRO = "modActions.BtnComputeMetrics"
+DRAW_MACRO = "modActions.BtnDrawCharts"
 CONFIG_MACRO = "modActions.BtnReadJiraConfiguration"
 PROPOSE_MACRO = "modActions.BtnProposeValues"
 ROVO_MACRO = "modActions.BtnRovoPrompt"
@@ -55,7 +57,8 @@ def write_blueprint(wb, dash=None, button_macro: str | None = None) -> None:
     """The sheets Issues, StatusIntervals, IssueLinks (empty, raw data comes from the extraction), FlowFormulas, ChartSpec and
     ChecksSpec (read by modFlowBuild), RawTypesSpec (read by modHealth) and the frame of the Dashboard (`dash`: an existing sheet, or a new one)."""
     for name in ("Issues", "StatusIntervals", "IssueLinks", "Changelog", "PIIntervals", "StatusRules",
-                 "JiraIssueTypes", "JiraWorkflows", "JiraTransitions"):          # the formulas read the three Jira sheets: they exist (empty) from the build
+                 "JiraIssueTypes", "JiraWorkflows", "JiraTransitions",          # the formulas read the three Jira sheets: they exist (empty) from the build
+                 "JiraStatusCatalog"):                                          # 2. Compute the metrics reads it (modExtract.RefreshRules)
         R.add_sheet_after_last(wb, name)
     for name, header, rows in ((B.SHEET_FORMULAS, B.FORMULAS_HEADER, B.formula_rows()),
                                (B.SHEET_CHARTS, B.CHARTS_HEADER, B.chart_rows()),
@@ -81,7 +84,7 @@ def write_blueprint(wb, dash=None, button_macro: str | None = None) -> None:
 
 def write_dashboard_frame(wb, dash, button_macro: str | None = None) -> None:
     """Title, the as-of date, the status cell (name dashStatus, its fields in the rows under it) and, with the button, the
-    buttons Extract, Cancel, Read the Jira configuration and Rovo and the progress bar. Right after the Dashboard, the sheet
+    buttons Rovo, Read the Jira configuration, Propose, the three steps (Extract, Compute, Draw), Cancel and the progress bar. Right after the Dashboard, the sheet
     Charts: its title and the team selector (B2, name dashTeam); the charts come after each extraction, on that sheet, so
     that they hide nothing of the Dashboard."""
     dash.Range("A1").Value = "Flow metrics"
@@ -117,6 +120,8 @@ def write_dashboard_frame(wb, dash, button_macro: str | None = None) -> None:
                                      (D.CONFIG_CELL, D.CONFIG_CAPTION, CONFIG_MACRO),
                                      (D.PROPOSE_CELL, D.PROPOSE_CAPTION, PROPOSE_MACRO),
                                      (D.EXTRACT_CELL, D.EXTRACT_CAPTION, button_macro),
+                                     (D.COMPUTE_CELL, D.COMPUTE_CAPTION, COMPUTE_MACRO),
+                                     (D.DRAW_CELL, D.DRAW_CAPTION, DRAW_MACRO),
                                      (D.CANCEL_CELL, D.CANCEL_CAPTION, CANCEL_MACRO)):
             R.add_macro_button(dash, cell, caption, macro, D.BUTTON_WIDTH, D.BUTTON_HEIGHT)
 

@@ -20,14 +20,30 @@ def test_the_button_runs_a_public_sub_without_arguments_of_a_delivered_module():
     assert f"Public Sub {macro}()" in text
 
 
+def test_the_two_buttons_check_every_mandatory_parameter_between_them():
+    """1. Extract from Jira and 2. Compute the metrics each check their own mandatory values (AL, 2026-11-22): together they are every Config row
+    whose Mandatory is True, so that a new mandatory parameter is checked by one of them."""
+    import re
+    from jira2dashboard.params.model import load_all
+    sources = rvt.module_sources(["modExtract", "modActions"])
+    lists = [re.search(rf'Private Const {name} As String = "([^"]+)"', sources[module]).group(1).split(",")
+             for module, name in (("modExtract", "EXTRACT_PARAMETERS"), ("modActions", "COMPUTE_PARAMETERS"))]
+    config = next(s for s in load_all() if s.name == "Config")
+    mandatory = {row[0] for row in config.rows if str(row[config.header.index("Mandatory")]).strip().lower() in ("true", "yes", "1")}
+    assert set(lists[0]) | set(lists[1]) == mandatory, (lists, mandatory)
+
+
 def test_every_module_of_the_delivery_is_ascii():
     assert set(rvt.module_sources(bw.MODULES)) == set(bw.MODULES)
 
 
 def test_the_macro_of_the_button_calls_the_chain_the_scenario_tests():
     text = rvt.module_sources(["modActions"])["modActions"]
-    for call in ("ExtractFlowData", "BuildFlowSheetsIn ThisWorkbook"):
+    for call in ("ExtractFlowData", "ComputeTablesIn ThisWorkbook", "BuildChartsIn ThisWorkbook", "CheckComputeInputs"):
         assert call in text
+    assert "If refresh Then RefreshRules wb" in rvt.module_sources(["modFlowBuild"])["modFlowBuild"]          # the rules again at 2. Compute
+    for macro in ("BtnExtract", "BtnComputeMetrics", "BtnDrawCharts"):                           # the three steps, buttons without arguments
+        assert f"Public Sub {macro}()" in text
 
 
 def test_the_workbook_to_deliver_goes_to_out_release():

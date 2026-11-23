@@ -38,7 +38,7 @@ powershell -ExecutionPolicy Bypass -File scripts\setup.ps1        # .venv with p
 (`out\release\jira2dashboard.xlsm`, and `out\manual_test\jira2dashboard.xlsx` from the fake Jira) and the MD5 of the
 workbook; its log is `scripts\logs\bootstrap.log`.
 
-In the copy: **Enable Content**, **Read the Jira configuration**, then **Extract from Jira and compute**. Stop the
+In the copy: **Enable Content**, **Read the Jira configuration**, then **1. Extract from Jira**, **2. Compute the metrics** and **3. Draw the charts**. Stop the
 fake Jira with `.\scripts\stop-mock.ps1`. Excel may crash after the last search page
 (a known defect): save your other work first, or try `manual-test.ps1 -Python`.
 `run.ps1 extract` reads the parameter sheets of a saved workbook ([section 9](#9-python-extraction-without-vba)).
@@ -89,7 +89,7 @@ RUN  user machine, Excel + VBA
   PIMetrics, PIStatusTime, FillRates, DataChecks, ChartData
         |
         v
-  Dashboard: buttons, status cell A16 and its rows; Charts: 10 charts
+  Dashboard: buttons, status cell A20 and its rows; Charts: 10 charts
 
 
 FALLBACK  Python, no VBA
@@ -107,7 +107,7 @@ Excel tables keep the logical names (`Config`, `Issues[Key]`); `sheet_names.py` 
 
 | Sheets | Content | Written by |
 |---|---|---|
-| `Dashboard_from_excel`, `Manual_from_excel`, `Charts_from_excel` | Progress bar and buttons stacked in `A2:A14`, status `A16` and one row per field under it; user manual; the 10 charts and their team `B2` | build |
+| `Dashboard_from_excel`, `Manual_from_excel`, `Charts_from_excel` | Progress bar and buttons stacked in `A2:A18` (the last three steps: 1. Extract from Jira, 2. Compute the metrics, 3. Draw the charts; then Cancel), status `A20` and one row per field under it; user manual; the 10 charts and their team `B2` | build |
 | `ErrorCodes_from_excel`, `Steps_from_excel` | The support codes (what each means and what to check); the steps of the last run | build, VBA |
 | `Config_from_user`, `Projects_from_user`, `Iterations_from_user`, `PIs_from_user`, `Workflows_from_user`, `Transitions_from_user` | Parameters | build, then user |
 | `Issues_from_Jira`, `StatusIntervals_from_Jira`, `IssueLinks_from_Jira` | Raw data (values) | VBA |

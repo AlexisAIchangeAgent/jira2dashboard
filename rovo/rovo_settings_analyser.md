@@ -176,7 +176,7 @@ what the tools return; write "not visible" instead of guessing. Give a JQL next 
 
 ## 4. How to compare with the workbook
 
-1. In the workbook, click **Read the Jira configuration** (sheets `Jira*`) and **Extract from Jira and compute**
+1. In the workbook, click **Read the Jira configuration** (sheets `Jira*`) and **1. Extract from Jira**, **2. Compute the metrics** and **3. Draw the charts**
    (sheet `Issues`). Note the `Filter` of the `Config` sheet.
 2. In Rovo, ask the agent: `Inventory of project <name> with filter: <Filter>`.
 3. Compare sheet by sheet:

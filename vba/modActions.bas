@@ -1,15 +1,18 @@
 Attribute VB_Name = "modActions"
 Option Explicit
-' The macros behind the buttons of the Dashboard: read Jira, then build the flow sheets and the charts.
+' The macros behind the buttons of the Dashboard, three steps (AL, 2026-11-22: correct and compute again without reading Jira):
+'   1. Extract from Jira     (BtnExtract)          reads Jira into the raw sheets; the results of the previous computation are deleted
+'   2. Compute the metrics   (BtnComputeMetrics)   the status rules again (modExtract.RefreshRules), then the tables and formulas; no call to Jira
+'   3. Draw the charts       (BtnDrawCharts)       the charts from the tables; no call to Jira
 ' Trivial entry points (like modButtons): the scenarios of flow_excel.feature run them against the fake Jira.
 ' A button macro must be a Public Sub without arguments.
 '
-' The button works in slices: BtnExtractAndCompute starts the extraction job (modExtract) and returns at once; one step
-' of the job (a page of the search, a chunk of changelogs...) then runs per Application.OnTime call, so Excel stays usable,
-' the bar of the Dashboard moves and the button Cancel works between two steps (and during a wait for Jira: modHttp reads
-' gHttpCancel). Nothing of an earlier run is touched before the raw sheets are written (the last step of the extraction),
-' so a cancel before that keeps the previous results.
-' ExtractAndCompute is the same work in one go (no bar, no cancel): the tests and other macros use it.
+' The extraction works in slices: BtnExtract starts the extraction job (modExtract) and returns at once; one step of the job (a page of the
+' search, a chunk of changelogs...) then runs per Application.OnTime call, so Excel stays usable, the bar of the Dashboard moves and the button
+' Cancel works between two steps (and during a wait for Jira: modHttp reads gHttpCancel). Nothing of an earlier run is touched before the raw
+' sheets are written (the last step of the extraction), so a cancel before that keeps the previous results. Compute and Draw take a few seconds
+' each, in one go.
+' ExtractAndCompute is the three steps in one go (no bar, no cancel): the tests and other macros use it.
 ' The workbook handler Workbook_BeforeClose (added by the build) calls AbortExtraction: a slice still scheduled when the
 ' workbook is closed would otherwise reopen it.
 
@@ -19,6 +22,11 @@ Private mExtracting As Boolean              ' True while Jira is read (extractio
 Private mNextSlice As Date
 Private Const STATUS_ROWS As Long = 20            ' rows of fields under the status cell (dashboard_spec.STATUS_ROWS)
 Private Const CHARTS_SHEET As String = "Charts"    ' the sheet of the charts (flow/dashboard_spec.CHARTS_SHEET)
+Private Const EXTRACT_CAPTION As String = "1. Extract from Jira"        ' the captions of the buttons (flow/dashboard_spec)
+Private Const COMPUTE_CAPTION As String = "2. Compute the metrics"
+Private Const DRAW_CAPTION As String = "3. Draw the charts"
+' The mandatory parameters the metrics need (the extraction checks its own: modExtract.EXTRACT_PARAMETERS)
+Private Const COMPUTE_PARAMETERS As String = "FlowLoadMode,PredictabilityMode,AsOf,FeatureTypes,FillRateThreshold"
 Private mNextProc As String                ' the string given to OnTime: Schedule:=False needs the same one
 
 Private Function SliceName() As String
@@ -34,10 +42,13 @@ Public Sub ExtractAndCompute(Optional ByVal fromButton As Boolean = False)
     mBusy = True                                   ' a click during a DoEvents must not start a second job
     LogRunStart "macro ExtractAndCompute", LogLevelSetting()
     LogParameters ThisWorkbook                     ' the inputs of the run (no value of the client: modLog.ParameterShown)
+    CheckComputeInputs                             ' before Jira: a bad Iterations sheet must not be found after the reading
     Application.StatusBar = "Reading Jira..."
     ExtractFlowData                                ' empties the old results only once Jira has answered
-    Application.StatusBar = "Building the flow sheets and the charts..."
-    BuildFlowSheetsIn ThisWorkbook
+    Application.StatusBar = "Computing the metrics..."
+    ComputeMetricsCore
+    Application.StatusBar = "Drawing the charts..."
+    BuildChartsIn ThisWorkbook
     Application.StatusBar = False
     mBusy = False
     LogRunEnd "ok"
@@ -52,13 +63,14 @@ Failed:
     Err.Raise num, "ExtractAndCompute", desc
 End Sub
 
-Public Sub BtnExtractAndCompute()
+Public Sub BtnExtract()
+    ' 1. Extract from Jira: the job in slices (ExtractSlice). Its status says what was read and that 2. Compute the metrics comes next.
     Dim num As Long, desc As String
     If mBusy Then Beep: Exit Sub
     On Error GoTo Failed
     mBusy = True: mCancel = False: mExtracting = True: gHttpCancel = False
     Randomize                                                       ' the retry jitter must differ from one run to the next
-    LogRunStart "button Extract from Jira and compute", LogLevelSetting()
+    LogRunStart "button " & EXTRACT_CAPTION, LogLevelSetting()
     LogParameters ThisWorkbook                                      ' the inputs of the run (no value of the client)
     RequireEditable                                                 ' a locked workbook (Protected View, read-only) stops here, before Jira
     ShowProgress 0, "Starting..."
@@ -67,11 +79,82 @@ Public Sub BtnExtractAndCompute()
     Exit Sub
 Failed:
     num = Err.Number: desc = Err.Description                        ' first: the calls below may clear Err
-    LogError "BtnExtractAndCompute", num, desc
+    LogError "BtnExtract", num, desc
     LogRunEnd "stopped"
     ExtractJobAbort
     EndRunStopped num, desc
 End Sub
+
+Public Sub BtnComputeMetrics()
+    ' 2. Compute the metrics: the status rules again (the sheet Workflows, the roles of Projects, AsOf), then the tables and formulas from the raw
+    ' sheets. No call to Jira, one go. The charts are deleted: they read the tables made again (3. Draw the charts).
+    Dim num As Long, desc As String, health As String
+    If mBusy Then Beep: Exit Sub
+    On Error GoTo Failed
+    mBusy = True: mCancel = False: mExtracting = False
+    LogRunStart "button " & COMPUTE_CAPTION, LogLevelSetting()
+    LogParameters ThisWorkbook                                      ' the inputs of the run (no value of the client)
+    RequireEditable
+    ShowProgress 0, "Computing the metrics..."
+    ComputeMetricsCore
+    health = HealthFields(ThisWorkbook)                             ' before the end of the run: its step and its lines belong to it
+    LogRunEnd "ok"
+    EndRun "Computed | Figures: the sheet " & SheetName("Metrics") & " | Data checks: the sheet " & SheetName("DataChecks") & _
+           " | Next: click " & DRAW_CAPTION & health, 1
+    Exit Sub
+Failed:
+    num = Err.Number: desc = Err.Description
+    LogError "BtnComputeMetrics", num, desc
+    LogRunEnd "stopped"
+    EndRunStopped num, desc
+End Sub
+
+Public Sub BtnDrawCharts()
+    ' 3. Draw the charts from the tables of 2. Compute the metrics (error 712 without them). No call to Jira, one go.
+    Dim num As Long, desc As String, health As String
+    If mBusy Then Beep: Exit Sub
+    On Error GoTo Failed
+    mBusy = True: mCancel = False: mExtracting = False
+    LogRunStart "button " & DRAW_CAPTION, LogLevelSetting()
+    LogParameters ThisWorkbook
+    RequireEditable
+    ShowProgress 0, "Drawing the charts..."
+    BuildChartsIn ThisWorkbook
+    health = HealthFields(ThisWorkbook)                             ' what to look at, again: the last status of the three steps says it
+    LogRunEnd "ok"
+    EndRun "Drawn | Charts: the six flow metrics in the sheet " & SheetName(CHARTS_SHEET) & " | Figures: the sheet " & SheetName("Metrics") & _
+           " | Data checks: the sheet " & SheetName("DataChecks") & health, 1
+    Exit Sub
+Failed:
+    num = Err.Number: desc = Err.Description
+    LogError "BtnDrawCharts", num, desc
+    LogRunEnd "stopped"
+    EndRunStopped num, desc
+End Sub
+
+Private Sub ComputeMetricsCore()
+    ' The inputs of the metrics checked first (nothing changes before), then the rules and the tables (modFlowBuild.ComputeTablesIn: RefreshRules inside).
+    CheckComputeInputs
+    ComputeTablesIn ThisWorkbook
+End Sub
+
+Private Sub CheckComputeInputs()
+    ' The mandatory values of the metrics, AsOf readable, Iterations, PIs, the modes: errors before any change.
+    Dim asOf As Date
+    RequireMandatory ThisWorkbook.Worksheets(SheetName("Config")), COMPUTE_PARAMETERS
+    asOf = AsOfFromConfig(ThisWorkbook.Worksheets(SheetName("Config")))
+    ValidateBuildInputs ThisWorkbook
+End Sub
+
+Private Function RawRows(ByVal name As String) As Long
+    ' The rows of a raw sheet (its first column is the key); 0 when it cannot be read.
+    Dim ws As Object
+    On Error Resume Next
+    Set ws = ThisWorkbook.Worksheets(SheetName(name))
+    RawRows = ws.Cells(ws.Rows.Count, 1).End(-4162).Row - 1
+    If RawRows < 0 Then RawRows = 0
+    Err.Clear
+End Function
 
 Public Sub BtnCancelExtraction()
     ' Takes effect before the next step of the extraction, or at once during a wait for Jira; too late once the raw sheets
@@ -83,8 +166,8 @@ Public Sub BtnCancelExtraction()
         LogLine "RUN", "cancel asked"
         ShowProgress -1, "Cancelling..."
     Else
-        LogLine "RUN", "cancel asked too late (building the flow sheets)"
-        ShowProgress -1, "Too late to cancel: the flow sheets are being built."
+        LogLine "RUN", "cancel asked: nothing to cancel (this step runs in one go)"
+        ShowProgress -1, "Nothing to cancel: this step runs in one go."
     End If
 End Sub
 
@@ -233,17 +316,14 @@ Public Sub ExtractSlice()
         End If
         If ExtractJobStep() Then
             mExtracting = False
-            ShowProgress 0.92, "Building the flow sheets and the charts..."
-        Else
-            ShowProgress ExtractJobFraction(), ExtractJobLabel()
+            health = HealthFields(ThisWorkbook)                    ' the column types of the raw sheets (the tables come with 2. Compute)
+            LogRunEnd "ok"
+            EndRun "Extracted | Issues: " & RawRows("Issues") & " | Status intervals: " & RawRows("StatusIntervals") & " | Changelog rows: " & _
+                   RawRows("Changelog") & " | Next: click " & COMPUTE_CAPTION & health, 1
+            Exit Sub
         End If
+        ShowProgress ExtractJobFraction(), ExtractJobLabel()
         If mBusy Then ScheduleSlice                ' AbortExtraction may have run during the DoEvents above
-    Else
-        BuildFlowSheetsIn ThisWorkbook
-        health = HealthFields(ThisWorkbook)                        ' before the end of the run: its step and its lines belong to it
-        LogRunEnd "ok"
-        EndRun "Done | Charts: the six flow metrics in the sheet " & SheetName(CHARTS_SHEET) & " | Figures: the sheet " & SheetName("Metrics") & _
-               " | Data checks: the sheet " & SheetName("DataChecks") & health, 1
     End If
     Exit Sub
 Failed:

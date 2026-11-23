@@ -12,7 +12,9 @@ empty here, and **`ApiToken` must stay empty** (a test refuses a token in this f
 as **Example**) counts as not chosen: Jira's answer replaces it, in yellow with a note. A value you typed is never changed.
 
 **Mandatory** says whether the macros work while the value is empty:
-- `True`: the button **Extract from Jira and compute** stops before any call to Jira and names the empty ones. The
+- `True`: a button stops while a value it needs is empty and names it: **1. Extract from Jira** (BaseUrl, Email, ApiToken, AsOf,
+  BlocksLinkType) before any call to Jira, **2. Compute the metrics** (FlowLoadMode, PredictabilityMode, AsOf, FeatureTypes,
+  FillRateThreshold) before computing. The
   button **Read the Jira configuration** checks only `BaseUrl`, `Email` and `ApiToken`. Without the value, a request
   would fail or a figure or a data check would be wrong.
 - `False`: empty is allowed. A default is used, nothing is added (no filter, no proxy), or the data checks that need

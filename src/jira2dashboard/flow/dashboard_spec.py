@@ -16,17 +16,20 @@ SELECTOR = "dashTeam"                         # name of the cell that picks the 
 SELECTOR_CELL = "B2"                          # on the sheet Charts
 STATUS = "dashStatus"                          # name of the cell where the extraction tells what it does (its headline)
 # Top left, one under the other (AL's order): the progress bar, Prompt for Rovo, Load settings CSV, Read the Jira
-# configuration, Propose values from Jira, Extract from Jira and compute, Cancel; then the status, so that no text of the
-# status runs under a button.
+# configuration, Propose values from Jira, then the three steps (AL, 2026-11-22: correct and compute again without reading Jira):
+# 1. Extract from Jira, 2. Compute the metrics, 3. Draw the charts, and Cancel; then the status, so that no text of the status runs
+# under a button.
 BAR_CELL = "A2"                               # the progress bar (rectangles pbBack, pbFill)
 ROVO_CELL = "A3"                              # the button that writes the prompt for Rovo
 ROVO_LOAD_CELL = "A5"                         # the button that loads the settings CSV (the answer of Rovo)
 CONFIG_CELL = "A7"                            # the button that reads the Jira configuration into proposal sheets
 PROPOSE_CELL = "A9"                           # the button that proposes values in the parameter sheets (empty cells only)
-EXTRACT_CELL = "A11"                          # the button Extract from Jira and compute
-CANCEL_CELL = "A13"                           # the button Cancel
-STATUS_CELL = "A16"
-STATUS_ROWS = 20                              # rows of fields under it (A17:A36): name in A, value in B (modActions.ShowProgress)
+EXTRACT_CELL = "A11"                          # the button 1. Extract from Jira
+COMPUTE_CELL = "A13"                          # the button 2. Compute the metrics
+DRAW_CELL = "A15"                             # the button 3. Draw the charts
+CANCEL_CELL = "A17"                           # the button Cancel
+STATUS_CELL = "A20"
+STATUS_ROWS = 20                              # rows of fields under it (A21:A40): name in A, value in B (modActions.ShowProgress)
 BUTTON_WIDTH, BUTTON_HEIGHT, BAR_HEIGHT = 190, 26, 14
 
 XL_COLUMN_CLUSTERED, XL_LINE_MARKERS, XL_COLUMN_STACKED_100, XL_LINE = 51, 65, 53, 4
@@ -57,7 +60,9 @@ class ChartSpec:
     zeros: bool = False             # the note counts the points that are 0 (no bar) instead of the gaps
 
 
-EXTRACT_CAPTION = "Extract from Jira and compute"     # the captions of the Dashboard buttons (flow/sheets.py)
+EXTRACT_CAPTION = "1. Extract from Jira"              # the captions of the Dashboard buttons (flow/sheets.py; modActions has the three steps)
+COMPUTE_CAPTION = "2. Compute the metrics"
+DRAW_CAPTION = "3. Draw the charts"
 CANCEL_CAPTION = "Cancel"
 CONFIG_CAPTION = "Read the Jira configuration"
 PROPOSE_CAPTION = "Propose values from Jira"

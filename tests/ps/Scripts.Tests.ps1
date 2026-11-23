@@ -576,7 +576,7 @@ Describe "manual-test.ps1" {
         (Calls)[1] | Should Be "run build"
         (Calls)[2] | Should Match "^run mock-workbook --workbook .*out.release.jira2dashboard.xlsm --port 8099$"
         $r.Out | Should Match "1. Read the Jira configuration"
-        $r.Out | Should Match "2. Extract from Jira and compute"
+        $r.Out | Should Match "2. 1. Extract from Jira, then 2. Compute the metrics, then 3. Draw the charts"
         $r.Out | Should Match "Excel may crash right after the last search page"
         Assert-MockCalled Start-Process -Scope It -Times 1 -ParameterFilter { $FilePath -eq "excel.exe" -and ($ArgumentList -contains "/x") -and ($ArgumentList -join " ") -match "jira2dashboard4manualtest.xlsm" }
     }

@@ -602,16 +602,18 @@ Public Function ReadStatusCatalog(ByVal cfg As Object) As Collection
     Loop
 End Function
 
-Public Sub WriteStatusCatalog(ByVal wb As Object, ByVal rows As Collection)
+Public Sub WriteStatusCatalog(ByVal wb As Object, ByVal rows As Collection, Optional ByVal evenEmpty As Boolean = False)
     ' The proposal sheet JiraStatusCatalog (the active sheet stays shown). Nothing is written when the call gave no status: the sheet of a
-    ' previous reading stays.
+    ' previous reading stays; but the extraction writes it always (evenEmpty): 2. Compute the metrics must read the catalog the extraction used.
     Dim shown As Object
-    If rows.Count = 0 Then Cov "JCF46": Exit Sub
+    If rows.Count = 0 And Not evenEmpty Then Cov "JCF46": Exit Sub
     On Error Resume Next
     Set shown = wb.ActiveSheet
     On Error GoTo 0
     WriteProposal wb, "JiraStatusCatalog", Array("Id", "Status", "JiraCategory"), rows
+    On Error Resume Next
     If Not shown Is Nothing Then shown.Activate
+    Err.Clear
 End Sub
 
 Public Function ReadLinkTypes(ByVal cfg As Object) As Collection

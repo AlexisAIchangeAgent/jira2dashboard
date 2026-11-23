@@ -236,8 +236,9 @@ python.log). `tests/unit/test_claude_hooks.py` and `test_claude_skills.py` test 
   `Config` columns: Parameter | Value | Example | Mandatory | Description (formulas read A and B; the rest by header). An empty Mandatory=True value
   stops the buttons before any call to Jira (`modParams.RequireMandatory`, error 608).
 - **Dashboard and Charts.** Top left, one under the other (AL's order): the progress bar `A2`, the buttons Prompt for Rovo
-  `A3`, Load settings CSV `A5`, Read the Jira configuration `A7`, Propose values from Jira `A9`, Extract `A11`, Cancel `A13` (cells in `dashboard_spec`). A
-  final status is `Title | Name: value | ...`: `A16` (name `dashStatus`) shows the title and `A17:B36` one row per field (`modText.StatusParts`, `modActions.ShowProgress`; `ProgressSnapshot` rebuilds the line from the
+  `A3`, Load settings CSV `A5`, Read the Jira configuration `A7`, Propose values from Jira `A9`, then the three steps `1. Extract from Jira` `A11`,
+  `2. Compute the metrics` `A13`, `3. Draw the charts` `A15`, Cancel `A17` (cells and captions in `dashboard_spec`, the captions also in `modActions`: a test). A
+  final status is `Title | Name: value | ...`: `A20` (name `dashStatus`) shows the title and `A21:B40` one row per field (`modText.StatusParts`, `modActions.ShowProgress`; `ProgressSnapshot` rebuilds the line from the
   cells for the tests). The 10 charts, their notes and the team selector `B2` (name `dashTeam`) are on the sheet `Charts`, made
   at build after the Dashboard (`CHARTS_SHEET` of `modFlowBuild`/`modActions` = `dashboard_spec.CHARTS_SHEET`, a test pins it). The 5
   charts of the Features per iteration are on the sheet `IterationCharts` (right after `Charts`; `ChartSpec` has a column `Sheet`, the
@@ -252,8 +253,18 @@ python.log). `tests/unit/test_claude_hooks.py` and `test_claude_skills.py` test 
 - **Extraction (VBA).** `modHttp` (WinHTTP, proxy with Windows auth, retries; `modProxy` finds the proxy of the Windows
   settings when `ProxyServer` is empty: WPAD, PAC or fixed, via WinHTTP API calls on byte buffers, not VBA Types, which
   crashed 64-bit Excel) -> `modJira` (search, bulk changelog) ->
-  `modExtract` -> `modFlow` (status intervals) ; `modActions` is the dashboard button (`ExtractAndCompute`). The previous
-  results are cleared only after Jira has answered. `modLog` writes the local log in the folder `logs` next to the workbook (it runs from a folder not known in advance; `%LOCALAPPDATA%\jira2dashboard\logs` is the fallback):
+  `modExtract` -> `modFlow` (status intervals) ; `modActions` holds the buttons. The previous
+  results are cleared only after Jira has answered. **Three steps (AL, 2026-11-22: correct and compute again without reading Jira):**
+  `BtnExtract` (the slices; ends with `Extracted | Issues | Status intervals | Changelog rows | Next`, the raw sheets only, the old tables and charts
+  deleted), `BtnComputeMetrics` (`ComputeMetricsCore`: the compute parameters, `ValidateBuildInputs`, `modExtract.RefreshRules`, `BuildTablesIn`; no call to
+  Jira) and `BtnDrawCharts` (`BuildChartsIn`, error 712 `J2D-FLOW-007` without the tables); `ExtractAndCompute` (tests, `--run`) is the three in one go.
+  Each button checks its own mandatory parameters (`EXTRACT_PARAMETERS` in modExtract, `COMPUTE_PARAMETERS` in modActions): a client may extract before
+  filling Iterations and PIs. **`RefreshRules`** makes the status rules again from what the extraction kept (`JiraStatusCatalog`, now written at every
+  extraction even empty; `JiraWorkflows`; Issues.Status/StatusCategory) under the exceptions of Workflows, then rewrites StatusIntervals `Workflow`,
+  `Category` and the open `DurationDays` in place: a change of Workflows, of a Role of Projects or of AsOf needs no extraction; the field ids, Filter,
+  the project list and BlocksLinkType do. It is NOT in `BuildFlowSheetsIn` (`T_FlowBuild` writes StatusRules by hand); `RulesInit` stays at the extraction and
+  every flow scenario computes right after extracting, so a difference between the two shows against the reference. Measured before the buttons: 15 rounds
+  of tables then charts in one Excel, no crash (the open defect hit a second build at `flow sheets: charts`). `modLog` writes the local log in the folder `logs` next to the workbook (it runs from a folder not known in advance; `%LOCALAPPDATA%\jira2dashboard\logs` is the fallback):
   see **Logs** below; never pass it a token, URL, JQL or Jira answer (`test_vba_log_guard.py` checks).
 - **Python path without VBA (`standalone/`, `run.ps1 extract`).** A second consumer of the flow reference: it reads
   the parameter sheets of the filled workbook as a zip (`xlsx_read`, by header name, shape rules shared with
@@ -326,7 +337,8 @@ python.log). `tests/unit/test_claude_hooks.py` and `test_claude_skills.py` test 
   iterations they make (`ProposeIterations`: sprints that start and end within a day = one iteration, End = last day + 1, cut at the start of the next iteration so
   that no day is in two iterations, label = the shared name else `Iteration <Start>`, only the ones `Iterations` lacks). A new proposal rule goes in `modPropose`
   with its case in `T_ProposeFromSheets` / `T_ProposeTypes`. Not yet: the teams; PI dates have no API.
-- **After an extraction (modHealth, AL 2026-11-13).** `ExtractSlice` appends `HealthFields` to the final status, each field only when there is something to see:
+- **After an extraction (modHealth, AL 2026-11-13).** The statuses of the three buttons append `HealthFields` (Extract: only the column types, the
+  tables come with Compute; Compute and Draw: every field), each field only when there is something to see:
   `Done outside the iterations: N of M` (no metric counts a ticket done outside every iteration: the usual cause of empty charts), `Without a team`,
   `Statuses not in Workflows` (their names), `Cells in error: Table.Column x n` (a formula that fails on real data; the charts' own #N/A are not read).
   Since 2026-11-22 (AL: "flow metrics are still not computable") also, in this order: `No start status: Feature, Team` and `No Wait status` first, then

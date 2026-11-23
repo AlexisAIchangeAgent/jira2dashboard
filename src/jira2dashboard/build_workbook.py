@@ -30,7 +30,7 @@ TARGET = target_for(DELIVERY_NAME)
 # No test module, no test button: modCoverage stays because the other modules call Cov (a no-op unless switched on).
 MODULES = ["modCoverage", "modLog", "modJson", "modText", "modHttp", "modProxy", "modJira", "modFlow", "modParams", "modExtract",
            "modJiraConfig", "modPropose", "modHealth", "modFlowBuild", "modActions"]
-BUTTON_MACRO = "modActions.BtnExtractAndCompute"
+BUTTON_MACRO = "modActions.BtnExtract"
 # The handler of the workbook: a slice of the extraction still scheduled when the workbook is closed would reopen it.
 THISWORKBOOK_CODE = "\r\n".join((
     "Option Explicit",
