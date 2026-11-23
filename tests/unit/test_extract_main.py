@@ -194,6 +194,21 @@ def test_without_the_project_administrator_right_the_workflows_are_not_asked(tmp
     assert not [r for r in jira.requests if r.path.endswith("/workflows/preview")]
 
 
+def test_the_log_and_the_sheet_run_say_what_to_look_at(tmp_path, jira):
+    """The fields of modHealth (flow/health.py) in the log and in the sheet Run: none for the clean fake data, AsOf before the data when AsOf is
+    set before its last status changes (2026-11-01)."""
+    from jira2dashboard.standalone.xlsx_read import read_sheets
+    code, log = run(tmp_path, params(tmp_path, jira.base_url))
+    assert code == 0 and " health | " not in log
+    assert ["Health", "nothing to look at"] in read_sheets(tmp_path / "out.xlsx", {X.RUN_SHEET})[X.RUN_SHEET]
+    book = M.write_params_book(tmp_path / "early.xlsx", jira.base_url, {"ProxyServer": "DIRECT", "MaxRetries": "1", "AsOf": "2026-10-15 00:00"})
+    code, log = run(tmp_path, book, log_name="early.log")
+    assert code == 0
+    assert re.search(r"INFO health \| AsOf before the data: \d+ status changes after AsOf \(Flow Load stops at AsOf\)", log), log
+    health = next(row[1] for row in read_sheets(tmp_path / "out.xlsx", {X.RUN_SHEET})[X.RUN_SHEET] if row and row[0] == "Health")
+    assert "AsOf before the data: " in health
+
+
 def test_a_refused_workflow_reading_is_a_warning_with_its_code(tmp_path, jira):
     jira.fail_next("POST", "/rest/api/3/workflows/preview", 403)
     code, log = run(tmp_path, params(tmp_path, jira.base_url))

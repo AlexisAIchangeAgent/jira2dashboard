@@ -28,6 +28,7 @@ from jira2dashboard.cli.args import parser
 from jira2dashboard.flow import dashboard_spec as D
 from jira2dashboard.flow import raw_types
 from jira2dashboard.flow.formulas import CHANGELOG_RAW, INTERVALS_RAW, ISSUES, PIINTERVALS_RAW
+from jira2dashboard.flow.health import health_fields
 from jira2dashboard.flow.jira_workflows import JiraWorkflows
 from jira2dashboard.flow.model import UNCLASSIFIED, Rules
 from jira2dashboard.flow.status_rules import counts_line, rule_counts, rule_warnings
@@ -38,7 +39,7 @@ from jira2dashboard.standalone import results as R
 from jira2dashboard.standalone.charts_svg import chart_pictures, iteration_chart_pictures
 from jira2dashboard.standalone.http_winhttp import JiraClient, WinHttp, took
 from jira2dashboard.standalone.mapping import FieldIds, extracted, interval_rows
-from jira2dashboard.standalone.params_book import read_params, run_settings
+from jira2dashboard.standalone.params_book import config_values, read_params, run_settings
 from jira2dashboard.standalone.proxy import choose_proxy, detect_proxy
 from jira2dashboard.standalone.workflows import read_workflows
 from jira2dashboard import sheet_names as S
@@ -173,6 +174,16 @@ def log_rules(rules: Rules, kinds_with_tickets: set[str]) -> None:
         log.warning("%s", line)
 
 
+def log_health(issues, results, settings, verdicts: list[str]) -> list[str]:
+    """What the person should look at (flow/health.py, the fields of modHealth.HealthFields): one INFO line per field, and the fields for the sheet Run."""
+    config = next(sheet for sheet in settings.sheets if sheet.name == "Config")
+    fields = health_fields(issues, results.items, settings.rules, list(settings.iterations), settings.as_of, results.velocity_check, verdicts,
+                           config_values(config)["FeatureTypes"])
+    for field in fields:
+        log.info("health%s", field)
+    return fields
+
+
 def log_column_types(extract, intervals) -> raw_types.TypeReport:
     """The first filled value of each column written from Jira against the type of its label (flow/raw_types.py, the VBA side is
     modHealth.TypeProblems): a WARN and two INFO lines per problem with its J2D-DATA code, one INFO line per table and a summary.
@@ -252,6 +263,8 @@ def run(args, formatter: Scrubbed, collected: Collected, sleep=time.sleep, detec
     feature_pictures = iteration_chart_pictures(results.iteration_features, [p.name for p in settings.iterations])
     log.info("END results: %d items, %d metrics rows, %d charts%s", len(results.items), len(results.metrics),
              len(pictures) + len(feature_pictures), took(step))
+    reconciliation = R.reconciliation_rows(results, extract.flow, settings)
+    health = log_health(extract.flow, results, settings, [row[-1] for row in reconciliation])
     run_rows = [
         ("Made by", "jira2dashboard, Python path without VBA (scripts\\run.ps1 extract): values, no formula"),
         ("Started (UTC)", started_at), ("Workbook read", str(workbook.resolve())), ("Jira", base), ("JQL", jql),
@@ -260,6 +273,7 @@ def run(args, formatter: Scrubbed, collected: Collected, sleep=time.sleep, detec
         ("Issues", len(extract.rows)), ("Changelog items", extract.changelog_items),
         ("Status intervals", len(intervals)), ("Blocking links", len(extract.links)),
         ("Column types", raw_types.status_field(types).removeprefix(" | Column types: ") or "every column has the type of its label"),
+        ("Health", "".join(health).removeprefix(" | ") or "nothing to look at"),
         ("Retries of a call to Jira", client.retries), ("Flow Distribution chart", args.team),
         ("Warnings", f"{len(collected.rows)} (sheet {ERRORS_SHEET})"), ("Log", str(Path(args.log).resolve())),
         ("Duration (s)", round(time.monotonic() - started, 1)),
@@ -273,7 +287,7 @@ def run(args, formatter: Scrubbed, collected: Collected, sleep=time.sleep, detec
         Sheet(S.of("PIStatusTime"), R.PI_STATUS_TIME, R.pistatustime_rows(results, settings)),
         Sheet(S.of("VelocityCheck"), R.VELOCITY_CHECK, R.velocitycheck_rows(results, settings)),
         Sheet(S.of("MetricItems"), *R.metricitems_sheet(results, settings)),
-        Sheet(S.of("Reconciliation"), R.RECONCILIATION, R.reconciliation_rows(results, extract.flow, settings)),
+        Sheet(S.of("Reconciliation"), R.RECONCILIATION, reconciliation),
         Sheet(S.of("IterationFeatures"), R.ITERATION_FEATURES, R.iterationfeatures_rows(results)),
         Sheet(S.of("IterationCharts"), rows=[("The Features of the ART iteration by iteration, drawn by Python (SVG pictures).",)],
               pictures=feature_pictures, pictures_per_row=D.CHARTS_PER_ROW),

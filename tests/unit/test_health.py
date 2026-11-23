@@ -1,0 +1,129 @@
+"""What the person should look at after a run (flow/health.py, the Python twin of modHealth.HealthFields): the same fields, the same words, each one
+only when there is something to see. AL, 2026-11-22: "flow metrics are still not computable", so the fields say WHY (no start status, no Wait status,
+AsOf before the data, a start in the second of the backlog entry...). Every figure is typed by hand from the small tickets below.
+"""
+import datetime as dt
+from pathlib import Path
+
+from jira2dashboard import sheet_names as S
+from jira2dashboard.flow import health as H
+from jira2dashboard.flow.itemflow import item_flow
+from jira2dashboard.flow.model import ART, OTHER_TYPES, Change, FlowIssue, Iteration, Rules, StatusRule
+from jira2dashboard.flow.velocity_check import VelocityCheck
+
+I1 = Iteration("I1", dt.datetime(2025, 5, 1), dt.datetime(2025, 5, 11))
+AS_OF = dt.datetime(2025, 6, 1)
+# Team: To Do (Backlog) -> Dev (Active, start) -> Review (Wait) -> Done (end). Feature: Funnel (Backlog) -> Build (Active, start) -> Shipped (end).
+RULES = Rules({("Team", "To Do"): StatusRule("Backlog", False, False, False), ("Team", "Dev"): StatusRule("Active", True, False, False),
+               ("Team", "Review"): StatusRule("Wait", False, False, False), ("Team", "Done"): StatusRule("Done", False, True, False),
+               ("Feature", "Funnel"): StatusRule("Backlog", False, False, False), ("Feature", "Build"): StatusRule("Active", True, False, False),
+               ("Feature", "Shipped"): StatusRule("Done", False, True, False)})
+
+
+def day(text):
+    return dt.datetime.fromisoformat(text)
+
+
+def issue(key, moves, workflow="Team", team="Alpha", type_="Story", first=None, created="2025-04-01T00:00"):
+    changes, previous = [], first or ("To Do" if workflow == "Team" else "Funnel")
+    for n, (at, status) in enumerate(moves, start=1):
+        changes.append(Change(f"{key}-{n}", day(at), previous, status))
+        previous = status
+    return FlowIssue(key=key, team=team, type=type_, work_type=None, workflow=workflow, created=day(created), status=previous, changes=tuple(changes))
+
+
+def fields(issues, rules=RULES, as_of=AS_OF, checks=(), verdicts=(), feature_types="Feature"):
+    items = [item_flow(i, as_of, rules) for i in issues]
+    return H.health_fields(issues, items, rules, [I1], as_of, list(checks), list(verdicts), feature_types)
+
+
+CLEAN = [issue("T-1", [("2025-05-02T00:00", "Dev"), ("2025-05-03T00:00", "Review"), ("2025-05-04T00:00", "Done")]),
+         issue("F-1", [("2025-05-02T00:00", "Build"), ("2025-05-05T00:00", "Shipped")], workflow="Feature", team=ART, type_="Feature")]
+
+
+def test_a_clean_run_says_nothing():
+    assert fields(CLEAN) == []
+
+
+def test_a_kind_with_tickets_and_no_start_status_is_named():
+    rules = Rules({k: StatusRule(r.category, False, r.is_end, False) if k[0] == "Team" else r for k, r in RULES._rows.items()})
+    assert fields(CLEAN, rules) == [f" | No start status: Team (no Flow Time, Flow Efficiency or Flow Load): set IsStart = 1 on the first in-progress "
+                                    f"status in {S.of('Workflows')}"]
+
+
+def test_both_kinds_without_a_start_are_named_in_one_field_and_a_kind_without_tickets_is_not():
+    rules = Rules({k: StatusRule(r.category, False, r.is_end, False) for k, r in RULES._rows.items()})
+    assert fields(CLEAN, rules)[0].startswith(" | No start status: Feature, Team (")
+    assert fields(CLEAN[:1], rules)[0].startswith(" | No start status: Team (")              # no Feature ticket: the Feature workflow does not matter
+
+
+def test_no_wait_status_is_told():
+    rules = Rules({k: StatusRule("Active" if r.category == "Wait" else r.category, r.is_start, r.is_end, False) for k, r in RULES._rows.items()})
+    assert fields(CLEAN, rules) == [f" | No Wait status (no Flow Efficiency): set Category = Wait on the statuses where the work waits in "
+                                    f"{S.of('Workflows')}"]
+
+
+def test_the_tickets_of_the_program_that_are_not_features_and_a_feature_types_that_matches_none():
+    sub = issue("F-2", [("2025-05-02T00:00", "Build")], workflow="Feature", team=OTHER_TYPES, type_="Sub-task")
+    assert fields(CLEAN + [sub]) == [f" | Not Features: 1 of 2 tickets of the Program (team {OTHER_TYPES} in {S.of('ItemFlow')}, left out of the ART metrics)"]
+    epic = issue("F-3", [], workflow="Feature", team=OTHER_TYPES, type_="Epic")
+    got = fields(CLEAN[:1] + [sub, epic], feature_types="Fonctionnalite")
+    assert got == [f" | Not Features: 2 of 2 tickets of the Program (team {OTHER_TYPES} in {S.of('ItemFlow')}, left out of the ART metrics)"     # one field
+                   f' | FeatureTypes "Fonctionnalite" matches no ticket of the Program (types read: Sub-task, Epic): type the name of the Feature '
+                   f"type of Jira in {S.of('Config')}"]
+
+
+def test_the_tickets_done_outside_the_iterations_but_not_those_of_the_other_types():
+    late = issue("T-2", [("2025-05-12T00:00", "Dev"), ("2025-05-13T00:00", "Done")])
+    sub = issue("F-2", [("2025-05-12T00:00", "Build"), ("2025-05-13T00:00", "Shipped")], workflow="Feature", team=OTHER_TYPES, type_="Sub-task")
+    got = fields(CLEAN + [late, sub])
+    assert f" | Done outside the iterations: 1 of 3 done tickets (no metric counts them): add iterations to {S.of('Iterations')}" in got
+
+
+def test_the_tickets_without_a_team():
+    lost = issue("X-1", [], team="")
+    assert fields(CLEAN + [lost]) == [f" | Without a team: 1 tickets (a ticket takes its team from {S.of('Projects')})"]
+
+
+def test_the_statuses_no_rule_knows_are_named_once_in_their_order():
+    odd = [issue(f"T-{n}", [("2025-05-02T00:00", s)]) for n, s in enumerate(("Odd", "Strange", "Odd", "A", "B", "C", "D"), start=10)]
+    assert fields(CLEAN + odd) == [f" | Statuses not in Workflows: 6 (Odd, Strange, A, B, C, ...): add them to {S.of('Workflows')} with a Category"]
+
+
+def test_a_start_in_the_second_of_the_backlog_entry_leaves_the_ticket_without_a_start():
+    # created at 09:00:00 in To Do, moved to Dev in the same second by an automation (the milliseconds are dropped): no StartUtc
+    quick = issue("T-3", [("2025-05-02T09:00:00", "Dev"), ("2025-05-04T00:00", "Done")], created="2025-05-02T09:00:00")
+    assert fields(CLEAN + [quick]) == [" | Started in the second of the backlog entry: 1 tickets (no StartUtc, so left out of Flow Time and Flow Load)"]
+    later = issue("T-4", [("2025-05-02T09:00:01", "Dev"), ("2025-05-04T00:00", "Done")], created="2025-05-02T09:00:00")
+    assert fields(CLEAN + [later]) == []                                                  # one second later is a start
+
+
+def test_status_changes_after_asof_say_that_asof_is_before_the_data():
+    got = fields(CLEAN, as_of=day("2025-05-03T12:00"))                                    # T-1 Done 05-04, F-1 Shipped 05-05: 2 changes after
+    assert got == [f" | AsOf before the data: 2 status changes after AsOf (Flow Load stops at AsOf): set AsOf in {S.of('Config')} to the time of "
+                   "the extraction"]
+
+
+def test_a_velocity_check_with_a_gap_and_the_controls_to_review():
+    ok = VelocityCheck("I1", "Alpha", 1, 0, 0, 0, 1, 0, 0, 0)
+    gap = VelocityCheck("I1", ART, 1, 1, 0, 0, 0, 0, 0, 1)
+    assert fields(CLEAN, checks=[ok, gap]) == [f" | VelocityCheck gap: 1 of 2 rows (sheet {S.of('VelocityCheck')})"]
+    assert fields(CLEAN, verdicts=["OK", "REVIEW", "INFO", "REVIEW"]) == [
+        f" | Reconciliation: 2 of 4 controls to review (sheet {S.of('Reconciliation')})"]
+
+
+def test_the_fields_come_in_the_order_of_the_vba():
+    rules = Rules({k: StatusRule(r.category, False, r.is_end, False) for k, r in RULES._rows.items()})
+    lost = issue("X-1", [("2025-05-02T00:00", "Odd")], team="")
+    got = [f.split(":")[0] for f in fields(CLEAN + [lost], rules, as_of=day("2025-05-03T12:00"), verdicts=["REVIEW"])]
+    assert got == [" | No start status", " | Without a team", " | Statuses not in Workflows", " | AsOf before the data", " | Reconciliation"]
+
+
+def test_the_vba_says_the_same_words():
+    vba = (Path(__file__).resolve().parents[2] / "vba" / "modHealth.bas").read_text(encoding="ascii")
+    for text in H.VBA_TEXTS:
+        assert f'"{text}"' in vba, text
+    order = vba.split("Public Function HealthFields", 1)[1].split("Exit Function", 1)[0]
+    names = ("NoStartStatus", "NoWaitStatus", "NotFeatures", "OutsideIterations", "WithoutTeam", "UnclassifiedStatuses", "SameSecondStarts",
+             "AsOfBeforeData", "VelocityCheckGap", "ReconciliationFindings")
+    assert [order.index(n + "(") for n in names] == sorted(order.index(n + "(") for n in names)

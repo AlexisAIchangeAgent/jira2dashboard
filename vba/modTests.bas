@@ -2644,20 +2644,32 @@ End Sub
 ' ================= What to look at after an extraction =================
 
 Private Function HealthBook(ByVal clean As Boolean) As Object
-    ' A scratch workbook with the tables HealthFields reads: ItemFlow (Key, Team, DoneUtc, DC03), StatusIntervals, the sheet Iterations.
-    Dim wb As Object, ws As Object, done1 As Double, outside As Double
+    ' A scratch workbook with the tables HealthFields reads: ItemFlow (Key, Team, DoneUtc, DC03, Workflow, StartUtc), StatusIntervals, VelocityCheck,
+    ' the sheets Iterations, Config (AsOf) and StatusRules.
+    Dim wb As Object, ws As Object, done1 As Double, outside As Double, t0 As Double
     Set wb = Workbooks.Add
     done1 = CDbl(DateSerial(2026, 1, 5)): outside = IIf(clean, CDbl(DateSerial(2026, 1, 9)), CDbl(DateSerial(2026, 3, 1)))
     PutRows wb, "Iterations", Array(Array("Iteration-label", "Start", "End"), Array("I1", "2026-01-01", "2026-01-15"))
-    PutRows wb, "ItemFlow", Array(Array("Key", "Team", "DoneUtc", "DC03"), _
-                                  Array("K1", "Team A", done1, 0), Array("K2", "Team A", outside, 0), _
-                                  Array("K3", IIf(clean, "Team A", ""), "", IIf(clean, 0, "=NA()")), Array("K4", "Team A", done1 + 2, IIf(clean, 0, "=NA()")))
-    PutRows wb, "StatusIntervals", Array(Array("Key", "Status", "Category"), Array("K1", "Open", "Backlog"), _
-                                         Array("K1", "Weird", IIf(clean, "Active", "Unclassified")), Array("K2", "Weird", IIf(clean, "Active", "Unclassified")), _
-                                         Array("K3", "Odd", IIf(clean, "Done", "Unclassified")))
+    t0 = CDbl(DateSerial(2026, 1, 2))
+    PutRows wb, "ItemFlow", Array(Array("Key", "Team", "DoneUtc", "DC03", "Workflow", "StartUtc"), _
+                                  Array("K1", "Team A", done1, 0, "Team", IIf(clean, t0 + 1, "")), Array("K2", "Team A", outside, 0, "Team", ""), _
+                                  Array("K3", IIf(clean, "Team A", ""), "", IIf(clean, 0, "=NA()"), "Team", ""), _
+                                  Array("K4", "Team A", done1 + 2, IIf(clean, 0, "=NA()"), "Team", ""))
+    ' K1 enters its start status (Weird) in the second of its backlog entry (not clean) or a day later (clean); K3 enters Odd after AsOf (not clean)
+    PutRows wb, "StatusIntervals", Array(Array("Key", "Status", "Category", "EnteredUtc", "IsStart"), Array("K1", "Open", "Backlog", t0, 0), _
+                                         Array("K1", "Weird", IIf(clean, "Active", "Unclassified"), IIf(clean, t0 + 1, t0 + 0.000003), 1), _
+                                         Array("K2", "Weird", IIf(clean, "Active", "Unclassified"), t0 + 1, 0), _
+                                         Array("K3", "Odd", IIf(clean, "Done", "Unclassified"), IIf(clean, t0 + 5, CDbl(DateSerial(2026, 3, 1))), 0))
+    PutRows wb, "Config", Array(Array("Parameter", "Value", "Example", "Mandatory", "Description"), Array("AsOf", "2026-02-01", "", "True", ""))
+    ' no start status and no Wait status in the rules (not clean)
+    PutRows wb, "StatusRules", Array(Array("Workflow", "Status", "Category", "IsStart", "IsEnd", "IsFree", "Source"), _
+                                     Array("Team", "Open", "Backlog", 0, 0, 0, "Jira"), Array("Team", "Weird", "Active", IIf(clean, 1, 0), 0, 0, "Jira"), _
+                                     Array("Team", "Odd", IIf(clean, "Wait", "Done"), 0, IIf(clean, 0, 1), 0, "Jira"))
+    PutRows wb, "VelocityCheck", Array(Array("Iteration-label", "Team", "Gap"), Array("I1", "Team A", 0), Array("I1", "ART", IIf(clean, 0, 2)))
     For Each ws In wb.Worksheets
         If ws.Name = SheetName("ItemFlow") Then ws.ListObjects.Add(1, ws.UsedRange, , 1).Name = "ItemFlow"
         If ws.Name = SheetName("StatusIntervals") Then ws.ListObjects.Add(1, ws.UsedRange, , 1).Name = "StatusIntervals"
+        If ws.Name = SheetName("VelocityCheck") Then ws.ListObjects.Add(1, ws.UsedRange, , 1).Name = "VelocityCheck"
     Next ws
     Application.DisplayAlerts = False
     wb.Worksheets(1).Delete
@@ -2863,6 +2875,18 @@ Public Sub T_HealthFields()
           InStr(text, " | Statuses not in Workflows: 2 (Weird, Odd): add them to Workflows_from_user with a Category") > 0
     Check "health", "the column of a formula that fails on the data", "DC03 x 2", True, _
           InStr(text, " | Cells in error: 1 column(s), first ItemFlow.DC03 x 2") > 0
+    Check "health", "a kind with tickets and no start status", "Team", True, InStr(text, " | No start status: Team (no Flow Time, Flow Efficiency or Flow Load): " & _
+          "set IsStart = 1 on the first in-progress status in Workflows_from_user") > 0
+    Check "health", "no Wait status", "no Wait", True, InStr(text, " | No Wait status (no Flow Efficiency): set Category = Wait on the statuses where the work waits " & _
+          "in Workflows_from_user") > 0
+    Check "health", "a start in the second of the backlog entry", "K1", True, _
+          InStr(text, " | Started in the second of the backlog entry: 1 tickets (no StartUtc, so left out of Flow Time and Flow Load)") > 0
+    Check "health", "a status change after AsOf", "K3", True, InStr(text, " | AsOf before the data: 1 status changes after AsOf (Flow Load stops at AsOf): " & _
+          "set AsOf in Config_from_user to the time of the extraction") > 0
+    Check "health", "a row of VelocityCheck whose Gap is not 0", "1 of 2", True, InStr(text, " | VelocityCheck gap: 1 of 2 rows (sheet VelocityCheck_from_excel)") > 0
+    Check "health", "the rules first, then the tickets, then the checks", "order", True, _
+          InStr(text, " | No start status") < InStr(text, " | No Wait status") And InStr(text, " | No Wait status") < InStr(text, " | Done outside") And _
+          InStr(text, " | Statuses not in") < InStr(text, " | Started in the second") And InStr(text, " | AsOf before") < InStr(text, " | VelocityCheck gap")
     Application.DisplayAlerts = False
     wb.Close False
     Set wb = HealthBook(True)

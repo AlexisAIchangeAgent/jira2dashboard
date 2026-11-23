@@ -1,13 +1,21 @@
 Option Explicit
 ' What the person should look at after an extraction: fields " | Name: value" for the status cell, each one only when there is
 ' something to see (a clean run adds nothing). They say WHY a figure or a chart is empty, with numbers and the names of the
-' statuses (the person's own configuration), never a value of a ticket:
+' statuses (the person's own configuration), never a value of a ticket. The Python twin is flow/health.py (same fields, same order, same
+' words: tests/unit/test_health.py reads them here):
+'   No start status               a workflow kind that has tickets and no IsStart status in StatusRules: no StartUtc, so no Flow Time,
+'                                 Flow Efficiency or Flow Load (AL, 2026-11-22: "flow metrics are still not computable")
+'   No Wait status                no status of StatusRules is Wait: Flow Efficiency is not computable
 '   Not Features                  tickets of the Program that are not Features (team "ART (other types)" in ItemFlow): left out of the ART metrics;
 '                                 and, when the ART has no Feature at all, that FeatureTypes matches none of them (a type named otherwise in Jira)
 '   Done outside the iterations   tickets whose DoneUtc falls in no iteration of the sheet Iterations (no metric counts them)
 '   Without a team                tickets whose Team is empty (the Team comes from the sheet Projects)
 '   Statuses not in Workflows     statuses of the history that the sheet Workflows lacks (category Unclassified: the Flow
 '                                 Efficiency is not computable and the Done of the ticket is not known)
+''   Started in the second of the backlog entry   tickets without a StartUtc that entered a start status in the same second as their last
+'                                 backlog entry (the milliseconds are dropped and the start must come strictly after it)
+'   AsOf before the data          status changes entered after AsOf: the open intervals and Flow Load stop at AsOf
+'   VelocityCheck gap             rows of the table VelocityCheck whose Gap is not 0
 '   Cells in error                Table.Column x n for the first columns of the flow tables that show an Excel error
 '   Column types                  the first filled cell of a column written from Jira is not of the type of its label (TypeProblems)
 ' Reads the tables of the workbook; never calls Jira, never raises (a status must not hide a finished extraction).
@@ -25,8 +33,8 @@ Private Const HALF_SECOND As Double = 0.0000057870370370 ' a day is 1: half a se
 Public Function HealthFields(ByVal wb As Object) As String
     Cov "HLT01"
     On Error GoTo Failed
-    HealthFields = TypeProblems(wb) & NotFeatures(wb) & OutsideIterations(wb) & WithoutTeam(wb) & UnclassifiedStatuses(wb) & ReconciliationFindings(wb) & _
-                   CellsInError(wb)
+    HealthFields = TypeProblems(wb) & NoStartStatus(wb) & NoWaitStatus(wb) & NotFeatures(wb) & OutsideIterations(wb) & WithoutTeam(wb) & _
+                   UnclassifiedStatuses(wb) & SameSecondStarts(wb) & AsOfBeforeData(wb) & VelocityCheckGap(wb) & ReconciliationFindings(wb) & CellsInError(wb)
     Exit Function
 Failed:
     Cov "HLT02"
@@ -70,6 +78,138 @@ Private Function InAnIteration(ByVal serial As Double, ByVal starts As Collectio
     For k = 1 To starts.Count
         If serial >= starts(k) And serial < ends(k) Then InAnIteration = True: Exit Function
     Next k
+End Function
+
+Private Function SerialOfCell(ByVal v As Variant, ByRef serial As Double) As Boolean
+    ' True (and the date serial) when a cell holds a date or a number; False for an error, a text or an empty cell.
+    If IsError(v) Or IsEmpty(v) Then Exit Function
+    If VarType(v) = vbString Then Exit Function
+    If VarType(v) = vbDate Or IsNumeric(v) Then serial = CDbl(v): SerialOfCell = True
+End Function
+
+Private Function KindsWithTickets(ByVal wb As Object) As Object
+    ' The workflow kinds of the tickets of ItemFlow (column Workflow: Feature or Team); Nothing when the table has none.
+    Dim wf As Variant, r As Long, out As Object
+    wf = ColumnValues(TableOf(wb, "ItemFlow"), "Workflow")
+    If IsEmpty(wf) Then Exit Function
+    Set out = CreateObject("Scripting.Dictionary")
+    For r = 1 To UBound(wf, 1)
+        If Not IsError(wf(r, 1)) Then out(CStr(wf(r, 1) & "")) = True
+    Next r
+    Set KindsWithTickets = out
+End Function
+
+Private Function NoStartStatus(ByVal wb As Object) As String
+    ' The workflow kinds that have tickets and no start status in the sheet StatusRules (flow/health.no_start_status).
+    Dim kinds As Object, starts As Object, row As Variant, kind As Variant, missing As String
+    Set kinds = KindsWithTickets(wb)
+    If kinds Is Nothing Or Not SheetExists(wb, "StatusRules") Then Exit Function
+    Set starts = CreateObject("Scripting.Dictionary")
+    For Each row In ReadTable(wb.Worksheets(SheetName("StatusRules")))
+        If Val(CStr(row("IsStart") & "")) = 1 Then starts(CStr(row("Workflow") & "")) = True
+    Next row
+    For Each kind In Array("Feature", "Team")
+        If kinds.Exists(CStr(kind)) And Not starts.Exists(CStr(kind)) Then missing = missing & IIf(Len(missing) > 0, ", ", "") & CStr(kind)
+    Next kind
+    If Len(missing) > 0 Then
+        Cov "HLT63"
+        NoStartStatus = " | No start status: " & missing & " (no Flow Time, Flow Efficiency or Flow Load): set IsStart = 1 on the first in-progress status in " & _
+                        SheetName("Workflows")
+    End If
+End Function
+
+Private Function NoWaitStatus(ByVal wb As Object) As String
+    ' No status of the sheet StatusRules is Wait while ItemFlow has tickets: Flow Efficiency is not computable (flow/health.no_wait_status).
+    Dim kinds As Object, row As Variant
+    Set kinds = KindsWithTickets(wb)
+    If kinds Is Nothing Or Not SheetExists(wb, "StatusRules") Then Exit Function
+    If kinds.Count = 0 Then Exit Function
+    For Each row In ReadTable(wb.Worksheets(SheetName("StatusRules")))
+        If CStr(row("Category") & "") = "Wait" Then Exit Function
+    Next row
+    Cov "HLT64"
+    NoWaitStatus = " | No Wait status (no Flow Efficiency): set Category = Wait on the statuses where the work waits in " & SheetName("Workflows")
+End Function
+
+Private Function SameSecondStarts(ByVal wb As Object) As String
+    ' Tickets without a StartUtc that entered a start status (StatusIntervals.IsStart) in the same second as their last backlog entry: the
+    ' milliseconds are dropped and the start must come strictly after the backlog (flow/health.same_second_starts).
+    Dim lo As Object, key As Variant, cat As Variant, entered As Variant, isStart As Variant, iKey As Variant, start As Variant
+    Dim noStart As Object, last As Object, flagged As Object, r As Long, k As String, t As Double
+    Set lo = TableOf(wb, "StatusIntervals")
+    key = ColumnValues(lo, "Key"): cat = ColumnValues(lo, "Category"): entered = ColumnValues(lo, "EnteredUtc"): isStart = ColumnValues(lo, "IsStart")
+    iKey = ColumnValues(TableOf(wb, "ItemFlow"), "Key"): start = ColumnValues(TableOf(wb, "ItemFlow"), "StartUtc")
+    If IsEmpty(key) Or IsEmpty(cat) Or IsEmpty(entered) Or IsEmpty(isStart) Or IsEmpty(iKey) Or IsEmpty(start) Then Exit Function
+    Set noStart = CreateObject("Scripting.Dictionary"): Set last = CreateObject("Scripting.Dictionary"): Set flagged = CreateObject("Scripting.Dictionary")
+    For r = 1 To UBound(iKey, 1)
+        If Not IsError(iKey(r, 1)) And Not IsError(start(r, 1)) Then
+            If Len(CStr(start(r, 1) & "")) = 0 Then noStart(CStr(iKey(r, 1) & "")) = True
+        End If
+    Next r
+    For r = 1 To UBound(key, 1)                                           ' the last backlog entry of each ticket without a start
+        If Not IsError(key(r, 1)) And Not IsError(cat(r, 1)) Then
+            k = CStr(key(r, 1) & "")
+            If noStart.Exists(k) And CStr(cat(r, 1) & "") = "Backlog" And SerialOfCell(entered(r, 1), t) Then
+                If Not last.Exists(k) Then
+                    last(k) = t
+                ElseIf t > last(k) Then
+                    last(k) = t
+                End If
+            End If
+        End If
+    Next r
+    For r = 1 To UBound(key, 1)
+        If Not IsError(key(r, 1)) And Not IsError(isStart(r, 1)) Then
+            k = CStr(key(r, 1) & "")
+            If last.Exists(k) And Val(CStr(isStart(r, 1) & "")) = 1 And SerialOfCell(entered(r, 1), t) Then
+                If Abs(t - last(k)) <= HALF_SECOND Then flagged(k) = True
+            End If
+        End If
+    Next r
+    If flagged.Count > 0 Then
+        Cov "HLT65"
+        SameSecondStarts = " | Started in the second of the backlog entry: " & flagged.Count & " tickets (no StartUtc, so left out of Flow Time and Flow Load)"
+    End If
+End Function
+
+Private Function AsOfBeforeData(ByVal wb As Object) As String
+    ' The status changes entered after AsOf: the open intervals and Flow Load stop at AsOf (flow/health.as_of_before_data). An AsOf that cannot be
+    ' read is the business of the run, not of this field: nothing.
+    Dim entered As Variant, asOf As Double, r As Long, n As Long, t As Double
+    entered = ColumnValues(TableOf(wb, "StatusIntervals"), "EnteredUtc")
+    If IsEmpty(entered) Or Not SheetExists(wb, "Config") Then Exit Function
+    On Error Resume Next
+    asOf = CDbl(AsOfFromConfig(wb.Worksheets(SheetName("Config"))))
+    If Err.Number <> 0 Then Err.Clear: Exit Function
+    On Error GoTo 0
+    For r = 1 To UBound(entered, 1)
+        If SerialOfCell(entered(r, 1), t) Then
+            If t > asOf + HALF_SECOND Then n = n + 1
+        End If
+    Next r
+    If n > 0 Then
+        Cov "HLT66"
+        AsOfBeforeData = " | AsOf before the data: " & n & " status changes after AsOf (Flow Load stops at AsOf): set AsOf in " & SheetName("Config") & _
+                         " to the time of the extraction"
+    End If
+End Function
+
+Private Function VelocityCheckGap(ByVal wb As Object) As String
+    ' The rows of the table VelocityCheck whose Gap is not 0 (an error counts): the Velocity does not add up from the status changes.
+    Dim gap As Variant, r As Long, n As Long
+    gap = ColumnValues(TableOf(wb, "VelocityCheck"), "Gap")
+    If IsEmpty(gap) Then Exit Function
+    For r = 1 To UBound(gap, 1)
+        If IsError(gap(r, 1)) Then
+            n = n + 1
+        ElseIf Val(CStr(gap(r, 1) & "")) <> 0 Then
+            n = n + 1
+        End If
+    Next r
+    If n > 0 Then
+        Cov "HLT67"
+        VelocityCheckGap = " | VelocityCheck gap: " & n & " of " & UBound(gap, 1) & " rows (sheet " & SheetName("VelocityCheck") & ")"
+    End If
 End Function
 
 Private Function ReconciliationFindings(ByVal wb As Object) As String
