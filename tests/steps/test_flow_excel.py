@@ -679,7 +679,7 @@ def _art_metric_items(world):
 
 @then("la table Reconciliation reproduit la référence Python sur les données générées")
 def _reconciliation_generated(world):
-    """The twelve controls (expected, found, and the verdict) against flow/reconciliation, and the census of the types against its reference."""
+    """The controls (expected, found, and the verdict) against flow/reconciliation, and the census of the types against its reference."""
     from jira2dashboard.flow.metrics import team_iteration_metrics
     from jira2dashboard.flow.reconciliation import census, reconcile
     issues, items, iterations, pis = to_flow_issues(world["dataset"]), world["items"], world["iterations"], world["settings"].pis
@@ -711,7 +711,7 @@ def _reconciliation_generated(world):
 def _art_reconciliation(world):
     from art_oracle import ACCOUNTS, FLOW_TIME_DAYS, VELOCITY
     got = {r["Control"]: r for r in table_dicts(world["wb"], "Reconciliation")}
-    assert len(got) == 12 and {r["Result"] for r in got.values()} == {"OK"}, {k: (r["Expected"], r["Found"], r["Result"]) for k, r in got.items()}
+    assert len(got) == 14 and {r["Result"] for r in got.values()} == {"OK"}, {k: (r["Expected"], r["Found"], r["Result"]) for k, r in got.items()}
     released, tickets = sum(VELOCITY.values()), sum(ACCOUNTS.values())
     typed = {"Tickets read from Jira = tickets of ItemFlow": (tickets, tickets), "Every ticket sits in one account": (tickets, tickets),
              "Velocity of all iterations = tickets of the Done list": (released, released),
@@ -724,7 +724,8 @@ def _art_reconciliation(world):
     census_rows = [tuple(row) for row in ws.Range("H2:M3").Value2]
     assert census_rows == [("Feature", 25.0, 25.0, 0.0, released, released), ("Sub-task", 3.0, 0.0, 3.0, 3.0, 3.0)]              # by hand
     assert [tuple(row) for row in ws.Range("S2:T2").Value2] == [("released", float(released + 3))]        # the one status that ends the flow, with ALL the tickets read in it (+ the 3 sub-tasks)
-    parameters = {ws.Cells(r, 1).Value: ws.Cells(r, 2).Value for r in range(16, 26)}
+    first = len(got) + 4                                                                  # the block of the parameters starts 2 rows under the table
+    parameters = {ws.Cells(r, 1).Value: ws.Cells(r, 2).Value for r in range(first, first + 10)}
     assert parameters["FeatureTypes (the types of the ART)"] == "Feature" and parameters["Statuses that end it (IsEnd)"] == "released"
     assert parameters["Program project(s)"] == "TTT"
 
@@ -2077,7 +2078,7 @@ def _art_velocity_labels(world):
 
 @then("les graphiques Flow Time et Flow Efficiency ont 6 trous expliqués par l'absence de ticket terminé")
 def _art_gap_notes(world):
-    for name, reason in (("flow_time", D.NO_ITEM_DONE), ("flow_time_p85", D.NO_ITEM_DONE), ("flow_efficiency", D.EFFICIENCY_REASON)):
+    for name, reason in (("flow_time", D.FLOW_TIME_REASON), ("flow_time_p85", D.FLOW_TIME_REASON), ("flow_efficiency", D.EFFICIENCY_REASON)):
         assert chart_note(world, name) == f"6 of 24 points are not computable (gaps) - {reason}", name
 
 

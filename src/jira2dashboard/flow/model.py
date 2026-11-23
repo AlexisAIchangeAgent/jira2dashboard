@@ -48,6 +48,10 @@ class Rules:
         from jira2dashboard.flow.status_rules import Rule
         return [Rule(wf, status, r.category, int(r.is_start), int(r.is_end), int(r.is_free), "") for (wf, status), r in self._rows.items()]
 
+    def has_start(self, workflow: str) -> bool:
+        """A status of the workflow starts the flow (IsStart). Without one no ticket has a StartUtc: no Flow Time, Flow Efficiency or Flow Load."""
+        return any(rule.is_start for (wf, _status), rule in self._rows.items() if wf == workflow)
+
     def ended_statuses(self) -> set[str]:
         """The statuses that end the flow (IsEnd) in at least one workflow: what the sheet Reconciliation lists with the tickets that sit in them."""
         return {status for (_wf, status), rule in self._rows.items() if rule.is_end}

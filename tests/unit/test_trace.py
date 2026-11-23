@@ -9,7 +9,7 @@ import datetime as dt
 import pytest
 
 from jira2dashboard.flow.itemflow import item_flow
-from jira2dashboard.flow.model import OTHER_TYPES, Change, FlowIssue, Iteration, Rules
+from jira2dashboard.flow.model import OTHER_TYPES, Change, FlowIssue, Iteration, Rules, StatusRule
 from jira2dashboard.flow.trace import (ACCOUNT_COUNTED, ACCOUNT_OPEN, ACCOUNT_OTHER, ACCOUNT_OUTSIDE, ACCOUNT_REMOVED, ACCOUNTS, MetricItems,
                                        Trace, metric_items, trace)
 
@@ -83,7 +83,19 @@ def test_why_a_done_ticket_is_not_in_the_flow_time():
     both = traced(ticket("W-3", [("2025-05-03T00:00", "Terminé"), ("2025-05-04T00:00", "En développement"), ("2025-05-06T00:00", "Terminé")]))
     clean = traced(ticket("W-4", [("2025-05-02T00:00", "En analyse"), ("2025-05-06T00:00", "Terminé")]))
     assert (straight.why_not_in_flow_time, reopened.why_not_in_flow_time, both.why_not_in_flow_time, clean.why_not_in_flow_time) == (
-        "No valid start", "Reopened", "Reopened, No valid start", "")
+        "No start after the backlog", "Reopened", "Reopened, No start after the backlog", "")
+
+
+def test_a_done_ticket_whose_workflow_has_no_start_status_says_so():
+    """AL, 2026-11-22: the two causes of a missing start are told apart. No start status at all in the rules of the workflow (Jira's workflows
+    not read, none declared in the sheet Workflows) is a setting to fix; a ticket that skipped the start statuses is a fact of the data."""
+    no_start = Rules({k: StatusRule(r.category, False, r.is_end, r.is_free) for k, r in RULES._rows.items()})
+    issue = FlowIssue(key="N-1", team="ART", type="Feature", work_type="Feature", workflow="Feature", created=day("2025-04-01T00:00"),
+                      status="Terminé", changes=(Change("N-1-1", day("2025-05-02T00:00"), "Nouveau", "En analyse"),
+                                                  Change("N-1-2", day("2025-05-06T00:00"), "En analyse", "Terminé")))
+    item = item_flow(issue, AS_OF, no_start)
+    assert (item.start_rule, item.skipped_start, traced(item).why_not_in_flow_time) == (False, True, "No start status in the rules")
+    assert item_flow(issue, AS_OF, RULES).start_rule is True
 
 
 def test_the_five_accounts_make_a_partition_of_any_population():

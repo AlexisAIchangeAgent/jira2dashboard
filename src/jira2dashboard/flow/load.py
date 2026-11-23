@@ -43,8 +43,11 @@ def snapshot_days(first_day: dt.datetime, end: dt.datetime, as_of: dt.datetime) 
 
 
 def daily_load(items: list[ItemFlow], mode: str, team: str, first_day: dt.datetime, end: dt.datetime,
-               as_of: dt.datetime) -> dict[dt.datetime, int]:
-    """DailyLoad of a team: for each day D, the number of its issues in process at the end of D (UTC)."""
+               as_of: dt.datetime, starts: bool = True) -> dict[dt.datetime, int]:
+    """DailyLoad of a team: for each day D, the number of its issues in process at the end of D (UTC). `starts`: the workflow of the team has a
+    start status (Rules.has_start); without one nothing is ever in process, the load is unknown: no day (empty cells, never a false 0)."""
+    if not starts:
+        return {}
     mine = [i for i in items if i.team == team]
     return {day: sum(1 for i in mine if in_process_at(i, day + ONE_DAY, mode))
             for day in snapshot_days(first_day, end, as_of)}

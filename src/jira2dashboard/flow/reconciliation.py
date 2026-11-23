@@ -11,7 +11,7 @@ from dataclasses import dataclass
 
 from jira2dashboard.flow.itemflow import ItemFlow
 from jira2dashboard.flow.metrics import TeamIterationMetrics
-from jira2dashboard.flow.model import ART, OTHER_TYPES, UNCLASSIFIED, FlowIssue, Iteration, Rules
+from jira2dashboard.flow.model import ART, OTHER_TYPES, UNCLASSIFIED, WAIT, FlowIssue, Iteration, Rules
 from jira2dashboard.flow.trace import ACCOUNT_COUNTED, ACCOUNT_OTHER, ACCOUNTS, CUTOFF_HOURS, MetricItems, account, metric_items, trace
 
 POPULATION = "Tickets read from Jira = tickets of ItemFlow"
@@ -24,12 +24,16 @@ UNIQUE = "No ticket twice in the Done list"
 CUTOFF = f"Tickets done within {CUTOFF_HOURS} hours of an iteration boundary (to review)"
 CLASSIFIED = "Statuses of the changelog of the counted tickets all classified in Workflows"
 FEATURE_TYPES = "FeatureTypes matches at least one ticket of the Program"
+# AL, 2026-11-22: the two settings without which Flow Time, Flow Efficiency and Flow Load cannot be computed (no control said it: every row stayed OK)
+START_STATUS = "Every workflow kind with tickets has a start status (IsStart)"
+WAIT_STATUS = "A status is declared Wait (Flow Efficiency)"
 HISTORIES = "Status histories consistent (DC06, DC07)"
 EXISTENCE = "Done tickets of ItemFlow = open end-status intervals of the changelog"
 # (name, assertion), in the order of the sheet
 CONTROLS = ((POPULATION, "Completeness"), (ACCOUNTS_ADD_UP, "Completeness"), (VELOCITY_TOTAL, "Accuracy"), (VELOCITY_ROWS, "Accuracy"),
             (FLOW_TIME_COUNT, "Accuracy"), (FLOW_TIME_DAYS, "Accuracy"), (UNIQUE, "Occurrence"), (CUTOFF, "Cut-off"), (CLASSIFIED, "Classification"),
-            (FEATURE_TYPES, "Classification"), (HISTORIES, "Existence"), (EXISTENCE, "Existence"))
+            (FEATURE_TYPES, "Classification"), (START_STATUS, "Classification"), (WAIT_STATUS, "Classification"), (HISTORIES, "Existence"),
+            (EXISTENCE, "Existence"))
 TOLERANCE = 1e-6
 INFO_ASSERTIONS = ("Cut-off",)        # a control of these assertions that does not match is a point of attention (INFO), not an error to review
 
@@ -72,6 +76,8 @@ def reconcile(issues: list[FlowIssue], items: list[ItemFlow], metrics: list[Team
         CUTOFF: (0, len(lists.cutoff)),
         CLASSIFIED: (0, sum(1 for item in items if item.team != OTHER_TYPES for visit in item.intervals if visit.category == UNCLASSIFIED)),
         FEATURE_TYPES: (1, 1 if not program else min(1, sum(1 for i in items if i.team == ART))),
+        START_STATUS: (0, sum(1 for kind in ("Feature", "Team") if any(i.workflow == kind for i in issues) and not rules.has_start(kind))),
+        WAIT_STATUS: (1, 1 if not issues else min(1, sum(1 for r in rules.listed() if r.category == WAIT))),
         HISTORIES: (0, sum(1 for ids in flags.values() for check in ("DC06", "DC07") if check in ids)),
         EXISTENCE: (sum(1 for i in items if i.done is not None),
                     sum(1 for issue, item in zip(issues, items) for visit in item.intervals

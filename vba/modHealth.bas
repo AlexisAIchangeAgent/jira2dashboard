@@ -12,7 +12,7 @@ Option Explicit
 '   Without a team                tickets whose Team is empty (the Team comes from the sheet Projects)
 '   Statuses not in Workflows     statuses of the history that the sheet Workflows lacks (category Unclassified: the Flow
 '                                 Efficiency is not computable and the Done of the ticket is not known)
-''   Started in the second of the backlog entry   tickets without a StartUtc that entered a start status in the same second as their last
+' Started in the second of the backlog entry   tickets without a StartUtc that entered a start status in the same second as their last
 '                                 backlog entry (the milliseconds are dropped and the start must come strictly after it)
 '   AsOf before the data          status changes entered after AsOf: the open intervals and Flow Load stop at AsOf
 '   VelocityCheck gap             rows of the table VelocityCheck whose Gap is not 0
@@ -31,14 +31,27 @@ Private Const LAST_SERIAL As Double = 73051              ' 2100-01-01 (raw_types
 Private Const HALF_SECOND As Double = 0.0000057870370370 ' a day is 1: half a second is the margin of a date at midnight
 
 Public Function HealthFields(ByVal wb As Object) As String
+    ' The fields in a step "health" of the log (after the step of TypeProblems); a failure keeps what was found and leaves its number in the log.
     Cov "HLT01"
+    Dim found As String, begun As Boolean, num As Long, kinds As Object, starts As Object, waitFound As Boolean, ruled As Boolean
     On Error GoTo Failed
-    HealthFields = TypeProblems(wb) & NoStartStatus(wb) & NoWaitStatus(wb) & NotFeatures(wb) & OutsideIterations(wb) & WithoutTeam(wb) & _
-                   UnclassifiedStatuses(wb) & SameSecondStarts(wb) & AsOfBeforeData(wb) & VelocityCheckGap(wb) & ReconciliationFindings(wb) & CellsInError(wb)
+    found = TypeProblems(wb)
+    LogBegin "health": begun = True
+    Set kinds = KindsWithTickets(wb)
+    Set starts = CreateObject("Scripting.Dictionary")
+    ruled = RuleFacts(wb, starts, waitFound)
+    found = found & NoStartStatus(kinds, starts, ruled) & NoWaitStatus(kinds, waitFound, ruled) & NotFeatures(wb) & OutsideIterations(wb) & _
+            WithoutTeam(wb) & UnclassifiedStatuses(wb) & SameSecondStarts(wb) & AsOfBeforeData(wb) & VelocityCheckGap(wb) & ReconciliationFindings(wb) & _
+            CellsInError(wb)
+    LogEnd "health"
+    HealthFields = found
     Exit Function
 Failed:
     Cov "HLT02"
-    HealthFields = ""
+    num = Err.Number                                                    ' first: the calls below may clear Err
+    LogLine "WARN", "health: the check failed | error " & num
+    If begun Then LogEnd "health"
+    HealthFields = found
 End Function
 
 Private Function TableOf(ByVal wb As Object, ByVal name As String) As Object
@@ -88,8 +101,10 @@ Private Function SerialOfCell(ByVal v As Variant, ByRef serial As Double) As Boo
 End Function
 
 Private Function KindsWithTickets(ByVal wb As Object) As Object
-    ' The workflow kinds of the tickets of ItemFlow (column Workflow: Feature or Team); Nothing when the table has none.
-    Dim wf As Variant, r As Long, out As Object
+    ' The workflow kinds of the tickets of ItemFlow (column Workflow: Feature or Team); Nothing when no ticket was read (the one blank row of an empty
+    ' table gives the kind Team in ItemFlow: the raw sheet Issues tells).
+    Dim wf As Variant, r As Long, out As Object, ws As Object, headerRow As Long, firstCol As Long, nCols As Long, nRows As Long
+    If Not TableShape(wb, "Issues", ws, headerRow, firstCol, nCols, nRows) Then Cov "HLT69": Exit Function
     wf = ColumnValues(TableOf(wb, "ItemFlow"), "Workflow")
     If IsEmpty(wf) Then Exit Function
     Set out = CreateObject("Scripting.Dictionary")
@@ -99,15 +114,34 @@ Private Function KindsWithTickets(ByVal wb As Object) As Object
     Set KindsWithTickets = out
 End Function
 
-Private Function NoStartStatus(ByVal wb As Object) As String
+Private Function RuleFacts(ByVal wb As Object, ByVal starts As Object, ByRef waitFound As Boolean) As Boolean
+    ' One read of the sheet StatusRules (a plain range: 2 rows per status of the instance): the kinds that have a start status (starts: kind -> True) and
+    ' whether a status is Wait. False when the sheet or one of its columns is missing: then nothing is told about the rules.
+    Dim ws As Object, cW As Long, cC As Long, cS As Long, last As Long, width As Long, data As Variant, r As Long
+    If Not SheetExists(wb, "StatusRules") Then Exit Function
+    Set ws = wb.Worksheets(SheetName("StatusRules"))
+    cW = HeaderColumn(ws, "Workflow"): cC = HeaderColumn(ws, "Category"): cS = HeaderColumn(ws, "IsStart")
+    If cW = 0 Or cC = 0 Or cS = 0 Then Exit Function
+    RuleFacts = True
+    last = ws.Cells(ws.Rows.Count, cW).End(-4162).Row                   ' xlUp
+    If last < 2 Then Exit Function
+    width = cW: If cC > width Then width = cC
+    If cS > width Then width = cS
+    data = ws.Range(ws.Cells(2, 1), ws.Cells(last, width)).Value        ' three columns at least: always a 2-D array
+    For r = 1 To UBound(data, 1)
+        If Not IsError(data(r, cW)) And Not IsError(data(r, cS)) Then
+            If Val(CStr(data(r, cS) & "")) = 1 Then starts(CStr(data(r, cW) & "")) = True
+        End If
+        If Not IsError(data(r, cC)) Then
+            If CStr(data(r, cC) & "") = "Wait" Then waitFound = True
+        End If
+    Next r
+End Function
+
+Private Function NoStartStatus(ByVal kinds As Object, ByVal starts As Object, ByVal ruled As Boolean) As String
     ' The workflow kinds that have tickets and no start status in the sheet StatusRules (flow/health.no_start_status).
-    Dim kinds As Object, starts As Object, row As Variant, kind As Variant, missing As String
-    Set kinds = KindsWithTickets(wb)
-    If kinds Is Nothing Or Not SheetExists(wb, "StatusRules") Then Exit Function
-    Set starts = CreateObject("Scripting.Dictionary")
-    For Each row In ReadTable(wb.Worksheets(SheetName("StatusRules")))
-        If Val(CStr(row("IsStart") & "")) = 1 Then starts(CStr(row("Workflow") & "")) = True
-    Next row
+    Dim kind As Variant, missing As String
+    If kinds Is Nothing Or Not ruled Then Exit Function
     For Each kind In Array("Feature", "Team")
         If kinds.Exists(CStr(kind)) And Not starts.Exists(CStr(kind)) Then missing = missing & IIf(Len(missing) > 0, ", ", "") & CStr(kind)
     Next kind
@@ -118,15 +152,10 @@ Private Function NoStartStatus(ByVal wb As Object) As String
     End If
 End Function
 
-Private Function NoWaitStatus(ByVal wb As Object) As String
-    ' No status of the sheet StatusRules is Wait while ItemFlow has tickets: Flow Efficiency is not computable (flow/health.no_wait_status).
-    Dim kinds As Object, row As Variant
-    Set kinds = KindsWithTickets(wb)
-    If kinds Is Nothing Or Not SheetExists(wb, "StatusRules") Then Exit Function
+Private Function NoWaitStatus(ByVal kinds As Object, ByVal waitFound As Boolean, ByVal ruled As Boolean) As String
+    ' No status of the sheet StatusRules is Wait while tickets were read: Flow Efficiency is not computable (flow/health.no_wait_status).
+    If kinds Is Nothing Or Not ruled Or waitFound Then Exit Function
     If kinds.Count = 0 Then Exit Function
-    For Each row In ReadTable(wb.Worksheets(SheetName("StatusRules")))
-        If CStr(row("Category") & "") = "Wait" Then Exit Function
-    Next row
     Cov "HLT64"
     NoWaitStatus = " | No Wait status (no Flow Efficiency): set Category = Wait on the statuses where the work waits in " & SheetName("Workflows")
 End Function
@@ -180,7 +209,7 @@ Private Function AsOfBeforeData(ByVal wb As Object) As String
     If IsEmpty(entered) Or Not SheetExists(wb, "Config") Then Exit Function
     On Error Resume Next
     asOf = CDbl(AsOfFromConfig(wb.Worksheets(SheetName("Config"))))
-    If Err.Number <> 0 Then Err.Clear: Exit Function
+    If Err.Number <> 0 Then Cov "HLT68": Err.Clear: Exit Function
     On Error GoTo 0
     For r = 1 To UBound(entered, 1)
         If SerialOfCell(entered(r, 1), t) Then

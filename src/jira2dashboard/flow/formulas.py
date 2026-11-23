@@ -75,6 +75,11 @@ INTERVAL_HELPERS = (
 )
 
 
+def _starts_of(workflow: str) -> str:
+    """How many statuses start the flow of the workflow kind `workflow` in the sheet StatusRules (SUMIFS stops at the used range)."""
+    return f"SUMIFS(StatusRules_from_excel!$D:$D,StatusRules_from_excel!$A:$A,{workflow})"
+
+
 # --- ItemFlow (docs 2.1) ----------------------------------------------------------------------------------
 
 def _starts_after_backlog(function: str) -> str:
@@ -131,7 +136,9 @@ ITEMFLOW_COLUMNS = (
     ("DonePI", f'=IF([@DoneUtc]="","",IFERROR(INDEX(PIMetrics[PI],MATCH(1,IFERROR((PIMetrics[Start]-{HALF}<=[@DoneUtc])*([@DoneUtc]<PIMetrics[End]-{HALF}),0),0)),""))'),
     ("Account", f'=IF([@Team]="{OTHER_TYPES}","{T.ACCOUNT_OTHER}",IF([@DoneUtc]<>"",IF([@DoneIteration]<>"","{T.ACCOUNT_COUNTED}","{T.ACCOUNT_OUTSIDE}"),'
                 f'IF([@RemovedUtc]<>"","{T.ACCOUNT_REMOVED}","{T.ACCOUNT_OPEN}")))'),
-    ("WhyNotInFlowTime", f'=IF([@Excluded]=0,"",TEXTJOIN(", ",TRUE,IF([@Reopened]>0,"{T.REOPENED}",""),IF([@SkippedStart]="Y","{T.NO_START}","")))'),
+    # why a done ticket has no start: no IsStart status in the rules of its workflow (a setting), or none entered after its last backlog entry
+    ("WhyNotInFlowTime", f'=IF([@Excluded]=0,"",TEXTJOIN(", ",TRUE,IF([@Reopened]>0,"{T.REOPENED}",""),IF([@SkippedStart]="Y",'
+                         f'IF({_starts_of("[@Workflow]")}=0,"{T.NO_START_RULE}","{T.NO_START}"),"")))'),
     ("BoundaryHours", '=IF([@DoneUtc]="","",MIN(MIN(ABS(Metrics[IterationStart]-[@DoneUtc])),MIN(ABS(Metrics[IterationEnd]-[@DoneUtc])))*24)'),
     # data checks: raw fields, helpers and one 0/1 column per check (check_formulas.py, reference in checks.py)
 ) + C.ITEMFLOW_CHECK_COLUMNS + (
@@ -163,7 +170,11 @@ def load_count(day: str, team: str, bucket: str | None = None) -> str:
     return f'IF(cfg_FlowLoadMode="A",{mode_a},IF(cfg_FlowLoadMode="B",{mode_b},NA()))'
 
 
-DAILYLOAD_LOAD = f'=IF(ROUND(([@Date]+1-AsOfUtc)*86400,0)>0,"",{load_count("[@Date]", "[@Team]")})'
+# a day after AsOf has no snapshot; a team whose workflow has no start status has nothing ever in process: its load is unknown, never a false 0
+# (AL, 2026-11-22). The ART follows the Feature workflow, a team of a Team project the Team workflow.
+_TEAM_WORKFLOW = f'IF([@Team]="{ART}","Feature","Team")'
+DAILYLOAD_LOAD = (f'=IF(ROUND(([@Date]+1-AsOfUtc)*86400,0)>0,"",IF({_starts_of(_TEAM_WORKFLOW)}=0,"",'
+                  f'{load_count("[@Date]", "[@Team]")}))')
 
 
 # --- Metrics: one row per iteration and team (docs 2.2) -------------------------------------------------------
@@ -280,6 +291,8 @@ RECONCILIATION_FORMULAS = {
     R.CUTOFF: ("=0", f'=COUNTIF({_M}!$S$3#,"?*")'),
     R.CLASSIFIED: ("=0", f'=COUNTIFS({SI}[Category],"Unclassified",{SI}[Team],"<>{OTHER_TYPES}")'),
     R.FEATURE_TYPES: ("=1", f'=IF(COUNTIFS(ItemFlow[Role],"Program")=0,1,MIN(1,COUNTIFS(ItemFlow[Team],"{ART}")))'),
+    R.START_STATUS: ("=0", "=" + "+".join(f'(COUNTIFS(ItemFlow[Workflow],"{k}")>0)*({_starts_of(chr(34) + k + chr(34))}=0)' for k in ("Feature", "Team"))),
+    R.WAIT_STATUS: ("=1", f'=IF(COUNTIF(ItemFlow[Key],"?*")=0,1,MIN(1,COUNTIF({RULES_SHEET}!$C$2:$C$5000,"Wait")))'),
     R.HISTORIES: ("=0", "=SUM(ItemFlow[DC06])+SUM(ItemFlow[DC07])"),
     R.EXISTENCE: ("=COUNT(ItemFlow[DoneUtc])", f"=COUNTIFS({SI}[IsEnd],1,{SI}[IsOpen],TRUE)"),
 }

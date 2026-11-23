@@ -27,6 +27,7 @@ class ItemFlow:
     reopened: int
     skipped_start: bool
     intervals: tuple[Interval, ...]
+    start_rule: bool = True              # the workflow of the ticket has a start status (Rules.has_start): why a ticket has no start
 
     @property
     def excluded_from_flow_time(self) -> bool:
@@ -79,4 +80,4 @@ def item_flow(issue: FlowIssue, as_of: dt.datetime, rules: Rules) -> ItemFlow:
         start=start, first_start=first_start, backlog_returns=back, done=done, removed=removed,
         flow_time_days=flow_time, lead_time_days=lead_time,
         active_days=days(ACTIVE), wait_days=days(WAIT), unclassified_days=days(UNCLASSIFIED),
-        reopened=reopened, skipped_start=done is not None and start is None, intervals=intervals)
+        reopened=reopened, skipped_start=done is not None and start is None, intervals=intervals, start_rule=rules.has_start(workflow))

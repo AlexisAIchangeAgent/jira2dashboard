@@ -68,15 +68,21 @@ STEPS_CELL = "T1"           # the first steps (manual.first_steps), right of the
 # AL, 2026-11-17: an iteration where nothing was done (every Feature deferred, say) has Velocity 0 (no bar) and no Flow Time or Flow
 # Efficiency (a gap: never 0, never a guess). The value is written above the bar and the note under the chart says why.
 NO_ITEM_DONE = "no item was done in these iterations, so there is nothing to measure"
-EFFICIENCY_REASON = "no item was done in these iterations, or no status is declared Wait (the sheet Workflows): Jira cannot say which in-progress statuses wait"
+# AL, 2026-11-22: the note names every cause of a gap, the start status first (a setting to fix; WhyNotInFlowTime of the sheet MetricItems says it per ticket)
+FLOW_TIME_REASON = ("no item was done in these iterations, or every done item was left out: no start status (IsStart, the sheet Workflows), no "
+                    "start after the backlog, or reopened (WhyNotInFlowTime, the sheet MetricItems)")
+EFFICIENCY_REASON = ("no item was done in these iterations, or every done item was left out (no start status: see Flow Time), or no status is "
+                     "declared Wait (the sheet Workflows): Jira cannot say which in-progress statuses wait")
+LOAD_REASON = "the workflow of the team has no start status (IsStart, the sheet Workflows), or the iteration ends after the as-of date"
+DAILY_LOAD_REASON = "the day is after the as-of date, or the workflow of the team has no start status (IsStart, the sheet Workflows)"
 PI_STATUS_REASON = "no Feature was released in the PI, or the PI is not in the sheet PIs"
 ZERO_NOTE = "no item was done (no bar)"
 
 CHARTS = (
     ChartSpec("velocity", "Velocity - items done per iteration", "Velocity", XL_COLUMN_CLUSTERED, labels=True, zeros=True),
-    ChartSpec("flow_time", "Flow Time - median, in days", "FlowTimeMedian", XL_LINE_MARKERS, reason=NO_ITEM_DONE),
-    ChartSpec("flow_time_p85", "Flow Time - 85th percentile, in days", "FlowTimeP85", XL_LINE_MARKERS, reason=NO_ITEM_DONE),
-    ChartSpec("flow_load", "Flow Load - average items in process", "FlowLoadAverage", XL_LINE_MARKERS),
+    ChartSpec("flow_time", "Flow Time - median, in days", "FlowTimeMedian", XL_LINE_MARKERS, reason=FLOW_TIME_REASON),
+    ChartSpec("flow_time_p85", "Flow Time - 85th percentile, in days", "FlowTimeP85", XL_LINE_MARKERS, reason=FLOW_TIME_REASON),
+    ChartSpec("flow_load", "Flow Load - average items in process", "FlowLoadAverage", XL_LINE_MARKERS, reason=LOAD_REASON),
     ChartSpec("flow_efficiency", "Flow Efficiency - active time / (active + wait)", "FlowEfficiency",
               XL_COLUMN_CLUSTERED, "0%", reason=EFFICIENCY_REASON),
     ChartSpec("flow_distribution", "Flow Distribution - items done by work type (team of the selector)", None,
@@ -93,7 +99,7 @@ CHARTS = (
               XL_COLUMN_STACKED_100, "0%", series=STATUS_SERIES, axis=PI_AXIS,
               reason=PI_STATUS_REASON),
     ChartSpec("flow_load_daily", "Flow Load - items in process at the end of each day", None, XL_LINE, axis=DAY_AXIS,
-              reason="the day is after the as-of date"),          # last: its block has one row per day, not per iteration
+              reason=DAILY_LOAD_REASON),          # last: its block has one row per day, not per iteration
 )
 
 # The sheet IterationCharts (AL, 2026-11-16): the Features of the ART iteration by iteration (table IterationFeatures), one series per

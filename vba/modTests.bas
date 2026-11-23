@@ -1439,7 +1439,7 @@ Public Sub T_FlowBuild()
     Check "flowbuild", "the sheet MetricItems holds a formula under the header of each list (the lists themselves are checked by the Excel scenarios)", "E3 | S3", "yes|yes", _
           IIf(ThisWorkbook.Worksheets(SheetName("MetricItems")).Range("E3").HasFormula, "yes", "no") & "|" & _
           IIf(ThisWorkbook.Worksheets(SheetName("MetricItems")).Range("S3").HasFormula, "yes", "no")
-    Check "flowbuild", "the table Reconciliation has its 12 controls", "rows", 12, TableRows("Reconciliation")
+    Check "flowbuild", "the table Reconciliation has its 14 controls", "rows", 14, TableRows("Reconciliation")
     Check "flowbuild", "one series per work type in the Distribution chart", "flow_distribution", 5, dash.ChartObjects("flow_distribution").Chart.SeriesCollection.Count
     Check "flowbuild", "the Predictability chart has two more series: the 80-100 % band", "Predictability", teams + 2, dash.ChartObjects("flow_predictability").Chart.SeriesCollection.Count
     Check "flowbuild", "the daily Flow Load curve has one series per team and one point per day", "28 days", teams & "|" & 28, _
@@ -2656,10 +2656,12 @@ Private Function HealthBook(ByVal clean As Boolean) As Object
                                   Array("K3", IIf(clean, "Team A", ""), "", IIf(clean, 0, "=NA()"), "Team", ""), _
                                   Array("K4", "Team A", done1 + 2, IIf(clean, 0, "=NA()"), "Team", ""))
     ' K1 enters its start status (Weird) in the second of its backlog entry (not clean) or a day later (clean); K3 enters Odd after AsOf (not clean)
-    PutRows wb, "StatusIntervals", Array(Array("Key", "Status", "Category", "EnteredUtc", "IsStart"), Array("K1", "Open", "Backlog", t0, 0), _
-                                         Array("K1", "Weird", IIf(clean, "Active", "Unclassified"), IIf(clean, t0 + 1, t0 + 0.000003), 1), _
-                                         Array("K2", "Weird", IIf(clean, "Active", "Unclassified"), t0 + 1, 0), _
-                                         Array("K3", "Odd", IIf(clean, "Done", "Unclassified"), IIf(clean, t0 + 5, CDbl(DateSerial(2026, 3, 1))), 0))
+    ' EnteredUtc as dates, as the extraction writes them (a cell read back is a Date, not a number)
+    PutRows wb, "StatusIntervals", Array(Array("Key", "Status", "Category", "EnteredUtc", "IsStart"), Array("K1", "Open", "Backlog", CDate(t0), 0), _
+                                         Array("K1", "Weird", IIf(clean, "Active", "Unclassified"), CDate(IIf(clean, t0 + 1, t0 + 0.000003)), 1), _
+                                         Array("K2", "Weird", IIf(clean, "Active", "Unclassified"), CDate(t0 + 1), 0), _
+                                         Array("K3", "Odd", IIf(clean, "Done", "Unclassified"), IIf(clean, CDate(t0 + 5), DateSerial(2026, 3, 1)), 0))
+    PutRows wb, "Issues", Array(Array("Key"), Array("K1"), Array("K2"), Array("K3"), Array("K4"))
     PutRows wb, "Config", Array(Array("Parameter", "Value", "Example", "Mandatory", "Description"), Array("AsOf", "2026-02-01", "", "True", ""))
     ' no start status and no Wait status in the rules (not clean)
     PutRows wb, "StatusRules", Array(Array("Workflow", "Status", "Category", "IsStart", "IsEnd", "IsFree", "Source"), _
@@ -2887,6 +2889,14 @@ Public Sub T_HealthFields()
     Check "health", "the rules first, then the tickets, then the checks", "order", True, _
           InStr(text, " | No start status") < InStr(text, " | No Wait status") And InStr(text, " | No Wait status") < InStr(text, " | Done outside") And _
           InStr(text, " | Statuses not in") < InStr(text, " | Started in the second") And InStr(text, " | AsOf before") < InStr(text, " | VelocityCheck gap")
+    wb.Worksheets(SheetName("Config")).Range("B2").Value = "'x"           ' an AsOf that cannot be read: that field says nothing, the others stay
+    text = HealthFields(wb)
+    Check "health", "an AsOf that cannot be read leaves out its field only", "x", "no|yes", _
+          IIf(InStr(text, " | AsOf before") > 0, "yes", "no") & "|" & IIf(InStr(text, " | VelocityCheck gap: 1 of 2") > 0, "yes", "no")
+    wb.Worksheets(SheetName("Issues")).Range("A2:A5").ClearContents       ' no ticket read (a wrong Filter): nothing about the rules
+    text = HealthFields(wb)
+    Check "health", "no ticket read: nothing about the start or Wait statuses", "no rows", "no|no", _
+          IIf(InStr(text, " | No start status") > 0, "yes", "no") & "|" & IIf(InStr(text, " | No Wait status") > 0, "yes", "no")
     Application.DisplayAlerts = False
     wb.Close False
     Set wb = HealthBook(True)

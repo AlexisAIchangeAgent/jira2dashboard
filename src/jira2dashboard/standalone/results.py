@@ -21,7 +21,7 @@ from jira2dashboard.flow.trace import MetricItems, metric_items, trace
 from jira2dashboard.flow.pi_status_time import PIStatusTime, feature_statuses, pi_status_time
 from jira2dashboard.flow.metrics import (BUCKETS, PIPredictability, TeamIterationMetrics, pi_predictability,
                                          team_iteration_metrics)
-from jira2dashboard.flow.model import NOT_COMPUTABLE, OTHER_TYPES, UNMAPPED, WORK_TYPES, FlowIssue
+from jira2dashboard.flow.model import ART, NOT_COMPUTABLE, OTHER_TYPES, UNMAPPED, WORK_TYPES, FlowIssue
 from jira2dashboard.flow.velocity_check import VelocityCheck, velocity_check
 from jira2dashboard.standalone.params_book import RunSettings
 
@@ -72,6 +72,11 @@ def with_jira_workflow(issues: list[FlowIssue], s: RunSettings) -> list[FlowIssu
     return [replace(i, jira_workflow=s.workflows.workflow_of.get((i.key.rsplit("-", 1)[0], i.type), "")) for i in issues]
 
 
+def team_workflow(team: str) -> str:
+    """The workflow kind of a team of the metrics: the ART follows the Feature workflow, a team of a Team project the Team workflow."""
+    return "Feature" if team == ART else "Team"
+
+
 def compute(issues: list[FlowIssue], s: RunSettings) -> Results:
     issues = with_jira_workflow(issues, s)
     items = [item_flow(i, s.as_of, s.rules) for i in issues]
@@ -84,8 +89,9 @@ def compute(issues: list[FlowIssue], s: RunSettings) -> Results:
     pi_names = [p.pi for p in predictability] or [D.NO_PI]               # the keys of PIMetrics, also those of PIStatusTime
     status_time = pi_status_time(items, feature_statuses(items, s.workflows.feature_depths([k for k, role, _t in s.projects if role == "Program"], s.checks.feature_types)) or [D.NO_STATUS], pi_names, s.checks.pis)
     return Results(items, flags, teams,
-                   [team_iteration_metrics(items, team, iteration, s.mode, s.as_of, s.rules.waits) for iteration in s.iterations for team in teams],
-                   {team: daily_load(items, s.mode, team, first, end, s.as_of) for team in teams}, fill,
+                   [team_iteration_metrics(items, team, iteration, s.mode, s.as_of, s.rules.waits, s.rules.has_start(team_workflow(team)))
+                    for iteration in s.iterations for team in teams],
+                   {team: daily_load(items, s.mode, team, first, end, s.as_of, s.rules.has_start(team_workflow(team))) for team in teams}, fill,
                    predictability, rows, status_time,
                    [velocity_check(issues, items, iteration, team, s.rules, s.checks.feature_types)
                     for iteration in s.iterations for team in teams])

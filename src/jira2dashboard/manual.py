@@ -167,7 +167,8 @@ def manual(mandatory: tuple[str, ...]) -> list[tuple[str, str]]:
             "(ChangedToEnd - ReopenedLater) is 0 when the table explains the Velocity.",
             f"{S.of('MetricItems')}: the tickets BEHIND the figures, three lists side by side (formulas that follow the data). Left: every ticket done in "
             "an iteration, by iteration, team, date and key, with its type, whether Flow Time counts it (FlowTimeCounted 1 or 0) and why not "
-            "(Reopened, No valid start): the rows of an iteration and team are its Velocity, so filter the list to see the keys of a chart point. Middle: the "
+            "(Reopened; No start status in the rules: set IsStart in Workflows; No start after the backlog): the rows of an iteration and team are its "
+            "Velocity, so filter the list to see the keys of a chart point. Middle: the "
             "done tickets that no figure counts, with the reason (done outside the iterations, or left out because they are not Features: the team "
             f"ART (other types)): the missing ones. Right: the tickets done within 24 hours of an iteration boundary (cut-off). {ITEMFLOW} has the columns "
             "behind them: DoneIteration, DonePI, Account (every ticket is in exactly one account), WhyNotInFlowTime, BoundaryHours.",

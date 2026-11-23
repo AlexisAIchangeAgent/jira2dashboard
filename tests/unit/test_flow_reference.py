@@ -214,6 +214,21 @@ def test_flow_metrics_lists_every_iteration_and_team(items):
         ("P1", "ART"), ("P1", "Alpha"), ("P1", "Beta"), ("P2", "ART"), ("P2", "Alpha"), ("P2", "Beta")]
 
 
+def test_a_team_whose_workflow_has_no_start_status_has_no_load_figure_never_a_false_zero(items):
+    """AL, 2026-11-22: without a start status no ticket is ever in process, so the load would read 0 when it is unknown: not computable, a gap."""
+    m = team_iteration_metrics(items, "Alpha", P1, "A", FLOW_AS_OF, starts=False)
+    assert m.flow_load_average == m.flow_load_end == m.distribution_wip == NOT_COMPUTABLE
+    assert m.velocity == metrics(items, "Alpha", P1).velocity                               # the rest is unchanged
+    assert daily_load(items, "A", "Alpha", P1.start, P1.end, FLOW_AS_OF, starts=False) == {}
+
+
+def test_the_rules_say_whether_a_workflow_has_a_start_status(rules):
+    from jira2dashboard.flow.model import Rules, StatusRule
+    assert rules.has_start("Team") and rules.has_start("Feature")
+    assert not Rules({("Team", "Dev"): StatusRule("Active", False, False, False)}).has_start("Team")
+    assert not Rules({("Feature", "Dev"): StatusRule("Active", True, False, False)}).has_start("Team")
+
+
 def test_a_iteration_after_the_as_of_date_has_no_load_figure(items):
     future = Iteration("F", at("11-02"), at("11-16"))
     m = metrics(items, "Alpha", future)

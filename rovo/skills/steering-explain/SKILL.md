@@ -20,9 +20,9 @@ description: Explain the ART's flow metrics from the Confluence page "Flow metri
 | Metric | Not computable when | Checks |
 |---|---|---|
 | Velocity | never (0 is a value) | DC06, DC07, DC08 |
-| FlowTimeMedian, FlowTimeP85 | no item done in the iteration has a valid start | DC09, DC10 (items left out: FlowTimeExcluded), DC06, DC07 |
-| FlowLoadAverage, FlowLoadEnd | the iteration starts after the as-of date | DC08, DC06 |
-| FlowEfficiency | as Flow Time, or time spent in a status missing from Workflows | DC08 |
+| FlowTimeMedian, FlowTimeP85 | no item done in the iteration has a valid start: the workflow has no start status (IsStart), or the items did not start after the backlog | DC09, DC10 (items left out: FlowTimeExcluded), DC06, DC07 |
+| FlowLoadAverage, FlowLoadEnd | the iteration starts after the as-of date, or the workflow of the team has no start status (IsStart) | DC08, DC06 |
+| FlowEfficiency | as Flow Time, or time spent in a status missing from Workflows, or no status declared Wait | DC08 |
 | DistDone<bucket> | Velocity is 0 | an empty work type counts as Unmapped; DC25 |
 | FlowPredictability | always: Jira holds no PI objectives with planned and actual business value | DC21 |
 

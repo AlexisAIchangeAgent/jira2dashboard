@@ -93,7 +93,7 @@ def test_the_eight_charts_of_the_dashboard():
         ElementTree.fromstring(picture.svg)
     by_name = {p.name: p for p in pictures}
     assert "Flow Distribution - items done by work type (ART)" in texts(by_name["flow_distribution"].svg)
-    assert "4 of 10 points are not computable (gaps) - the day is after the as-of date" in texts(
+    assert f"4 of 10 points are not computable (gaps) - {D.DAILY_LOAD_REASON}" in texts(
         by_name["flow_load_daily"].svg)
     assert any(t == "10-03" for t in texts(by_name["flow_load_daily"].svg))
 

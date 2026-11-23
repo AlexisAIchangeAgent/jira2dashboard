@@ -8,8 +8,8 @@ import pytest
 
 from jira2dashboard.flow.itemflow import item_flow
 from jira2dashboard.flow.metrics import team_iteration_metrics
-from jira2dashboard.flow.model import OTHER_TYPES, Change, FlowIssue, Iteration, Rules
-from jira2dashboard.flow.reconciliation import Control, census, reconcile, unclassified
+from jira2dashboard.flow.model import OTHER_TYPES, Change, FlowIssue, Iteration, Rules, StatusRule
+from jira2dashboard.flow.reconciliation import START_STATUS, WAIT_STATUS, Control, census, reconcile, unclassified
 from jira2dashboard.flow.trace import MetricItems, metric_items
 
 I1 = Iteration("I1", dt.datetime(2025, 5, 1), dt.datetime(2025, 5, 11))
@@ -45,10 +45,10 @@ ISSUES = [
 ]
 
 
-def controls(issues=ISSUES, flags=None):
-    items = [item_flow(i, AS_OF, RULES) for i in issues]
+def controls(issues=ISSUES, flags=None, rules=RULES):
+    items = [item_flow(i, AS_OF, rules) for i in issues]
     metrics = [team_iteration_metrics(items, "ART", it, "A", AS_OF) for it in ITERATIONS]
-    return {c.name: c for c in reconcile(issues, items, metrics, ITERATIONS, PIS, RULES, flags or {})}
+    return {c.name: c for c in reconcile(issues, items, metrics, ITERATIONS, PIS, rules, flags or {})}
 
 
 def test_the_population_is_complete_and_every_ticket_sits_in_one_account():
@@ -76,6 +76,20 @@ def test_the_controls_that_ask_for_a_review_count_what_to_look_at():
         "FeatureTypes matches at least one ticket of the Program", "Classification", 1, 1)
     assert got["Done tickets of ItemFlow = open end-status intervals of the changelog"].expected == 5            # A-1, W-2, C-1, A-3, S-1
     assert got["Done tickets of ItemFlow = open end-status intervals of the changelog"].found == 5
+
+
+def test_a_workflow_without_a_start_status_and_no_wait_status_are_reviews():
+    """AL, 2026-11-22: the settings without which Flow Time, Flow Efficiency and Flow Load cannot be computed, which no control used to tell."""
+    got = controls()
+    assert (got[START_STATUS].found, got[START_STATUS].verdict, got[WAIT_STATUS].found, got[WAIT_STATUS].verdict) == (0, "OK", 1, "OK")
+    bare = Rules({k: StatusRule("Active" if r.category == "Wait" else r.category, False, r.is_end, r.is_free) for k, r in RULES._rows.items()})
+    got = controls(rules=bare)
+    assert (got[START_STATUS].expected, got[START_STATUS].found, got[START_STATUS].verdict) == (0, 1, "REVIEW")   # Feature only: no Team ticket here
+    assert (got[WAIT_STATUS].expected, got[WAIT_STATUS].found, got[WAIT_STATUS].verdict) == (1, 0, "REVIEW")
+    team = issue("T-1", [("2025-05-02T00:00", "En analyse")], team="Alpha")
+    team = FlowIssue(**{**team.__dict__, "workflow": "Team"})
+    assert controls(ISSUES + [team], rules=bare)[START_STATUS].found == 2
+    assert controls([], rules=bare)[WAIT_STATUS].verdict == "OK"                                                   # no ticket, nothing to compute
 
 
 def test_a_program_with_no_feature_fails_the_feature_types_control():

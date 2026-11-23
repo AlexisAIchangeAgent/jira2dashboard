@@ -6,7 +6,9 @@ For each ticket of ItemFlow:
 * Account: the ONE bucket of the population it sits in (a partition, so the buckets add up to the tickets read): done in an iteration (it is in
   Velocity, Flow Time, Flow Efficiency and Flow Distribution), done outside the iterations, left out because it is not a Feature (the team
   "ART (other types)"), removed, open;
-* WhyNotInFlowTime: "Reopened" and / or "No valid start", the two reasons that leave a done ticket out of Flow Time and Flow Efficiency;
+* WhyNotInFlowTime: "Reopened" and / or why it has no start, the reasons that leave a done ticket out of Flow Time and Flow Efficiency: "No start
+  status in the rules" (its workflow has no IsStart status: a setting to fix, AL 2026-11-22) or "No start after the backlog" (it never entered a
+  start status after its last backlog entry: a fact of the data);
 * BoundaryHours: how many hours its DoneUtc is from the nearest iteration boundary (cut-off test: a ticket done a few hours from a boundary is the
   one that could fall on the other side).
 Excel: the columns of ItemFlow (formulas.ITEMFLOW_COLUMNS), the lists of the sheet MetricItems and the table Reconciliation are built on them.
@@ -23,7 +25,7 @@ ACCOUNT_OTHER = "Left out: not a Feature"
 ACCOUNT_REMOVED = "Removed"
 ACCOUNT_OPEN = "Open"
 ACCOUNTS = (ACCOUNT_COUNTED, ACCOUNT_OUTSIDE, ACCOUNT_OTHER, ACCOUNT_REMOVED, ACCOUNT_OPEN)
-REOPENED, NO_START = "Reopened", "No valid start"
+REOPENED, NO_START_RULE, NO_START = "Reopened", "No start status in the rules", "No start after the backlog"
 
 
 @dataclass(frozen=True)
@@ -52,7 +54,8 @@ def account(item: ItemFlow, in_iteration: bool) -> str:
 
 def why_not_in_flow_time(item: ItemFlow) -> str:
     """The reasons of ItemFlow.excluded_from_flow_time, reopened first; "" for a ticket that Flow Time does not leave out."""
-    return ", ".join(reason for reason, applies in ((REOPENED, item.reopened > 0), (NO_START, item.skipped_start)) if applies)
+    no_start = NO_START if item.start_rule else NO_START_RULE
+    return ", ".join(reason for reason, applies in ((REOPENED, item.reopened > 0), (no_start, item.skipped_start)) if applies)
 
 
 def boundary_hours(item: ItemFlow, iterations: list[Iteration]) -> float | None:
