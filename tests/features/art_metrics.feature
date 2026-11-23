@@ -35,6 +35,7 @@ Fonctionnalité: Le scénario art-metrics du faux Jira donne, par le chemin Pyth
     Et la feuille FlowTimeCheck de l'ART est celle calculée à la main
     Et la feuille FlowEfficiencyCheck de l'ART est celle calculée à la main
     Et la feuille FlowLoadCheck de l'ART est celle calculée à la main
+    Et la feuille FlowDistCheck de l'ART est celle calculée à la main
 
   Scénario: Sans statut de départ ni statut Wait, Flow Time, Flow Efficiency et Flow Load ne sont pas calculables et le résultat dit pourquoi
     Soit le faux Jira du scénario art-metrics
@@ -48,5 +49,6 @@ Fonctionnalité: Le scénario art-metrics du faux Jira donne, par le chemin Pyth
     Et la feuille FlowTimeCheck de l'ART est celle calculée à la main, sans statut de départ
     Et la feuille FlowEfficiencyCheck de l'ART est celle calculée à la main, sans statut Wait
     Et la feuille FlowLoadCheck de l'ART est celle calculée à la main, sans statut de départ
+    Et la feuille FlowDistCheck de l'ART est celle calculée à la main
     Et le journal et la feuille Run disent pourquoi, avec les codes calculés à la main
     Et la Reconciliation demande de revoir le statut de départ et le statut Wait

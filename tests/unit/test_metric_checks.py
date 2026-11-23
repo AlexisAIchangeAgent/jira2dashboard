@@ -140,3 +140,36 @@ def test_a_wrong_load_at_the_end_of_metrics_shows_in_the_gap():
     items = [item_flow(i, AS_OF, WAIT_RULES) for i in EFF]
     right = team_iteration_metrics(items, "ART", I1, "A", AS_OF)
     assert load(metric=right.__class__(**{**right.__dict__, "flow_load_end": 2})).gap == -2.0
+
+
+
+# --- the buckets of Flow Distribution, and FlowDistCheck --------------------------------------------------------------------------------
+
+def test_a_work_type_is_known_whatever_its_case_and_keeps_its_canonical_name():
+    from jira2dashboard.flow.model import work_type_bucket
+    assert [work_type_bucket(w) for w in ("Feature", "feature", "DEFECT", "Autre", "Featur", "", None, 5, True)] == [
+        "Feature", "Feature", "Defect", "Autre", "Unmapped", "Unmapped", "Unmapped", "Unmapped", "Unmapped"]
+
+
+def typed(key, work_type):
+    t = ticket(key, [("2025-05-02T00:00", "En analyse"), ("2025-05-06T00:00", "Terminé")])
+    return t.__class__(**{**t.__dict__, "work_type": work_type})
+
+
+def distribution(issues, field="customfield_1"):
+    items = [item_flow(i, AS_OF, RULES) for i in issues]
+    metric = team_iteration_metrics(items, "ART", I1, "A", AS_OF)
+    return MC.flow_distribution_check(items, I1, "ART", metric, field)
+
+
+def test_the_done_items_are_counted_again_per_work_type_and_match_the_shares_of_metrics():
+    got = distribution([typed("D-1", "Feature"), typed("D-2", "defect"), typed("D-3", "Feature"), typed("D-4", "Story")])
+    assert got == MC.FlowDistCheck("I1", "ART", done=4, counts=(2, 0, 1, 0, 1), gap=0.0, reason="", note="")
+
+
+def test_every_done_item_unmapped_says_why_and_nothing_done_is_not_computable():
+    assert distribution([typed("D-1", None)], field="").note == "every done item is Unmapped: WorkTypeField is empty in Config"
+    assert distribution([typed("D-1", None)], field="\u00a0\t\n").note.endswith(MC.NO_WORK_TYPE_FIELD)     # blanks the formula leaves out
+    assert distribution([typed("D-1", "Story")]).note == "every done item is Unmapped: no known work type (Feature, Enabler, Defect, Autre)"
+    items = []
+    assert MC.flow_distribution_check(items, I1, "ART", team_iteration_metrics(items, "ART", I1, "A", AS_OF), "x").reason == MC.NO_ITEM

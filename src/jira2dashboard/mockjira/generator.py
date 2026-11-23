@@ -177,6 +177,10 @@ def generate(seed: int = 1, issues: int = 1200, as_of: dt.datetime = AS_OF,
             wf_name = "Team"
         if type_ == "Sub-task" and not stories[project]:
             type_, work_type = "Task", "Autre"
+        if work_type == "Defect" and n % 2:
+            work_type = "defect"            # Jira's case: Flow Distribution ignores it (model.work_type_bucket, ItemFlow.WorkTypeBucket)
+        elif type_ == "Task" and n % 7 == 0:
+            work_type = None                # no work type: Unmapped
         counters[project] += 1
         key = f"{project}-{counters[project]}"
         parent = None

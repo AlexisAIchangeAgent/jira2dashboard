@@ -126,7 +126,8 @@ ITEMFLOW_COLUMNS = (
     ("Reopened", f'=COUNTIFS({SI}[Key],[@Key],{SI}[PrevCategory],"Done",{SI}[Category],"<>Done")'),
     ("SkippedStart", '=IF(AND([@DoneUtc]<>"",[@StartUtc]=""),"Y","N")'),
     ("Excluded", '=IF(OR([@SkippedStart]="Y",[@Reopened]>0),1,0)'),
-    ("WorkTypeBucket", "=IF(OR(" + ",".join(f'[@WorkType]="{w}"' for w in WORK_TYPES) + '),[@WorkType],"Unmapped")'),
+    # the canonical name of a known work type whatever its case (= ignores it), else Unmapped: model.work_type_bucket
+    ("WorkTypeBucket", "=" + "".join(f'IF([@WorkType]="{w}","{w}",' for w in WORK_TYPES) + '"Unmapped"' + ")" * len(WORK_TYPES)),
     ("EndUtc", f'=IF([@DoneUtc]<>"",[@DoneUtc],IF([@RemovedUtc]<>"",[@RemovedUtc],{FAR}))'),
     # the trace of a ticket (flow/trace.py): the iteration and the PI where it was done, its account, why Flow Time leaves it out, its distance to a boundary.
     # The iterations are those of the table Metrics (its key columns are values: no circular reference), the PIs those of PIMetrics.
@@ -295,6 +296,22 @@ FLOWLOADCHECK_COLUMNS = (
     ("Reason", f'=IF([@StartStatuses]=0,"{MC.NO_START_STATUS}",IF([@DaysMeasured]=0,"{MC.AFTER_AS_OF}",""))'),
 )
 
+# --- the table FlowDistCheck: what the Flow Distribution of each iteration and team counts (AL, 2026-11-22) ------------------------------
+# The keys of Metrics. The done items counted again per work type from the raw WorkType (COUNTIFS ignores the case, as WorkTypeBucket), Unmapped the
+# rest, Gap = sum of |count - DistDone x Velocity| of Metrics, Reason (no item done) and a Note when every done item is Unmapped. Reference: metric_checks.
+FLOWDISTRIBUTIONCHECK_KEYS = METRICS_KEYS
+_CONFIG_WORK_TYPE_FIELD = 'INDEX(Config_from_user!$B:$B,MATCH("WorkTypeField",Config_from_user!$A:$A,0))'   # as CONFIG_VALUE, defined below
+FLOWDISTRIBUTIONCHECK_COLUMNS = (
+    ("Done", f"=COUNTIFS({DONE_IN})"),
+    *((w, f'=COUNTIFS({DONE_IN},{IF_}[WorkType],"{w}")') for w in WORK_TYPES),
+    ("Unmapped", "=[@Done]-" + "-".join(f"[@{w}]" for w in WORK_TYPES)),
+    ("Gap", "=ROUND(" + "+".join(f'ABS([@{b}]-IFERROR({_METRIC_OF_ROW.format(column="DistDone" + b)}*{_METRIC_OF_ROW.format(column="Velocity")},0))'
+                                 for b in BUCKETS) + f",{MC.GAP_DIGITS})"),
+    ("Reason", f'=IF([@Done]=0,"{MC.NO_ITEM}","")'),
+    ("Note", f'=IF(AND([@Done]>0,[@Unmapped]=[@Done]),"{MC.ALL_UNMAPPED}"&IF(TRIM(SUBSTITUTE(CLEAN(IFERROR({_CONFIG_WORK_TYPE_FIELD},"")&""),CHAR(160)," "))="",'
+             f'"{MC.NO_WORK_TYPE_FIELD}","{MC.NO_KNOWN_TYPE}"),"")'),
+)
+
 # --- the sheet MetricItems: the tickets behind the figures (AL, 2026-11-18) ---------------------------------------------------------
 # Three lists side by side, each column ONE spilled formula (Excel 365 dynamic arrays, as FILTER is already used): the tickets of ItemFlow that
 # fall in an account, sorted. No VBA writes a key: the lists follow the data. Reference: flow/trace.metric_items.
@@ -347,6 +364,7 @@ RECONCILIATION_FORMULAS = {
     R.FLOW_TIME_GAP: ("=0", "=SUMPRODUCT(ABS(FlowTimeCheck[Gap]))"),
     R.FLOW_EFFICIENCY_GAP: ("=0", "=SUMPRODUCT(ABS(FlowEfficiencyCheck[Gap]))"),
     R.FLOW_LOAD_GAP: ("=0", "=SUMPRODUCT(ABS(FlowLoadCheck[Gap]))"),
+    R.FLOW_DISTRIBUTION_GAP: ("=0", "=SUMPRODUCT(ABS(FlowDistCheck[Gap]))"),
     R.UNIQUE: ("=0", f'=COUNTIF({_LEDGER["key"]},"?*")-IFERROR(ROWS(UNIQUE(FILTER({_LEDGER["key"]},{_LEDGER["key"]}<>""))),0)'),
     R.CUTOFF: ("=0", f'=COUNTIF({_M}!$S$3#,"?*")'),
     R.CLASSIFIED: ("=0", f'=COUNTIFS({SI}[Category],"Unclassified",{SI}[Team],"<>{OTHER_TYPES}")'),
@@ -534,4 +552,5 @@ TABLES = {
     "FlowTimeCheck": FLOWTIMECHECK_KEYS + tuple(name for name, _ in FLOWTIMECHECK_COLUMNS),
     "FlowEfficiencyCheck": FLOWEFFICIENCYCHECK_KEYS + tuple(name for name, _ in FLOWEFFICIENCYCHECK_COLUMNS),
     "FlowLoadCheck": FLOWLOADCHECK_KEYS + tuple(name for name, _ in FLOWLOADCHECK_COLUMNS),
+    "FlowDistCheck": FLOWDISTRIBUTIONCHECK_KEYS + tuple(name for name, _ in FLOWDISTRIBUTIONCHECK_COLUMNS),
 }

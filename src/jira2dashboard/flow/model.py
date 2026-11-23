@@ -13,6 +13,13 @@ OTHER_TYPES = "ART (other types)"                              # the team of the
 MODES = ("A", "B")                                             # FlowLoadMode
 
 
+def work_type_bucket(work_type) -> str:
+    """The bucket of Flow Distribution: a work type of WORK_TYPES whatever its case ("feature" is Feature, as the = of Excel reads it), its
+    canonical name; anything else Unmapped (the parity check of 2026-11-23: Excel counted "feature" as Feature, Python as Unmapped)."""
+    # a number or a boolean (WorkTypeField on a field of another type) is Unmapped, as Excel's 5="Feature" is FALSE
+    return {w.lower(): w for w in WORK_TYPES}.get("" if work_type is None else str(work_type).lower(), UNMAPPED)
+
+
 @dataclass(frozen=True)
 class StatusRule:
     """One row of the Workflows sheet."""

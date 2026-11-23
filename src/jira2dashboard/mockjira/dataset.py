@@ -117,7 +117,7 @@ class Issue:
     id: str
     project: str
     type: str                          # Feature, Story, Task, Bug, Sub-task
-    work_type: str                     # TypeCategorie: Feature, Enabler, Autre, Defect
+    work_type: str | None              # TypeCategorie: Feature, Enabler, Autre, Defect (any case), None
     summary: str
     created: dt.datetime
     changes: tuple[Change, ...] = ()

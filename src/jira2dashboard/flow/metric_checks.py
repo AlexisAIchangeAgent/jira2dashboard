@@ -15,7 +15,7 @@ from dataclasses import dataclass
 from jira2dashboard.flow.itemflow import ItemFlow
 from jira2dashboard.flow.load import ONE_DAY, in_process_at, snapshot_days
 from jira2dashboard.flow.metrics import TeamIterationMetrics
-from jira2dashboard.flow.model import ACTIVE, ART, WAIT, FlowIssue, Iteration, Rules
+from jira2dashboard.flow.model import ACTIVE, ART, UNMAPPED, WAIT, WORK_TYPES, FlowIssue, Iteration, Rules, work_type_bucket
 
 NO_ITEM = "no item done in the iteration"
 ALL, LEFT_OUT = "all ", " done items left out: "
@@ -154,3 +154,35 @@ def flow_load_check(items: list[ItemFlow], iteration: Iteration, team: str, rule
     else:
         gap = 1.0
     return FlowLoadCheck(iteration.name, team, days, len(measured), starts, average, at_end, gap, "")
+
+
+# --- FlowDistCheck: the items done in the iteration, counted again per work type from the raw WorkType of the tickets (Excel: COUNTIFS on
+# ItemFlow.WorkType, not on WorkTypeBucket), Unmapped = the rest, Gap = the sum of |count - DistDone x Velocity| of Metrics, Reason (only "no item
+# done" makes it not computable) and a Note when every done item is Unmapped (WorkTypeField empty, or no known work type).
+ALL_UNMAPPED = "every done item is Unmapped: "
+NO_WORK_TYPE_FIELD = "WorkTypeField is empty in Config"
+NO_KNOWN_TYPE = "no known work type (Feature, Enabler, Defect, Autre)"
+BLANK = "".join(map(chr, range(33))) + "\u00a0"     # what TRIM(SUBSTITUTE(CLEAN(x),CHAR(160)," ")) of the formula leaves out
+
+
+@dataclass(frozen=True)
+class FlowDistCheck:
+    iteration: str
+    team: str
+    done: int
+    counts: tuple[int, ...]      # one per WORK_TYPES, then Unmapped
+    gap: float
+    reason: str
+    note: str
+
+
+def flow_distribution_check(items: list[ItemFlow], iteration: Iteration, team: str, metric: TeamIterationMetrics, work_type_field: str) -> FlowDistCheck:
+    done = [i for i in items if i.team == team and iteration.contains(i.done)]
+    known = [sum(1 for i in done if work_type_bucket(i.work_type) == w) for w in WORK_TYPES]
+    counts = (*known, len(done) - sum(known))
+    shares = metric.distribution_done if isinstance(metric.distribution_done, dict) else {}
+    gap = round(sum(abs(n - shares.get(b, 0) * metric.velocity) for n, b in zip(counts, (*WORK_TYPES, UNMAPPED))), GAP_DIGITS)
+    note = ""
+    if done and counts[-1] == len(done):
+        note = ALL_UNMAPPED + (NO_WORK_TYPE_FIELD if not (work_type_field or "").strip(BLANK) else NO_KNOWN_TYPE)
+    return FlowDistCheck(iteration.name, team, len(done), counts, gap, NO_ITEM if not done else "", note)

@@ -23,7 +23,7 @@ from jira2dashboard.flow.formulas import CHANGELOG_RAW
 from jira2dashboard.flow.itemflow import item_flow
 from jira2dashboard.flow.load import daily_load
 from jira2dashboard.flow.metrics import BUCKETS, feature_predictability, flow_metrics
-from jira2dashboard.flow.model import NOT_COMPUTABLE, Rules
+from jira2dashboard.flow.model import NOT_COMPUTABLE, Rules, work_type_bucket
 from jira2dashboard.flow.checks import CHECKS, IDS, PER_ISSUE, CheckSettings, Moves, fill_rates, run_checks
 from jira2dashboard.mockjira.anomalies import PI, PI_WINDOW, with_anomalies
 from jira2dashboard.mockjira import config as jira_config
@@ -540,7 +540,7 @@ def _itemflow(world):
         row = excel[item.key]
         checks = {
             "Team": row["Team"] == item.team,
-            "WorkTypeBucket": row["WorkTypeBucket"] == (item.work_type if item.work_type in BUCKETS else "Unmapped"),
+            "WorkTypeBucket": row["WorkTypeBucket"] == work_type_bucket(item.work_type),
             "StartUtc": same_moment(row["StartUtc"], item.start),
             "FirstStartUtc": same_moment(row["FirstStartUtc"], item.first_start),
             "DoneUtc": same_moment(row["DoneUtc"], item.done),
@@ -699,6 +699,28 @@ def _flow_load_check_generated(world):
     assert all(abs(r["Gap"]) < 1e-9 for r in got) and any((e.at_end or 0) > 0 for e in expected), expected[:6]
 
 
+@then("la table FlowDistCheck reproduit la référence Python sur les données générées")
+def _flow_distribution_check_generated(world):
+    """What the Flow Distribution counts, on generated data: every row against flow/metric_checks, cell by cell; the Gap is 0; the Reason is ""
+    exactly where Flow Distribution is computable; the data holds done items in every bucket. The Note is compared by its presence
+    only (the reference is given a WorkTypeField: its text depends on Config)."""
+    from jira2dashboard.flow.metric_checks import flow_distribution_check
+    from jira2dashboard.flow.metrics import team_iteration_metrics
+    iterations = {p.name: p for p in world["iterations"]}
+    got, metrics = table_dicts(world["wb"], "FlowDistCheck"), table_dicts(world["wb"], "Metrics")
+    assert [(r["Iteration-label"], r["Team"]) for r in got] == [(r["Iteration-label"], r["Team"]) for r in metrics] and got
+    expected = [flow_distribution_check(world["items"], iterations[r["Iteration-label"]], r["Team"],
+                                        team_iteration_metrics(world["items"], r["Team"], iterations[r["Iteration-label"]], "A", world["dataset"].as_of), "x")
+                for r in got]
+    for row, ref in zip(got, expected):
+        assert (row["Done"], tuple(row[b] for b in BUCKETS), row["Reason"]) == (ref.done, ref.counts, ref.reason), (ref, row)
+        assert abs(row["Gap"]) < 1e-9 and (row["Note"] == "") == (ref.note == ""), (ref, row)
+    for row, metric in zip(got, metrics):
+        assert (row["Reason"] == "") == (metric["DistDoneFeature"] != "not computable"), (row, metric["DistDoneFeature"])
+    assert all(any(e.counts[c] for e in expected) for c in range(len(BUCKETS))), [e.counts for e in expected][:6]   # every bucket, Unmapped too
+    assert {i.work_type for i in world["items"]} >= {"defect", None}, "the generated data holds a lower-case and a missing work type"
+
+
 @then("les colonnes de trace de ItemFlow reproduisent la référence Python sur les données générées")
 def _trace_generated(world):
     """DoneIteration, its Start and End, DonePI, Account, WhyNotInFlowTime and BoundaryHours of every ticket against flow/trace, and the data holds
@@ -814,7 +836,7 @@ def _reconciliation_generated(world):
 def _art_reconciliation(world):
     from art_oracle import ACCOUNTS, FLOW_TIME_DAYS, VELOCITY
     got = {r["Control"]: r for r in table_dicts(world["wb"], "Reconciliation")}
-    assert len(got) == 17 and {r["Result"] for r in got.values()} == {"OK"}, {k: (r["Expected"], r["Found"], r["Result"]) for k, r in got.items()}
+    assert len(got) == 18 and {r["Result"] for r in got.values()} == {"OK"}, {k: (r["Expected"], r["Found"], r["Result"]) for k, r in got.items()}
     released, tickets = sum(VELOCITY.values()), sum(ACCOUNTS.values())
     typed = {"Tickets read from Jira = tickets of ItemFlow": (tickets, tickets), "Every ticket sits in one account": (tickets, tickets),
              "Velocity of all iterations = tickets of the Done list": (released, released),
@@ -1957,6 +1979,15 @@ def art_flow_load_check(world, expected):
     assert {label: figures for label, (figures, _average, _end) in got.items()} == expected
     computable = {label: (average != "", at_end != "") for label, (_figures, average, at_end) in got.items()}
     assert set(computable.values()) == ({(False, False)} if "no start status" in next(iter(expected.values()))[4] else {(True, True)}), computable
+
+
+@then("la table FlowDistCheck de l'ART est celle calculée à la main")
+def _art_flow_distribution_check(world):
+    from art_oracle import FLOW_DISTRIBUTION_CHECK as expected
+    from jira2dashboard.flow.metrics import BUCKETS
+    got = {r["Iteration-label"]: (r["Done"], tuple(r[b] for b in BUCKETS), r["Gap"], "" if r["Reason"] is None else r["Reason"],
+                                  "" if r["Note"] is None else r["Note"]) for r in art_table(world, "FlowDistCheck") if r["Team"] == "ART"}
+    assert got == expected, {k: (got.get(k), v) for k, v in expected.items() if got.get(k) != v}
 
 
 @then("la Reconciliation demande de revoir le statut de départ et le statut Wait")

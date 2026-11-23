@@ -222,11 +222,23 @@ python.log). `tests/unit/test_claude_hooks.py` and `test_claude_skills.py` test 
   `BoundaryHours` (distance of DoneUtc to the nearest iteration boundary); reference `flow/trace.py`. The sheet `MetricItems_from_excel` holds three lists of SPILLED
   formulas side by side (columns A.. Done in an iteration: Iteration, Start, End, Team, Key, Type, DoneUtc, FlowTimeCounted, FlowTimeDays, WhyNotInFlowTime; L.. done but
   not counted with the reason; S.. cut-off within 24 h), `modFlowBuild.BuildMetricItems`, python `trace.metric_items`; the rows of an iteration and team are its Velocity.
-  The sheet `Reconciliation_from_excel` has the table `Reconciliation` (14 controls since 2026-11-22: + a start status per workflow kind with tickets, a Wait status; Control | Assertion | Expected | Found | Difference | Result OK/REVIEW, in the order
+  The sheet `Reconciliation_from_excel` has the table `Reconciliation` (18 controls since 2026-11-24: + a start status per workflow kind with tickets, a Wait status, the Gap of the
+  four flow check tables; Control | Assertion | Expected | Found | Difference | Result OK/REVIEW, in the order
   of `reconciliation.CONTROLS`; Expected and Found are a formula of their own per row, written BEFORE the table exists: **a formula typed in one cell of a table column fills
   the whole column**, which made all the rows equal), the census of the types (spilled from H1) and the parameters in force; reference `flow/reconciliation.py`;
   `modHealth.ReconciliationFindings` says `Reconciliation: n of m controls to review` and counts the `REVIEW` rows only (the cut-off control is `INFO`: `reconciliation.INFO_ASSERTIONS`);
   the statuses control counts the tickets that are not in "ART (other types)" and the unclassified statuses are listed by name from column O (`reconciliation.unclassified`). The art-metrics scenario types every list and control by hand.
+- **One accounting table per flow metric (AL, 2026-11-22: "the same accountability checks as for predictability").** `FlowTimeCheck`, `FlowEfficiencyCheck`, `FlowLoadCheck`,
+  `FlowDistCheck` (sheets `..._from_excel`; `FlowDistributionCheck_from_excel` would pass the 31 characters of an Excel sheet name), the keys of `Metrics`, reference
+  `flow/metric_checks.py`, the same sheets in the Python path. Each holds a funnel of counts, a `Gap` between TWO INDEPENDENT paths (always 0: a recount of the same ItemFlow
+  column would be 0 by construction and no mutation could fail it) and a `Reason` that is "" exactly where the metric is computable (the Excel scenarios assert it against
+  `Metrics`). Flow Time: Done recounted from the intervals minus the left-out items (reopened / no start status in the rules / no start after the backlog) vs `FlowTimeCount`.
+  Flow Efficiency: Active and Wait days summed from `StatusIntervals` (`InCycle`) vs `ItemFlow`. Flow Load: the load at the end by SUMPRODUCT (mode A over `StatusIntervals`,
+  B over `ItemFlow`) vs the COUNTIFS of `DailyLoad`; reasons no start status, every day after AsOf. Flow Distribution: COUNTIFS on the RAW `ItemFlow.WorkType` vs
+  `DistDone* x Velocity`, a `Note` when every done item is Unmapped (WorkTypeField empty, or no known work type). **The work-type bucket ignores case and keeps the canonical
+  name on both sides** (`model.work_type_bucket`, nested IF of `WorkTypeBucket`: Excel's `=` counted "feature" as Feature, Python did not; a number is Unmapped, never a
+  crash; the generated data holds "defect" and tickets with no work type, so the Excel scenarios see both). Hand-typed oracle in
+  `tests/art_oracle.py` (`FLOW_*_CHECK`, with and without a start status); one Reconciliation control "Gap = 0" per table.
 - **Python reference as oracle.** `flow/` (`intervals.py`, `itemflow.py`, `load.py`, `metrics.py`, `checks.py`) is a pure
   Python implementation of the same metrics and data checks. The scenarios in `tests/features/flow_excel.feature` run the
   real delivered workbook against the fake Jira and compare Excel with this reference **cell by cell** (Flow Load modes A
@@ -424,7 +436,8 @@ then `mermaid.parse`), and check every `](#anchor)` link against the headings.
 
 1. Python: the formulas (`flow/formulas.py`: `*_COLUMNS` + `TABLES`), the reference (`flow/<name>.py`) with a hand-typed oracle in `tests/art_oracle.py`,
    the chart spec (`dashboard_spec.CHARTS`, before the daily curve), `blueprint.formula_rows` / `_chart_row`.
-2. A new sheet name in the THREE lists (`sheet_names.EXCEL`, `modText.EXCEL_SHEETS`, `flow/sheets.error_cells`), then `modHealth` (cells in error),
+2. A new sheet name in the THREE lists (`sheet_names.EXCEL`, `modText.EXCEL_SHEETS`, `flow/sheets.error_cells`); with its suffix it fits the 31 characters of Excel
+   (`_from_excel` takes 11: `test_sheet_names` fails otherwise, and the Python path stops at the write of its xlsx), then `modHealth` (cells in error),
    `DeleteDerived` and `BuildAll` of `modFlowBuild`.
 3. Python path: `standalone/results.py` (+ its `Sheet(...)` in `__main__`) and `charts_svg.chart_pictures` (a new SERIES branch goes BEFORE the PI-axis one).
 4. Pinned numbers: `test_run_vba_tests_pure` (markers, `FLB` range), `T_FlowBuild` ("N charts"), `test_blueprint` (`[CHARTS_SHEET] * n`), `test_dashboard_spec`

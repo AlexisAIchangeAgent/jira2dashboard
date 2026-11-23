@@ -34,6 +34,7 @@ Fonctionnalité: Le scénario art-metrics du faux Jira donne, dans le classeur l
     Et la table FlowTimeCheck de l'ART est celle calculée à la main
     Et la table FlowEfficiencyCheck de l'ART est celle calculée à la main
     Et la table FlowLoadCheck de l'ART est celle calculée à la main
+    Et la table FlowDistCheck de l'ART est celle calculée à la main
 
   @excel
   Scénario: Les statuts viennent de Jira : la feuille Workflows ne déclare que les trois statuts d'attente et les chiffres ne changent pas
@@ -122,6 +123,7 @@ Fonctionnalité: Le scénario art-metrics du faux Jira donne, dans le classeur l
     Et la table FlowTimeCheck de l'ART est celle calculée à la main, sans statut de départ
     Et la table FlowEfficiencyCheck de l'ART est celle calculée à la main, sans statut Wait
     Et la table FlowLoadCheck de l'ART est celle calculée à la main, sans statut de départ
+    Et la table FlowDistCheck de l'ART est celle calculée à la main
     Et le journal et les champs de santé disent pourquoi, avec les codes calculés à la main
     Et la Reconciliation demande de revoir le statut de départ et le statut Wait
 

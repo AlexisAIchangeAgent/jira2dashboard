@@ -21,9 +21,9 @@ from jira2dashboard.flow.trace import MetricItems, metric_items, trace
 from jira2dashboard.flow.pi_status_time import PIStatusTime, feature_statuses, pi_status_time
 from jira2dashboard.flow.metrics import (BUCKETS, PIPredictability, TeamIterationMetrics, pi_predictability,
                                          team_iteration_metrics)
-from jira2dashboard.flow.model import ART, NOT_COMPUTABLE, OTHER_TYPES, UNMAPPED, WORK_TYPES, FlowIssue
-from jira2dashboard.flow.metric_checks import (FlowEfficiencyCheck, FlowLoadCheck, FlowTimeCheck, flow_efficiency_check, flow_load_check,
-                                               flow_time_check)
+from jira2dashboard.flow.model import ART, NOT_COMPUTABLE, OTHER_TYPES, UNMAPPED, WORK_TYPES, FlowIssue, work_type_bucket
+from jira2dashboard.flow.metric_checks import (FlowDistCheck, FlowEfficiencyCheck, FlowLoadCheck, FlowTimeCheck, flow_distribution_check,
+                                               flow_efficiency_check, flow_load_check, flow_time_check)
 from jira2dashboard.flow.velocity_check import VelocityCheck, velocity_check
 from jira2dashboard.standalone.params_book import RunSettings
 
@@ -41,6 +41,7 @@ VELOCITY_CHECK = F.TABLES["VelocityCheck"]
 FLOW_TIME_CHECK = F.TABLES["FlowTimeCheck"]
 FLOW_EFFICIENCY_CHECK = F.TABLES["FlowEfficiencyCheck"]
 FLOW_LOAD_CHECK = F.TABLES["FlowLoadCheck"]
+FLOW_DISTRIBUTION_CHECK = F.TABLES["FlowDistCheck"]
 RECONCILIATION = tuple(name for name, _ in F.RECONCILIATION_COLUMNS)
 ITERATION_FEATURES = F.ITERATIONFEATURES_KEYS + F.ITERATIONFEATURES_NAMES
 FILL_RATES = F.TABLES["FillRates"]
@@ -63,6 +64,7 @@ class Results:
     flow_time_check: list[FlowTimeCheck] = field(default_factory=list)      # why the Flow Time is what it is, every iteration x team
     flow_efficiency_check: list[FlowEfficiencyCheck] = field(default_factory=list)      # why the Flow Efficiency is what it is
     flow_load_check: list[FlowLoadCheck] = field(default_factory=list)      # why the Flow Load is what it is
+    flow_distribution_check: list[FlowDistCheck] = field(default_factory=list)      # what the Flow Distribution counts
 
 
 def iteration_span(iterations) -> tuple[dt.datetime, dt.datetime]:
@@ -106,11 +108,12 @@ def compute(issues: list[FlowIssue], s: RunSettings) -> Results:
                     for iteration in s.iterations for team in teams],
                    [flow_time_check(issues, items, iteration_of[m.iteration], m.team, s.rules, m) for m in metrics],
                    [flow_efficiency_check(items, iteration_of[m.iteration], m.team, s.rules, m) for m in metrics],
-                   [flow_load_check(items, iteration_of[m.iteration], m.team, s.rules, s.mode, s.as_of, m) for m in metrics])
+                   [flow_load_check(items, iteration_of[m.iteration], m.team, s.rules, s.mode, s.as_of, m) for m in metrics],
+                   [flow_distribution_check(items, iteration_of[m.iteration], m.team, m, s.work_type_field) for m in metrics])
 
 
 def _bucket(work_type) -> str:
-    return work_type if work_type in WORK_TYPES else UNMAPPED
+    return work_type_bucket(work_type)
 
 
 def itemflow_rows(results: Results, rows: list[tuple], issues: list[FlowIssue],
@@ -221,6 +224,13 @@ def flowloadcheck_rows(results: Results, s: RunSettings) -> list[tuple]:
     iterations = {p.name: p for p in s.iterations}
     return [(r.iteration, iterations[r.iteration].start, iterations[r.iteration].end, r.team, r.days, r.days_measured, r.start_statuses,
              "" if r.average is None else r.average, "" if r.at_end is None else r.at_end, r.gap, r.reason) for r in results.flow_load_check]
+
+
+def flowdistributioncheck_rows(results: Results, s: RunSettings) -> list[tuple]:
+    """The rows of FlowDistCheck (formulas.FLOWDISTRIBUTIONCHECK_COLUMNS), one per iteration and team, in the order of Metrics."""
+    iterations = {p.name: p for p in s.iterations}
+    return [(r.iteration, iterations[r.iteration].start, iterations[r.iteration].end, r.team, r.done, *r.counts, r.gap, r.reason, r.note)
+            for r in results.flow_distribution_check]
 
 
 def piinterval_rows(issues: list[FlowIssue]) -> list[tuple]:

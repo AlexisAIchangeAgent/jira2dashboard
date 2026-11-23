@@ -124,3 +124,7 @@ FLOW_EFFICIENCY_CHECK_NO_START = {label: (0, 0, 0, 0, 0, "", 0, NO_WAIT_REASON) 
 NO_START_STATUS_REASON = "the workflow of the team has no start status (set IsStart in Workflows)"
 FLOW_LOAD_CHECK = {label: (21, 21, 1, 0, "") for label in VELOCITY}                          # Days, DaysMeasured, StartStatuses, Gap, Reason
 FLOW_LOAD_CHECK_NO_START = {label: (21, 21, 0, 0, NO_START_STATUS_REASON) for label in VELOCITY}
+
+# --- FlowDistCheck (AL, 2026-11-22): every Feature of the scenario has the work type Feature: the released ones are all Feature, nothing is
+# Unmapped. The same with or without a start status (the distribution does not need one).
+FLOW_DISTRIBUTION_CHECK = {label: (v, (v, 0, 0, 0, 0), 0, "" if v else "no item done in the iteration", "") for label, v in VELOCITY.items()}

@@ -250,3 +250,12 @@ def flow_load_check_of(world, expected):
     assert {label: figures for label, (figures, _average, _end) in got.items()} == expected
     computable = {label: (average != "", at_end != "") for label, (_figures, average, at_end) in got.items()}
     assert set(computable.values()) == ({(False, False)} if "no start status" in next(iter(expected.values()))[4] else {(True, True)}), computable
+
+
+@then("la feuille FlowDistCheck de l'ART est celle calculée à la main")
+def _flow_distribution_check(world):
+    from art_oracle import FLOW_DISTRIBUTION_CHECK as expected
+    from jira2dashboard.flow.metrics import BUCKETS
+    got = {r["Iteration-label"]: (r["Done"], tuple(r[b] for b in BUCKETS), r["Gap"], "" if r["Reason"] is None else r["Reason"],
+                                  "" if r["Note"] is None else r["Note"]) for r in sheet(world, "FlowDistCheck") if r["Team"] == "ART"}
+    assert got == expected, {k: (got.get(k), v) for k, v in expected.items() if got.get(k) != v}

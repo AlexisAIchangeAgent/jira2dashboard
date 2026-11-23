@@ -55,6 +55,8 @@ def formula_rows() -> list[tuple[str, str, str]]:
     rows += [("FlowEfficiencyCheck", name, text) for name, text in F.FLOWEFFICIENCYCHECK_COLUMNS]
     rows += [("FlowLoadCheck", key, "") for key in F.FLOWLOADCHECK_KEYS]
     rows += [("FlowLoadCheck", name, text) for name, text in F.FLOWLOADCHECK_COLUMNS]
+    rows += [("FlowDistCheck", key, "") for key in F.FLOWDISTRIBUTIONCHECK_KEYS]
+    rows += [("FlowDistCheck", name, text) for name, text in F.FLOWDISTRIBUTIONCHECK_COLUMNS]
     rows += [("Metrics", name, text) for name, text in F.METRICS_COLUMNS]
     rows += [("Reconciliation", name, text) for name, text in F.RECONCILIATION_COLUMNS]
     rows += [("ReconciliationControl", name, assertion) for name, assertion in R.CONTROLS]          # the keys: control, assertion

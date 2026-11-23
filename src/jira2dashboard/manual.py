@@ -194,6 +194,8 @@ def manual(mandatory: tuple[str, ...]) -> list[tuple[str, str]]:
             f"{S.of('FlowLoadCheck')}: the same for Flow Load: the days of the iteration, those measured (not after AsOf), the start statuses of "
             "the workflow of the team, the average load and the load at the end counted again, Gap (0) and Reason (no start status: declare one "
             "in Workflows; every day after AsOf).",
+            f"{S.of('FlowDistCheck')}: the done items counted again per work type (the case of the work type does not matter), Unmapped, "
+            "Gap (0), Reason (no item done) and a Note when every done item is Unmapped (WorkTypeField empty, or no known work type).",
             f"{S.of('VelocityCheck')}: the Velocity counted again from the status changes of the changelog, one row per iteration and team "
             "(the rows of Metrics). Velocity = the items done in the iteration (the chart); VelocityFeatures = of which the types of "
             "FeatureTypes (the team ART holds every type of the Program project); CreatedDone = done because they were CREATED in the end "

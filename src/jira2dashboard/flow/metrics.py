@@ -7,7 +7,7 @@ from jira2dashboard.flow.checks import CheckSettings, valid_pi
 from jira2dashboard.flow.itemflow import ItemFlow
 from jira2dashboard.flow.iteration_features import IterationFeatures, iteration_features
 from jira2dashboard.flow.load import ONE_DAY, in_process_at, snapshot_days
-from jira2dashboard.flow.model import ART, NOT_COMPUTABLE, UNMAPPED, WORK_TYPES, FlowIssue, Iteration
+from jira2dashboard.flow.model import ART, NOT_COMPUTABLE, UNMAPPED, WORK_TYPES, FlowIssue, Iteration, work_type_bucket
 
 BUCKETS = WORK_TYPES + (UNMAPPED,)
 
@@ -40,7 +40,7 @@ def percentile_inc(values: list[float], p: float) -> float:
 
 
 def _bucket(work_type: str | None) -> str:
-    return work_type if work_type in WORK_TYPES else UNMAPPED
+    return work_type_bucket(work_type)
 
 
 def _shares(items: list[ItemFlow]):
