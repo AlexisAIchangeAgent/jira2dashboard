@@ -569,6 +569,8 @@ then `mermaid.parse`), and check every `](#anchor)` link against the headings.
   needs Excel for Microsoft 365 or Excel 2024, NOT Excel 2021 (support.microsoft.com, checked 2026-11-24); `modFlowBuild.RequireDynamicArrays` probes it
   (error 708, J2D-FLOW-005). The client runs Microsoft 365, version 2610 (AL, 2026-11-24): it has TEXTSPLIT. Every test runs on a current Microsoft 365, so a function the
   client lacks only shows there as an empty list or a control to REVIEW (the IFERROR hides the #NAME?): add one to the list on purpose, after checking which Excel has it.
+- Excel: LET names `r`, `c` are refused (R1C1 references): use `rw`, `cl`. A COUNTIF(S) criterion is a pattern (`*?~`, a leading `=<>`) and fails
+  over 255 characters: count exact texts with `MMULT(--(un=TRANSPOSE(rs)),SEQUENCE(ROWS(rs),1,1,0))`.
 - Excel formula traps: a formula typed in one cell of a table column fills the whole column (write key columns as values
   before creating the table); a structured reference to a column whose name contains `_` is refused; compare dates with a
   half-second margin; a blank result is `""`, never `0`. Load settings CSV writes dates as ISO text (`SafeCell`): a formula
@@ -646,6 +648,10 @@ then `mermaid.parse`), and check every `](#anchor)` link against the headings.
 - **AL's Excel is French and shows dates as `45474,49546`:** to give him a filter, convert with `(date - dt.date(1899, 12, 30)).days` (2026-10-28 = 46323) and say that the End is excluded.
 - **Mutation proof of a Python reference:** `cp file $TEMP/x.bak`, replace one expression (`assert s.count(old) == 1`), run the unit test file, `cp` back; one mutation per behaviour. A mutation that
   survives means the test data cannot tell it (a tautology: add the case, or let the function take the ledger as a parameter so a test can feed a wrong one).
+  A mutation script that runs pytest in a subprocess passes `env={**os.environ, "PYTHONPATH": ...}`: a bare env breaks pywin32
+  (`PermissionError ... C:\Windows\gen_py`) and every mutation looks KILLED. Run the unmutated control first.
+- An edit script writes file by file: an `assert` that fails midway leaves the earlier files changed. Start from a clean tree (`git status`), so
+  `git checkout -- .` restores it; with work pending, back it up first.
 - **A scenario must not hold what Jira gives in its parameter sheets** (2026-11-18): `Dataset.jira_sheets` = Jira's full Workflows/Transitions, `sheets` = the exceptions. References
   come from `flow_adapter.jira_rules(ds)` / `jira_workflows(ds)`, never `Rules.from_params(list(ds.sheets))`; a test whose dataset still has complete sheets cannot see an exceptions-only workbook.
 - **A sheet that a formula reads must exist from the build** (`flow/sheets.py`, list of `add_sheet_after_last`), even empty: the formula written at the build of the flow sheets would
@@ -692,9 +698,13 @@ then `mermaid.parse`), and check every `](#anchor)` link against the headings.
 - **Mutation of a VBA test:** no `summary:` line in the log = no proof (a mutation that raises inside a test, e.g. a type mismatch, loses the run:
   pick one that changes a result without raising). `Check` takes (area, label, input, expected, actual); the log cuts a line at 300 characters.
 - pywin32: `Range.Address` is a property (`cell.Address.replace("$", "")`), not a call with arguments; `ws.Cells(1, n).Value` reads a one-cell range as a scalar.
+- `tests/steps/test_build_workbook.py` holds only `@pipeline` scenarios: with `-k "not pipeline"` it selects none (exit 5): expected.
+- A text the client reports dates its release: `git log -S"<text>" --oneline -- src`, then `git tag --contains <sha>` ("No valid start" = v0.12.0-v0.13.0).
+- `mock-workbook --run` needs `--scenario` (only a scenario runs unattended). For the generic data against Python, the Excel step
+  "compute --check sur une copie enregistrée" does it.
 - **`test-excel` by groups** (the whole run was killed once for memory, leaving an orphan `EXCEL.EXE`: stop it by PID): `tests/steps/test_build_workbook.py` (2 min),
   `test_macro_check.py` + `test_manual_test.py` (2 min), `test_params.py` + `test_standalone.py` (2 min), `test_flow_excel.py` (2 min with `-n 4`, 5 min without; foreground, `timeout 595`).
-  **`-n 4` (pytest-xdist) is for the flow module only** (2026-11-19, 5 runs in 5 green, 130 s against 290 s): each worker builds and opens its own workbook `out\interlow_gwN\` (`WORKER` in `test_flow_excel.py`),
+  **`-n 4` (pytest-xdist) is for the flow module only** (2026-11-19, 5 runs in 5 green, 130 s against 290 s): each worker builds and opens its own workbook `out\inter\flow_gwN\` (`WORKER` in `test_flow_excel.py`),
   so the VBA log and the files of a scenario are never shared; the other modules share workbook paths, never give them `-n`. `com.start_excel` tries again on "Server execution failed" (several Excel starting together).
   `-k` matches function AND module names: `-k scenario` ran all 26 tests of `test_flow_excel.py` (5 min); the two chart scenarios are
   `-k "art_metrics or png or PNG or graphiques"` (30 s). Read the `N passed` count: a `-k` that selects nothing or too much looks green.
