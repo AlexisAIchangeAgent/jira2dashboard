@@ -65,8 +65,10 @@ c74fbacb63b9cc609cc5b2f3e4ce24b5) and `v0.15.0` (2026-11-23, commit a8db023: the
 charts; Compute makes the status rules again without reading Jira; MD5 4e1d7b42616e685281bde9773d11480b) and `v0.16.0` (2026-11-24, commit 80c8f37: the four
 accounting tables FlowTimeCheck, FlowEfficiencyCheck, FlowLoadCheck, FlowDistCheck, 18 controls, the work-type bucket ignores case; MD5
 5a3287c4cda38b0ca3f3ea1f51cf28cb) and `v0.17.0` (2026-11-24, commit 57820b0: the report of 236 figures, 20 controls with CarryOver and the Flow Load list,
-VelocityCheck.Reason, MetricItems with the days and bucket of each ticket and the in-process list; MD5 9071979105af953fbfdfdf5270540671) exist on GitHub: AL removed the
-releases and the tags `v0.1.0` to `v0.4.0` (2026-11-13, they were 2026-11-06, 878807e, 31c9574, f0bbf32). Their numbers are never used again; the next one is above `v0.17.0`.
+VelocityCheck.Reason, MetricItems with the days and bucket of each ticket and the in-process list; MD5 9071979105af953fbfdfdf5270540671) and `v0.18.0`
+(2026-11-24, commit 1c92335: the note under the flow charts names the most frequent cause, the column Cause, the probe of TEXTSPLIT (Microsoft 365 or
+Excel 2024), J2D-FLOW-012 of compute --check; MD5 6025e069cba913958edab7726ee2363e) exist on GitHub: AL removed the
+releases and the tags `v0.1.0` to `v0.4.0` (2026-11-13, they were 2026-11-06, 878807e, 31c9574, f0bbf32). Their numbers are never used again; the next one is above `v0.18.0`.
 A clone may keep old tags (`git fetch --tags`): `version.py` stamps the commit, never `git describe`.
 `diagnose` never opens the workbook, never reads `python.log` (JQL, Jira's messages) nor the Windows event log, and masks the home
 folder: keep it that way when adding a section. Allow-lists of an endpoint protection ask for the MD5 (`notes.md` has it) or, lasting longer, the path and name:
