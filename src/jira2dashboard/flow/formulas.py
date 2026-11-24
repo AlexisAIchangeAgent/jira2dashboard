@@ -340,7 +340,10 @@ _DONE_SORT = ("DoneIterationStart", "Team", "DoneUtc", "Key")
 METRICITEMS_DONE = tuple((name, _col(column, _C, _DONE_SORT, wrap)) for name, column, wrap in (
     ("Iteration", "DoneIteration", "{}"), ("Start", "DoneIterationStart", "{}"), ("End", "DoneIterationEnd", "{}"), ("Team", "Team", "{}"),
     ("Key", "Key", "{}"), ("Type", "Type", "{}"), ("DoneUtc", "DoneUtc", "{}"), ("FlowTimeCounted", "Excluded", "1-{}"),
-    ("FlowTimeDays", "FlowTimeDays", "{}"), ("WhyNotInFlowTime", "WhyNotInFlowTime", "{}")))
+    ("FlowTimeDays", "FlowTimeDays", "{}"), ("WhyNotInFlowTime", "WhyNotInFlowTime", "{}"),
+    # what Flow Efficiency and Flow Distribution read of each ticket (AL, 2026-11-24), at the end of the block: the columns above keep their place
+    ("ActiveDays", "ActiveDays", "{}"), ("WaitDays", "WaitDays", "{}"), ("UnclassifiedDays", "UnclassifiedDays", "{}"),
+    ("WorkTypeBucket", "WorkTypeBucket", "{}")))
 _LEFT_SORT = ("Account", "DoneUtc", "Key")
 METRICITEMS_LEFT_OUT = tuple((name, _col(column, _LEFT_OUT, _LEFT_SORT)) for name, column in (
     ("Key", "Key"), ("Type", "Type"), ("Team", "Team"), ("Iteration", "DoneIteration"), ("DoneUtc", "DoneUtc"), ("Account", "Account")))
@@ -350,12 +353,28 @@ METRICITEMS_CUTOFF = tuple((name, _col(column, _NEAR, _NEAR_SORT, wrap)) for nam
     ("Hours", "BoundaryHours", "ROUND({},1)")))
 METRICITEMS_BLOCKS = (METRICITEMS_DONE, METRICITEMS_LEFT_OUT, METRICITEMS_CUTOFF)
 
+
+def metricitems_column(block: int, name: str) -> int:
+    """The column number of `name` in the list `block` (0 Done, 1 left out, 2 cut-off) of MetricItems: the blocks sit side by side from A, a blank
+    column between (modFlowBuild.BuildMetricItems). Every reader of a list takes its position here: a column added to a block moves the next ones."""
+    first = 1 + sum(len(b) + 1 for b in METRICITEMS_BLOCKS[:block])
+    return first + [n for n, _ in METRICITEMS_BLOCKS[block]].index(name)
+
+
+def metricitems_cell(block: int, name: str) -> str:
+    """The spilled column `name` of the list `block`, as a formula reads it: MetricItems_from_excel!$E$3#."""
+    letters, number = "", metricitems_column(block, name)
+    while number > 0:
+        number, rest = divmod(number - 1, 26)
+        letters = chr(65 + rest) + letters
+    return f"MetricItems_from_excel!${letters}$3#"
+
 # --- the sheet Reconciliation: the controls on the ledger, the census of the types, the parameters in force (AL, 2026-11-18) ------------
 # The table Reconciliation: one row per control (Control, Assertion: written by VBA from RECONCILIATION_CONTROLS), Expected and Found are a formula of
 # their own in each row (RECONCILIATION_EXPECTED / FOUND), Difference and Result are calculated columns. The ledger is the first list of MetricItems
-# (its spilled columns: A Iteration, D Team, E Key, H FlowTimeCounted, I FlowTimeDays) and the third (S Key). Reference: flow/reconciliation.py.
-_M = "MetricItems_from_excel"
-_LEDGER = {"iteration": f"{_M}!$A$3#", "team": f"{_M}!$D$3#", "key": f"{_M}!$E$3#", "counted": f"{_M}!$H$3#", "days": f"{_M}!$I$3#"}
+# (its spilled columns Iteration, Team, Key, FlowTimeCounted, FlowTimeDays) and the third (Key): metricitems_cell. Reference: flow/reconciliation.py.
+_LEDGER = {what: metricitems_cell(0, name) for what, name in (("iteration", "Iteration"), ("team", "Team"), ("key", "Key"),
+                                                              ("counted", "FlowTimeCounted"), ("days", "FlowTimeDays"))}
 _ACCOUNTS_ARRAY = "{" + ",".join(f'"{a}"' for a in T.ACCOUNTS) + "}"
 RECONCILIATION_FORMULAS = {
     R.POPULATION: ('=COUNTIF(Issues[Key],"?*")', '=COUNTIF(ItemFlow[Key],"?*")'),
@@ -374,7 +393,7 @@ RECONCILIATION_FORMULAS = {
                          "IterationFeatures[Team],IterationFeatures[IterationStart]&\"|\"&IterationFeatures[PI]&\"|\"&IterationFeatures[Team],"
                          "IterationFeatures[Engaged]),IterationFeatures[CarryOver])))"),
     R.UNIQUE: ("=0", f'=COUNTIF({_LEDGER["key"]},"?*")-IFERROR(ROWS(UNIQUE(FILTER({_LEDGER["key"]},{_LEDGER["key"]}<>""))),0)'),
-    R.CUTOFF: ("=0", f'=COUNTIF({_M}!$S$3#,"?*")'),
+    R.CUTOFF: ("=0", f'=COUNTIF({metricitems_cell(2, "Key")},"?*")'),
     R.CLASSIFIED: ("=0", f'=COUNTIFS({SI}[Category],"Unclassified",{SI}[Team],"<>{OTHER_TYPES}")'),
     R.FEATURE_TYPES: ("=1", f'=IF(COUNTIFS(ItemFlow[Role],"Program")=0,1,MIN(1,COUNTIFS(ItemFlow[Team],"{ART}")))'),
     R.START_STATUS: ("=0", "=" + "+".join(f'(COUNTIFS(ItemFlow[Workflow],"{k}",ItemFlow[Key],"?*")>0)*({_starts_of(chr(34) + k + chr(34))}=0)'

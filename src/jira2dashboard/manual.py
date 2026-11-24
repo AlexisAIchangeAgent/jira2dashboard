@@ -205,7 +205,8 @@ def manual(mandatory: tuple[str, ...]) -> list[tuple[str, str]]:
             "(ChangedToEnd - ReopenedLater) is 0 when the table explains the Velocity. Reason says why the Velocity differs from Jira's "
             "count of the changes into an end status (created done, closed then reopened, other types of the Program), or that nothing was done.",
             f"{S.of('MetricItems')}: the tickets BEHIND the figures, three lists side by side (formulas that follow the data). Left: every ticket done in "
-            "an iteration, by iteration, team, date and key, with its type, whether Flow Time counts it (FlowTimeCounted 1 or 0) and why not "
+            "an iteration, by iteration, team, date and key, with its type, whether Flow Time counts it (FlowTimeCounted 1 or 0) and why not, "
+            "its active, wait and unclassified days (Flow Efficiency) and its work-type bucket (Flow Distribution) "
             "(Reopened; No start status in the rules: set IsStart in Workflows; No start after the backlog): the rows of an iteration and team are its "
             "Velocity, so filter the list to see the keys of a chart point. Middle: the "
             "done tickets that no figure counts, with the reason (done outside the iterations, or left out because they are not Features: the team "

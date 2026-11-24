@@ -17,7 +17,7 @@ import datetime as dt
 from dataclasses import dataclass
 
 from jira2dashboard.flow.itemflow import ItemFlow
-from jira2dashboard.flow.model import OTHER_TYPES, Iteration
+from jira2dashboard.flow.model import OTHER_TYPES, Iteration, work_type_bucket
 
 ACCOUNT_COUNTED = "Done in an iteration"
 ACCOUNT_OUTSIDE = "Done outside the iterations"
@@ -81,13 +81,18 @@ CUTOFF_HOURS = 24                       # a ticket done this close to an iterati
 @dataclass(frozen=True)
 class MetricItems:
     """Three lists, as the three spilled blocks of the sheet MetricItems.
-    done: iteration, start, end, team, key, type, DoneUtc, FlowTimeCounted (1/0), FlowTimeDays ("" when none), WhyNotInFlowTime - the tickets behind
-    Velocity, Flow Time, Flow Efficiency and Flow Distribution (the Velocity of a team and iteration = its rows), by iteration, team, date, key;
+    done: iteration, start, end, team, key, type, DoneUtc, FlowTimeCounted (1/0), FlowTimeDays ("" when none), WhyNotInFlowTime, ActiveDays, WaitDays,
+    UnclassifiedDays ("" when none), WorkTypeBucket - the tickets behind Velocity, Flow Time, Flow Efficiency and Flow Distribution (the Velocity of a team
+    and iteration = its rows), by iteration, team, date, key;
     left_out: key, type, team, iteration, DoneUtc, account - the done tickets that no figure counts, with the reason;
     cutoff: key, team, iteration, DoneUtc, hours to the boundary (1 decimal) - done within CUTOFF_HOURS of a boundary, by distance."""
     done: list[tuple]
     left_out: list[tuple]
     cutoff: list[tuple]
+
+
+def _blank(days: float | None):
+    return "" if days is None else days
 
 
 def metric_items(items: list[ItemFlow], iterations: list[Iteration],
@@ -97,7 +102,8 @@ def metric_items(items: list[ItemFlow], iterations: list[Iteration],
         t = trace(item, iterations, pis)
         if t.account == ACCOUNT_COUNTED:
             done.append((t.done_iteration, t.start, t.end, item.team, item.key, item.type, item.done, 0 if item.excluded_from_flow_time else 1,
-                         "" if item.flow_time_days is None else item.flow_time_days, t.why_not_in_flow_time))
+                         _blank(item.flow_time_days), t.why_not_in_flow_time, _blank(item.active_days), _blank(item.wait_days),
+                         _blank(item.unclassified_days), work_type_bucket(item.work_type)))
         if item.done is not None and t.account != ACCOUNT_COUNTED:
             left_out.append((item.key, item.type, item.team, t.done_iteration, item.done, t.account))
         if t.boundary_hours is not None and t.boundary_hours <= CUTOFF_HOURS and t.account != ACCOUNT_OTHER:

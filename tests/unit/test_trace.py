@@ -129,10 +129,12 @@ def population():
 def test_the_list_behind_the_velocity_has_one_line_per_ticket_done_in_an_iteration_with_the_flow_time_verdict():
     got = lists(*population()).done
     s1, e1, s2, e2 = day("2025-05-01"), day("2025-05-11"), day("2025-05-11"), day("2025-05-21")
-    assert got == [("I1", s1, e1, "ART", "A-1", "Feature", day("2025-05-06T00:00"), 1, 4.0, ""),
-                   ("I1", s1, e1, "ART", "W-2", "Feature", day("2025-05-06T00:00"), 0, 4.0, "Reopened"),
-                   ("I1", s1, e1, "ART", "C-1", "Feature", day("2025-05-10T20:00"), 1, pytest.approx(1 + 20 / 24), ""),
-                   ("I2", s2, e2, "ART", "B-2", "Feature", day("2025-05-13T00:00"), 1, 1.0, "")]
+    # ActiveDays: the days in an Active status from StartUtc to DoneUtc (En analyse, En développement); W-2 was 1 day in Terminé between (not active)
+    assert got == [("I1", s1, e1, "ART", "A-1", "Feature", day("2025-05-06T00:00"), 1, 4.0, "", 4.0, 0, 0, "Feature"),
+                   ("I1", s1, e1, "ART", "W-2", "Feature", day("2025-05-06T00:00"), 0, 4.0, "Reopened", 3.0, 0, 0, "Feature"),
+                   ("I1", s1, e1, "ART", "C-1", "Feature", day("2025-05-10T20:00"), 1, pytest.approx(1 + 20 / 24), "", pytest.approx(1 + 20 / 24), 0, 0,
+                    "Feature"),
+                   ("I2", s2, e2, "ART", "B-2", "Feature", day("2025-05-13T00:00"), 1, 1.0, "", 1.0, 0, 0, "Feature")]
 
 
 def test_the_done_tickets_that_no_figure_counts_are_listed_with_their_reason():
@@ -161,6 +163,16 @@ def test_the_three_lists_become_the_rows_of_the_sheet_of_the_python_path_side_by
     assert [r[4] for r in rows] == ["A-1", "W-2", "C-1", "B-2"]                                 # the Key column of the first list
     assert [r[done_width + 1] for r in rows] == ["A-3", "S-1", None, None]                      # the second list, shorter: padded
     assert rows[0][done_width + 1 + left_width + 1] == "C-1" and rows[1][done_width + 1 + left_width + 1] is None   # the third list: one ticket
+
+
+def test_the_position_of_a_column_of_a_list_follows_the_widths_of_the_blocks_before_it():
+    from jira2dashboard.flow import formulas as F
+    from jira2dashboard.flow import reconciliation as R
+    widths = [len(b) for b in F.METRICITEMS_BLOCKS]
+    assert widths == [14, 6, 5]
+    assert [F.metricitems_column(0, "Key"), F.metricitems_column(1, "Key"), F.metricitems_column(2, "Key")] == [5, 16, 23]
+    assert F.metricitems_cell(2, "Key") == "MetricItems_from_excel!$W$3#" and F.metricitems_cell(0, "FlowTimeDays") == "MetricItems_from_excel!$I$3#"
+    assert F.RECONCILIATION_FORMULAS[R.CUTOFF][1] == '=COUNTIF(MetricItems_from_excel!$W$3#,"?*")'        # the Key of the cut-off list
 
 
 def test_the_first_list_is_sorted_by_the_start_of_the_iteration_before_the_team():

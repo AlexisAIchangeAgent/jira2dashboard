@@ -224,8 +224,10 @@ python.log). `tests/unit/test_claude_hooks.py` and `test_claude_skills.py` test 
   `DoneIteration` (+ `DoneIterationStart/End`, found in the key columns of `Metrics`: no circular reference), `DonePI` (from `PIMetrics`), `Account` (the partition of the
   population: done in an iteration / done outside the iterations / left out: not a Feature / removed / open), `WhyNotInFlowTime` (Reopened, No valid start),
   `BoundaryHours` (distance of DoneUtc to the nearest iteration boundary); reference `flow/trace.py`. The sheet `MetricItems_from_excel` holds three lists of SPILLED
-  formulas side by side (columns A.. Done in an iteration: Iteration, Start, End, Team, Key, Type, DoneUtc, FlowTimeCounted, FlowTimeDays, WhyNotInFlowTime; L.. done but
-  not counted with the reason; S.. cut-off within 24 h), `modFlowBuild.BuildMetricItems`, python `trace.metric_items`; the rows of an iteration and team are its Velocity.
+  formulas side by side (columns A.. Done in an iteration: Iteration, Start, End, Team, Key, Type, DoneUtc, FlowTimeCounted, FlowTimeDays, WhyNotInFlowTime,
+  ActiveDays, WaitDays, UnclassifiedDays, WorkTypeBucket (2026-11-24); P.. done but not counted with the reason; W.. cut-off within 24 h), `modFlowBuild.BuildMetricItems`,
+  python `trace.metric_items`; the rows of an iteration and team are its Velocity. **A reader of a list takes its column from `formulas.metricitems_column` /
+  `metricitems_cell`** (the ledger of the Reconciliation, its cut-off control, `metric_blocks` of the Excel steps): a column added to a block moves the next blocks.
   The sheet `Reconciliation_from_excel` has the table `Reconciliation` (19 controls since 2026-11-24: + a start status per workflow kind with tickets, a Wait status, the Gap of the
   four flow check tables, and CarryOver of IterationFeatures = the Engaged of the next iteration of the same PI and team: `iteration_features.carry_over_gap`, an
   XLOOKUP of End|PI|Team in Start|PI|Team, a gap or another PI not judged; NOT Engaged + Added - Deferred - Released = CarryOver, which is the formula of the column

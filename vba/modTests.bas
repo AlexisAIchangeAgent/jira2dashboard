@@ -1483,9 +1483,12 @@ Public Sub T_FlowBuild()
     Check "flowbuild", "the table VelocityCheck has the rows of Metrics, the same Velocity and a control Gap of 0", "rows|Velocity|Gap", _
           TableRows("Metrics") & "|" & ColumnSum("Metrics", "Velocity") & "|0", _
           TableRows("VelocityCheck") & "|" & ColumnSum("VelocityCheck", "Velocity") & "|" & ColumnSum("VelocityCheck", "Gap")
-    Check "flowbuild", "the sheet MetricItems holds a formula under the header of each list (the lists themselves are checked by the Excel scenarios)", "E3 | S3", "yes|yes", _
+    ' W = formulas.metricitems_column(2, "Key"): the lists are 14, 6 and 5 columns wide with a blank between (V); the lists themselves are checked by the Excel scenarios
+    Check "flowbuild", "the sheet MetricItems holds a formula under the Key of the first and of the cut-off list, a blank column before the second", _
+          "E3 | W3 | W2 | V2", "yes|yes|Key|", _
           IIf(ThisWorkbook.Worksheets(SheetName("MetricItems")).Range("E3").HasFormula, "yes", "no") & "|" & _
-          IIf(ThisWorkbook.Worksheets(SheetName("MetricItems")).Range("S3").HasFormula, "yes", "no")
+          IIf(ThisWorkbook.Worksheets(SheetName("MetricItems")).Range("W3").HasFormula, "yes", "no") & "|" & _
+          ThisWorkbook.Worksheets(SheetName("MetricItems")).Range("W2").Value & "|" & ThisWorkbook.Worksheets(SheetName("MetricItems")).Range("V2").Value
     Check "flowbuild", "the table Reconciliation has its 19 controls", "rows", 19, TableRows("Reconciliation")
     Check "flowbuild", "the table FlowDistCheck has the rows of Metrics, the Velocity and a control Gap of 0", "rows|Done|Gap", _
           TableRows("Metrics") & "|" & ColumnSum("Metrics", "Velocity") & "|0", _

@@ -744,11 +744,13 @@ def _trace_generated(world):
 
 def metric_blocks(wb):
     """The three lists of the sheet MetricItems as rows of values (dates and numbers as Excel serials, the empty text as ""): row 3 holds the
-    spilled formulas, a list with nothing to say shows one empty text. The blocks start at columns 1, 12 and 19 (10, 6 and 5 columns, a blank between)."""
+    spilled formulas, a list with nothing to say shows one empty text. The blocks start where formulas.metricitems_column puts them (a blank between)."""
     from jira2dashboard.flow import formulas as F
     ws = wb.Worksheets(S.of("MetricItems"))
     widths = [len(block) for block in F.METRICITEMS_BLOCKS]
-    last = max(ws.Cells(ws.Rows.Count, c).End(-4162).Row for c in (1, 12, 19))
+    starts = [F.metricitems_column(b, F.METRICITEMS_BLOCKS[b][0][0]) for b in range(len(widths))]
+    assert [ws.Cells(2, c).Value for c in starts] == [block[0][0] for block in F.METRICITEMS_BLOCKS], "the header of each list where it is expected"
+    last = max(ws.Cells(ws.Rows.Count, c).End(-4162).Row for c in starts)
     out, first = [], 1
     for width in widths:
         grid = ws.Range(ws.Cells(3, first), ws.Cells(max(last, 3), first + width - 1)).Value2
@@ -795,6 +797,8 @@ def _art_metric_items(world):
     done, left_out, cutoff = metric_blocks(world["wb"])
     assert sorted((r[0], r[4]) for r in done) == sorted((label, f"TTT-{n}") for n, label in RELEASED.items())     # the 19 released Features
     assert all((r[3], r[5], r[7]) == ("ART", "Feature", 1) for r in done)                                     # counted in the flow time, all Features
+    from art_oracle import FLOW_TIME_DAYS
+    assert all(abs(r[10] + r[11] - FLOW_TIME_DAYS) < 1e-9 and (r[12], r[13]) == (0, "Feature") for r in done)   # 8 days active or waiting, no other
     assert {label: sum(1 for r in done if r[0] == label) for label in VELOCITY} == VELOCITY                    # the rows of an iteration = its Velocity
     assert [r[1] for r in done] == sorted(r[1] for r in done)                                                  # by the start of the iteration
     assert sorted((r[0], r[3], r[2], r[5]) for r in left_out) == sorted(
