@@ -5,13 +5,33 @@ Pure but for `report_for_workbook`, which reads the workbook through COM. The or
 """
 import html
 
-from art_oracle import (ART_ROWS, CHAIN, DONE_A, DONE_B, FLOW_EFFICIENCY, FLOW_TIME_DAYS, PI_ITEMS, PIS, PLANNED, STATUS_AVERAGE_DAYS,
-                        STATUS_SHARE, TEAM_ROWS, VELOCITY)
+from art_oracle import (ART_ROWS, CHAIN, DONE_A, DONE_B, FLOW_DISTRIBUTION_CHECK, FLOW_EFFICIENCY, FLOW_EFFICIENCY_CHECK, FLOW_LOAD_CHECK,
+                        FLOW_TIME_CHECK, FLOW_TIME_DAYS, PI_ITEMS, PIS, PLANNED, STATUS_AVERAGE_DAYS, STATUS_SHARE, TEAM_ROWS, VELOCITY)
+from jira2dashboard.flow.metrics import BUCKETS
 from jira2dashboard.flow.model import NOT_COMPUTABLE
 
 ART_COLUMNS = ("Engaged", "Added", "Deferred", "Released", "ReleasedAdded", "CarryOver")
 TEAM_COLUMNS = ("Engaged", "Added", "Deferred", "Released")
 TOLERANCE = 1e-9
+
+
+def _flat(values: tuple) -> tuple:
+    """(Done, (counts...), Gap, Reason, Note) of FLOW_DISTRIBUTION_CHECK as one row of figures."""
+    done, counts, *rest = values
+    return (done, *counts, *rest)
+
+
+# The accounting tables of the flow metrics (AL, 2026-11-22), the ART per iteration: (table, what it tells, columns, expected by label, the
+# position of a percentage). The oracle is the one the Excel scenarios assert, typed by hand in tests/art_oracle.py.
+CHECK_TABLES = (
+    ("FlowTimeCheck", "why the Flow Time is what it is", ("Done", "ExclReopened", "ExclNoStartRule", "ExclNotStarted", "Counted", "Gap", "Reason"),
+     FLOW_TIME_CHECK, None),
+    ("FlowEfficiencyCheck", "why the Flow Efficiency is what it is",
+     ("Counted", "WithUnclassified", "ActiveDays", "WaitDays", "WaitStatuses", "Efficiency", "Gap", "Reason"), FLOW_EFFICIENCY_CHECK, 5),
+    ("FlowLoadCheck", "why the Flow Load is what it is", ("Days", "DaysMeasured", "StartStatuses", "Gap", "Reason"), FLOW_LOAD_CHECK, None),
+    ("FlowDistCheck", "what the Flow Distribution counts", ("Done", *BUCKETS, "Gap", "Reason", "Note"),
+     {label: _flat(values) for label, values in FLOW_DISTRIBUTION_CHECK.items()}, None),
+)
 
 
 def same(expected, obtained) -> bool:
@@ -47,7 +67,8 @@ def by_key(rows: list[dict], *keys: str) -> dict:
 
 
 def sections(tables: dict[str, list[dict]], mode: str = "A") -> list[tuple[str, list[tuple]]]:
-    """The checks, as [(title, [row])]. `tables` = the rows (dicts by column name) of PIMetrics, IterationFeatures and Metrics."""
+    """The checks, as [(title, [row])]. `tables` = the rows (dicts by column name) of PIMetrics, IterationFeatures, Metrics, PIStatusTime and
+    the accounting tables of CHECK_TABLES."""
     pi_rows = by_key(tables["PIMetrics"], "PI")
     done = DONE_A if mode == "A" else DONE_B
     predictability = []
@@ -83,7 +104,17 @@ def sections(tables: dict[str, list[dict]], mode: str = "A") -> list[tuple[str, 
             (f"Features of each team, PI-3 and PI-4 ({' / '.join(TEAM_COLUMNS)})", per_team),
             ("Velocity of the ART per iteration (Features released)", velocity),
             ("Flow Time median / p85 (days) and Flow Efficiency of the ART per iteration", flow),
-            ("Cycle time by status, per PI (Features released / average days per Feature / share of the cycle time)", cycle)]
+            ("Cycle time by status, per PI (Features released / average days per Feature / share of the cycle time)", cycle),
+            *(check_section(tables, *table) for table in CHECK_TABLES)]
+
+
+def check_section(tables: dict, table: str, tells: str, columns: tuple, expected: dict, percent_at: int | None) -> tuple[str, list[tuple]]:
+    """One accounting table of the ART per iteration; an empty text read back from a file is None: shown and compared as ""."""
+    got = by_key([r for r in tables.get(table, []) if r["Team"] == "ART"], "Iteration-label")
+    formats = tuple(percent if i == percent_at else show for i in range(len(columns)))
+    rows = [row(label, values, tuple("" if (v := got.get((label,), {}).get(c)) is None else v for c in columns), formats)
+            for label, values in expected.items()]
+    return f"{table} of the ART per iteration: {tells} ({' / '.join(columns)})", rows
 
 
 def render(found: list[tuple[str, list[tuple]]]) -> str:
@@ -121,7 +152,7 @@ def report_for_workbook(wb) -> str:
     """Read the tables of the open workbook and return the HTML report (COM)."""
     from jira2dashboard.flow import sheets
     tables = {}
-    for name in ("PIMetrics", "IterationFeatures", "Metrics", "PIStatusTime"):
+    for name in ("PIMetrics", "IterationFeatures", "Metrics", "PIStatusTime", *(t[0] for t in CHECK_TABLES)):
         header, body = sheets.read_table(wb, name, name)
         tables[name] = [dict(zip(header, r)) for r in body]
     return render(sections(tables, predictability_mode(wb)))

@@ -10,7 +10,9 @@ team this table gives the figures that tell the causes apart, all read in the in
   no status change in the changelog for them;
 * ChangedToEnd: the status changes INTO an end status (IsEnd = 1) in the iteration, per change (what Jira's JQL counts, one more for an item that
   closes twice); ChangedToEndFeatures: of which the Feature types; ReopenedLater: those changes that the item left again (they are not its DoneUtc);
-* Gap = Velocity - CreatedDone - (ChangedToEnd - ReopenedLater): 0 whenever the table explains the Velocity (a control).
+* Gap = Velocity - CreatedDone - (ChangedToEnd - ReopenedLater): 0 whenever the table explains the Velocity (a control);
+* Reason (AL, 2026-11-24): why the Velocity differs from Jira's count of the changes into an end status (`status CHANGED TO ... DURING`, which
+  also counts the other types of the Program), or that nothing was done; "" when the Velocity is that count.
 
 Excel: the table VelocityCheck (formulas.VELOCITYCHECK_COLUMNS).
 """
@@ -32,6 +34,23 @@ class VelocityCheck:
     changed_to_end_features: int
     reopened_later: int
     gap: int
+
+    @property
+    def reason(self) -> str:
+        return velocity_reason(self.velocity, self.created_done, self.reopened_later, self.other_types)
+
+
+NO_ITEM = "no item done in the iteration"
+CREATED_DONE = " created in an end status (no status change in the changelog)"
+REOPENED = " closed then reopened (a change into an end status that is not a delivery)"
+OTHER_TYPES_DONE = " of other types done (left out of the ART, counted by a JQL on the Program)"
+
+
+def velocity_reason(velocity: int, created_done: int, reopened_later: int, other_types: int) -> str:
+    """The parts that apply, in this order, joined by "; " (Excel: TEXTJOIN of formulas.VELOCITYCHECK_COLUMNS Reason)."""
+    parts = [NO_ITEM if velocity == 0 else "", f"{created_done}{CREATED_DONE}" if created_done else "",
+             f"{reopened_later}{REOPENED}" if reopened_later else "", f"{other_types}{OTHER_TYPES_DONE}" if other_types else ""]
+    return "; ".join(p for p in parts if p)
 
 
 def velocity_check(issues: list[FlowIssue], items: list[ItemFlow], iteration: Iteration, team: str, rules: Rules,

@@ -9,7 +9,7 @@ import pytest
 from jira2dashboard.flow.itemflow import item_flow
 from jira2dashboard.flow.metrics import team_iteration_metrics
 from jira2dashboard.flow.model import OTHER_TYPES, Change, FlowIssue, Iteration, Rules, StatusRule
-from jira2dashboard.flow.reconciliation import START_STATUS, WAIT_STATUS, Control, census, reconcile, unclassified
+from jira2dashboard.flow.reconciliation import CARRY_OVER, START_STATUS, WAIT_STATUS, Control, census, reconcile, unclassified
 from jira2dashboard.flow.trace import MetricItems, metric_items
 
 I1 = Iteration("I1", dt.datetime(2025, 5, 1), dt.datetime(2025, 5, 11))
@@ -164,3 +164,23 @@ def test_the_statuses_that_end_the_flow_are_listed_with_the_tickets_that_sit_in_
     assert done_statuses(issues, rules) == [("cancelled", 2), ("done", 1)]
     declared = Rules.from_params([ParamSheet("Workflows", header, ((None, "cancelled", "Removed", None, None, None),))], catalog, {})
     assert done_statuses(issues, declared) == [("done", 1)]                                                     # an exception takes it off the list
+
+
+
+def test_what_an_iteration_carries_over_is_what_the_next_one_of_the_pi_engages():
+    """Typed here: I1 then I2 (contiguous), both of PI-1, carry over 3 then engage 2: a gap of 1. I3 starts a day after I2 ends (not judged), I2b of
+    another PI starts where I2 ends (not judged), the other team is apart."""
+    import datetime as dt
+    from jira2dashboard.flow.iteration_features import IterationFeatures, carry_over_gap
+
+    def row(name, start, end, carry, engaged, pi="PI-1", team="ART"):
+        return IterationFeatures(name, dt.datetime(2026, 1, start), dt.datetime(2026, 1, end), team, pi, None, engaged, 0, 0, 0, 0, 0, carry)
+    rows = [row("I1", 1, 11, carry=3, engaged=5), row("I2", 11, 21, carry=4, engaged=2), row("I3", 22, 31, carry=0, engaged=9),
+            row("I2b", 21, 31, carry=0, engaged=7, pi="PI-2"), row("I1", 1, 11, carry=1, engaged=1, team="B"), row("I2", 11, 21, carry=0, engaged=1, team="B")]
+    assert carry_over_gap(rows) == 1
+    assert carry_over_gap(rows[:1] + rows[2:]) == 0
+    issues = ISSUES
+    items = [item_flow(i, AS_OF, RULES) for i in issues]
+    metrics = [team_iteration_metrics(items, "ART", it, "A", AS_OF) for it in ITERATIONS]
+    got = {c.name: c for c in reconcile(issues, items, metrics, ITERATIONS, PIS, RULES, {}, features=rows)}
+    assert got[CARRY_OVER].found == 1 and got[CARRY_OVER].verdict == "REVIEW"

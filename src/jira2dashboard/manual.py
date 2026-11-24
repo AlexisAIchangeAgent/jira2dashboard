@@ -202,7 +202,8 @@ def manual(mandatory: tuple[str, ...]) -> list[tuple[str, str]]:
             "status (the changelog holds no change for them); ChangedToEnd = the changes into an end status (IsEnd) in the iteration, "
             "one per change (an item closed twice counts twice), ChangedToEndFeatures = of which Features (what the JQL status CHANGED TO "
             "... DURING counts in Jira); ReopenedLater = those changes that the item left again. Gap = Velocity - CreatedDone - "
-            "(ChangedToEnd - ReopenedLater) is 0 when the table explains the Velocity.",
+            "(ChangedToEnd - ReopenedLater) is 0 when the table explains the Velocity. Reason says why the Velocity differs from Jira's "
+            "count of the changes into an end status (created done, closed then reopened, other types of the Program), or that nothing was done.",
             f"{S.of('MetricItems')}: the tickets BEHIND the figures, three lists side by side (formulas that follow the data). Left: every ticket done in "
             "an iteration, by iteration, team, date and key, with its type, whether Flow Time counts it (FlowTimeCounted 1 or 0) and why not "
             "(Reopened; No start status in the rules: set IsStart in Workflows; No start after the backlog): the rows of an iteration and team are its "

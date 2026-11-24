@@ -169,10 +169,10 @@ python.log). `tests/unit/test_claude_hooks.py` and `test_claude_skills.py` test 
   `-Scenario art-metrics -Run` (nothing to click: `mock-workbook --scenario art-metrics --run` serves it in-process, extracts with the
   macros, exports the charts to `out\manual_test\charts\art_metrics\`, saves the copy with its results, closes Excel, opens the page);
   `start-mock.ps1 -Scenario NAME` is the fake Jira alone. The page `index.html` of `charts\art_metrics` opens with the report **expected
-  (worked out by hand) / obtained (workbook)**: 140 figures (PI predictability, IterationFeatures of the ART and of each team, Velocity,
-  Flow Time, Flow Efficiency, Cycle time by status), the sections that differ open and the lines that differ first (`tests/art_report.py`, pure `sections` /
+  (worked out by hand) / obtained (workbook)**: 236 figures (PI predictability, IterationFeatures of the ART and of each team, Velocity,
+  Flow Time, Flow Efficiency, Cycle time by status, the four accounting tables FlowTimeCheck... of the ART: `CHECK_TABLES`), the sections that differ open and the lines that differ first (`tests/art_report.py`, pure `sections` /
   `render`, `report_for_workbook` reads the tables through COM; the oracle stays in `tests/art_oracle.py`). The Excel test writes it
-  and asserts "all 140 are OK"; `--run` loads it from `tests/` by path (`mock_workbook.report_builder`, none outside a checkout). `ps1` ports: `$ScenarioPort` must equal `Scenario.port` (a test pins it).
+  and asserts "all 236 are OK"; `--run` loads it from `tests/` by path (`mock_workbook.report_builder`, none outside a checkout). `ps1` ports: `$ScenarioPort` must equal `Scenario.port` (a test pins it).
 - **Cycle time by status (AL, 2026-11-17).** The chart `pi_status_time` (stacked 100 % columns, PI on the X axis, one colour per status) and the
   table `PIStatusTime` (sheet `PIStatusTime_from_excel`: PI | Status | Start | End | Items | TotalDays | AverageDays | Share) show where the cycle
   time of the Features goes, to find the statuses that take most of it. A PI = the Features RELEASED in it (DoneUtc in [Start, End) of the sheet
@@ -185,12 +185,14 @@ python.log). `tests/unit/test_claude_hooks.py` and `test_claude_skills.py` test 
   hard cases (a Feature crossing a PI, a status visited twice, a backlog return, reopened, half-open window) in `tests/unit/test_pi_status_time.py`.
   VBA: `modFlowBuild.StatusNames` (the series of the chart: its plan `SeriesNames` is the token `{statuses}`, read from Workflows at the build),
   `SelectorColumn` (the selector list sits right of the widest ChartData block: teams, Feature teams or statuses), `WritePiStatusKeys`.
-  Python path: sheet `PIStatusTime`, SVG chart. The report of the scenario art-metrics has a 6th section (140 figures).
+  Python path: sheet `PIStatusTime`, SVG chart. The report of the scenario art-metrics has a 6th section.
 - **VelocityCheck (AL, 2026-11-18).** On the client PC the Velocity of the ART read 4 / 10 / 60 where Jira's `status CHANGED TO "Terminé" DURING` read +8 in
   the last sprint. The table `VelocityCheck` (sheet `VelocityCheck_from_excel`, the keys of `Metrics`, reference `flow/velocity_check.py`) counts the Velocity again
   from the intervals of `StatusIntervals`: `Velocity`, `VelocityFeatures` (types of `FeatureTypes`: **the team ART is every issue of the Program project, `Velocity`
   has no type filter**), `CreatedDone` (done because CREATED in an IsEnd status: no change in the changelog), `ChangedToEnd` / `ChangedToEndFeatures` (changes into
   IsEnd, one per change), `ReopenedLater`, `Gap` = Velocity - CreatedDone - (ChangedToEnd - ReopenedLater), always 0. Helper `StatusIntervals.ItemIsFeature`.
+  `Reason` (AL, 2026-11-24; a property of the Python row, `velocity_reason`, TEXTJOIN in Excel): why the Velocity differs from Jira's count of the changes into an
+  end status (created done, closed then reopened, other types of the Program), or that nothing was done; "" when it is that count.
   Hand-typed cases in `tests/unit/test_velocity_check.py`; `flow_excel.feature` (cell by cell) and `art_metrics_excel.feature` (= the oracle's Velocity).
 - **The ART counts the Features only (AL, 2026-11-18).** `ItemFlow.Team` of a Program ticket is `ART` when its type is in `Config.FeatureTypes`, else `ART (other types)`
   (`flow/model.OTHER_TYPES`, `program_team`; formula `formulas.ITEMFLOW_COLUMNS` Team; Python `flow_adapter.to_flow_issues` reads FeatureTypes from the sheet Config,
@@ -224,8 +226,10 @@ python.log). `tests/unit/test_claude_hooks.py` and `test_claude_skills.py` test 
   `BoundaryHours` (distance of DoneUtc to the nearest iteration boundary); reference `flow/trace.py`. The sheet `MetricItems_from_excel` holds three lists of SPILLED
   formulas side by side (columns A.. Done in an iteration: Iteration, Start, End, Team, Key, Type, DoneUtc, FlowTimeCounted, FlowTimeDays, WhyNotInFlowTime; L.. done but
   not counted with the reason; S.. cut-off within 24 h), `modFlowBuild.BuildMetricItems`, python `trace.metric_items`; the rows of an iteration and team are its Velocity.
-  The sheet `Reconciliation_from_excel` has the table `Reconciliation` (18 controls since 2026-11-24: + a start status per workflow kind with tickets, a Wait status, the Gap of the
-  four flow check tables; Control | Assertion | Expected | Found | Difference | Result OK/REVIEW, in the order
+  The sheet `Reconciliation_from_excel` has the table `Reconciliation` (19 controls since 2026-11-24: + a start status per workflow kind with tickets, a Wait status, the Gap of the
+  four flow check tables, and CarryOver of IterationFeatures = the Engaged of the next iteration of the same PI and team: `iteration_features.carry_over_gap`, an
+  XLOOKUP of End|PI|Team in Start|PI|Team, a gap or another PI not judged; NOT Engaged + Added - Deferred - Released = CarryOver, which is the formula of the column
+  itself and could never fail; an Excel step types one Engaged over by hand and sees the control find 1; Control | Assertion | Expected | Found | Difference | Result OK/REVIEW, in the order
   of `reconciliation.CONTROLS`; Expected and Found are a formula of their own per row, written BEFORE the table exists: **a formula typed in one cell of a table column fills
   the whole column**, which made all the rows equal), the census of the types (spilled from H1) and the parameters in force; reference `flow/reconciliation.py`;
   `modHealth.ReconciliationFindings` says `Reconciliation: n of m controls to review` and counts the `REVIEW` rows only (the cut-off control is `INFO`: `reconciliation.INFO_ASSERTIONS`);

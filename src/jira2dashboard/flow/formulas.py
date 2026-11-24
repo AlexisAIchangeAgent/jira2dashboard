@@ -12,6 +12,7 @@ Rules kept here:
 """
 from jira2dashboard.flow import check_formulas as C
 from jira2dashboard.flow import metric_checks as MC
+from jira2dashboard.flow import velocity_check as VC
 from jira2dashboard.flow import reconciliation as R
 from jira2dashboard.flow import trace as T
 from jira2dashboard.flow.model import ART, OTHER_TYPES
@@ -238,6 +239,9 @@ VELOCITYCHECK_COLUMNS = (
     ("ChangedToEndFeatures", f'=COUNTIFS({_END_IN},{SI}[Seq],">1",{SI}[ItemIsFeature],1)'),
     ("ReopenedLater", f'=COUNTIFS({_END_IN},{SI}[Seq],">1",{SI}[IsOpen],FALSE)'),
     ("Gap", "=[@Velocity]-[@CreatedDone]-([@ChangedToEnd]-[@ReopenedLater])"),
+    # why the Velocity differs from Jira's count of the changes into an end status, or that nothing was done (flow/velocity_check.velocity_reason)
+    ("Reason", f'=TEXTJOIN("; ",TRUE,IF([@Velocity]=0,"{VC.NO_ITEM}",""),IF([@CreatedDone]>0,[@CreatedDone]&"{VC.CREATED_DONE}",""),'
+               f'IF([@ReopenedLater]>0,[@ReopenedLater]&"{VC.REOPENED}",""),IF([@OtherTypes]>0,[@OtherTypes]&"{VC.OTHER_TYPES_DONE}",""))'),
 )
 
 # --- the table FlowTimeCheck: why the Flow Time of each iteration and team is what it is (AL, 2026-11-22) ----------------------------------------
@@ -365,6 +369,10 @@ RECONCILIATION_FORMULAS = {
     R.FLOW_EFFICIENCY_GAP: ("=0", "=SUMPRODUCT(ABS(FlowEfficiencyCheck[Gap]))"),
     R.FLOW_LOAD_GAP: ("=0", "=SUMPRODUCT(ABS(FlowLoadCheck[Gap]))"),
     R.FLOW_DISTRIBUTION_GAP: ("=0", "=SUMPRODUCT(ABS(FlowDistCheck[Gap]))"),
+    # the row whose start is this row's end, same PI and team; none (a gap, the last iteration of the PI): the row is not judged (its own CarryOver)
+    R.CARRY_OVER: ("=0", "=SUMPRODUCT(ABS(IterationFeatures[CarryOver]-IFERROR(XLOOKUP(IterationFeatures[IterationEnd]&\"|\"&IterationFeatures[PI]&\"|\"&"
+                         "IterationFeatures[Team],IterationFeatures[IterationStart]&\"|\"&IterationFeatures[PI]&\"|\"&IterationFeatures[Team],"
+                         "IterationFeatures[Engaged]),IterationFeatures[CarryOver])))"),
     R.UNIQUE: ("=0", f'=COUNTIF({_LEDGER["key"]},"?*")-IFERROR(ROWS(UNIQUE(FILTER({_LEDGER["key"]},{_LEDGER["key"]}<>""))),0)'),
     R.CUTOFF: ("=0", f'=COUNTIF({_M}!$S$3#,"?*")'),
     R.CLASSIFIED: ("=0", f'=COUNTIFS({SI}[Category],"Unclassified",{SI}[Team],"<>{OTHER_TYPES}")'),

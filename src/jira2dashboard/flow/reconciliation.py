@@ -10,6 +10,7 @@ from collections import Counter
 from dataclasses import dataclass
 
 from jira2dashboard.flow.itemflow import ItemFlow
+from jira2dashboard.flow.iteration_features import IterationFeatures, carry_over_gap
 from jira2dashboard.flow.metric_checks import flow_distribution_check, flow_efficiency_check, flow_load_check, flow_time_check
 from jira2dashboard.flow.metrics import TeamIterationMetrics
 from jira2dashboard.flow.model import ART, OTHER_TYPES, UNCLASSIFIED, WAIT, FlowIssue, Iteration, Rules
@@ -25,6 +26,7 @@ FLOW_TIME_GAP = "Flow Time counted = done minus the left out, every iteration an
 FLOW_EFFICIENCY_GAP = "Flow Efficiency recounted from the status intervals, every iteration and team (FlowEfficiencyCheck)"
 FLOW_LOAD_GAP = "Flow Load recounted at the end of each iteration, every team (FlowLoadCheck)"
 FLOW_DISTRIBUTION_GAP = "Flow Distribution recounted per work type, every iteration and team (FlowDistCheck)"
+CARRY_OVER = "What an iteration carries over = what the next one of the PI engages (IterationFeatures)"
 UNIQUE = "No ticket twice in the Done list"
 CUTOFF = f"Tickets done within {CUTOFF_HOURS} hours of an iteration boundary (to review)"
 CLASSIFIED = "Statuses of the changelog of the counted tickets all classified in Workflows"
@@ -37,7 +39,7 @@ EXISTENCE = "Done tickets of ItemFlow = open end-status intervals of the changel
 # (name, assertion), in the order of the sheet
 CONTROLS = ((POPULATION, "Completeness"), (ACCOUNTS_ADD_UP, "Completeness"), (VELOCITY_TOTAL, "Accuracy"), (VELOCITY_ROWS, "Accuracy"),
             (FLOW_TIME_COUNT, "Accuracy"), (FLOW_TIME_DAYS, "Accuracy"), (FLOW_TIME_GAP, "Accuracy"), (FLOW_EFFICIENCY_GAP, "Accuracy"),
-            (FLOW_LOAD_GAP, "Accuracy"), (FLOW_DISTRIBUTION_GAP, "Accuracy"), (UNIQUE, "Occurrence"), (CUTOFF, "Cut-off"), (CLASSIFIED, "Classification"),
+            (FLOW_LOAD_GAP, "Accuracy"), (FLOW_DISTRIBUTION_GAP, "Accuracy"), (CARRY_OVER, "Completeness"), (UNIQUE, "Occurrence"), (CUTOFF, "Cut-off"), (CLASSIFIED, "Classification"),
             (FEATURE_TYPES, "Classification"), (START_STATUS, "Classification"), (WAIT_STATUS, "Classification"), (HISTORIES, "Existence"),
             (EXISTENCE, "Existence"))
 TOLERANCE = 1e-6
@@ -63,10 +65,10 @@ class Control:
 
 def reconcile(issues: list[FlowIssue], items: list[ItemFlow], metrics: list[TeamIterationMetrics], iterations: list[Iteration],
               pis: dict, rules: Rules, flags: dict[str, frozenset[str]], lists: MetricItems | None = None, mode: str = "A",
-              as_of=None) -> list[Control]:
+              as_of=None, features: list[IterationFeatures] | None = None) -> list[Control]:
     """`items[n]` is the ItemFlow of `issues[n]`; `metrics` the rows of the table Metrics; `flags` the data checks per key (checks.run_checks);
     `lists` the ledger when it is not the one that metric_items builds (a test of the controls feeds a wrong one); `mode` and `as_of` those of Flow
-    Load (as_of None: every day of the iterations is measured)."""
+    Load (as_of None: every day of the iterations is measured); `features` the rows of IterationFeatures (none: the control finds 0)."""
     lists = lists or metric_items(items, iterations, pis)
     counted = [r for r in lists.done if r[7] == 1]
     accounts = Counter(account(item, trace(item, iterations, pis).done_iteration != "") for item in items)
@@ -86,6 +88,7 @@ def reconcile(issues: list[FlowIssue], items: list[ItemFlow], metrics: list[Team
         FLOW_LOAD_GAP: (0, sum(abs(flow_load_check(items, by_name[m.iteration], m.team, rules, mode, as_of or max(i.end for i in iterations), m).gap)
                                for m in metrics)),
         FLOW_DISTRIBUTION_GAP: (0, sum(abs(flow_distribution_check(items, by_name[m.iteration], m.team, m, "").gap) for m in metrics)),
+        CARRY_OVER: (0, carry_over_gap(features or [])),
         UNIQUE: (0, len(lists.done) - len({r[4] for r in lists.done})),
         CUTOFF: (0, len(lists.cutoff)),
         CLASSIFIED: (0, sum(1 for item in items if item.team != OTHER_TYPES for visit in item.intervals if visit.category == UNCLASSIFIED)),

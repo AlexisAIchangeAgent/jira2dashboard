@@ -88,3 +88,13 @@ def test_the_gap_is_zero_on_the_real_scenario_whatever_the_iteration():
     rows = [velocity_check(issues, items, it, "ART", rules, FEATURE_TYPES) for it in scenario.iterations]
     assert all(r.gap == 0 for r in rows)
     assert all(r.changed_to_end == r.velocity and r.created_done == 0 and r.reopened_later == 0 for r in rows)    # no creation done, none reopened
+
+
+
+def test_the_reason_tells_why_the_velocity_differs_from_the_changes_into_an_end_status_or_that_nothing_was_done():
+    from jira2dashboard.flow.velocity_check import velocity_reason
+    assert figures(I1).reason == ("1 created in an end status (no status change in the changelog); 2 closed then reopened (a change into an end status "
+                                "that is not a delivery); 1 of other types done (left out of the ART, counted by a JQL on the Program)")
+    assert figures(I2, "team-2").reason == "no item done in the iteration"
+    assert velocity_reason(3, 0, 0, 0) == "" and velocity_reason(0, 0, 1, 0) == ("no item done in the iteration; 1 closed then reopened (a change into "
+                                                                                 "an end status that is not a delivery)")

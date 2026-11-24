@@ -175,7 +175,7 @@ def reconciliation_rows(results: Results, issues: list[FlowIssue], s: RunSetting
     """The rows of the table Reconciliation (formulas.RECONCILIATION_COLUMNS): control, assertion, expected, found, difference, result."""
     return [(c.name, c.assertion, c.expected, c.found, c.found - c.expected, c.verdict)
             for c in reconcile(issues, results.items, results.metrics, list(s.iterations), s.checks.pis, s.rules, results.flags, mode=s.mode,
-                               as_of=s.as_of)]
+                               as_of=s.as_of, features=results.iteration_features)]
 
 
 def metricitems_sheet(results: Results, s: RunSettings) -> tuple[tuple, list[tuple]]:
@@ -202,7 +202,8 @@ def velocitycheck_rows(results: Results, s: RunSettings) -> list[tuple]:
     """The rows of VelocityCheck (formulas.VELOCITYCHECK_COLUMNS), one per iteration and team, in the order of Metrics."""
     iterations = {p.name: p for p in s.iterations}
     return [(r.iteration, iterations[r.iteration].start, iterations[r.iteration].end, r.team, r.velocity, r.velocity_features,
-             r.other_types, r.created_done, r.changed_to_end, r.changed_to_end_features, r.reopened_later, r.gap) for r in results.velocity_check]
+             r.other_types, r.created_done, r.changed_to_end, r.changed_to_end_features, r.reopened_later, r.gap, r.reason)
+            for r in results.velocity_check]
 
 
 def flowtimecheck_rows(results: Results, s: RunSettings) -> list[tuple]:

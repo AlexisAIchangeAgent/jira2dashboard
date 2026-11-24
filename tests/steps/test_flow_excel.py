@@ -623,7 +623,7 @@ def _velocity_check_generated(world):
         for column, attribute in (("Velocity", "velocity"), ("VelocityFeatures", "velocity_features"), ("OtherTypes", "other_types"),
                                   ("CreatedDone", "created_done"),
                                   ("ChangedToEnd", "changed_to_end"), ("ChangedToEndFeatures", "changed_to_end_features"),
-                                  ("ReopenedLater", "reopened_later"), ("Gap", "gap")):
+                                  ("ReopenedLater", "reopened_later"), ("Gap", "gap"), ("Reason", "reason")):
             assert row[column] == getattr(ref, attribute), (ref.iteration, ref.team, column, row[column], getattr(ref, attribute))
     assert [r["Velocity"] for r in got] == [r["Velocity"] for r in metrics]                      # the same figure as the chart's table
     assert all(r["Gap"] == 0 for r in got)
@@ -811,7 +811,10 @@ def _reconciliation_generated(world):
     metrics_rows = table_dicts(world["wb"], "Metrics")
     by_name = {i.name: i for i in iterations}
     metrics = [team_iteration_metrics(items, r["Team"], by_name[r["Iteration-label"]], "A", world["dataset"].as_of) for r in metrics_rows]
-    expected = reconcile(issues, items, metrics, iterations, pis, world["rules"], expected_flags(world), mode="A", as_of=world["dataset"].as_of)
+    from jira2dashboard.flow.iteration_features import iteration_features
+    features = iteration_features(issues, items, iterations, pis, world["settings"].feature_types)
+    expected = reconcile(issues, items, metrics, iterations, pis, world["rules"], expected_flags(world), mode="A", as_of=world["dataset"].as_of,
+                         features=features)
     got = table_dicts(world["wb"], "Reconciliation")
     assert [r["Control"] for r in got] == [c.name for c in expected]
     for row, ref in zip(got, expected):
@@ -836,7 +839,7 @@ def _reconciliation_generated(world):
 def _art_reconciliation(world):
     from art_oracle import ACCOUNTS, FLOW_TIME_DAYS, VELOCITY
     got = {r["Control"]: r for r in table_dicts(world["wb"], "Reconciliation")}
-    assert len(got) == 18 and {r["Result"] for r in got.values()} == {"OK"}, {k: (r["Expected"], r["Found"], r["Result"]) for k, r in got.items()}
+    assert len(got) == 19 and {r["Result"] for r in got.values()} == {"OK"}, {k: (r["Expected"], r["Found"], r["Result"]) for k, r in got.items()}
     released, tickets = sum(VELOCITY.values()), sum(ACCOUNTS.values())
     typed = {"Tickets read from Jira = tickets of ItemFlow": (tickets, tickets), "Every ticket sits in one account": (tickets, tickets),
              "Velocity of all iterations = tickets of the Done list": (released, released),
@@ -2207,6 +2210,23 @@ def _art_velocity_check(world):
     assert sum(r["Velocity"] for r in rows) == sum(VELOCITY.values()) > 0
 
 
+@then("le contrôle du report de la Reconciliation voit un Engaged changé à la main")
+def _art_carry_over_control(world):
+    """The control CarryOver = the Engaged of the next iteration of the PI holds on true data (0, OK); one Engaged typed over by hand (IT-1-6, the
+    last iteration of PI-1: only the pair IT-1-5 -> IT-1-6 is judged on it) makes it find 1 and ask to review it. Last step of its scenario."""
+    from jira2dashboard.flow.reconciliation import CARRY_OVER
+
+    def control():
+        return next(r for r in art_table(world, "Reconciliation") if r["Control"] == CARRY_OVER)
+    assert (control()["Found"], control()["Result"]) == (0, "OK")
+    rows = art_table(world, "IterationFeatures")
+    at = next(n for n, r in enumerate(rows) if r["Iteration-label"] == "IT-1-6" and r["Team"] == "ART")
+    lo = world["wb"].Worksheets(S.of("IterationFeatures")).ListObjects("IterationFeatures")
+    lo.DataBodyRange.Cells(at + 1, list(rows[0]).index("Engaged") + 1).Value = rows[at]["Engaged"] + 1
+    world["wb"].Application.Calculate()
+    assert (control()["Found"], control()["Result"]) == (1, "REVIEW")
+
+
 @then("la table VelocityCheck est celle du calcul de référence et son écart est 0")
 def _art_velocity_check_reference(world):
     from jira2dashboard.flow.velocity_check import velocity_check
@@ -2222,8 +2242,9 @@ def _art_velocity_check_reference(world):
     for row in got:
         ref = velocity_check(issues, items, iterations[row["Iteration-label"]], row["Team"], rules, types)
         assert (row["Velocity"], row["VelocityFeatures"], row["OtherTypes"], row["CreatedDone"], row["ChangedToEnd"], row["ChangedToEndFeatures"],
-                row["ReopenedLater"], row["Gap"]) == (ref.velocity, ref.velocity_features, ref.other_types, ref.created_done, ref.changed_to_end,
-                                                      ref.changed_to_end_features, ref.reopened_later, ref.gap), (row, ref)
+                row["ReopenedLater"], row["Gap"], row["Reason"]) == (ref.velocity, ref.velocity_features, ref.other_types, ref.created_done,
+                                                                     ref.changed_to_end, ref.changed_to_end_features, ref.reopened_later, ref.gap,
+                                                                     ref.reason), (row, ref)
 
 
 @then("les sous-tâches du Program sont dans l'équipe « ART (other types) » et aucun chiffre de l'ART ne les compte")

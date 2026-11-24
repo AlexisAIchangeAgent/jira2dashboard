@@ -105,3 +105,12 @@ def iteration_features(issues: list[FlowIssue], items: list[ItemFlow], iteration
                                              released, released - released_added, released_added,
                                              engaged + added - deferred - released))
     return out
+
+
+def carry_over_gap(rows: list[IterationFeatures]) -> int:
+    """The control of the Reconciliation: for each row whose next iteration of the same PI and team starts where it ends, |CarryOver - the
+    Engaged of that next row|, summed. CarryOver is a formula of its own row (Engaged + Added - Deferred - Released), the Engaged of the next
+    row counts the PI intervals again at another moment: two paths. An iteration followed by a gap, or by another PI, is not judged.
+    Excel: formulas.RECONCILIATION_FORMULAS (XLOOKUP of End|PI|Team in Start|PI|Team)."""
+    starting = {(r.start, r.pi, r.team): r for r in rows}
+    return sum(abs(r.carry_over - nxt.engaged) for r in rows if (nxt := starting.get((r.end, r.pi, r.team))) is not None)

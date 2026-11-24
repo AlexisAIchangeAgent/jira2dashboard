@@ -22,6 +22,7 @@ Fonctionnalité: Le scénario art-metrics du faux Jira donne, dans le classeur l
     Alors la table IterationFeatures de l'ART est celle calculée à la main
     Et chaque équipe a ses lignes de PI-3 et PI-4 calculées à la main
     Et la table IterationFeatures et la table PIMetrics sont celles du calcul de référence
+    Et le contrôle du report de la Reconciliation voit un Engaged changé à la main
 
   @excel
   Scénario: La vélocité, le Flow Time, le Flow Efficiency et la durée des statuts sont ceux calculés à la main
