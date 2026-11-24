@@ -213,14 +213,15 @@ def flowtimecheck_rows(results: Results, s: RunSettings) -> list[tuple]:
     """The rows of FlowTimeCheck (formulas.FLOWTIMECHECK_COLUMNS), one per iteration and team, in the order of Metrics."""
     iterations = {p.name: p for p in s.iterations}
     return [(r.iteration, iterations[r.iteration].start, iterations[r.iteration].end, r.team, r.done, r.excl_reopened, r.excl_no_start_rule,
-             r.excl_not_started, r.counted, r.gap, r.reason) for r in results.flow_time_check]
+             r.excl_not_started, r.counted, r.gap, r.reason, r.cause) for r in results.flow_time_check]
 
 
 def flowefficiencycheck_rows(results: Results, s: RunSettings) -> list[tuple]:
     """The rows of FlowEfficiencyCheck (formulas.FLOWEFFICIENCYCHECK_COLUMNS), one per iteration and team, in the order of Metrics."""
     iterations = {p.name: p for p in s.iterations}
     return [(r.iteration, iterations[r.iteration].start, iterations[r.iteration].end, r.team, r.counted, r.with_unclassified, r.active_days,
-             r.wait_days, r.wait_statuses, "" if r.efficiency is None else r.efficiency, r.gap, r.reason) for r in results.flow_efficiency_check]
+             r.wait_days, r.wait_statuses, "" if r.efficiency is None else r.efficiency, r.gap, r.reason, r.cause)
+            for r in results.flow_efficiency_check]
 
 
 def flowloadcheck_rows(results: Results, s: RunSettings) -> list[tuple]:

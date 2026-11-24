@@ -356,7 +356,10 @@ def finish(args, started: float, settings, extract, catalog: dict[str, str], inf
     results = R.compute(extract.flow, settings)
     first, end = R.iteration_span(settings.iterations)
     pictures = chart_pictures(results.metrics, results.teams, [p.name for p in settings.iterations], results.loads,
-                              R.days_of(first, end), args.team, results.predictability, results.status_time)
+                              R.days_of(first, end), args.team, results.predictability, results.status_time,
+                              {"FlowTimeCheck": [r.cause for r in results.flow_time_check],
+                               "FlowEfficiencyCheck": [r.cause for r in results.flow_efficiency_check],
+                               "FlowLoadCheck": [r.reason for r in results.flow_load_check]})
     feature_pictures = iteration_chart_pictures(results.iteration_features, [p.name for p in settings.iterations])
     log.info("END results: %d items, %d metrics rows, %d charts%s", len(results.items), len(results.metrics),
              len(pictures) + len(feature_pictures), took(step))

@@ -128,3 +128,13 @@ def test_the_cycle_time_by_status_chart_stacks_the_shares_of_each_pi_and_leaves_
     assert "PI-1" in found and "PI-2" in found and "doing" in found and "testing" in found       # the PIs on the X axis, a legend of statuses
     assert "100%" in found                                                                          # a 100 % scale
     assert "2 of 4 points are not computable (gaps) - no Feature was released in the PI, or the PI is not in the sheet PIs" in found
+
+
+
+def test_the_note_names_the_most_frequent_cause_of_the_check_table_and_else_every_possible_one():
+    series = {"ART": [1.0, None, None, 2.0]}
+    causes = ["", "no item done in the iteration", "no item done in the iteration", "", "every done item left out, mostly: reopened"]
+    assert C.gaps_note(series, "why", causes=causes, table="FlowTimeCheck") == (
+        "2 of 4 points are not computable (gaps) - most often (2 of 3 rows of FlowTimeCheck_from_excel): no item done in the iteration")
+    assert C.gaps_note(series, "why", causes=["", ""], table="FlowTimeCheck") == "2 of 4 points are not computable (gaps) - why"
+    assert C.gaps_note({"ART": [1.0]}, "why", causes=causes, table="FlowTimeCheck") == ""

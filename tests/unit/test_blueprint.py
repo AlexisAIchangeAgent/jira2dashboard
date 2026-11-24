@@ -41,7 +41,7 @@ def test_a_formula_fits_in_a_cell():
 # purpose, after checking which Excel has it (the 4th list of MetricItems was rewritten with INDEX and CHOOSE instead of TOCOL, HSTACK, CHOOSEROWS).
 ALLOWED_FUNCTIONS = {
     "ABS", "AND", "AVERAGEIFS", "CHAR", "CHOOSE", "CLEAN", "COLUMNS", "COUNT", "COUNTA", "COUNTIF", "COUNTIFS", "DATEVALUE", "EXACT", "FILTER", "FIND", "IF",
-    "IFERROR", "INDEX", "INT", "ISNUMBER", "LEFT", "LEN", "LET", "MATCH", "MAX", "MAXIFS", "MEDIAN", "MID", "MIN", "MINIFS", "MOD", "NA", "NOT", "OR",
+    "IFERROR", "INDEX", "INT", "ISNUMBER", "LEFT", "LEN", "LET", "MATCH", "MAX", "MAXIFS", "MEDIAN", "MID", "MIN", "MINIFS", "MMULT", "MOD", "NA", "NOT", "OR",
     "PERCENTILE.INC", "REPT", "ROUND", "ROW", "ROWS", "SEQUENCE", "SORT", "SORTBY", "SUBSTITUTE", "SUM", "SUMIFS", "SUMPRODUCT", "TEXTJOIN", "TEXTSPLIT",
     "TIMEVALUE", "TRANSPOSE", "TRIM", "UNIQUE", "UPPER", "VALUE", "XLOOKUP"}
 

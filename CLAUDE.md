@@ -254,6 +254,13 @@ python.log). `tests/unit/test_claude_hooks.py` and `test_claude_skills.py` test 
   name on both sides** (`model.work_type_bucket`, nested IF of `WorkTypeBucket`: Excel's `=` counted "feature" as Feature, Python did not; a number is Unmapped, never a
   crash; the generated data holds "defect" and tickets with no work type, so the Excel scenarios see both). Hand-typed oracle in
   `tests/art_oracle.py` (`FLOW_*_CHECK`, with and without a start status); one Reconciliation control "Gap = 0" per table.
+  **The note under the flow charts names the most frequent cause of its gaps (AL, 2026-11-24).** `FlowTimeCheck` and `FlowEfficiencyCheck` have a last column
+  `Cause` (the Reason without its counts: `metric_checks.*.cause`, a property; for Flow Time the largest reason to leave the done items out, ties in the order of
+  the Reason); `ChartSpec.causes` = (table, column) for flow_time, flow_time_p85 (FlowTimeCheck[Cause]), flow_efficiency (FlowEfficiencyCheck[Cause]) and
+  flow_load (FlowLoadCheck[Reason]). `dashboard_spec.note_formula`: `n of m points are not computable (gaps) - most often (k of r rows of <sheet>): <cause>`,
+  counted with MMULT of the equalities (no COUNTIF: a criterion over 255 characters or with a wildcard), the first met when two are as frequent
+  (`most_often`, SORTBY keeps the order of UNIQUE); the list of every possible reason when no row has a cause; nothing after the count when there is no gap.
+  The Python twin is `charts_svg.gaps_note(..., causes, table)`.
 - **Python reference as oracle.** `flow/` (`intervals.py`, `itemflow.py`, `load.py`, `metrics.py`, `checks.py`) is a pure
   Python implementation of the same metrics and data checks. The scenarios in `tests/features/flow_excel.feature` run the
   real delivered workbook against the fake Jira and compare Excel with this reference **cell by cell** (Flow Load modes A
@@ -549,8 +556,7 @@ then `mermaid.parse`), and check every `](#anchor)` link against the headings.
   in `modText`; `modTests` keeps ADODB and MSXML only as the oracle of `T_Utf8Oracle` and `T_Base64Oracle`.
 - **Excel functions: only those of `tests/unit/test_blueprint.ALLOWED_FUNCTIONS`** (2026-11-24). The newest, TEXTSPLIT (lists of FeatureTypes since 2026-11-04),
   needs Excel for Microsoft 365 or Excel 2024, NOT Excel 2021 (support.microsoft.com, checked 2026-11-24); `modFlowBuild.RequireDynamicArrays` probes it
-  (error 708, J2D-FLOW-005). The client's version is TO CONFIRM with AL: until v0.12.0 the ART did not go through IsFeature, so its Velocity proves
-  nothing; on an Excel 2021 every IsFeature would be #NAME?. Every test runs on a current Microsoft 365, so a function the
+  (error 708, J2D-FLOW-005). The client runs Microsoft 365, version 2610 (AL, 2026-11-24): it has TEXTSPLIT. Every test runs on a current Microsoft 365, so a function the
   client lacks only shows there as an empty list or a control to REVIEW (the IFERROR hides the #NAME?): add one to the list on purpose, after checking which Excel has it.
 - Excel formula traps: a formula typed in one cell of a table column fills the whole column (write key columns as values
   before creating the table); a structured reference to a column whose name contains `_` is refused; compare dates with a

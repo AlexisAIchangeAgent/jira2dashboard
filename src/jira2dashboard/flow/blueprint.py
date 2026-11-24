@@ -116,7 +116,7 @@ def _chart_row(index: int, spec: D.ChartSpec, sheet: str) -> tuple:
         series = ",".join(D.series_names(spec))
     row, column = D.chart_anchor(index)
     return (spec.name, spec.title, spec.chart_type, spec.axis_format or "", series, point,
-            D.note_formula("{range}", spec.reason, spec.zeros), row, column, D.ROWS_PER_CHART, D.COLUMNS_PER_CHART,
+            D.note_formula("{range}", spec.reason, spec.zeros, spec.causes), row, column, D.ROWS_PER_CHART, D.COLUMNS_PER_CHART,
             spec.axis, D.band_text(spec), sheet, "yes" if spec.labels else "")        # text, not a Boolean ("Vrai" on a French PC)
 
 

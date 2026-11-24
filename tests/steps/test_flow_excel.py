@@ -644,7 +644,8 @@ def _flow_time_check_generated(world):
                                 team_iteration_metrics(world["items"], r["Team"], iterations[r["Iteration-label"]], "A", world["dataset"].as_of)) for r in got]
     for row, ref in zip(got, expected):
         for column, attribute in (("Done", "done"), ("ExclReopened", "excl_reopened"), ("ExclNoStartRule", "excl_no_start_rule"),
-                                  ("ExclNotStarted", "excl_not_started"), ("Counted", "counted"), ("Gap", "gap"), ("Reason", "reason")):
+                                  ("ExclNotStarted", "excl_not_started"), ("Counted", "counted"), ("Gap", "gap"), ("Reason", "reason"),
+                                  ("Cause", "cause")):
             assert row[column] == getattr(ref, attribute), (ref.iteration, ref.team, column, row[column], getattr(ref, attribute))
     for row, metric in zip(got, metrics):
         assert (row["Reason"] == "") == (metric["FlowTimeMedian"] != "not computable"), (row, metric["FlowTimeMedian"])
@@ -666,7 +667,7 @@ def _flow_efficiency_check_generated(world):
                                                              rules.waits)) for r in got]
     for row, ref in zip(got, expected):
         for column, attribute in (("Counted", "counted"), ("WithUnclassified", "with_unclassified"), ("WaitStatuses", "wait_statuses"),
-                                  ("Reason", "reason")):
+                                  ("Reason", "reason"), ("Cause", "cause")):
             assert row[column] == getattr(ref, attribute), (ref.iteration, ref.team, column, row[column], getattr(ref, attribute))
         for column, attribute in (("ActiveDays", "active_days"), ("WaitDays", "wait_days"), ("Gap", "gap")):
             assert abs(row[column] - getattr(ref, attribute)) < 1e-6, (ref.iteration, ref.team, column, row[column], getattr(ref, attribute))
@@ -2347,7 +2348,8 @@ def _art_no_efficiency(world):
             delivering += 1
             assert art_close(r["FlowTimeMedian"], FLOW_TIME_DAYS) and r["FlowEfficiency"] == "not computable", (r["Iteration-label"], r["FlowEfficiency"])
     assert delivering == sum(1 for v in VELOCITY.values() if v)
-    assert chart_note(world, "flow_efficiency") == f"24 of 24 points are not computable (gaps) - {D.EFFICIENCY_REASON}"
+    assert chart_note(world, "flow_efficiency") == ("24 of 24 points are not computable (gaps) - most often (24 of 24 rows of "
+                                                     "FlowEfficiencyCheck_from_excel): no status is declared Wait (set Category = Wait in Workflows)")
 
 
 @then("la feuille StatusRules ne contient que des règles venues de Jira, sans statut d'attente")
@@ -2403,8 +2405,12 @@ def _art_velocity_labels(world):
 
 @then("les graphiques Flow Time et Flow Efficiency ont 6 trous expliqués par l'absence de ticket terminé")
 def _art_gap_notes(world):
-    for name, reason in (("flow_time", D.FLOW_TIME_REASON), ("flow_time_p85", D.FLOW_TIME_REASON), ("flow_efficiency", D.EFFICIENCY_REASON)):
-        assert chart_note(world, name) == f"6 of 24 points are not computable (gaps) - {reason}", name
+    """The 6 iterations with no release: the note says it with the cause read in the check tables, typed here by hand (AL, 2026-11-24)."""
+    for name, cause in (("flow_time", "6 of 6 rows of FlowTimeCheck_from_excel): no item done in the iteration"),
+                        ("flow_time_p85", "6 of 6 rows of FlowTimeCheck_from_excel): no item done in the iteration"),
+                        ("flow_efficiency", "6 of 6 rows of FlowEfficiencyCheck_from_excel): no item counted in Flow Time (see FlowTimeCheck)")):
+        assert chart_note(world, name) == f"6 of 24 points are not computable (gaps) - most often ({cause}", name
+    assert chart_note(world, "flow_load") == "0 of 24 points are not computable (gaps)"                    # every iteration is measured
 
 
 @then("la feuille IterationCharts a ses 5 graphiques avec une série pour l'ART et une par équipe")

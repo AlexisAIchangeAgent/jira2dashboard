@@ -120,3 +120,18 @@ def test_the_feature_predictability_point_is_a_gap_without_a_planned_feature_or_
     assert '"not computable"' in ratio
     start, end = (dict(f.PIMETRICS_COLUMNS)[c] for c in ("Start", "End"))
     assert "PIs_from_user!$B:$B" in start and "PIs_from_user!$C:$C" in end and all("DATEVALUE(LEFT(TRIM(v),10))" in t for t in (start, end))   # CSV dates are text, with or without a time
+
+
+
+def test_the_note_of_a_flow_chart_names_the_most_frequent_cause_of_its_gaps():
+    """AL, 2026-11-24: the cause read in the check table (FlowTimeCheck[Cause]...), counted without a COUNTIF (a criterion over 255 characters, or
+    with a wildcard, would be wrong): MMULT of the equalities. The LET names are no R1C1 reference."""
+    import re
+    causes = {spec.name: spec.causes for spec in d.CHARTS if spec.causes}
+    assert causes == {"flow_time": ("FlowTimeCheck", "Cause"), "flow_time_p85": ("FlowTimeCheck", "Cause"), "flow_load": ("FlowLoadCheck", "Reason"),
+                      "flow_efficiency": ("FlowEfficiencyCheck", "Cause")}
+    text = d.note_formula("ChartData!$B$2:$C$4", "why", causes=("FlowTimeCheck", "Cause"))
+    assert "FILTER(FlowTimeCheck[Cause],FlowTimeCheck[Cause]<>\"\")" in text and "MMULT(" in text and "COUNTIF(" not in text
+    assert " rows of FlowTimeCheck_from_excel): " in text and text.endswith('IFERROR(' + text.split("IFERROR(", 1)[1])
+    assert not re.search(r"[(,](r|c|R|C),", text)
+    assert d.most_often(["", "b", "a", "b", "a"]) == ("b", 2, 4) and d.most_often(["", ""]) is None    # equal counts: the first met

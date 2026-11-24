@@ -22,6 +22,7 @@ ALL, LEFT_OUT = "all ", " done items left out: "
 NO_START_RULE = " no start status in the rules (set IsStart in Workflows)"
 NOT_STARTED = " no start after the backlog"
 REOPENED = " reopened"
+LEFT_OUT_CAUSE = "every done item left out, mostly: "        # the Cause of a point whose done items were all left out
 
 
 @dataclass(frozen=True)
@@ -35,6 +36,17 @@ class FlowTimeCheck:
     counted: int                 # Metrics.FlowTimeCount
     gap: int
     reason: str
+
+    @property
+    def cause(self) -> str:
+        """The Reason without its counts (column Cause), so that the points of a chart can be counted by cause: no item done, else the largest
+        reason to leave the done items out (in the order of the Reason when two are equal); "" when Flow Time is computable."""
+        if not self.reason:
+            return ""
+        if self.done == 0:
+            return NO_ITEM
+        largest = max(((self.excl_no_start_rule, NO_START_RULE), (self.excl_not_started, NOT_STARTED), (self.excl_reopened, REOPENED)), key=lambda p: p[0])
+        return LEFT_OUT_CAUSE + largest[1].strip()
 
 
 def flow_time_reason(done: int, reopened: int, no_start_rule: int, not_started: int, counted: int) -> str:
@@ -84,6 +96,11 @@ class FlowEfficiencyCheck:
     efficiency: float | None     # active / (active + wait); None without any time
     gap: float
     reason: str
+
+    @property
+    def cause(self) -> str:
+        """The Reason without its count (column Cause): "" when Flow Efficiency is computable."""
+        return UNCLASSIFIED_TIME.strip() if self.reason.endswith(UNCLASSIFIED_TIME) else self.reason
 
 
 def flow_efficiency_reason(wait_statuses: int, counted: int, with_unclassified: int, active: float, wait: float) -> str:

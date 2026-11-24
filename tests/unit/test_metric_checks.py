@@ -198,3 +198,20 @@ def test_the_tickets_in_process_at_the_end_are_those_flowloadcheck_counts_and_no
         assert MC.flow_load_check(items, iteration, "ART", WAIT_RULES, "A", as_of, metric).at_end == 1
     no_start = Rules({**WAIT_RULES._rows, ("Feature", "Analyse"): rule("Active")})
     assert MC.in_process_at_end(items, [(I1, "ART")], no_start, "A", as_of) == []
+
+
+
+# --- the cause of a point: the Reason without its counts (the note under the charts counts the points by cause) --------------------------------
+
+def test_the_cause_of_a_flow_time_point_is_its_largest_reason_without_the_counts():
+    assert check().cause == "" and check(iteration=EMPTY).cause == MC.NO_ITEM
+    assert check(NO_START).cause == "every done item left out, mostly: no start status in the rules (set IsStart in Workflows)"     # 3 of 4
+    assert MC.FlowTimeCheck("I", "T", 5, 2, 0, 3, 0, 0, "x").cause == "every done item left out, mostly: no start after the backlog"
+    assert MC.FlowTimeCheck("I", "T", 4, 2, 0, 2, 0, 0, "x").cause.endswith("no start after the backlog")         # equal: the order of the Reason
+    assert MC.FlowTimeCheck("I", "T", 4, 3, 0, 1, 0, 0, "x").cause.endswith("reopened")
+
+
+def test_the_cause_of_a_flow_efficiency_point_drops_the_count_of_the_unclassified_items():
+    odd = ticket("E-3", [("2025-05-02T00:00", "Analyse"), ("2025-05-03T00:00", "Mystere"), ("2025-05-05T00:00", "Fini")])
+    assert efficiency(EFF + [odd]).cause == "items spent time in statuses no rule knows (Unclassified)"
+    assert efficiency(rules=NO_WAIT_RULES).cause == MC.NO_WAIT and efficiency().cause == ""

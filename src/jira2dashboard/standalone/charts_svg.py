@@ -135,9 +135,10 @@ def draw(title: str, categories: list[str], series: dict[str, list[float | None]
     return "\n".join(out)
 
 
-def gaps_note(series: dict[str, list], reason: str, zeros: bool = False) -> str:
+def gaps_note(series: dict[str, list], reason: str, zeros: bool = False, causes: list[str] | None = None, table: str = "") -> str:
     """The text under a chart, as the workbook writes it (dashboard_spec.note_formula); empty when there is no gap.
-    With `zeros` (Velocity): how many points are 0 (no bar), as the workbook counts them."""
+    With `zeros` (Velocity): how many points are 0 (no bar), as the workbook counts them. With `causes` (the cause of each row of the check table
+    `table`): the most frequent one, else the list of every possible one."""
     points = [v for column in series.values() for v in column]
     if zeros:
         return (f"{sum(1 for v in points if v == 0)} of {len(points)} points are 0 - {D.ZERO_NOTE}"
@@ -145,7 +146,9 @@ def gaps_note(series: dict[str, list], reason: str, zeros: bool = False) -> str:
     gaps = sum(1 for v in points if v is None)
     if not gaps:
         return ""
-    return f"{gaps} of {len(points)} points are not computable (gaps)" + (f" - {reason}" if reason else "")
+    note = f"{gaps} of {len(points)} points are not computable (gaps)"
+    top = D.most_often(causes) if causes is not None else None
+    return note + (D.most_often_text(*top, table) if top else f" - {reason}" if reason else "")
 
 
 def _number(value) -> float | None:
@@ -183,7 +186,7 @@ def iteration_chart_pictures(rows: list[IterationFeatures], iterations: list[str
 def chart_pictures(metrics: list[TeamIterationMetrics], teams: list[str], iterations: list[str],
                    loads: dict[str, dict[dt.datetime, int]], days: list[dt.datetime],
                    team: str = D.ALL_TEAMS, predictability: list[PIPredictability] = (),
-                   status_time: list[PIStatusTime] = ()) -> list[Picture]:
+                   status_time: list[PIStatusTime] = (), causes: dict[str, list[str]] | None = None) -> list[Picture]:
     """The charts of dashboard_spec.CHARTS, in its order. `predictability`: Feature Predictability per PI (one row, a gap,
     when there is no PI, as in the workbook)."""
     by_key = {(m.iteration, m.team): m for m in metrics}
@@ -212,6 +215,7 @@ def chart_pictures(metrics: list[TeamIterationMetrics], teams: list[str], iterat
             series = {t: [_number(getattr(by_key[(p, t)], attribute[spec.column])) if (p, t) in by_key else None
                           for p in iterations] for t in teams}
         svg = draw(title, categories, series, KINDS[spec.chart_type], spec.axis_format == "0%", spec.band,
-                   gaps_note(series, spec.reason, spec.zeros), spec.labels)
+                   gaps_note(series, spec.reason, spec.zeros, (causes or {}).get(spec.causes[0]) if spec.causes else None,
+                             spec.causes[0] if spec.causes else ""), spec.labels)
         pictures.append(Picture(spec.name, title, svg, WIDTH, HEIGHT))
     return pictures

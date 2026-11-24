@@ -6,6 +6,7 @@ blueprint.py writes this description into the sheet ChartSpec; modFlowBuild.bas 
 """
 from dataclasses import dataclass
 
+from jira2dashboard import sheet_names as S
 from jira2dashboard.flow.formulas import BUCKETS
 from jira2dashboard.flow.model import ART
 from jira2dashboard.flow.refs import HALF
@@ -58,6 +59,7 @@ class ChartSpec:
     band: tuple[float, float] | None = None     # a target band drawn as two constant series (proposal: SAFe 80-100 %)
     labels: bool = False            # the value above each bar of the first series (the ART), so that a 0 is seen: no bar has no height
     zeros: bool = False             # the note counts the points that are 0 (no bar) instead of the gaps
+    causes: tuple[str, str] | None = None   # (table, column) of the cause of each point: the note names the most frequent one (AL, 2026-11-24)
 
 
 EXTRACT_CAPTION = "1. Extract from Jira"              # the captions of the Dashboard buttons (flow/sheets.py; modActions has the three steps)
@@ -85,11 +87,14 @@ ZERO_NOTE = "no item was done (no bar)"
 
 CHARTS = (
     ChartSpec("velocity", "Velocity - items done per iteration", "Velocity", XL_COLUMN_CLUSTERED, labels=True, zeros=True),
-    ChartSpec("flow_time", "Flow Time - median, in days", "FlowTimeMedian", XL_LINE_MARKERS, reason=FLOW_TIME_REASON),
-    ChartSpec("flow_time_p85", "Flow Time - 85th percentile, in days", "FlowTimeP85", XL_LINE_MARKERS, reason=FLOW_TIME_REASON),
-    ChartSpec("flow_load", "Flow Load - average items in process", "FlowLoadAverage", XL_LINE_MARKERS, reason=LOAD_REASON),
+    ChartSpec("flow_time", "Flow Time - median, in days", "FlowTimeMedian", XL_LINE_MARKERS, reason=FLOW_TIME_REASON,
+              causes=("FlowTimeCheck", "Cause")),
+    ChartSpec("flow_time_p85", "Flow Time - 85th percentile, in days", "FlowTimeP85", XL_LINE_MARKERS, reason=FLOW_TIME_REASON,
+              causes=("FlowTimeCheck", "Cause")),
+    ChartSpec("flow_load", "Flow Load - average items in process", "FlowLoadAverage", XL_LINE_MARKERS, reason=LOAD_REASON,
+              causes=("FlowLoadCheck", "Reason")),
     ChartSpec("flow_efficiency", "Flow Efficiency - active time / (active + wait)", "FlowEfficiency",
-              XL_COLUMN_CLUSTERED, "0%", reason=EFFICIENCY_REASON),
+              XL_COLUMN_CLUSTERED, "0%", reason=EFFICIENCY_REASON, causes=("FlowEfficiencyCheck", "Cause")),
     ChartSpec("flow_distribution", "Flow Distribution - items done by work type (team of the selector)", None,
               XL_COLUMN_STACKED_100, "0%", series=BUCKET_SERIES),
     ChartSpec("flow_predictability", "Flow Predictability", "FlowPredictability", XL_LINE_MARKERS, "0%",
@@ -183,9 +188,32 @@ def bucket_point(bucket: str, iteration_cell: str) -> str:
     return f'=IFERROR(IF({SELECTOR}="{ALL_TEAMS}",{all_teams},1*{one_team}),NA())'
 
 
-def note_formula(data_range: str, reason: str, zeros: bool = False) -> str:
-    """The text under a chart: how many points are not computable (gaps in the chart), or with `zeros` how many are 0 (no bar)."""
+def most_often(causes: list[str]) -> tuple[str, int, int] | None:
+    """(the most frequent cause, its count, the rows with a cause) of the rows of a check table, the first met when two are as frequent (SORTBY
+    keeps the order of UNIQUE); None when no row has one."""
+    named = [c for c in causes if c]
+    if not named:
+        return None
+    counts = {c: named.count(c) for c in dict.fromkeys(named)}
+    top = max(counts, key=counts.get)
+    return top, counts[top], len(named)
+
+
+def most_often_text(cause: str, count: int, rows: int, table: str) -> str:
+    return f" - most often ({count} of {rows} rows of {S.of(table)}): {cause}"
+
+
+def note_formula(data_range: str, reason: str, zeros: bool = False, causes: tuple[str, str] | None = None) -> str:
+    """The text under a chart: how many points are not computable (gaps in the chart), or with `zeros` how many are 0 (no bar). With `causes`
+    (a check table and its column of causes) the most frequent cause of its rows instead of the list of every possible one, which stays
+    when no row has a cause; nothing when there is no gap. LET names: no `r` or `c` (Excel reads them as R1C1)."""
     because = f'&" - {reason}"' if reason else ""
+    if causes:
+        col = f"{causes[0]}[{causes[1]}]"
+        top = (f'LET(rs,FILTER({col},{col}<>""),un,UNIQUE(rs),ct,MMULT(--(un=TRANSPOSE(rs)),SEQUENCE(ROWS(rs),1,1,0)),'
+               f'" - most often ("&MAX(ct)&" of "&ROWS(rs)&" rows of {S.of(causes[0])}): "&INDEX(SORTBY(un,ct,-1),1))')
+        return (f'=LET(n,SUMPRODUCT(--ISNA({data_range})),n&" of "&ROWS({data_range})*COLUMNS({data_range})&" points are not computable (gaps)"'
+                f'&IF(n=0,"",IFERROR({top},"{" - " + reason if reason else ""}")))')
     if zeros:
         return (f'=COUNTIF({data_range},0)&" of "&ROWS({data_range})*COLUMNS({data_range})'
                 f'&" points are 0 - {ZERO_NOTE}"{because}')

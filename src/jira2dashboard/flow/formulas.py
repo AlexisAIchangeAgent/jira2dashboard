@@ -259,6 +259,10 @@ FLOWTIMECHECK_COLUMNS = (
     ("Reason", f'=IF([@Counted]>0,"",IF([@Done]=0,"{MC.NO_ITEM}","{MC.ALL}"&[@Done]&"{MC.LEFT_OUT}"&TEXTJOIN(", ",TRUE,'
                f'IF([@ExclNoStartRule]>0,[@ExclNoStartRule]&"{MC.NO_START_RULE}",""),IF([@ExclNotStarted]>0,[@ExclNotStarted]&"{MC.NOT_STARTED}",""),'
                f'IF([@ExclReopened]>0,[@ExclReopened]&"{MC.REOPENED}",""))))'),
+    # the Reason without its counts: the note under the charts counts the points by cause (metric_checks.FlowTimeCheck.cause)
+    ("Cause", f'=IF([@Reason]="","",IF([@Done]=0,"{MC.NO_ITEM}","{MC.LEFT_OUT_CAUSE}"&IF(AND([@ExclNoStartRule]>=[@ExclNotStarted],'
+              f'[@ExclNoStartRule]>=[@ExclReopened]),"{MC.NO_START_RULE.strip()}",IF([@ExclNotStarted]>=[@ExclReopened],"{MC.NOT_STARTED.strip()}",'
+              f'"{MC.REOPENED.strip()}"))))'),
 )
 
 # --- the table FlowEfficiencyCheck: why the Flow Efficiency of each iteration and team is what it is (AL, 2026-11-22) ----------------------------
@@ -278,6 +282,7 @@ FLOWEFFICIENCYCHECK_COLUMNS = (
     ("Gap", f'=IF([@Reason]<>"",0,IFERROR(ROUND([@Efficiency]-{_METRIC_OF_ROW.format(column="FlowEfficiency")},{MC.GAP_DIGITS}),1))'),
     ("Reason", f'=IF([@WaitStatuses]=0,"{MC.NO_WAIT}",IF([@Counted]=0,"{MC.NOTHING_COUNTED}",IF([@WithUnclassified]>0,'
                f'[@WithUnclassified]&"{MC.UNCLASSIFIED_TIME}",IF([@ActiveDays]+[@WaitDays]=0,"{MC.NO_TIME}",""))))'),
+    ("Cause", f'=IF([@WithUnclassified]>0,IF([@Reason]=[@WithUnclassified]&"{MC.UNCLASSIFIED_TIME}","{MC.UNCLASSIFIED_TIME.strip()}",[@Reason]),[@Reason])'),
 )
 
 # --- the table FlowLoadCheck: why the Flow Load of each iteration and team is what it is (AL, 2026-11-22) ----------------------------------------
