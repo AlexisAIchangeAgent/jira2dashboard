@@ -46,3 +46,33 @@ def test_the_manual_names_only_sheets_of_the_workbook():
              "ChecksSpec"}
     assert named <= sheets
     assert all(name in text for name in named)
+
+
+def test_the_buttons_have_their_section_in_the_order_of_the_dashboard():
+    headings = [text for kind, text in manual.manual(MANDATORY) if kind == manual.HEADING]
+    captions = (D.ROVO_CAPTION, D.ROVO_LOAD_CAPTION, D.CONFIG_CAPTION, D.PROPOSE_CAPTION, D.EXTRACT_CAPTION, D.COMPUTE_CAPTION, D.DRAW_CAPTION)
+    at = [headings.index(f'Button "{caption}"') for caption in captions]
+    assert at == sorted(at)
+
+
+def test_the_manual_says_how_to_check_the_figures_with_the_counts_of_the_code():
+    """AL, 2026-11-24: the guide to check the metrics and their data, in the sheet Manual; the first steps point to it."""
+    from jira2dashboard import sheet_names as S
+    from jira2dashboard.flow.checks import CHECKS
+    from jira2dashboard.flow.reconciliation import CONTROLS
+    rows = manual.manual(MANDATORY)
+    start = rows.index((manual.HEADING, manual.CHECK_SECTION))
+    end = next(n for n in range(start + 1, len(rows)) if rows[n][0] == manual.HEADING)
+    section = " ".join(text for _kind, text in rows[start + 1:end])
+    assert f"{len(CONTROLS)} controls" in section and "Gap must be 0" in section
+    for name in ("Reconciliation", "VelocityCheck", "FlowTimeCheck", "FlowEfficiencyCheck", "FlowLoadCheck", "FlowDistCheck", "MetricItems",
+                 "StatusRules", "Workflows", "ItemFlow"):
+        assert S.of(name) in section, name
+    assert f"{len(CHECKS)} data checks" in " ".join(text for _kind, text in rows)
+    assert manual.CHECK_SECTION in manual.first_steps()[6]
+
+
+def test_the_manual_stays_short():
+    rows = manual.manual(MANDATORY)
+    assert max(len(text) for _kind, text in rows) <= 420 and sum(len(text) for _kind, text in rows) <= 10_000
+    assert sum(len(line) for line in manual.first_steps()) <= 1_300

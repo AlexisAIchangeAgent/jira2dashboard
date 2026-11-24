@@ -286,7 +286,10 @@ python.log). `tests/unit/test_claude_hooks.py` and `test_claude_skills.py` test 
   under the chart says why (`ChartSpec.zeros`: "N of M points are 0 - no item was done (no bar)"; `reason=NO_ITEM_DONE` under Flow Time,
   p85 and Flow Efficiency; `charts_svg.gaps_note` is the Python twin). `-Run` and `manual-test` use `out\release`: run `build` first after a VBA change.
 - **User manual.** `src/jira2dashboard/manual.py` (pure text) is written by `flow/sheets.write_manual` at the delivery
-  build: the first steps on the Dashboard from T1, and the sheet `Manual`. Update it when a button, sheet or step changes.
+  build: the first steps on the Dashboard from T1, and the sheet `Manual`. Update it when a button, sheet or step changes. AL, 2026-11-24: short
+  lines (a test pins at most 420 characters a line, 10 000 for the sheet, 1 300 for the first steps), one section per button in the order of the
+  Dashboard, and the section "Check the figures" (the guide: status, Reconciliation, the check tables, MetricItems, compare with Jira, correct in
+  Workflows then 2 and 3); the counts of controls and data checks come from `reconciliation.CONTROLS` and `checks.CHECKS`.
 - **Extraction (VBA).** `modHttp` (WinHTTP, proxy with Windows auth, retries; `modProxy` finds the proxy of the Windows
   settings when `ProxyServer` is empty: WPAD, PAC or fixed, via WinHTTP API calls on byte buffers, not VBA Types, which
   crashed 64-bit Excel) -> `modJira` (search, bulk changelog) ->
