@@ -771,13 +771,40 @@ def close_rows(got, expected) -> bool:
         for a, b in zip(got, expected))
 
 
+@then(parsers.parse('la liste des tickets en cours à la fin des itérations reproduit la référence Python en mode "{mode}"'))
+def _at_end_list(world, mode):
+    """The 4th list of MetricItems after a change of FlowLoadMode: the tickets of the reference in that mode, and per iteration and team as many as
+    FlowLoadCheck.AtEnd (the tie-out), and the Reconciliation control on it stays OK."""
+    from jira2dashboard.flow.metric_checks import in_process_at_end
+    from jira2dashboard.flow.reconciliation import FLOW_LOAD_LIST
+    *_lists, at_end = metric_blocks(world["wb"])
+    by_name = {i.name: i for i in world["iterations"]}
+    load_rows = table_dicts(world["wb"], "FlowLoadCheck")
+    ref = in_process_at_end(world["items"], [(by_name[r["Iteration-label"]], r["Team"]) for r in load_rows], world["rules"], mode,
+                            world["dataset"].as_of)
+    assert close_rows(sorted(at_end, key=lambda r: (r[0], r[3])), serial_rows(sorted(ref, key=lambda r: (r[0], r[3])))) and len(ref) > 5
+    for r in load_rows:
+        assert sum(1 for x in at_end if (x[0], x[2]) == (r["Iteration-label"], r["Team"])) == (r["AtEnd"] or 0), r
+    control = next(r for r in table_dicts(world["wb"], "Reconciliation") if r["Control"] == FLOW_LOAD_LIST)
+    assert control["Result"] == "OK" and control["Found"] == len(ref), control
+
+
 @then("les listes de la feuille MetricItems reproduisent la référence Python sur les données générées")
 def _metric_items_generated(world):
     """The three lists against flow/trace.metric_items: the same tickets with the same figures (compared by iteration then key: the blocks are
     sorted by the workbook's own text order), the blocks in the order of their keys (start of the iteration never goes back), real data in each."""
+    from jira2dashboard.flow.metric_checks import in_process_at_end
     from jira2dashboard.flow.trace import metric_items
-    done, left_out, cutoff = metric_blocks(world["wb"])
+    done, left_out, cutoff, at_end = metric_blocks(world["wb"])
     ref = metric_items(world["items"], world["iterations"], world["settings"].pis)
+    by_name = {i.name: i for i in world["iterations"]}
+    load_rows = table_dicts(world["wb"], "FlowLoadCheck")
+    ref_at_end = in_process_at_end(world["items"], [(by_name[r["Iteration-label"]], r["Team"]) for r in load_rows], world["rules"], "A",
+                                   world["dataset"].as_of)
+    assert close_rows(sorted(at_end, key=lambda r: (r[0], r[3])), serial_rows(sorted(ref_at_end, key=lambda r: (r[0], r[3]))))
+    assert len(at_end) > 5 and len({r[5] for r in at_end}) >= 2, at_end[:5]                       # real figures, several buckets
+    for r in load_rows:                                                                            # the tie-out: the list recounted is AtEnd
+        assert sum(1 for x in at_end if (x[0], x[2]) == (r["Iteration-label"], r["Team"])) == (r["AtEnd"] or 0), r
     assert len(ref.done) > 5 and len(ref.left_out) > 0, (len(ref.done), len(ref.left_out))
     assert close_rows(sorted(done, key=lambda r: (r[0], r[4])), serial_rows(sorted(ref.done, key=lambda r: (r[0], r[4]))))
     assert close_rows(sorted(left_out), serial_rows(sorted(ref.left_out)))
@@ -794,7 +821,7 @@ def _metric_items_generated(world):
 @then("les listes de la feuille MetricItems sont celles calculées à la main et leur nombre de lignes est la vélocité")
 def _art_metric_items(world):
     from art_oracle import RELEASED, SUBTASK_ITERATION, VELOCITY
-    done, left_out, cutoff = metric_blocks(world["wb"])
+    done, left_out, cutoff, _at_end = metric_blocks(world["wb"])
     assert sorted((r[0], r[4]) for r in done) == sorted((label, f"TTT-{n}") for n, label in RELEASED.items())     # the 19 released Features
     assert all((r[3], r[5], r[7]) == ("ART", "Feature", 1) for r in done)                                     # counted in the flow time, all Features
     from art_oracle import FLOW_TIME_DAYS
@@ -843,7 +870,7 @@ def _reconciliation_generated(world):
 def _art_reconciliation(world):
     from art_oracle import ACCOUNTS, FLOW_TIME_DAYS, VELOCITY
     got = {r["Control"]: r for r in table_dicts(world["wb"], "Reconciliation")}
-    assert len(got) == 19 and {r["Result"] for r in got.values()} == {"OK"}, {k: (r["Expected"], r["Found"], r["Result"]) for k, r in got.items()}
+    assert len(got) == 20 and {r["Result"] for r in got.values()} == {"OK"}, {k: (r["Expected"], r["Found"], r["Result"]) for k, r in got.items()}
     released, tickets = sum(VELOCITY.values()), sum(ACCOUNTS.values())
     typed = {"Tickets read from Jira = tickets of ItemFlow": (tickets, tickets), "Every ticket sits in one account": (tickets, tickets),
              "Velocity of all iterations = tickets of the Done list": (released, released),

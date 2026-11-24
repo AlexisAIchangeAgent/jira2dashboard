@@ -22,7 +22,7 @@ from jira2dashboard.flow.pi_status_time import PIStatusTime, feature_statuses, p
 from jira2dashboard.flow.metrics import (BUCKETS, PIPredictability, TeamIterationMetrics, pi_predictability,
                                          team_iteration_metrics)
 from jira2dashboard.flow.model import ART, NOT_COMPUTABLE, OTHER_TYPES, UNMAPPED, WORK_TYPES, FlowIssue, work_type_bucket
-from jira2dashboard.flow.metric_checks import (FlowDistCheck, FlowEfficiencyCheck, FlowLoadCheck, FlowTimeCheck, flow_distribution_check,
+from jira2dashboard.flow.metric_checks import (FlowDistCheck, in_process_at_end, FlowEfficiencyCheck, FlowLoadCheck, FlowTimeCheck, flow_distribution_check,
                                                flow_efficiency_check, flow_load_check, flow_time_check)
 from jira2dashboard.flow.velocity_check import VelocityCheck, velocity_check
 from jira2dashboard.standalone.params_book import RunSettings
@@ -181,13 +181,16 @@ def reconciliation_rows(results: Results, issues: list[FlowIssue], s: RunSetting
 def metricitems_sheet(results: Results, s: RunSettings) -> tuple[tuple, list[tuple]]:
     """The sheet MetricItems of the Python path: the header (the names of the three blocks with an empty name between them) and the rows
     (the three lists of flow/trace.metric_items side by side, the shorter ones padded with empty cells)."""
-    return metricitems_grid(metric_items(results.items, list(s.iterations), s.checks.pis))
+    iterations = {p.name: p for p in s.iterations}
+    lists = metric_items(results.items, list(s.iterations), s.checks.pis)
+    at_end = in_process_at_end(results.items, [(iterations[m.iteration], m.team) for m in results.metrics], s.rules, s.mode, s.as_of)
+    return metricitems_grid(replace(lists, at_end=at_end))
 
 
 def metricitems_grid(lists: MetricItems) -> tuple[tuple, list[tuple]]:
     blocks = [[name for name, _ in block] for block in F.METRICITEMS_BLOCKS]
     header = tuple(name for names in blocks for name in names + [""])[:-1]
-    data = [lists.done, lists.left_out, lists.cutoff]
+    data = [lists.done, lists.left_out, lists.cutoff, lists.at_end]
     rows = []
     for n in range(max(len(d) for d in data)):
         row: list = []

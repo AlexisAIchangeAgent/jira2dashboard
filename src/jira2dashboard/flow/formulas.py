@@ -335,7 +335,8 @@ def _col(column: str, cond: str, sort: tuple[str, ...], wrap: str = "{}") -> str
 
 METRICITEMS_TITLES = ("Done in an iteration: the tickets behind Velocity, Flow Time, Flow Efficiency and Flow Distribution",
                       "Done but not counted: the missing ones, with the reason",
-                      f"Cut-off: done within {T.CUTOFF_HOURS} hours of an iteration boundary")
+                      f"Cut-off: done within {T.CUTOFF_HOURS} hours of an iteration boundary",
+                      "In process at the end of each iteration: the tickets behind the Flow Load at the end and the WIP distribution")
 _DONE_SORT = ("DoneIterationStart", "Team", "DoneUtc", "Key")
 METRICITEMS_DONE = tuple((name, _col(column, _C, _DONE_SORT, wrap)) for name, column, wrap in (
     ("Iteration", "DoneIteration", "{}"), ("Start", "DoneIterationStart", "{}"), ("End", "DoneIterationEnd", "{}"), ("Team", "Team", "{}"),
@@ -351,14 +352,35 @@ _NEAR_SORT = ("BoundaryHours", "Key")
 METRICITEMS_CUTOFF = tuple((name, _col(column, _NEAR, _NEAR_SORT, wrap)) for name, column, wrap in (
     ("Key", "Key", "{}"), ("Team", "Team", "{}"), ("Iteration", "DoneIteration", "{}"), ("DoneUtc", "DoneUtc", "{}"),
     ("Hours", "BoundaryHours", "ROUND({},1)")))
-METRICITEMS_BLOCKS = (METRICITEMS_DONE, METRICITEMS_LEFT_OUT, METRICITEMS_CUTOFF)
+# The 4th list (AL, 2026-11-24): ONE spilled formula in its first column (the others stay empty: modFlowBuild.BuildMetricItems writes no empty
+# formula). The moment of each iteration (its start + DaysMeasured of FlowLoadCheck, the same for every team) against every candidate row (mode A: the
+# intervals of StatusIntervals, mode B: the tickets of ItemFlow, the rule of FlowLoadCheck.AtEnd): an iterations x candidates matrix, not iterations x
+# teams x candidates. The pairs of a team whose Flow Load is not computable (FlowLoadCheck.Reason) are left out. Reference: metric_checks.in_process_at_end.
+_FLC = "FlowLoadCheck"
+_AT_END_LIST = (
+    f'=IFERROR(LET(it,UNIQUE({_FLC}[Iteration-label]),st,XLOOKUP(it,{_FLC}[Iteration-label],{_FLC}[IterationStart]),'
+    f't,TRANSPOSE(st+XLOOKUP(it,{_FLC}[Iteration-label],{_FLC}[DaysMeasured])+{HALF}),a,cfg_FlowLoadMode="A",'
+    f'm,IF(a,({SI}[Counted]=1)*({SI}[EnteredUtc]<=t)*({SI}[LeftEff]>t)*({SI}[FirstStart]<>"")*({SI}[FirstStart]<=t),'
+    f'({IF_}[StartUtc]<>"")*({IF_}[StartUtc]<=t)*({IF_}[EndUtc]>t)),'
+    f'code,TOCOL(IF(m,SEQUENCE(ROWS(m),COLUMNS(m)),NA()),2),rw,INT((code-1)/COLUMNS(m))+1,cl,MOD(code-1,COLUMNS(m))+1,'
+    f'key,CHOOSEROWS(IF(a,{SI}[Key],{IF_}[Key]),rw),team,CHOOSEROWS(IF(a,{SI}[Team],{IF_}[Team]),rw),iter,CHOOSEROWS(it,cl),start,CHOOSEROWS(st,cl),'
+    f'ok,XLOOKUP(iter&"|"&team,{_FLC}[Iteration-label]&"|"&{_FLC}[Team],{_FLC}[Reason],"x")="",'
+    f'lst,FILTER(HSTACK(iter,start,team,key,XLOOKUP(key,{IF_}[Key],{IF_}[Type]),XLOOKUP(key,{IF_}[Key],{IF_}[WorkTypeBucket])),ok),'
+    f'SORTBY(lst,CHOOSECOLS(lst,2),1,CHOOSECOLS(lst,3),1,CHOOSECOLS(lst,4),1)),"")')
+METRICITEMS_AT_END = (("Iteration", _AT_END_LIST), ("Start", ""), ("Team", ""), ("Key", ""), ("Type", ""), ("WorkTypeBucket", ""))
+METRICITEMS_BLOCKS = (METRICITEMS_DONE, METRICITEMS_LEFT_OUT, METRICITEMS_CUTOFF, METRICITEMS_AT_END)
 
 
 def metricitems_column(block: int, name: str) -> int:
-    """The column number of `name` in the list `block` (0 Done, 1 left out, 2 cut-off) of MetricItems: the blocks sit side by side from A, a blank
+    """The column number of `name` in the list `block` (0 Done, 1 left out, 2 cut-off, 3 at end) of MetricItems: the blocks sit side by side from A, a blank
     column between (modFlowBuild.BuildMetricItems). Every reader of a list takes its position here: a column added to a block moves the next ones."""
     first = 1 + sum(len(b) + 1 for b in METRICITEMS_BLOCKS[:block])
     return first + [n for n, _ in METRICITEMS_BLOCKS[block]].index(name)
+
+
+def _anchor(block: int) -> str:
+    """The first cell of a list of MetricItems, without the spill mark: MetricItems_from_excel!$AC$3."""
+    return metricitems_cell(block, METRICITEMS_BLOCKS[block][0][0])[:-1]
 
 
 def metricitems_cell(block: int, name: str) -> str:
@@ -389,6 +411,8 @@ RECONCILIATION_FORMULAS = {
     R.FLOW_LOAD_GAP: ("=0", "=SUMPRODUCT(ABS(FlowLoadCheck[Gap]))"),
     R.FLOW_DISTRIBUTION_GAP: ("=0", "=SUMPRODUCT(ABS(FlowDistCheck[Gap]))"),
     # the row whose start is this row's end, same PI and team; none (a gap, the last iteration of the PI): the row is not judged (its own CarryOver)
+    # the 4th list of MetricItems is one spill anchored in its first column: its rows, or none when the anchor holds the empty text
+    R.FLOW_LOAD_LIST: ("=SUM(Metrics[FlowLoadEnd])", f'=IF({_anchor(3)}="",0,ROWS({_anchor(3)}#))'),
     R.CARRY_OVER: ("=0", "=SUMPRODUCT(ABS(IterationFeatures[CarryOver]-IFERROR(XLOOKUP(IterationFeatures[IterationEnd]&\"|\"&IterationFeatures[PI]&\"|\"&"
                          "IterationFeatures[Team],IterationFeatures[IterationStart]&\"|\"&IterationFeatures[PI]&\"|\"&IterationFeatures[Team],"
                          "IterationFeatures[Engaged]),IterationFeatures[CarryOver])))"),

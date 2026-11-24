@@ -173,3 +173,28 @@ def test_every_done_item_unmapped_says_why_and_nothing_done_is_not_computable():
     assert distribution([typed("D-1", "Story")]).note == "every done item is Unmapped: no known work type (Feature, Enabler, Defect, Autre)"
     items = []
     assert MC.flow_distribution_check(items, I1, "ART", team_iteration_metrics(items, "ART", I1, "A", AS_OF), "x").reason == MC.NO_ITEM
+
+
+
+# --- the tickets in process at the end of each iteration (the 4th list of MetricItems) ---------------------------------------------------------
+
+def test_the_tickets_in_process_at_the_end_are_those_flowloadcheck_counts_and_none_where_it_is_not_computable():
+    """Mode A, AsOf 05-15. I1 ends at 05-11 00:00 (10 measured days): E-1 (done 05-06) and E-2 (done 05-03) are no longer in process, O-1 (in
+    Analyse from 05-09, still open) is. I2 has 4 measured days before AsOf, its end is 05-15 00:00: O-1 again. Beta (the Team workflow) lists its
+    own B-1 only. Without a start status nothing is listed (the Reason of FlowLoadCheck)."""
+    open_one = ticket("O-1", [("2025-05-09T00:00", "Analyse")])
+    beta = ticket("B-1", [("2025-05-08T00:00", "Analyse")], team="Beta")                     # the Team workflow of Beta has the same statuses
+    beta = beta.__class__(**{**beta.__dict__, "workflow": "Team"})
+    rules = Rules({**WAIT_RULES._rows, **{("Team", status): r for (_w, status), r in WAIT_RULES._rows.items()}})
+    issues = EFF + [open_one, beta]
+    as_of = dt.datetime(2025, 5, 15)
+    items = [item_flow(i, as_of, rules) for i in issues]
+    i2 = Iteration("I2", dt.datetime(2025, 5, 11), dt.datetime(2025, 5, 21))
+    got = MC.in_process_at_end(items, [(I1, "ART"), (i2, "ART"), (I1, "Beta")], rules, "A", as_of)
+    assert got == [("I1", I1.start, "ART", "O-1", "Feature", "Feature"), ("I1", I1.start, "Beta", "B-1", "Feature", "Feature"),
+                   ("I2", i2.start, "ART", "O-1", "Feature", "Feature")]                                 # each team its own tickets
+    for iteration in (I1, i2):
+        metric = team_iteration_metrics(items, "ART", iteration, "A", as_of, True, True)
+        assert MC.flow_load_check(items, iteration, "ART", WAIT_RULES, "A", as_of, metric).at_end == 1
+    no_start = Rules({**WAIT_RULES._rows, ("Feature", "Analyse"): rule("Active")})
+    assert MC.in_process_at_end(items, [(I1, "ART")], no_start, "A", as_of) == []

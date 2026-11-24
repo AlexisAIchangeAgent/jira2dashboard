@@ -26,6 +26,7 @@ Fonctionnalité: Le classeur livré extrait Jira et calcule les mêmes chiffres 
     Alors la table DailyLoad reproduit la référence Python en mode "B"
     Et la table Metrics reproduit la référence Python en mode "B"
     Et la feuille ChartData reproduit les métriques de la référence Python en mode "B", avec #N/A pour « not computable »
+    Et la liste des tickets en cours à la fin des itérations reproduit la référence Python en mode "B"
 
   @excel
   Scénario: La date d'un changelog est trouvée par sa valeur, même sous une autre clé et dans un autre format

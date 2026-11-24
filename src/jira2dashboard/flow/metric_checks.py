@@ -136,13 +136,34 @@ class FlowLoadCheck:
     reason: str
 
 
-def flow_load_check(items: list[ItemFlow], iteration: Iteration, team: str, rules: Rules, mode: str, as_of: dt.datetime,
-                    metric: TeamIterationMetrics) -> FlowLoadCheck:
-    """One row; the ART follows the Feature workflow, a team of a Team project the Team workflow."""
+def _load_frame(iteration: Iteration, team: str, rules: Rules, as_of: dt.datetime) -> tuple[list[dt.datetime], int, str]:
+    """The measured days of the iteration, the start statuses of the workflow of the team and the Reason of the row."""
     workflow = "Feature" if team == ART else "Team"
     measured = snapshot_days(iteration.start, iteration.end, as_of)
     starts = sum(1 for r in rules.listed() if r.workflow == workflow and r.is_start == 1)
-    reason = NO_START_STATUS if starts == 0 else AFTER_AS_OF if not measured else ""
+    return measured, starts, NO_START_STATUS if starts == 0 else AFTER_AS_OF if not measured else ""
+
+
+def in_process_at_end(items: list[ItemFlow], rows: list[tuple[Iteration, str]], rules: Rules, mode: str, as_of: dt.datetime) -> list[tuple]:
+    """The tickets behind Metrics.FlowLoadEnd (the 4th list of MetricItems): for each (iteration, team) of `rows` whose Flow Load is computable (its
+    Reason is ""), the items of the team in process at the end of its last measured day, as (iteration, start, team, key, type, WorkTypeBucket),
+    by start, team, key. Their number per iteration and team is FlowLoadCheck.AtEnd (a control of the Reconciliation)."""
+    out = []
+    for iteration, team in rows:
+        measured, _starts, reason = _load_frame(iteration, team, rules, as_of)
+        if reason:
+            continue
+        moment = measured[-1] + ONE_DAY
+        out += [(iteration.name, iteration.start, team, i.key, i.type, work_type_bucket(i.work_type))
+                for i in items if i.team == team and in_process_at(i, moment, mode)]
+    out.sort(key=lambda r: (r[1], r[2], r[3]))
+    return out
+
+
+def flow_load_check(items: list[ItemFlow], iteration: Iteration, team: str, rules: Rules, mode: str, as_of: dt.datetime,
+                    metric: TeamIterationMetrics) -> FlowLoadCheck:
+    """One row; the ART follows the Feature workflow, a team of a Team project the Team workflow."""
+    measured, starts, reason = _load_frame(iteration, team, rules, as_of)
     days = (iteration.end - iteration.start).days
     if reason:
         return FlowLoadCheck(iteration.name, team, days, len(measured), starts, None, None, 0.0, reason)

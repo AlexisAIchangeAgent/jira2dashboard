@@ -67,7 +67,7 @@ def formula_rows() -> list[tuple[str, str, str]]:
     rows += [("DoneStatuses", name, text) for name, text in F.DONE_STATUS_COLUMNS]
     rows += [("ParametersInForce", name, text) for name, text in F.PARAMETERS_IN_FORCE]
     rows += [("MetricItemsTitle", title, "") for title in F.METRICITEMS_TITLES]
-    for block, columns in zip(("MetricItemsDone", "MetricItemsLeftOut", "MetricItemsCutoff"), F.METRICITEMS_BLOCKS):
+    for block, columns in zip(("MetricItemsDone", "MetricItemsLeftOut", "MetricItemsCutoff", "MetricItemsAtEnd"), F.METRICITEMS_BLOCKS):
         rows += [(block, name, text) for name, text in columns]
     rows += [("Controls", CONTROL_NAMES[0], F.AS_OF_CELL), ("Controls", CONTROL_NAMES[1], F.MODE_CELL),
              ("Controls", CONTROL_NAMES[2], F.TRANSITIONS_LAST_CELL), ("Controls", CONTROL_NAMES[3], F.PIS_LAST_CELL),

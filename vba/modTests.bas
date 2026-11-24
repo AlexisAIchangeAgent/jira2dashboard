@@ -1489,7 +1489,13 @@ Public Sub T_FlowBuild()
           IIf(ThisWorkbook.Worksheets(SheetName("MetricItems")).Range("E3").HasFormula, "yes", "no") & "|" & _
           IIf(ThisWorkbook.Worksheets(SheetName("MetricItems")).Range("W3").HasFormula, "yes", "no") & "|" & _
           ThisWorkbook.Worksheets(SheetName("MetricItems")).Range("W2").Value & "|" & ThisWorkbook.Worksheets(SheetName("MetricItems")).Range("V2").Value
-    Check "flowbuild", "the table Reconciliation has its 19 controls", "rows", 19, TableRows("Reconciliation")
+    Check "flowbuild", "the table Reconciliation has its 20 controls", "rows", 20, TableRows("Reconciliation")
+    ' AC = formulas.metricitems_column(3, "Iteration"): the 4th list is one spill from its first column, the next one stays empty before it fills
+    Check "flowbuild", "the sheet MetricItems holds the formula of the 4th list in its first column only, a blank column before it", _
+          "AC3 | AD3 | AC2 | AB2", "yes|no|Iteration|", _
+          IIf(ThisWorkbook.Worksheets(SheetName("MetricItems")).Range("AC3").HasFormula, "yes", "no") & "|" & _
+          IIf(ThisWorkbook.Worksheets(SheetName("MetricItems")).Range("AD3").HasFormula, "yes", "no") & "|" & _
+          ThisWorkbook.Worksheets(SheetName("MetricItems")).Range("AC2").Value & "|" & ThisWorkbook.Worksheets(SheetName("MetricItems")).Range("AB2").Value
     Check "flowbuild", "the table FlowDistCheck has the rows of Metrics, the Velocity and a control Gap of 0", "rows|Done|Gap", _
           TableRows("Metrics") & "|" & ColumnSum("Metrics", "Velocity") & "|0", _
           TableRows("FlowDistCheck") & "|" & ColumnSum("FlowDistCheck", "Done") & "|" & ColumnSum("FlowDistCheck", "Gap")

@@ -157,7 +157,7 @@ def test_the_three_lists_become_the_rows_of_the_sheet_of_the_python_path_side_by
     from jira2dashboard.standalone.results import metricitems_grid
     header, rows = metricitems_grid(lists(*population()))
     names = [[n for n, _ in block] for block in F.METRICITEMS_BLOCKS]
-    assert header == tuple(names[0] + [""] + names[1] + [""] + names[2])                       # a blank column between the blocks
+    assert header == tuple(names[0] + [""] + names[1] + [""] + names[2] + [""] + names[3])    # a blank column between the blocks
     assert len(rows) == 4 and all(len(r) == len(header) for r in rows)                          # the longest list (4 tickets done) sets the rows
     done_width, left_width = len(names[0]), len(names[1])
     assert [r[4] for r in rows] == ["A-1", "W-2", "C-1", "B-2"]                                 # the Key column of the first list
@@ -169,7 +169,10 @@ def test_the_position_of_a_column_of_a_list_follows_the_widths_of_the_blocks_bef
     from jira2dashboard.flow import formulas as F
     from jira2dashboard.flow import reconciliation as R
     widths = [len(b) for b in F.METRICITEMS_BLOCKS]
-    assert widths == [14, 6, 5]
+    assert widths == [14, 6, 5, 6]
+    assert F.metricitems_column(3, "Iteration") == 29 and F.metricitems_cell(3, "Iteration") == "MetricItems_from_excel!$AC$3#"
+    assert F.RECONCILIATION_FORMULAS[R.FLOW_LOAD_LIST][1] == '=IF(MetricItems_from_excel!$AC$3="",0,ROWS(MetricItems_from_excel!$AC$3#))'
+    assert [text != "" for _name, text in F.METRICITEMS_AT_END] == [True] + [False] * 5     # one spill from the first column
     assert [F.metricitems_column(0, "Key"), F.metricitems_column(1, "Key"), F.metricitems_column(2, "Key")] == [5, 16, 23]
     assert F.metricitems_cell(2, "Key") == "MetricItems_from_excel!$W$3#" and F.metricitems_cell(0, "FlowTimeDays") == "MetricItems_from_excel!$I$3#"
     assert F.RECONCILIATION_FORMULAS[R.CUTOFF][1] == '=COUNTIF(MetricItems_from_excel!$W$3#,"?*")'        # the Key of the cut-off list

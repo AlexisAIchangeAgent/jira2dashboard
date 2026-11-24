@@ -342,13 +342,14 @@ Private Sub FillFormulas(ByVal lo As Object, ByVal cols As Collection)
 End Sub
 
 Private Sub BuildMetricItems(ByVal wb As Object, ByVal spec As Object)
-    ' The sheet MetricItems: the lists of the tickets behind the figures (flow/trace.metric_items), three blocks side by side with a blank column
+    ' The sheet MetricItems: the lists of the tickets behind the figures (flow/trace.metric_items), four blocks side by side with a blank column
     ' between. Row 1 the title of a block, row 2 the names of its columns, row 3 one spilled formula per column: Excel fills the rows below by itself.
+    ' A column with no formula is filled by the spill of the first one (the 4th list: formulas.METRICITEMS_AT_END).
     Cov "FLB56"
     Dim ws As Object, blocks As Variant, b As Long, cols As Collection, titles As Collection, i As Long, c As Long, num As Long, desc As String, nm As String
     Set ws = wb.Worksheets(SheetName("MetricItems"))
     Set titles = spec("MetricItemsTitle")
-    blocks = Array("MetricItemsDone", "MetricItemsLeftOut", "MetricItemsCutoff")
+    blocks = Array("MetricItemsDone", "MetricItemsLeftOut", "MetricItemsCutoff", "MetricItemsAtEnd")
     c = 1
     For b = 0 To UBound(blocks)
         Set cols = spec(CStr(blocks(b)))
@@ -358,10 +359,13 @@ Private Sub BuildMetricItems(ByVal wb As Object, ByVal spec As Object)
             nm = CStr(cols(i)(0))
             ws.Cells(2, c + i - 1).Value = nm
             ws.Cells(2, c + i - 1).Font.Bold = True
-            On Error Resume Next
-            ws.Cells(3, c + i - 1).Formula2 = cols(i)(1)
-            num = Err.Number: desc = Err.Description: Err.Clear
-            On Error GoTo 0
+            num = 0
+            If Len(CStr(cols(i)(1))) > 0 Then
+                On Error Resume Next
+                ws.Cells(3, c + i - 1).Formula2 = cols(i)(1)
+                num = Err.Number: desc = Err.Description: Err.Clear
+                On Error GoTo 0
+            End If
             If num <> 0 Then Err.Raise vbObjectError + 707, "BuildFlowSheets", "Excel refused the formula of MetricItems." & blocks(b) & "." & nm & ": " & desc
             If nm = "Start" Or nm = "End" Or nm = "DoneUtc" Then ws.Columns(c + i - 1).NumberFormat = "yyyy-mm-dd hh:mm"
         Next i

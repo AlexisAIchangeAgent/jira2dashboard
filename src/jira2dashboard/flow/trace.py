@@ -14,7 +14,7 @@ For each ticket of ItemFlow:
 Excel: the columns of ItemFlow (formulas.ITEMFLOW_COLUMNS), the lists of the sheet MetricItems and the table Reconciliation are built on them.
 """
 import datetime as dt
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from jira2dashboard.flow.itemflow import ItemFlow
 from jira2dashboard.flow.model import OTHER_TYPES, Iteration, work_type_bucket
@@ -85,10 +85,13 @@ class MetricItems:
     UnclassifiedDays ("" when none), WorkTypeBucket - the tickets behind Velocity, Flow Time, Flow Efficiency and Flow Distribution (the Velocity of a team
     and iteration = its rows), by iteration, team, date, key;
     left_out: key, type, team, iteration, DoneUtc, account - the done tickets that no figure counts, with the reason;
-    cutoff: key, team, iteration, DoneUtc, hours to the boundary (1 decimal) - done within CUTOFF_HOURS of a boundary, by distance."""
+    cutoff: key, team, iteration, DoneUtc, hours to the boundary (1 decimal) - done within CUTOFF_HOURS of a boundary, by distance;
+    at_end: iteration, start, team, key, type, WorkTypeBucket - in process at the end of each iteration (metric_checks.in_process_at_end: it needs the
+    rules, the mode and AsOf, so metric_items leaves it empty)."""
     done: list[tuple]
     left_out: list[tuple]
     cutoff: list[tuple]
+    at_end: list[tuple] = field(default_factory=list)
 
 
 def _blank(days: float | None):

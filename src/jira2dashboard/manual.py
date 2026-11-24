@@ -204,13 +204,15 @@ def manual(mandatory: tuple[str, ...]) -> list[tuple[str, str]]:
             "... DURING counts in Jira); ReopenedLater = those changes that the item left again. Gap = Velocity - CreatedDone - "
             "(ChangedToEnd - ReopenedLater) is 0 when the table explains the Velocity. Reason says why the Velocity differs from Jira's "
             "count of the changes into an end status (created done, closed then reopened, other types of the Program), or that nothing was done.",
-            f"{S.of('MetricItems')}: the tickets BEHIND the figures, three lists side by side (formulas that follow the data). Left: every ticket done in "
+            f"{S.of('MetricItems')}: the tickets BEHIND the figures, four lists side by side (formulas that follow the data). Left: every ticket done in "
             "an iteration, by iteration, team, date and key, with its type, whether Flow Time counts it (FlowTimeCounted 1 or 0) and why not, "
             "its active, wait and unclassified days (Flow Efficiency) and its work-type bucket (Flow Distribution) "
             "(Reopened; No start status in the rules: set IsStart in Workflows; No start after the backlog): the rows of an iteration and team are its "
             "Velocity, so filter the list to see the keys of a chart point. Middle: the "
             "done tickets that no figure counts, with the reason (done outside the iterations, or left out because they are not Features: the team "
-            f"ART (other types)): the missing ones. Right: the tickets done within 24 hours of an iteration boundary (cut-off). {ITEMFLOW} has the columns "
+            f"ART (other types)): the missing ones. Then the tickets done within 24 hours of an iteration boundary (cut-off), and last the tickets "
+            "in process at the end of each iteration (the Flow Load at the end and the WIP distribution: filter an iteration and a team). "
+            f"{ITEMFLOW} has the columns "
             "behind them: DoneIteration, DonePI, Account (every ticket is in exactly one account), WhyNotInFlowTime, BoundaryHours.",
             f"{S.of('Reconciliation')}: the controls an accountant would run, each with Expected, Found and a Result (OK, or REVIEW: look at it): the tickets "
             "read = the tickets of ItemFlow, every ticket in one account, the Velocity and the Flow Time recounted from the lists, no ticket twice, the tickets "

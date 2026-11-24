@@ -225,13 +225,17 @@ python.log). `tests/unit/test_claude_hooks.py` and `test_claude_skills.py` test 
   population: done in an iteration / done outside the iterations / left out: not a Feature / removed / open), `WhyNotInFlowTime` (Reopened, No valid start),
   `BoundaryHours` (distance of DoneUtc to the nearest iteration boundary); reference `flow/trace.py`. The sheet `MetricItems_from_excel` holds three lists of SPILLED
   formulas side by side (columns A.. Done in an iteration: Iteration, Start, End, Team, Key, Type, DoneUtc, FlowTimeCounted, FlowTimeDays, WhyNotInFlowTime,
-  ActiveDays, WaitDays, UnclassifiedDays, WorkTypeBucket (2026-11-24); P.. done but not counted with the reason; W.. cut-off within 24 h), `modFlowBuild.BuildMetricItems`,
+  ActiveDays, WaitDays, UnclassifiedDays, WorkTypeBucket (2026-11-24); P.. done but not counted with the reason; W.. cut-off within 24 h; AC.. in process at the end of
+  each iteration, the tickets behind FlowLoadEnd and DistWip: ONE spilled formula in its first column (the other columns have no formula: BuildMetricItems skips an empty
+  one), an iterations x candidates matrix (mode A the intervals of StatusIntervals, mode B the tickets of ItemFlow, the rule of `FlowLoadCheck.AtEnd`), the pairs of a team
+  whose FlowLoadCheck.Reason is not "" left out; reference `metric_checks.in_process_at_end`; LET names `r`/`c` are refused by Excel (R1C1), use `rw`/`cl`), `modFlowBuild.BuildMetricItems`,
   python `trace.metric_items`; the rows of an iteration and team are its Velocity. **A reader of a list takes its column from `formulas.metricitems_column` /
   `metricitems_cell`** (the ledger of the Reconciliation, its cut-off control, `metric_blocks` of the Excel steps): a column added to a block moves the next blocks.
-  The sheet `Reconciliation_from_excel` has the table `Reconciliation` (19 controls since 2026-11-24: + a start status per workflow kind with tickets, a Wait status, the Gap of the
+  The sheet `Reconciliation_from_excel` has the table `Reconciliation` (20 controls since 2026-11-24: + a start status per workflow kind with tickets, a Wait status, the Gap of the
   four flow check tables, and CarryOver of IterationFeatures = the Engaged of the next iteration of the same PI and team: `iteration_features.carry_over_gap`, an
   XLOOKUP of End|PI|Team in Start|PI|Team, a gap or another PI not judged; NOT Engaged + Added - Deferred - Released = CarryOver, which is the formula of the column
-  itself and could never fail; an Excel step types one Engaged over by hand and sees the control find 1; Control | Assertion | Expected | Found | Difference | Result OK/REVIEW, in the order
+  itself and could never fail; an Excel step types one Engaged over by hand and sees the control find 1; Flow Load at the end of all iterations = the rows of the
+  in-process list of MetricItems (`SUM(Metrics[FlowLoadEnd])` against the rows of its spill); Control | Assertion | Expected | Found | Difference | Result OK/REVIEW, in the order
   of `reconciliation.CONTROLS`; Expected and Found are a formula of their own per row, written BEFORE the table exists: **a formula typed in one cell of a table column fills
   the whole column**, which made all the rows equal), the census of the types (spilled from H1) and the parameters in force; reference `flow/reconciliation.py`;
   `modHealth.ReconciliationFindings` says `Reconciliation: n of m controls to review` and counts the `REVIEW` rows only (the cut-off control is `INFO`: `reconciliation.INFO_ASSERTIONS`);
