@@ -34,6 +34,23 @@ def test_a_formula_fits_in_a_cell():
     assert max(len(r[5]) for r in B.chart_rows()) < 32000
 
 
+# The Excel functions the formulas may use (2026-11-24). Every test runs on a current Microsoft 365, so none can see a function the client's Excel
+# lacks: there, the IFERROR around it hides a #NAME? (an empty list, a control to REVIEW). TEXTSPLIT (Microsoft 365 / Excel 2024, since 2026-11-04,
+# in the lists of FeatureTypes) is the newest one: the client's Velocity counts through it, so its Excel has it. A new function goes here on
+# purpose, after checking which Excel has it (the 4th list of MetricItems was rewritten with INDEX and CHOOSE instead of TOCOL, HSTACK, CHOOSEROWS).
+ALLOWED_FUNCTIONS = {
+    "ABS", "AND", "AVERAGEIFS", "CHAR", "CHOOSE", "CLEAN", "COLUMNS", "COUNT", "COUNTA", "COUNTIF", "COUNTIFS", "DATEVALUE", "EXACT", "FILTER", "FIND", "IF",
+    "IFERROR", "INDEX", "INT", "ISNUMBER", "LEFT", "LEN", "LET", "MATCH", "MAX", "MAXIFS", "MEDIAN", "MID", "MIN", "MINIFS", "MOD", "NA", "NOT", "OR",
+    "PERCENTILE.INC", "REPT", "ROUND", "ROW", "ROWS", "SEQUENCE", "SORT", "SORTBY", "SUBSTITUTE", "SUM", "SUMIFS", "SUMPRODUCT", "TEXTJOIN", "TEXTSPLIT",
+    "TIMEVALUE", "TRANSPOSE", "TRIM", "UNIQUE", "UPPER", "VALUE", "XLOOKUP"}
+
+
+def test_the_formulas_use_only_the_excel_functions_allowed():
+    texts = [f for _t, _c, f in B.formula_rows()] + [str(r[5]) for r in B.chart_rows()]
+    used = {name for text in texts for name in re.findall(r"\b([A-Z][A-Z0-9.]*)\(", text)}
+    assert used - ALLOWED_FUNCTIONS == set(), sorted(used - ALLOWED_FUNCTIONS)
+
+
 def test_one_chart_row_per_chart_with_the_tokens_the_vba_replaces():
     rows = B.chart_rows()
     assert [r[0] for r in rows] == [c.name for c in D.CHARTS[:-1] + D.ITERATION_CHARTS + D.CHARTS[-1:]]   # the daily curve stays last

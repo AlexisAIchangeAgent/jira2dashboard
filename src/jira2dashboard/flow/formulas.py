@@ -362,11 +362,12 @@ _AT_END_LIST = (
     f't,TRANSPOSE(st+XLOOKUP(it,{_FLC}[Iteration-label],{_FLC}[DaysMeasured])+{HALF}),a,cfg_FlowLoadMode="A",'
     f'm,IF(a,({SI}[Counted]=1)*({SI}[EnteredUtc]<=t)*({SI}[LeftEff]>t)*({SI}[FirstStart]<>"")*({SI}[FirstStart]<=t),'
     f'({IF_}[StartUtc]<>"")*({IF_}[StartUtc]<=t)*({IF_}[EndUtc]>t)),'
-    f'code,TOCOL(IF(m,SEQUENCE(ROWS(m),COLUMNS(m)),NA()),2),rw,INT((code-1)/COLUMNS(m))+1,cl,MOD(code-1,COLUMNS(m))+1,'
-    f'key,CHOOSEROWS(IF(a,{SI}[Key],{IF_}[Key]),rw),team,CHOOSEROWS(IF(a,{SI}[Team],{IF_}[Team]),rw),iter,CHOOSEROWS(it,cl),start,CHOOSEROWS(st,cl),'
+    # the cells of m that hold 1, as numbers k = (row - 1) x w + column, flattened with INDEX (Excel 2021: no TOCOL, HSTACK, CHOOSEROWS...)
+    f'w,COLUMNS(m),k,SEQUENCE(ROWS(m)*w),code,FILTER(k,INDEX(m,INT((k-1)/w)+1,MOD(k-1,w)+1)),rw,INT((code-1)/w)+1,cl,MOD(code-1,w)+1,'
+    f'key,INDEX(IF(a,{SI}[Key],{IF_}[Key]),rw),team,INDEX(IF(a,{SI}[Team],{IF_}[Team]),rw),iter,INDEX(it,cl),start,INDEX(st,cl),'
     f'ok,XLOOKUP(iter&"|"&team,{_FLC}[Iteration-label]&"|"&{_FLC}[Team],{_FLC}[Reason],"x")="",'
-    f'lst,FILTER(HSTACK(iter,start,team,key,XLOOKUP(key,{IF_}[Key],{IF_}[Type]),XLOOKUP(key,{IF_}[Key],{IF_}[WorkTypeBucket])),ok),'
-    f'SORTBY(lst,CHOOSECOLS(lst,2),1,CHOOSECOLS(lst,3),1,CHOOSECOLS(lst,4),1)),"")')
+    f'lst,FILTER(CHOOSE({{1,2,3,4,5,6}},iter,start,team,key,XLOOKUP(key,{IF_}[Key],{IF_}[Type]),XLOOKUP(key,{IF_}[Key],{IF_}[WorkTypeBucket])),ok),'
+    f'SORTBY(lst,INDEX(lst,0,2),1,INDEX(lst,0,3),1,INDEX(lst,0,4),1)),"")')
 METRICITEMS_AT_END = (("Iteration", _AT_END_LIST), ("Start", ""), ("Team", ""), ("Key", ""), ("Type", ""), ("WorkTypeBucket", ""))
 METRICITEMS_BLOCKS = (METRICITEMS_DONE, METRICITEMS_LEFT_OUT, METRICITEMS_CUTOFF, METRICITEMS_AT_END)
 

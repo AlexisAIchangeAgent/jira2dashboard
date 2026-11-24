@@ -228,7 +228,8 @@ python.log). `tests/unit/test_claude_hooks.py` and `test_claude_skills.py` test 
   ActiveDays, WaitDays, UnclassifiedDays, WorkTypeBucket (2026-11-24); P.. done but not counted with the reason; W.. cut-off within 24 h; AC.. in process at the end of
   each iteration, the tickets behind FlowLoadEnd and DistWip: ONE spilled formula in its first column (the other columns have no formula: BuildMetricItems skips an empty
   one), an iterations x candidates matrix (mode A the intervals of StatusIntervals, mode B the tickets of ItemFlow, the rule of `FlowLoadCheck.AtEnd`), the pairs of a team
-  whose FlowLoadCheck.Reason is not "" left out; reference `metric_checks.in_process_at_end`; LET names `r`/`c` are refused by Excel (R1C1), use `rw`/`cl`), `modFlowBuild.BuildMetricItems`,
+  whose FlowLoadCheck.Reason is not "" left out, flattened with INDEX and CHOOSE (not TOCOL/HSTACK/CHOOSEROWS); reference `metric_checks.in_process_at_end`; LET names
+  `r`/`c` are refused by Excel (R1C1), use `rw`/`cl`; measured 0.043 s for the MetricItems step on 890 intervals, 0.040 s before), `modFlowBuild.BuildMetricItems`,
   python `trace.metric_items`; the rows of an iteration and team are its Velocity. **A reader of a list takes its column from `formulas.metricitems_column` /
   `metricitems_cell`** (the ledger of the Reconciliation, its cut-off control, `metric_blocks` of the Excel steps): a column added to a block moves the next blocks.
   The sheet `Reconciliation_from_excel` has the table `Reconciliation` (20 controls since 2026-11-24: + a start status per workflow kind with tickets, a Wait status, the Gap of the
@@ -529,6 +530,9 @@ then `mermaid.parse`), and check every `](#anchor)` link against the headings.
 - **The delivered VBA creates only `WinHttp.WinHttpRequest.5.1` and `Scripting.Dictionary`** (`tests/unit/test_delivered_vba_com_objects.py`): an endpoint
   protection reads `ADODB.Stream` (next to an HTTP client) and `MSXML2` (as a Base64 codec) as a downloader. UTF-8 and Base64 are plain VBA
   in `modText`; `modTests` keeps ADODB and MSXML only as the oracle of `T_Utf8Oracle` and `T_Base64Oracle`.
+- **Excel functions: only those of `tests/unit/test_blueprint.ALLOWED_FUNCTIONS`** (2026-11-24). The newest, TEXTSPLIT (lists of FeatureTypes since 2026-11-04),
+  needs Microsoft 365 / Excel 2024: the client's Excel has it (its Velocity counts through it). Every test runs on a current Microsoft 365, so a function the
+  client lacks only shows there as an empty list or a control to REVIEW (the IFERROR hides the #NAME?): add one to the list on purpose, after checking which Excel has it.
 - Excel formula traps: a formula typed in one cell of a table column fills the whole column (write key columns as values
   before creating the table); a structured reference to a column whose name contains `_` is refused; compare dates with a
   half-second margin; a blank result is `""`, never `0`. Load settings CSV writes dates as ISO text (`SafeCell`): a formula
