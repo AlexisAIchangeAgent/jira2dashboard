@@ -161,7 +161,8 @@ def test_the_headers_of_the_jira_sheets_are_those_the_vba_writes():
     assert header(vba, "JiraIssueTypes") == JW.ISSUE_TYPES_HEADER
     assert header(vba, "JiraWorkflows") == JW.WORKFLOWS_HEADER
     assert header(vba, "JiraTransitions") == JW.TRANSITIONS_HEADER
-    assert re.search(r'Array\("Workflow", "Status", "Category", "IsStart", "IsEnd", "IsFree", "Source"\)', extract) and len(STATUS_RULES_HEADER) == 7
+    found = re.findall(r'"StatusRules"\)+, Array\(([^)]*)\)', extract)
+    assert len(found) == 2 and all(tuple(re.findall(r'"([^"]*)"', f)) == STATUS_RULES_HEADER for f in found)      # both writers of the VBA
 
 
 def test_the_workflows_written_in_the_sheets_read_back_the_same():
@@ -172,6 +173,7 @@ def test_the_workflows_written_in_the_sheets_read_back_the_same():
                          workflow_of={("PRG", "Feature"): "WF-A", ("TEAM", "Story"): "WF-B"})
     rows = JW.sheet_rows(info)
     assert rows["JiraWorkflows"][0] == ("WF-A", "Open", "", "", "", 0, "", 1, "")                    # the creation status first, Initial 1
+    info = JW.from_sheets(rows["JiraIssueTypes"], rows["JiraWorkflows"], rows["JiraTransitions"])          # now with the statuses of each workflow
     assert ("", "Cancelled", "", "", "", 1, "", "", "") in rows["JiraWorkflows"]                     # a free status no workflow lists
     assert all(len(r) == len(JW.WORKFLOWS_HEADER) for r in rows["JiraWorkflows"])
     assert JW.from_sheets(rows["JiraIssueTypes"], rows["JiraWorkflows"], rows["JiraTransitions"]) == info
@@ -187,4 +189,15 @@ def test_the_sheets_written_by_the_vba_are_read_as_the_vba_reads_them():
     info = JW.from_sheets([("PRG", "Feature", "Flow", "no", 1.0, "company-managed"), (None, None, None, None, None, None)], workflows,
                           [("Flow", "To do", "Doing", "Start", "11", "DIRECTED", "PRG")])
     assert info == JiraWorkflows({"Flow": "To do"}, frozenset({("Flow", "To do", "Doing")}), frozenset({"Doing"}), frozenset({"Done"}),
-                                 {("PRG", "Feature"): "Flow"})
+                                 {("PRG", "Feature"): "Flow"}, {"Flow": ("To do", "Doing", "Done")})
+
+
+
+def test_the_jira_workflows_of_a_rule_are_those_of_its_kind_that_hold_its_status():
+    """The column JiraWorkflows of StatusRules: the same case as T_JiraWorkflowNames of modTests (the VBA twin)."""
+    from jira2dashboard.flow import jira_workflows as JW
+    info = JiraWorkflows(workflow_of={("PRG", "Feature"): "WF-P", ("TEAM", "Story"): "WF-T", ("TEAM2", "Story"): "WF-T2"},
+                         statuses={"WF-P": ("To do", "Doing"), "WF-T": ("To do",), "WF-T2": ("To do", "Doing"), "WF-X": ("Lost",)})
+    assert JW.jira_workflow_names(info, "PRG") == {("Feature", "To do"): "WF-P", ("Feature", "Doing"): "WF-P", ("Team", "To do"): "WF-T, WF-T2",
+                                                   ("Team", "Doing"): "WF-T2"}
+    assert JW.jira_workflow_names(JiraWorkflows(), "PRG") == {}

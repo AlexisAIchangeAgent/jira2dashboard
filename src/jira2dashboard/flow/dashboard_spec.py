@@ -76,8 +76,8 @@ STEPS_CELL = "T1"           # the first steps (manual.first_steps), right of the
 # Efficiency (a gap: never 0, never a guess). The value is written above the bar and the note under the chart says why.
 NO_ITEM_DONE = "no item was done in these iterations, so there is nothing to measure"
 # AL, 2026-11-22: the note names every cause of a gap, the start status first (a setting to fix; WhyNotInFlowTime of the sheet MetricItems says it per ticket)
-FLOW_TIME_REASON = ("no item was done in these iterations, or every done item was left out: no start status (IsStart, the sheet Workflows), no "
-                    "start after the backlog, or reopened (WhyNotInFlowTime, the sheet MetricItems)")
+FLOW_TIME_REASON = ("no item was done in these iterations, or every done item was left out: no start status (IsStart, the sheet Workflows), "
+                    "never in the start status, back to the backlog after it, or reopened (WhyNotInFlowTime, the sheet MetricItems)")
 EFFICIENCY_REASON = ("no item was done in these iterations, or every done item was left out (no start status: see Flow Time), or no status is "
                      "declared Wait (the sheet Workflows): Jira cannot say which in-progress statuses wait")
 LOAD_REASON = "the workflow of the team has no start status (IsStart, the sheet Workflows), or the iteration ends after the as-of date"

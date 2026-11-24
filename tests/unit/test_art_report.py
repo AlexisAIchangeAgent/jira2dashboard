@@ -74,7 +74,7 @@ def test_the_percentages_and_the_flow_figures_are_shown_as_a_reader_expects():
     assert flow[11][0] == "IT-2-6" and flow[11][1] == f"{NOT_COMPUTABLE} / {NOT_COMPUTABLE}"         # IT-2-6 releases nothing
     assert predictability[0][1] == "6 / 6 / 100.00 %"
     time_check, efficiency_check, _load, distribution = checks
-    assert time_check[0][1] == "1 / 0 / 0 / 0 / 1 / 0 / -" and efficiency_check[0][1] == "1 / 0 / 5 / 3 / 3 / 62.50 % / 0 / -"   # IT-1-1: one release
+    assert time_check[0][1] == "1 / 0 / 0 / 0 / 0 / 1 / 0 / -" and efficiency_check[0][1] == "1 / 0 / 5 / 3 / 3 / 62.50 % / 0 / -"   # IT-1-1: one release
     assert distribution[11][1] == "0 / 0 / 0 / 0 / 0 / 0 / 0 / no item done in the iteration / -"                              # IT-2-6: none
 
 

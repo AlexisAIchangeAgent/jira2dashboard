@@ -83,7 +83,10 @@ def test_why_a_done_ticket_is_not_in_the_flow_time():
     both = traced(ticket("W-3", [("2025-05-03T00:00", "Terminé"), ("2025-05-04T00:00", "En développement"), ("2025-05-06T00:00", "Terminé")]))
     clean = traced(ticket("W-4", [("2025-05-02T00:00", "En analyse"), ("2025-05-06T00:00", "Terminé")]))
     assert (straight.why_not_in_flow_time, reopened.why_not_in_flow_time, both.why_not_in_flow_time, clean.why_not_in_flow_time) == (
-        "No start after the backlog", "Reopened", "Reopened, No start after the backlog", "")
+        "Never entered the start status", "Reopened", "Reopened, Never entered the start status", "")
+    back = traced(ticket("W-5", [("2025-05-02T00:00", "En analyse"), ("2025-05-03T00:00", "Nouveau"), ("2025-05-04T00:00", "En développement"),
+                                 ("2025-05-06T00:00", "Terminé")]))
+    assert back.why_not_in_flow_time == "Back to the backlog after the start"                  # started, a Backlog status, no start again
 
 
 def test_a_done_ticket_whose_workflow_has_no_start_status_says_so():

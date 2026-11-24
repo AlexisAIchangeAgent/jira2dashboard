@@ -24,7 +24,7 @@ def _flat(values: tuple) -> tuple:
 # The accounting tables of the flow metrics (AL, 2026-11-22), the ART per iteration: (table, what it tells, columns, expected by label, the
 # position of a percentage). The oracle is the one the Excel scenarios assert, typed by hand in tests/art_oracle.py.
 CHECK_TABLES = (
-    ("FlowTimeCheck", "why the Flow Time is what it is", ("Done", "ExclReopened", "ExclNoStartRule", "ExclNotStarted", "Counted", "Gap", "Reason"),
+    ("FlowTimeCheck", "why the Flow Time is what it is", ("Done", "ExclReopened", "ExclNoStartRule", "ExclNeverStarted", "ExclBackToBacklog", "Counted", "Gap", "Reason"),
      FLOW_TIME_CHECK, None),
     ("FlowEfficiencyCheck", "why the Flow Efficiency is what it is",
      ("Counted", "WithUnclassified", "ActiveDays", "WaitDays", "WaitStatuses", "Efficiency", "Gap", "Reason"), FLOW_EFFICIENCY_CHECK, 5),

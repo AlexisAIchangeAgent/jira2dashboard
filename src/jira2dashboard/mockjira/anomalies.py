@@ -57,6 +57,8 @@ def known_anomalies(projects: tuple[str, ...]) -> dict[Issue, frozenset[str]]:
     clean = feature()                                               # a clean feature: the parent of the clean stories
     story(clean.key)                                                # a clean control
     story(clean.key, "DC09", "DC28", moves=(("2026-10-02T10:00", "Terminé"),))
+    # started, back to a Backlog status (Dépriorisé, free), then on without the start status: "Back to the backlog after the start" (AL, 2026-11-24)
+    story(clean.key, "DC09", "DC28", moves=(("2026-10-02T10:00", "En analyse"), ("2026-10-03T10:00", "Dépriorisé")) + CHAIN[3:])
     story(clean.key, "DC10", "DC28", moves=CHAIN + (("2026-10-09T10:00", "En développement"),))
     story(clean.key, "DC08", "DC28", moves=CHAIN[:1] + (("2026-10-03T10:00", "Statut inconnu"), ("2026-10-04T10:00", "En analyse")))     # a status of the history that no Jira source knows (the current one is known)
     story(clean.key, "DC07", moves=(("2026-09-30T10:00", "En analyse"), ("2026-10-02T10:00", "Prêt")))

@@ -18,6 +18,7 @@ class JiraWorkflows:
     starts: frozenset[str] = frozenset()                                       # the statuses that start a workflow (first in progress from creation)
     free: frozenset[str] = frozenset()                                         # the statuses a GLOBAL transition reaches
     workflow_of: dict[tuple[str, str], str] = field(default_factory=dict)      # (project, issue type) -> workflow name
+    statuses: dict[str, tuple[str, ...]] = field(default_factory=dict)         # workflow -> its statuses, in Jira's order (the rows of JiraWorkflows)
 
     def knows(self, workflow: str) -> bool:
         """True when the moves of this workflow were read: only then can a move be judged."""
@@ -62,10 +63,11 @@ def sheet_rows(info: JiraWorkflows) -> dict[str, list[tuple]]:
     start or free status that no workflow lists gets a row of its own with no workflow (FlaggedStatuses reads every row)."""
     types = [(project, kind, info.workflow_of[(project, kind)], "", "", "") for project, kind in sorted(info.workflow_of)]
     flows, listed = [], set()
-    for name in sorted(set(info.initial) | {wf for wf, _s, _t in info.moves}):
+    for name in list(info.statuses) + sorted((set(info.initial) | {wf for wf, _s, _t in info.moves}) - set(info.statuses)):
         first = info.initial.get(name)
-        others = sorted({s for wf, a, b in info.moves if wf == name for s in (a, b)} - {first})
-        for status in ([first] if first else []) + others:
+        moved = {s for wf, a, b in info.moves if wf == name for s in (a, b)}
+        known = list(info.statuses.get(name, ()))
+        for status in (known + sorted(moved - set(known)) if known else ([first] if first else []) + sorted(moved - {first})):
             flows.append((name, status, "", 1 if status in info.starts else "", "", 1 if status in info.free else 0, "", 1 if status == first else "", ""))
             listed.add(status)
     flows += [("", status, "", 1 if status in info.starts else "", "", 1 if status in info.free else 0, "", "", "")
@@ -89,4 +91,26 @@ def from_sheets(issue_types: list[tuple], workflows: list[tuple], transitions: l
     starts = frozenset(text(r[1]) for r in workflows if _flag(r[3]))
     free = frozenset(text(r[1]) for r in workflows if _flag(r[5]))
     moves = frozenset((text(r[0]), text(r[1]), text(r[2])) for r in transitions if text(r[0]))
-    return JiraWorkflows(initial, moves, starts, free, workflow_of)
+    statuses: dict[str, tuple[str, ...]] = {}
+    for r in workflows:
+        if text(r[0]) and text(r[1]):
+            statuses[text(r[0])] = statuses.get(text(r[0]), ()) + (text(r[1]),)
+    return JiraWorkflows(initial, moves, starts, free, workflow_of, statuses)
+
+
+def jira_workflow_names(info: JiraWorkflows, program: str) -> dict[tuple[str, str], str]:
+    """(kind, status) -> the Jira workflows of that kind that hold the status, joined by ", " in the order of the rows of JiraWorkflows: a workflow is
+    of kind Feature when an issue type of the Program project follows it (JiraIssueTypes), Team when one of another project does (both is possible).
+    The column JiraWorkflows of the sheet StatusRules; VBA modExtract.JiraWorkflowNames."""
+    kinds: dict[str, list[str]] = {}
+    for (project, _type), workflow in info.workflow_of.items():
+        kind = "Feature" if project == program else "Team"
+        if kind not in kinds.setdefault(workflow, []):
+            kinds[workflow].append(kind)
+    names: dict[tuple[str, str], list[str]] = {}
+    for workflow, statuses in info.statuses.items():
+        for status in statuses:
+            for kind in ("Feature", "Team"):
+                if kind in kinds.get(workflow, ()) and workflow not in names.setdefault((kind, status), []):
+                    names[(kind, status)].append(workflow)
+    return {key: ", ".join(value) for key, value in names.items() if value}

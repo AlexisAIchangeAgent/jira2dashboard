@@ -139,9 +139,10 @@ ITEMFLOW_COLUMNS = (
     ("DonePI", f'=IF([@DoneUtc]="","",IFERROR(INDEX(PIMetrics[PI],MATCH(1,IFERROR((PIMetrics[Start]-{HALF}<=[@DoneUtc])*([@DoneUtc]<PIMetrics[End]-{HALF}),0),0)),""))'),
     ("Account", f'=IF([@Team]="{OTHER_TYPES}","{T.ACCOUNT_OTHER}",IF([@DoneUtc]<>"",IF([@DoneIteration]<>"","{T.ACCOUNT_COUNTED}","{T.ACCOUNT_OUTSIDE}"),'
                 f'IF([@RemovedUtc]<>"","{T.ACCOUNT_REMOVED}","{T.ACCOUNT_OPEN}")))'),
-    # why a done ticket has no start: no IsStart status in the rules of its workflow (a setting), or none entered after its last backlog entry
+    # why a done ticket has no start: no IsStart status in the rules of its workflow (a setting), never in a start status, or back to the backlog
+    # after its start (FirstStartUtc: the first entry into a start status, ever)
     ("WhyNotInFlowTime", f'=IF([@Excluded]=0,"",TEXTJOIN(", ",TRUE,IF([@Reopened]>0,"{T.REOPENED}",""),IF([@SkippedStart]="Y",'
-                         f'IF({_starts_of("[@Workflow]")}=0,"{T.NO_START_RULE}","{T.NO_START}"),"")))'),
+                         f'IF({_starts_of("[@Workflow]")}=0,"{T.NO_START_RULE}",IF([@FirstStartUtc]="","{T.NEVER_STARTED}","{T.BACK_TO_BACKLOG}")),"")))'),
     ("BoundaryHours", '=IF([@DoneUtc]="","",MIN(MIN(ABS(Metrics[IterationStart]-[@DoneUtc])),MIN(ABS(Metrics[IterationEnd]-[@DoneUtc])))*24)'),
     # data checks: raw fields, helpers and one 0/1 column per check (check_formulas.py, reference in checks.py)
 ) + C.ITEMFLOW_CHECK_COLUMNS + (
@@ -246,23 +247,24 @@ VELOCITYCHECK_COLUMNS = (
 
 # --- the table FlowTimeCheck: why the Flow Time of each iteration and team is what it is (AL, 2026-11-22) ----------------------------------------
 # The keys of Metrics. Done counted again from the intervals (an open end status entered in the iteration: an independent path), the done items left
-# out of Flow Time each under ONE reason (reopened, then no start status in the rules, then no start after the backlog: WhyNotInFlowTime), Counted
+# out of Flow Time each under ONE reason (reopened, then no start status in the rules, never started, back to the backlog: WhyNotInFlowTime), Counted
 # = Metrics.FlowTimeCount, Gap = Done - the three - Counted (0), Reason in clear when the point is not computable. Reference: flow/metric_checks.py.
 FLOWTIMECHECK_KEYS = METRICS_KEYS
 FLOWTIMECHECK_COLUMNS = (
     ("Done", f"=COUNTIFS({_END_IN},{SI}[IsOpen],TRUE)"),
     ("ExclReopened", f'=COUNTIFS({DONE_IN},{IF_}[Reopened],">0")'),
     ("ExclNoStartRule", f'=COUNTIFS({DONE_IN},{IF_}[Reopened],0,{IF_}[WhyNotInFlowTime],"{T.NO_START_RULE}")'),
-    ("ExclNotStarted", f'=COUNTIFS({DONE_IN},{IF_}[Reopened],0,{IF_}[WhyNotInFlowTime],"{T.NO_START}")'),
+    ("ExclNeverStarted", f'=COUNTIFS({DONE_IN},{IF_}[Reopened],0,{IF_}[WhyNotInFlowTime],"{T.NEVER_STARTED}")'),
+    ("ExclBackToBacklog", f'=COUNTIFS({DONE_IN},{IF_}[Reopened],0,{IF_}[WhyNotInFlowTime],"{T.BACK_TO_BACKLOG}")'),
     ("Counted", "=SUMIFS(Metrics[FlowTimeCount],Metrics[Iteration-label],[@[Iteration-label]],Metrics[Team],[@Team])"),
-    ("Gap", "=[@Done]-[@ExclReopened]-[@ExclNoStartRule]-[@ExclNotStarted]-[@Counted]"),
+    ("Gap", "=[@Done]-[@ExclReopened]-[@ExclNoStartRule]-[@ExclNeverStarted]-[@ExclBackToBacklog]-[@Counted]"),
     ("Reason", f'=IF([@Counted]>0,"",IF([@Done]=0,"{MC.NO_ITEM}","{MC.ALL}"&[@Done]&"{MC.LEFT_OUT}"&TEXTJOIN(", ",TRUE,'
-               f'IF([@ExclNoStartRule]>0,[@ExclNoStartRule]&"{MC.NO_START_RULE}",""),IF([@ExclNotStarted]>0,[@ExclNotStarted]&"{MC.NOT_STARTED}",""),'
-               f'IF([@ExclReopened]>0,[@ExclReopened]&"{MC.REOPENED}",""))))'),
+               f'IF([@ExclNoStartRule]>0,[@ExclNoStartRule]&"{MC.NO_START_RULE}",""),IF([@ExclNeverStarted]>0,[@ExclNeverStarted]&"{MC.NEVER_STARTED}",""),'
+               f'IF([@ExclBackToBacklog]>0,[@ExclBackToBacklog]&"{MC.BACK_TO_BACKLOG}",""),IF([@ExclReopened]>0,[@ExclReopened]&"{MC.REOPENED}",""))))'),
     # the Reason without its counts: the note under the charts counts the points by cause (metric_checks.FlowTimeCheck.cause)
-    ("Cause", f'=IF([@Reason]="","",IF([@Done]=0,"{MC.NO_ITEM}","{MC.LEFT_OUT_CAUSE}"&IF(AND([@ExclNoStartRule]>=[@ExclNotStarted],'
-              f'[@ExclNoStartRule]>=[@ExclReopened]),"{MC.NO_START_RULE.strip()}",IF([@ExclNotStarted]>=[@ExclReopened],"{MC.NOT_STARTED.strip()}",'
-              f'"{MC.REOPENED.strip()}"))))'),
+    ("Cause", f'=IF([@Reason]="","",IF([@Done]=0,"{MC.NO_ITEM}","{MC.LEFT_OUT_CAUSE}"&LET(m,MAX([@ExclNoStartRule],[@ExclNeverStarted],'
+              f'[@ExclBackToBacklog],[@ExclReopened]),IF([@ExclNoStartRule]=m,"{MC.NO_START_RULE.strip()}",IF([@ExclNeverStarted]=m,'
+              f'"{MC.NEVER_STARTED.strip()}",IF([@ExclBackToBacklog]=m,"{MC.BACK_TO_BACKLOG.strip()}","{MC.REOPENED.strip()}"))))))'),
 )
 
 # --- the table FlowEfficiencyCheck: why the Flow Efficiency of each iteration and team is what it is (AL, 2026-11-22) ----------------------------

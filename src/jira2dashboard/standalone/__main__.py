@@ -41,7 +41,7 @@ from jira2dashboard.standalone.charts_svg import chart_pictures, iteration_chart
 from jira2dashboard.standalone.http_winhttp import JiraClient, WinHttp, took
 from jira2dashboard.standalone import check as C
 from jira2dashboard.standalone import recompute
-from jira2dashboard.standalone.mapping import Extract, FieldIds, extracted, interval_rows
+from jira2dashboard.standalone.mapping import Extract, FieldIds, extracted, interval_rows, program_project
 from jira2dashboard.standalone.params_book import config_values, read_params, run_settings
 from jira2dashboard.standalone.proxy import choose_proxy, detect_proxy
 from jira2dashboard.standalone.workflows import read_workflows
@@ -403,14 +403,14 @@ def finish(args, started: float, settings, extract, catalog: dict[str, str], inf
         Sheet(S.of("PIIntervals"), PIINTERVALS_RAW, R.piinterval_rows(extract.flow)),
         Sheet(S.of("IssueLinks"), ("Blocker", "Blocked"), extract.links),
         Sheet(S.of("Changelog"), CHANGELOG_RAW, extract.changelog),
-        *jira_sheets(catalog, info, settings.rules),
+        *jira_sheets(catalog, info, settings.rules, program_project(settings.projects)),
         Sheet(ERRORS_SHEET, ("TimeUtc", "Level", "Message"), collected.rows),
     ] + _masked(settings.sheets)
     write_xlsx(out, sheets_out)
     return out
 
 
-def jira_sheets(catalog: dict[str, str], info: JiraWorkflows, rules: Rules) -> list[Sheet]:
+def jira_sheets(catalog: dict[str, str], info: JiraWorkflows, rules: Rules, program: str) -> list[Sheet]:
     """What the run read of Jira's configuration, in the sheets and layout of the VBA (flow/jira_workflows), and the rules it made of them (StatusRules):
     a later `compute` reads the first four again, never StatusRules (it makes the rules again under the exceptions of Workflows)."""
     rows = JW.sheet_rows(info)
@@ -418,7 +418,7 @@ def jira_sheets(catalog: dict[str, str], info: JiraWorkflows, rules: Rules) -> l
             Sheet(S.of("JiraIssueTypes"), JW.ISSUE_TYPES_HEADER, rows["JiraIssueTypes"]),
             Sheet(S.of("JiraWorkflows"), JW.WORKFLOWS_HEADER, rows["JiraWorkflows"]),
             Sheet(S.of("JiraTransitions"), JW.TRANSITIONS_HEADER, rows["JiraTransitions"]),
-            Sheet(S.of("StatusRules"), STATUS_RULES_HEADER, status_rule_rows(rules.entries))]
+            Sheet(S.of("StatusRules"), STATUS_RULES_HEADER, status_rule_rows(rules.entries, JW.jira_workflow_names(info, program)))]
 
 
 RUN_SHEET = S.of("Run")                     # sheets of this path only: written by the tool, like the calculated ones

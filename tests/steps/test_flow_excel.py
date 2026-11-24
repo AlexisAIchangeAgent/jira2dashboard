@@ -644,12 +644,13 @@ def _flow_time_check_generated(world):
                                 team_iteration_metrics(world["items"], r["Team"], iterations[r["Iteration-label"]], "A", world["dataset"].as_of)) for r in got]
     for row, ref in zip(got, expected):
         for column, attribute in (("Done", "done"), ("ExclReopened", "excl_reopened"), ("ExclNoStartRule", "excl_no_start_rule"),
-                                  ("ExclNotStarted", "excl_not_started"), ("Counted", "counted"), ("Gap", "gap"), ("Reason", "reason"),
+                                  ("ExclNeverStarted", "excl_never_started"), ("ExclBackToBacklog", "excl_back_to_backlog"), ("Counted", "counted"),
+                                  ("Gap", "gap"), ("Reason", "reason"),
                                   ("Cause", "cause")):
             assert row[column] == getattr(ref, attribute), (ref.iteration, ref.team, column, row[column], getattr(ref, attribute))
     for row, metric in zip(got, metrics):
         assert (row["Reason"] == "") == (metric["FlowTimeMedian"] != "not computable"), (row, metric["FlowTimeMedian"])
-    assert all(r["Gap"] == 0 for r in got) and any(e.excl_reopened + e.excl_not_started > 0 for e in expected), expected[:6]
+    assert all(r["Gap"] == 0 for r in got) and any(e.excl_reopened + e.excl_never_started + e.excl_back_to_backlog > 0 for e in expected), expected[:6]
 
 
 @then("la table FlowEfficiencyCheck reproduit la référence Python sur les données générées")
@@ -759,6 +760,8 @@ def _trace_generated(world):
     assert wrong == [], wrong[:8]
     assert {"Done in an iteration", "Done outside the iterations", "Open"} <= accounts, accounts
     assert any(reasons - {""}), reasons                                                   # some done ticket is left out of the Flow Time, with its reason
+    from jira2dashboard.flow.trace import BACK_TO_BACKLOG, NEVER_STARTED                 # both causes of a missing start (the known anomalies hold one each)
+    assert {NEVER_STARTED, BACK_TO_BACKLOG} <= {part for reason in reasons for part in reason.split(", ")}, reasons
 
 
 def metric_blocks(wb):
@@ -1987,7 +1990,7 @@ def _art_flow_time_check_no_start(world):
 
 
 def art_flow_time_check(world, expected):
-    got = {r["Iteration-label"]: tuple(r[c] for c in ("Done", "ExclReopened", "ExclNoStartRule", "ExclNotStarted", "Counted", "Gap", "Reason"))
+    got = {r["Iteration-label"]: tuple(r[c] for c in ("Done", "ExclReopened", "ExclNoStartRule", "ExclNeverStarted", "ExclBackToBacklog", "Counted", "Gap", "Reason"))
            for r in art_table(world, "FlowTimeCheck") if r["Team"] == "ART"}
     assert got == expected, {k: (got.get(k), v) for k, v in expected.items() if got.get(k) != v}
 

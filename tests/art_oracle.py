@@ -103,8 +103,8 @@ NO_START_CONTROLS = {"Every workflow kind with tickets has a start status (IsSta
 # --- FlowTimeCheck (AL, 2026-11-22): why the Flow Time of each iteration of the ART is what it is. Every released Feature is counted (it went through
 # analyzing, a start status), nothing is left out; an iteration with no release says it. Without a start status (the variant above) every released
 # Feature is left out for that reason. Typed by hand from VELOCITY.
-FLOW_TIME_CHECK = {label: (v, 0, 0, 0, v, 0, "" if v else "no item done in the iteration") for label, v in VELOCITY.items()}
-FLOW_TIME_CHECK_NO_START = {label: (v, 0, v, 0, 0, 0, f"all {v} done items left out: {v} no start status in the rules (set IsStart in Workflows)"
+FLOW_TIME_CHECK = {label: (v, 0, 0, 0, 0, v, 0, "" if v else "no item done in the iteration") for label, v in VELOCITY.items()}
+FLOW_TIME_CHECK_NO_START = {label: (v, 0, v, 0, 0, 0, 0, f"all {v} done items left out: {v} no start status in the rules (set IsStart in Workflows)"
                                     if v else "no item done in the iteration") for label, v in VELOCITY.items()}
 
 # --- FlowEfficiencyCheck (AL, 2026-11-22): each released Feature spends FLOW_TIME_DAYS days between its start and its release, of which the share

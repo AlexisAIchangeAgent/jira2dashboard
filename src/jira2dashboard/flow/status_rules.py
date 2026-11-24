@@ -165,10 +165,12 @@ def rule_warnings(counts: Iterable[KindCounts], kinds_with_tickets: set[str]) ->
     return out
 
 
-STATUS_RULES_HEADER = ("Workflow", "Status", "Category", "IsStart", "IsEnd", "IsFree", "Source")    # modExtract.RulesInit / RefreshRules
+STATUS_RULES_HEADER = ("Workflow", "Status", "Category", "IsStart", "IsEnd", "IsFree", "Source", "JiraWorkflows")    # modExtract (both writers)
 
 
-def status_rule_rows(rules: Iterable[Rule]) -> list[tuple]:
-    """The sheet StatusRules: the Feature rules then the Team ones, by status (the order of modParams.EffectiveRules(Array("Feature", "Team")))."""
-    return [(r.workflow, r.status, r.category, r.is_start, r.is_end, r.is_free, r.source)
+def status_rule_rows(rules: Iterable[Rule], names: dict[tuple[str, str], str] | None = None) -> list[tuple]:
+    """The sheet StatusRules: the Feature rules then the Team ones, by status (the order of modParams.EffectiveRules(Array("Feature", "Team"))); the
+    last column, the Jira workflows that hold the status (jira_workflows.jira_workflow_names)."""
+    names = names or {}
+    return [(r.workflow, r.status, r.category, r.is_start, r.is_end, r.is_free, r.source, names.get((r.workflow, r.status), ""))
             for r in sorted(rules, key=lambda r: (r.workflow != "Feature", r.status))]

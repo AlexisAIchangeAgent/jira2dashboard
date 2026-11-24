@@ -7,8 +7,9 @@ For each ticket of ItemFlow:
   Velocity, Flow Time, Flow Efficiency and Flow Distribution), done outside the iterations, left out because it is not a Feature (the team
   "ART (other types)"), removed, open;
 * WhyNotInFlowTime: "Reopened" and / or why it has no start, the reasons that leave a done ticket out of Flow Time and Flow Efficiency: "No start
-  status in the rules" (its workflow has no IsStart status: a setting to fix, AL 2026-11-22) or "No start after the backlog" (it never entered a
-  start status after its last backlog entry: a fact of the data);
+  status in the rules" (its workflow has no IsStart status: a setting to fix, AL 2026-11-22), "Never entered the start status" (it skipped it, or
+  was created after it) or "Back to the backlog after the start" (it started, went back to a Backlog status, never started again: the SAFe Program
+  Backlog between Analyzing and Implementing; AL 2026-11-24);
 * BoundaryHours: how many hours its DoneUtc is from the nearest iteration boundary (cut-off test: a ticket done a few hours from a boundary is the
   one that could fall on the other side).
 Excel: the columns of ItemFlow (formulas.ITEMFLOW_COLUMNS), the lists of the sheet MetricItems and the table Reconciliation are built on them.
@@ -25,7 +26,8 @@ ACCOUNT_OTHER = "Left out: not a Feature"
 ACCOUNT_REMOVED = "Removed"
 ACCOUNT_OPEN = "Open"
 ACCOUNTS = (ACCOUNT_COUNTED, ACCOUNT_OUTSIDE, ACCOUNT_OTHER, ACCOUNT_REMOVED, ACCOUNT_OPEN)
-REOPENED, NO_START_RULE, NO_START = "Reopened", "No start status in the rules", "No start after the backlog"
+REOPENED, NO_START_RULE = "Reopened", "No start status in the rules"
+NEVER_STARTED, BACK_TO_BACKLOG = "Never entered the start status", "Back to the backlog after the start"
 
 
 @dataclass(frozen=True)
@@ -54,7 +56,7 @@ def account(item: ItemFlow, in_iteration: bool) -> str:
 
 def why_not_in_flow_time(item: ItemFlow) -> str:
     """The reasons of ItemFlow.excluded_from_flow_time, reopened first; "" for a ticket that Flow Time does not leave out."""
-    no_start = NO_START if item.start_rule else NO_START_RULE
+    no_start = NO_START_RULE if not item.start_rule else NEVER_STARTED if item.first_start is None else BACK_TO_BACKLOG
     return ", ".join(reason for reason, applies in ((REOPENED, item.reopened > 0), (no_start, item.skipped_start)) if applies)
 
 

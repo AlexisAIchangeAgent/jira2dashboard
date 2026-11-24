@@ -212,7 +212,9 @@ python.log). `tests/unit/test_claude_hooks.py` and `test_claude_skills.py` test 
   `modJiraConfig.ReadWorkflowRules` at an extraction that has no such sheet), IsFree = GLOBAL transition. Sources, in order: the exception, the catalog of every status of the instance
   (`ReadStatusCatalog`, GET `statuses/search`, sheet `JiraStatusCatalog`, tolerant of a refusal), the category Jira gives each ticket's CURRENT status; a status that none knows stays
   `Unclassified` (a retired workflow's status in a history). `modExtract.RulesInit` merges them once per run and writes the sheet `StatusRules_from_excel` (Workflow | Status | Category |
-  IsStart | IsEnd | IsFree | Source Jira/user); `StatusIntervals.Category` still comes from it at extraction time, and the formulas `IsStart/IsEnd/BadMove` read it (letters A..F as the old
+  IsStart | IsEnd | IsFree | Source Jira/user | JiraWorkflows: AL 2026-11-24, the Jira workflows of the kind that hold the status, from JiraIssueTypes and
+  JiraWorkflows in the order of its rows, `modExtract.JiraWorkflowNames` = `jira_workflows.jira_workflow_names`; the sheet Workflows keeps the KINDS Feature
+  / Team, AL's choice; `JiraWorkflows.statuses` keeps the statuses of each workflow); `StatusIntervals.Category` still comes from it at extraction time, and the formulas `IsStart/IsEnd/BadMove` read it (letters A..F as the old
   Workflows layout). Flow Efficiency is `not computable` without a status declared Wait (`Rules.waits`, formula `COUNTIF(StatusRules...,"Wait")`, `dashboard_spec.EFFICIENCY_REASON`).
   The Python path asks the same catalog (`JiraClient.status_catalog`) but not the workflows (no start / free from Jira there: the exceptions give them). The delivered
   `params/workflows.md` stays as a complete example. **The workflow of each ticket (AL, 2026-11-18)**: the extraction without a sheet `JiraWorkflows` reads the projects and the
@@ -250,7 +252,8 @@ python.log). `tests/unit/test_claude_hooks.py` and `test_claude_skills.py` test 
   `FlowDistCheck` (sheets `..._from_excel`; `FlowDistributionCheck_from_excel` would pass the 31 characters of an Excel sheet name), the keys of `Metrics`, reference
   `flow/metric_checks.py`, the same sheets in the Python path. Each holds a funnel of counts, a `Gap` between TWO INDEPENDENT paths (always 0: a recount of the same ItemFlow
   column would be 0 by construction and no mutation could fail it) and a `Reason` that is "" exactly where the metric is computable (the Excel scenarios assert it against
-  `Metrics`). Flow Time: Done recounted from the intervals minus the left-out items (reopened / no start status in the rules / no start after the backlog) vs `FlowTimeCount`.
+  `Metrics`). Flow Time: Done recounted from the intervals minus the left-out items (reopened / no start status in the rules / never entered the start status / back to the backlog after the start: AL 2026-11-24, the SAFe Program
+  Backlog between Analyzing and Implementing; columns ExclNeverStarted, ExclBackToBacklog; a known anomaly holds one) vs `FlowTimeCount`.
   Flow Efficiency: Active and Wait days summed from `StatusIntervals` (`InCycle`) vs `ItemFlow`. Flow Load: the load at the end by SUMPRODUCT (mode A over `StatusIntervals`,
   B over `ItemFlow`) vs the COUNTIFS of `DailyLoad`; reasons no start status, every day after AsOf. Flow Distribution: COUNTIFS on the RAW `ItemFlow.WorkType` vs
   `DistDone* x Velocity` (in Python both sides go through `work_type_bucket`: there the Gap is 0 by construction, only Excel's is a real check), a `Note` when every done item is Unmapped (WorkTypeField empty, or no known work type). **The work-type bucket ignores case and keeps the canonical
@@ -403,7 +406,7 @@ python.log). `tests/unit/test_claude_hooks.py` and `test_claude_skills.py` test 
   The cause they name most: no IsStart status (Jira's workflows not read, none in Workflows) leaves every done ticket without StartUtc: Flow Time, Flow Efficiency
   and Flow Load not computable while Velocity counts; the log says it at the extraction (`INFO status rules | Feature: start n, active n, wait n, end n | Team: ...`,
   `WARN J2D-FLOW-010` / `J2D-FLOW-011`), `IsUserProjectAdmin` False skips Jira's workflows at the extraction too, a refusal is `WARN J2D-JIRA-030`; `WhyNotInFlowTime`
-  says "No start status in the rules" or "No start after the backlog"; Flow Load is not computable (DailyLoad empty, never a false 0) when the workflow of the team
+  says "No start status in the rules", "Never entered the start status" (FirstStartUtc empty) or "Back to the backlog after the start"; Flow Load is not computable (DailyLoad empty, never a false 0) when the workflow of the team
   has no start status. Numbers and status names only, never a value of a ticket; it never raises. The synchronous `ExtractAndCompute` (tests) does not write it. The fake data holds tickets
   done before the first iteration of the scenarios (9 of 26 on 2026-11-13): a "clean run" assertion checks the other fields (`Column types` included) only.
 - **Column types of the raw sheets (AL, 2026-11-15).** After v0.7.0 wrote an empty date column and nobody saw it, the first FILLED cell of each column written from Jira

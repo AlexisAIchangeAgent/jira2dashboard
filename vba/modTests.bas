@@ -50,7 +50,7 @@ Private Function TestNames() As Variant
     TestNames = Array("T_JsonNested", "T_JsonEscapes", "T_JsonEmpty", "T_JsonErrors", "T_JsonRoundTrip", _
         "T_JsonLarge", "T_Base64Auth", "T_UrlEncode", "T_Utf8RoundTrip", "T_JiraDates", "T_FieldToCell", _
         "T_SafeCell", "T_ProjectsJql", "T_SearchUrl", "T_SearchPagination", "T_Retry429", _
-        "T_HttpNetworkAndCancel", "T_RetryExhausted", "T_ChangelogChunks", "T_IssueRows", "T_WriteTable", "T_StatusIntervals", "T_IntervalsUnreadableDate", "T_StatusChangesUnreadableDate", "T_ChangelogRows", "T_UserFieldIds", "T_DateShape", "T_ParseJiraDateEpoch", "T_DateKind", "T_IsPlausibleDate", "T_FindDateKey", "T_ChangelogDateKey", "T_SkippedDatesWarning", "T_SheetName", "T_ProposeFromSheets", "T_ProposeIterations", "T_ReadSprints", "T_TeamNames", "T_ReadStatusCatalog", "T_ReadWorkflowRules", "T_ReadLinkTypes", "T_ProposeTypes", "T_ProposeValuesNotAdmin", "T_HealthFields", "T_StatusRules", "T_RefreshRules", "T_WorkflowExceptions", "T_NotFeatures", "T_ReconciliationFindings", "T_CellKind", "T_FitsType", "T_ShapeOfCell", "T_TypeHints", "T_TypeProblems", "T_TypeEmptyTable", "T_TypeBlocks", "T_TypeFillLines", "T_WireTypes", _
+        "T_HttpNetworkAndCancel", "T_RetryExhausted", "T_ChangelogChunks", "T_IssueRows", "T_WriteTable", "T_StatusIntervals", "T_IntervalsUnreadableDate", "T_StatusChangesUnreadableDate", "T_ChangelogRows", "T_UserFieldIds", "T_DateShape", "T_ParseJiraDateEpoch", "T_DateKind", "T_IsPlausibleDate", "T_FindDateKey", "T_ChangelogDateKey", "T_SkippedDatesWarning", "T_SheetName", "T_ProposeFromSheets", "T_ProposeIterations", "T_ReadSprints", "T_TeamNames", "T_ReadStatusCatalog", "T_ReadWorkflowRules", "T_ReadLinkTypes", "T_ProposeTypes", "T_ProposeValuesNotAdmin", "T_HealthFields", "T_StatusRules", "T_JiraWorkflowNames", "T_RefreshRules", "T_WorkflowExceptions", "T_NotFeatures", "T_ReconciliationFindings", "T_CellKind", "T_FitsType", "T_ShapeOfCell", "T_TypeHints", "T_TypeProblems", "T_TypeEmptyTable", "T_TypeBlocks", "T_TypeFillLines", "T_WireTypes", _
         "T_StatusChanges", "T_RetryDelay", "T_SafeAccess", "T_FilesUtf8", "T_StringifyBadObject", _
         "T_TooManyPages", "T_BackgroundExport", "T_TextNotConverted", "T_ParamsTables", "T_ParamsOnWorkbook", _
         "T_TrimWhite", "T_ConfigSheet", "T_MandatoryConfig", "T_Locked", "T_PiIntervals", "T_ProxyDetect", "T_ProxyScript", "T_ProjectsSheet", "T_StatusNames", "T_ParseMoment", "T_ExtractFlowData", "T_ExtractJob", "T_ExtractCheckFields", "T_FlowBuild", "T_BaseUrlHttps", "T_Log", "T_LogInputsAndTimes", "T_StatusParts", "T_ErrorCodes", "T_LogHintAndOpen", "T_StepsSheet", "T_RovoPrompt", "T_RovoCsv", _
@@ -2820,6 +2820,28 @@ Private Function Moves(ParamArray pairs() As Variant) As Collection
     Next i
     Set Moves = out
 End Function
+
+Public Sub T_JiraWorkflowNames()
+    ' The column JiraWorkflows of StatusRules (flow/jira_workflows.jira_workflow_names, the same case in tests/unit/test_jira_workflows.py): PRG is
+    ' the Program; WF-T and WF-T2 are both Team workflows that hold "To do": joined in the order of the rows; a workflow no issue type follows is no one's.
+    Dim types(1 To 4, 1 To 3) As Variant, flows(1 To 7, 1 To 2) As Variant, names As Object
+    types(1, 1) = "Project": types(1, 2) = "IssueType": types(1, 3) = "Workflow"
+    types(2, 1) = "PRG": types(2, 2) = "Feature": types(2, 3) = "WF-P"
+    types(3, 1) = "TEAM": types(3, 2) = "Story": types(3, 3) = "WF-T"
+    types(4, 1) = "TEAM2": types(4, 2) = "Story": types(4, 3) = "WF-T2"
+    flows(1, 1) = "Workflow": flows(1, 2) = "Status"
+    flows(2, 1) = "WF-P": flows(2, 2) = "To do"
+    flows(3, 1) = "WF-P": flows(3, 2) = "Doing"
+    flows(4, 1) = "WF-T": flows(4, 2) = "To do"
+    flows(5, 1) = "WF-T2": flows(5, 2) = "To do"
+    flows(6, 1) = "WF-T2": flows(6, 2) = "Doing"
+    flows(7, 1) = "WF-X": flows(7, 2) = "Lost"
+    Set names = JiraWorkflowNames(types, 3, flows, 6, "PRG")
+    Check "jiraworkflows", "Feature: the Program's workflow; Team: the workflows of the team projects, in the order of the rows", _
+          "Feature|To do, Feature|Doing, Team|To do, Team|Doing, count", "WF-P|WF-P|WF-T, WF-T2|WF-T2|4", _
+          names("Feature|To do") & "|" & names("Feature|Doing") & "|" & names("Team|To do") & "|" & names("Team|Doing") & "|" & names.Count
+    Check "jiraworkflows", "no workflow read: no name", "0 rows", 0, JiraWorkflowNames(types, 3, flows, 0, "PRG").Count
+End Sub
 
 Public Sub T_StatusRules()
     ' The same cases as tests/unit/test_status_rules.py: the two sides must agree.

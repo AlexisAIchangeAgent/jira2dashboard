@@ -17,7 +17,7 @@ WARNING = "J2D-JIRA-030 | the workflows of Jira could not be read (%s): the star
 
 
 def parse_preview(answer: dict, project: str, type_names: dict[str, str], workflow_of: dict, seen: set, initial: dict, moves: set,
-                  starts: set, free: set) -> None:
+                  starts: set, free: set, statuses: dict | None = None) -> None:
     """One preview answer: (project, issue type) -> workflow name from the query contexts and, for a workflow not met yet (by its id, else its name), its
     creation status, moves, start and free statuses. A statusReference is valid only inside its answer: it is turned into a status name here."""
     names = {s.get("statusReference"): s.get("name") or "" for s in answer.get("statuses") or []}
@@ -32,6 +32,8 @@ def parse_preview(answer: dict, project: str, type_names: dict[str, str], workfl
         if ident in seen:
             continue                                                     # a workflow shared by several projects is read once
         seen.add(ident)
+        if statuses is not None:                                         # the statuses of the workflow, in Jira's order (the rows of JiraWorkflows)
+            statuses[name] = tuple(names.get(s.get("statusReference"), "") for s in wf.get("statuses") or [])
         edges, free_here = [], set()
         for t in wf.get("transitions") or []:
             target = names.get(t.get("toStatusReference"), t.get("toStatusReference") or "")
@@ -53,7 +55,7 @@ def parse_preview(answer: dict, project: str, type_names: dict[str, str], workfl
 def read_workflows(client, keys: list[str]) -> JiraWorkflows:
     """The JiraWorkflows of the projects `keys` (empty when Jira says nothing: no right, an unreadable answer). A project whose preview Jira refuses
     (401, 403, 404) is counted and the next one is read, as the VBA does; another error stops the reading. One WARN line says either."""
-    workflow_of, seen, initial, moves, starts, free, refused = {}, set(), {}, set(), set(), set(), 0
+    workflow_of, seen, initial, moves, starts, free, refused, statuses = {}, set(), {}, set(), set(), set(), 0, {}
     try:
         for first in range(0, len(keys), KEYS_PER_CALL):
             start = 0
@@ -69,7 +71,7 @@ def read_workflows(client, keys: list[str]) -> JiraWorkflows:
                         for n in range(0, len(ids), TYPES_PER_PREVIEW):
                             body = json.dumps({"projectId": str(project.get("id")), "issueTypeIds": ids[n:n + TYPES_PER_PREVIEW]}).encode("utf-8")
                             answer = client.call("POST", "/rest/api/3/workflows/preview", "workflows", body)
-                            parse_preview(answer, project.get("key") or "", types, workflow_of, seen, initial, moves, starts, free)
+                            parse_preview(answer, project.get("key") or "", types, workflow_of, seen, initial, moves, starts, free, statuses)
                     except J.JiraError as err:
                         if err.support_code not in REFUSED:
                             raise
@@ -82,4 +84,4 @@ def read_workflows(client, keys: list[str]) -> JiraWorkflows:
     else:
         if refused:
             log.warning(WARNING, f"{refused} project(s) refused")
-    return JiraWorkflows(initial, frozenset(moves), frozenset(starts), frozenset(free), workflow_of)
+    return JiraWorkflows(initial, frozenset(moves), frozenset(starts), frozenset(free), workflow_of, statuses)

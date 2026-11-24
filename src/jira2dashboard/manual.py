@@ -68,6 +68,8 @@ def manual(mandatory: tuple[str, ...]) -> list[tuple[str, str]]:
             f"{ITERATIONS}: Iteration-label, Start, End (End excluded, UTC). {PIS}: PI, Start, End, with names such as PI#01-2026.",
             f"{WORKFLOWS}: the exceptions to what Jira says (an empty cell takes Jira's value): Category = Wait for a status that waits (Jira has "
             "no such category), Removed for a Done status that is no delivery, IsStart = 1 when Jira's workflows cannot be read.",
+            "Its column Workflow is a kind, not a Jira name: Feature = the tickets of the Program project, Team = those of the Team projects, empty "
+            f"= both. The real Jira workflows of each status are in {STATUS_RULES}, column JiraWorkflows.",
             f"{TRANSITIONS}: extra moves to allow in the data check of the moves, when Jira's workflows cannot be read.",
         ]),
         (f'Button "{ROVO_CAPTION}"', [
@@ -135,8 +137,8 @@ def manual(mandatory: tuple[str, ...]) -> list[tuple[str, str]]:
             "not computable; Cause is the same without the counts.",
             f"{S.of('VelocityCheck')}: why the Velocity differs from Jira's count of the changes into an end status (created done, closed then "
             "reopened, other types of the Program).",
-            f"{S.of('FlowTimeCheck')}: the done items, then those left out of Flow Time (reopened, no start status in the rules, no start after "
-            "the backlog).",
+            f"{S.of('FlowTimeCheck')}: the done items, then those left out of Flow Time: no start status in the rules, never entered the start "
+            "status, back to the backlog after the start (a To Do status after it: declare a later status IsStart, or the backlog one Wait), reopened.",
             f"{S.of('FlowEfficiencyCheck')}: the active and wait days, the Wait statuses declared. {S.of('FlowLoadCheck')}: the days measured, the "
             f"start statuses, the load at the end. {S.of('FlowDistCheck')}: the done items per work type, Unmapped.",
             f"4. {METRIC_ITEMS}: the tickets behind each figure, four lists side by side. Done in an iteration (filter Iteration and Team: the rows "

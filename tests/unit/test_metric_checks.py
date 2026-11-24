@@ -43,21 +43,35 @@ def check(rules=RULES, iteration=I1, team="ART", metric=None):
 
 
 def test_the_done_items_are_the_counted_ones_and_the_left_out_ones_each_under_one_reason():
-    assert check() == MC.FlowTimeCheck("I1", "ART", done=4, excl_reopened=1, excl_no_start_rule=0, excl_not_started=1, counted=2, gap=0, reason="")
+    assert check() == MC.FlowTimeCheck("I1", "ART", done=4, excl_reopened=1, excl_no_start_rule=0, excl_never_started=1, excl_back_to_backlog=0,
+                                       counted=2, gap=0, reason="")
 
 
 def test_without_a_start_status_in_the_rules_every_done_item_is_left_out_and_the_reason_says_what_to_set():
     got = check(NO_START)
-    assert (got.done, got.excl_reopened, got.excl_no_start_rule, got.excl_not_started, got.counted, got.gap) == (4, 1, 3, 0, 0, 0)
+    assert (got.done, got.excl_reopened, got.excl_no_start_rule, got.excl_never_started, got.excl_back_to_backlog, got.counted, got.gap) == (
+        4, 1, 3, 0, 0, 0, 0)
     assert got.reason == "all 4 done items left out: 3 no start status in the rules (set IsStart in Workflows), 1 reopened"
 
 
+def test_a_done_item_that_went_back_to_the_backlog_after_its_start_is_told_apart_from_one_that_never_started():
+    """AL, 2026-11-24: B-1 starts (En analyse), goes back to Nouveau (Backlog), then En développement (no start status): back to the backlog. S-1 goes
+    from Nouveau to Terminé: never entered the start status."""
+    back = ticket("B-1", [("2025-05-02T00:00", "En analyse"), ("2025-05-03T00:00", "Nouveau"), ("2025-05-04T00:00", "En développement"),
+                          ("2025-05-06T00:00", "Terminé")])
+    issues = [back, ISSUES[3]]
+    items = [item_flow(i, AS_OF, RULES) for i in issues]
+    got = MC.flow_time_check(issues, items, I1, "ART", RULES, team_iteration_metrics(items, "ART", I1, "A", AS_OF))
+    assert (got.excl_never_started, got.excl_back_to_backlog, got.counted, got.gap) == (1, 1, 0, 0)
+    assert got.reason == "all 2 done items left out: 1 never entered the start status, 1 back to the backlog after the start"
+
+
 def test_an_iteration_with_nothing_done_says_so():
-    assert check(iteration=EMPTY) == MC.FlowTimeCheck("I9", "ART", 0, 0, 0, 0, 0, 0, "no item done in the iteration")
+    assert check(iteration=EMPTY) == MC.FlowTimeCheck("I9", "ART", 0, 0, 0, 0, 0, 0, 0, "no item done in the iteration")
 
 
 def test_another_team_is_counted_apart():
-    assert check(team="Beta") == MC.FlowTimeCheck("I1", "Beta", 1, 0, 0, 0, 1, 0, "")
+    assert check(team="Beta") == MC.FlowTimeCheck("I1", "Beta", 1, 0, 0, 0, 0, 1, 0, "")
 
 
 def test_a_wrong_count_of_the_metric_shows_in_the_gap():
@@ -69,8 +83,9 @@ def test_a_wrong_count_of_the_metric_shows_in_the_gap():
 
 
 def test_the_reason_lists_the_causes_in_their_order_and_only_the_ones_that_apply():
-    assert MC.flow_time_reason(5, 2, 0, 3, 0) == "all 5 done items left out: 3 no start after the backlog, 2 reopened"
-    assert MC.flow_time_reason(5, 2, 0, 3, 1) == "" and MC.flow_time_reason(0, 0, 0, 0, 0) == MC.NO_ITEM
+    assert MC.flow_time_reason(6, 2, 0, 3, 1, 0) == ("all 6 done items left out: 3 never entered the start status, 1 back to the backlog after the "
+                                                     "start, 2 reopened")
+    assert MC.flow_time_reason(5, 2, 0, 3, 0, 1) == "" and MC.flow_time_reason(0, 0, 0, 0, 0, 0) == MC.NO_ITEM
 
 
 # --- FlowEfficiencyCheck: a small workflow typed here (Nouveau backlog, Analyse active and start, Attente wait, Fini done and end) ---------
@@ -206,9 +221,10 @@ def test_the_tickets_in_process_at_the_end_are_those_flowloadcheck_counts_and_no
 def test_the_cause_of_a_flow_time_point_is_its_largest_reason_without_the_counts():
     assert check().cause == "" and check(iteration=EMPTY).cause == MC.NO_ITEM
     assert check(NO_START).cause == "every done item left out, mostly: no start status in the rules (set IsStart in Workflows)"     # 3 of 4
-    assert MC.FlowTimeCheck("I", "T", 5, 2, 0, 3, 0, 0, "x").cause == "every done item left out, mostly: no start after the backlog"
-    assert MC.FlowTimeCheck("I", "T", 4, 2, 0, 2, 0, 0, "x").cause.endswith("no start after the backlog")         # equal: the order of the Reason
-    assert MC.FlowTimeCheck("I", "T", 4, 3, 0, 1, 0, 0, "x").cause.endswith("reopened")
+    assert MC.FlowTimeCheck("I", "T", 5, 2, 0, 3, 0, 0, 0, "x").cause == "every done item left out, mostly: never entered the start status"
+    assert MC.FlowTimeCheck("I", "T", 5, 1, 0, 1, 3, 0, 0, "x").cause.endswith("back to the backlog after the start")
+    assert MC.FlowTimeCheck("I", "T", 4, 2, 0, 2, 0, 0, 0, "x").cause.endswith("never entered the start status")   # equal: the order of the Reason
+    assert MC.FlowTimeCheck("I", "T", 4, 3, 0, 1, 0, 0, 0, "x").cause.endswith("reopened")
 
 
 def test_the_cause_of_a_flow_efficiency_point_drops_the_count_of_the_unclassified_items():

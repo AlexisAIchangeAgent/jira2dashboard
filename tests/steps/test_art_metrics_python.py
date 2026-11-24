@@ -204,8 +204,8 @@ def _flow_time_check_no_start(world):
 
 
 def flow_time_check_of(world, expected):
-    got = {r["Iteration-label"]: tuple(r[c] if r[c] is not None else "" for c in ("Done", "ExclReopened", "ExclNoStartRule", "ExclNotStarted",
-                                                                                    "Counted", "Gap", "Reason"))
+    got = {r["Iteration-label"]: tuple(r[c] if r[c] is not None else "" for c in ("Done", "ExclReopened", "ExclNoStartRule", "ExclNeverStarted",
+                                                                                    "ExclBackToBacklog", "Counted", "Gap", "Reason"))
            for r in sheet(world, "FlowTimeCheck") if r["Team"] == "ART"}
     assert got == expected, {k: (got.get(k), v) for k, v in expected.items() if got.get(k) != v}
 

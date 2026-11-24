@@ -213,7 +213,7 @@ def flowtimecheck_rows(results: Results, s: RunSettings) -> list[tuple]:
     """The rows of FlowTimeCheck (formulas.FLOWTIMECHECK_COLUMNS), one per iteration and team, in the order of Metrics."""
     iterations = {p.name: p for p in s.iterations}
     return [(r.iteration, iterations[r.iteration].start, iterations[r.iteration].end, r.team, r.done, r.excl_reopened, r.excl_no_start_rule,
-             r.excl_not_started, r.counted, r.gap, r.reason, r.cause) for r in results.flow_time_check]
+             r.excl_never_started, r.excl_back_to_backlog, r.counted, r.gap, r.reason, r.cause) for r in results.flow_time_check]
 
 
 def flowefficiencycheck_rows(results: Results, s: RunSettings) -> list[tuple]:

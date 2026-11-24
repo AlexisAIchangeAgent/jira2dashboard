@@ -162,6 +162,6 @@ def test_the_rules_keep_their_source_for_the_sheet_status_rules_feature_first():
     from jira2dashboard.flow.model import Rules
     from jira2dashboard.flow.status_rules import status_rule_rows
     rows = status_rule_rows(Rules.from_params(catalog={"Doing": "indeterminate"}).entries)
-    assert rows and rows[0][0] == "Feature" and {r[6] for r in rows} <= {"Jira", "user"}
+    assert rows and rows[0][0] == "Feature" and {r[6] for r in rows} <= {"Jira", "user"} and {r[7] for r in rows} == {""}
     kinds = [r[0] for r in rows]
     assert kinds == sorted(kinds, key=lambda k: k != "Feature")

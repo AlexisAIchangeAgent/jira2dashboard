@@ -537,7 +537,8 @@ Public Sub RefreshRules(ByVal wb As Object)
     End If
     Set rules = EffectiveRules(Array("Feature", "Team"), catalog, current, starts, frees, WorkflowExceptions(wb.Worksheets(SheetName("Workflows"))))
     LogRules rules, kinds
-    WriteTable wb.Worksheets(SheetName("StatusRules")), Array("Workflow", "Status", "Category", "IsStart", "IsEnd", "IsFree", "Source"), rules
+    WriteTable wb.Worksheets(SheetName("StatusRules")), Array("Workflow", "Status", "Category", "IsStart", "IsEnd", "IsFree", "Source", "JiraWorkflows"), _
+               RulesWithJiraWorkflows(wb, rules)
     LogEnd "status rules: " & rules.Count & " rules, " & catalog.Count & " statuses in the catalog"
     RefreshIntervals wb, rules, projectOf, program, asOf
 End Sub
@@ -595,6 +596,53 @@ Private Function SheetData(ByVal wb As Object, ByVal name As String, ByRef n As 
     If last < 2 Or lastCol < 2 Then Exit Function
     n = last - 1
     SheetData = ws.Range(ws.Cells(1, 1), ws.Cells(last, lastCol)).Value
+End Function
+
+Private Function RulesWithJiraWorkflows(ByVal wb As Object, ByVal rules As Collection) As Collection
+    ' The rules with a last item, JiraWorkflows: the Jira workflows of the kind of the rule that hold its status (JiraWorkflowNames). Empty when the
+    ' workflows of Jira were not read. The sheet Workflows keeps the kinds Feature and Team (AL, 2026-11-24): this column shows the real names.
+    Dim names As Object, out As New Collection, rule As Variant, types As Variant, flows As Variant, nT As Long, nW As Long, key As String, shown As String
+    types = SheetData(wb, "JiraIssueTypes", nT)
+    flows = SheetData(wb, "JiraWorkflows", nW)
+    Set names = JiraWorkflowNames(types, nT, flows, nW, ProgramProject(wb.Worksheets(SheetName("Projects"))))
+    For Each rule In rules
+        key = CStr(rule(0)) & "|" & CStr(rule(1))
+        shown = ""
+        If names.Exists(key) Then shown = CStr(names(key))
+        out.Add Array(rule(0), rule(1), rule(2), rule(3), rule(4), rule(5), rule(6), shown)
+    Next rule
+    Set RulesWithJiraWorkflows = out
+End Function
+
+Public Function JiraWorkflowNames(ByVal types As Variant, ByVal nT As Long, ByVal flows As Variant, ByVal nW As Long, ByVal program As String) As Object
+    ' kind|status -> the Jira workflows of that kind that hold the status, joined by ", " in the order of the rows of JiraWorkflows (flows: its cells
+    ' with the headers in row 1, nW rows): a workflow is of kind Feature when an issue type of the Program project follows it in JiraIssueTypes (types,
+    ' nT rows), Team when one of another project does. flow/jira_workflows.jira_workflow_names is the Python twin.
+    Dim kinds As Object, out As Object, r As Long, cP As Long, cW As Long, cS As Long, wf As String, kind As Variant, key As String
+    Set kinds = CreateObject("Scripting.Dictionary"): Set out = CreateObject("Scripting.Dictionary")
+    Set JiraWorkflowNames = out
+    If nT = 0 Or nW = 0 Then Exit Function
+    cP = DataColumn(types, "Project"): cW = DataColumn(types, "Workflow")
+    If cP = 0 Or cW = 0 Then Exit Function
+    For r = 2 To nT + 1
+        wf = CStr(types(r, cW) & "")
+        If Len(wf) > 0 Then kinds(wf & "|" & IIf(CStr(types(r, cP) & "") = program, "Feature", "Team")) = True
+    Next r
+    cW = DataColumn(flows, "Workflow"): cS = DataColumn(flows, "Status")
+    If cW = 0 Or cS = 0 Then Exit Function
+    For r = 2 To nW + 1
+        wf = CStr(flows(r, cW) & "")
+        For Each kind In Array("Feature", "Team")
+            If kinds.Exists(wf & "|" & kind) Then
+                key = kind & "|" & CStr(flows(r, cS) & "")
+                If Not out.Exists(key) Then
+                    out(key) = wf
+                ElseIf InStr(", " & out(key) & ", ", ", " & wf & ", ") = 0 Then
+                    Cov "MEX24": out(key) = out(key) & ", " & wf
+                End If
+            End If
+        Next kind
+    Next r
 End Function
 
 Private Function DataColumn(ByVal data As Variant, ByVal header As String) As Long
@@ -659,7 +707,8 @@ Private Sub WriteRawSheetsCore()
     Set mIntervals = Nothing
     LogEnd "raw sheets: write StatusIntervals"
     LogBegin "raw sheets: write StatusRules " & mRules.Count
-    WriteTable SheetNamed("StatusRules"), Array("Workflow", "Status", "Category", "IsStart", "IsEnd", "IsFree", "Source"), mRules
+    WriteTable SheetNamed("StatusRules"), Array("Workflow", "Status", "Category", "IsStart", "IsEnd", "IsFree", "Source", "JiraWorkflows"), _
+               RulesWithJiraWorkflows(ThisWorkbook, mRules)
     Set mRules = Nothing
     If Not mCatalogRows Is Nothing Then WriteStatusCatalog ThisWorkbook, mCatalogRows, True: Set mCatalogRows = Nothing     ' always, even empty
     LogEnd "raw sheets: write StatusRules"
