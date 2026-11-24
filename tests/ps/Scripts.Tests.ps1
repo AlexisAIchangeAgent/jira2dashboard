@@ -184,7 +184,7 @@ Describe "run.ps1" {
         "vba-tests" = "-m jira2dashboard.testbench.run_vba_tests"; "check-machine" = "-m jira2dashboard.cli.check_machine"
         "diagnose" = "-m jira2dashboard.cli.diagnose"; "mock-jira" = "-m jira2dashboard.mockjira"
         "mock-workbook" = "-m jira2dashboard.mock_workbook"; "build" = "-m jira2dashboard.build_workbook"
-        "clean" = "-m jira2dashboard.clean"; "extract" = "-m jira2dashboard.standalone"
+        "clean" = "-m jira2dashboard.clean"; "extract" = "-m jira2dashboard.standalone"; "compute" = "-m jira2dashboard.standalone.compute"
     }
     foreach ($command in $commands.Keys) {
         It "$command runs python $($commands[$command]) with the arguments untouched" {

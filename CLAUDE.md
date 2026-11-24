@@ -36,6 +36,7 @@ powershell -ExecutionPolicy Bypass -File scripts\setup.ps1        # create .venv
 .\scripts\run.ps1 build           # delivery workbook out\release\jira2dashboard.xlsm (--out name.xlsm: to out\inter)
 .\scripts\run.ps1 clean           # empty out\inter except the test caches and the logs (build and vba-tests do it first)
 .\scripts\run.ps1 extract         # Python path without VBA: Jira -> jira2dashboard.xlsx (values + SVG charts)
+.\scripts\run.ps1 compute         # the same results again from the sheets of a filled workbook, no call to Jira (dev PC, fake data only)
 .\scripts\manual-test.ps1         # manual try: fake Jira + pre-filled copy (mock-workbook), opened in a new Excel
 .\scripts\stop-mock.ps1           # kill the fake Jira that start-mock.ps1 / manual-test.ps1 started
 .\scripts\scenario.ps1            # unattended scenario: fake Jira, filled copy, Python extraction, checks, clean-up (-Excel: + test-excel)
@@ -293,6 +294,13 @@ python.log). `tests/unit/test_claude_hooks.py` and `test_claude_skills.py` test 
   every flow scenario computes right after extracting, so a difference between the two shows against the reference. Measured before the buttons: 15 rounds
   of tables then charts in one Excel, no crash (the open defect hit a second build at `flow sheets: charts`). `modLog` writes the local log in the folder `logs` next to the workbook (it runs from a folder not known in advance; `%LOCALAPPDATA%\jira2dashboard\logs` is the fallback):
   see **Logs** below; never pass it a token, URL, JQL or Jira answer (`test_vba_log_guard.py` checks).
+- **`run.ps1 compute` (step F, AL 2026-11-22: dev PC, fake data only).** `standalone/recompute.py` reads back what the extraction left in a filled
+  workbook (a saved .xlsm whose button 1 ran, or the .xlsx of `extract`): Issues, Changelog (status and PI changes by `Config.PIField`, a date that cannot be
+  read left out), IssueLinks and the four Jira sheets; NEVER a derived sheet (StatusIntervals, StatusRules: the rules are made again from the catalog, the
+  current categories and the Jira flags under the exceptions of Workflows, so a correction takes effect). Dates come back from serials to the second, ids
+  stored as numbers as their digits. `__main__.finish` is shared by `run` (extract) and `compute`; compute checks only `COMPUTE_PARAMETERS` (= modActions,
+  a test reads it), never the connection. Oracle without Excel (`tests/unit/test_compute.py`): extract then compute gives the same sheets but Run and
+  Errors (generated data and art-metrics), a Workflows corrected in the xlsx = a fresh extraction with it, no request reaches the fake Jira.
 - **Python path without VBA (`standalone/`, `run.ps1 extract`).** A second consumer of the flow reference: it reads
   the parameter sheets of the filled workbook as a zip (`xlsx_read`, by header name, shape rules shared with
   params/*.md through `params.model.shape_problems`, Config rules of the VBA in `params_book`), calls Jira with the

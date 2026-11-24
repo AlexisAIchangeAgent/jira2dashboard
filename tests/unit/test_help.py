@@ -28,6 +28,7 @@ PYTHON_COMMANDS = {                      # run.ps1 command -> (parse function, a
     "mock-jira": (mock_jira.parse, "--anomalies"),
     "mock-workbook": (mock_workbook.parse, "out\\manual_test\\jira2dashboard4manualtest.xlsm"),
     "extract": (extract.parse, "jira2dashboard.xlsx"),
+    "compute": (lambda argv: extract.parse(argv, "compute"), "jira2dashboard-compute.xlsx"),
 }
 
 

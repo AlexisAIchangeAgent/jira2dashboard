@@ -196,11 +196,12 @@ def _number(value: str, default: int, minimum: int) -> int:
     return number if number >= minimum else default
 
 
-def run_settings(sheets: list[ParamSheet]) -> RunSettings:
-    """What a run needs. Raises ParamsError with the message of the VBA when a mandatory value or an iteration is missing."""
+def run_settings(sheets: list[ParamSheet], required: tuple[str, ...] | None = None) -> RunSettings:
+    """What a run needs. Raises ParamsError with the message of the VBA when a mandatory value or an iteration is missing. `required`: the
+    mandatory parameters to check (default every one: the extraction); compute checks those of the metrics only (modActions.COMPUTE_PARAMETERS)."""
     by_name = {s.name: s for s in sheets}
     config = by_name["Config"]
-    missing = missing_mandatory(config)
+    missing = [name for name in missing_mandatory(config) if required is None or name in required]
     if missing:
         raise ParamsError(f"Fill these values of the Config sheet first (Mandatory = True): {', '.join(missing)}", "J2D-CFG-002")
     iterations = [Iteration(name, _parse_moment(start), _parse_moment(end)) for name, start, end in by_name["Iterations"].rows]

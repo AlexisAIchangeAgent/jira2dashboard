@@ -39,7 +39,8 @@ from jira2dashboard.standalone import jira_api as J
 from jira2dashboard.standalone import results as R
 from jira2dashboard.standalone.charts_svg import chart_pictures, iteration_chart_pictures
 from jira2dashboard.standalone.http_winhttp import JiraClient, WinHttp, took
-from jira2dashboard.standalone.mapping import FieldIds, extracted, interval_rows
+from jira2dashboard.standalone import recompute
+from jira2dashboard.standalone.mapping import Extract, FieldIds, extracted, interval_rows
 from jira2dashboard.standalone.params_book import config_values, read_params, run_settings
 from jira2dashboard.standalone.proxy import choose_proxy, detect_proxy
 from jira2dashboard.standalone.workflows import read_workflows
@@ -55,6 +56,9 @@ def default_log(workbook: str) -> Path:
     """The folder logs next to the workbook (it runs from a folder not known in advance), as the VBA log."""
     return Path(workbook).resolve().parent / "logs" / LOG_NAME
 OUT_NAME = "jira2dashboard.xlsx"
+COMPUTE_NAME = "jira2dashboard-compute.xlsx"
+# the mandatory parameters of the metrics (modActions.COMPUTE_PARAMETERS, a test reads it): compute calls no Jira, so no connection parameter
+COMPUTE_PARAMETERS = ("FlowLoadMode", "PredictabilityMode", "AsOf", "FeatureTypes", "FillRateThreshold")
 MASK = "********"
 SECRET_PARAMETERS = ("ApiToken",)                  # not copied in clear into the xlsx; the e-mail stays (the existing choice, test_standalone)
 log = logging.getLogger("jira2dashboard.extract")
@@ -66,16 +70,34 @@ examples:
 """
 
 
-def parse(argv: list[str] | None = None):
-    p = parser("scripts\\run.ps1 extract", __doc__, EXAMPLES)
+COMPUTE_DOC = """Compute the flow metrics again from a filled workbook, without Jira: writes jira2dashboard-compute.xlsx (step F, the PC of development).
+
+1. Reads the parameter sheets of the workbook as they are now (Config, Projects, Iterations, PIs, Workflows, Transitions) and what the
+   extraction left in it: the sheets Issues, Changelog, IssueLinks and the Jira sheets (JiraStatusCatalog, JiraIssueTypes, JiraWorkflows,
+   JiraTransitions). The workbook is an .xlsm whose button 1. Extract from Jira ran and that was saved, or the .xlsx of run.ps1 extract.
+2. Makes the status rules and the status intervals again (never from StatusIntervals or StatusRules: a corrected sheet Workflows takes
+   effect), then the same results, checks and charts as run.ps1 extract. No call to Jira: BaseUrl, Email and ApiToken are not needed.
+3. Writes them as values in jira2dashboard-compute.xlsx next to the workbook read (or --out). The workbook read is never changed.
+Log: logs\\python.log next to the workbook. Exit code 0 when the file is written, 1 otherwise.
+"""
+COMPUTE_EXAMPLES = """
+examples:
+  scripts\\run.ps1 compute --workbook out\\manual_test\\jira2dashboard4manualtest.xlsm
+  scripts\\run.ps1 compute --workbook out\\manual_test\\jira2dashboard.xlsx --out C:\\Temp\\again.xlsx
+"""
+
+
+def parse(argv: list[str] | None = None, command: str = "extract"):
+    p = parser(f"scripts\\run.ps1 {command}", COMPUTE_DOC if command == "compute" else __doc__, COMPUTE_EXAMPLES if command == "compute" else EXAMPLES)
     p.add_argument("--workbook", default=str(RELEASE_DIR / "jira2dashboard.xlsm"),
                    help="the filled workbook whose parameter sheets are read (default out\\release\\jira2dashboard.xlsm)")
-    p.add_argument("--out", default="", help=f"the file to write (default: {OUT_NAME} next to the workbook)")
+    p.add_argument("--out", default="", help=f"the file to write (default: {COMPUTE_NAME if command == 'compute' else OUT_NAME} next to the workbook)")
     p.add_argument("--team", default=D.ALL_TEAMS,
                    help=f"the team of the Flow Distribution chart (default {D.ALL_TEAMS!r}, as the Dashboard)")
     p.add_argument("--log", default="", help=f"the log file (default: logs\\{LOG_NAME} next to the workbook)")
     p.add_argument("--verbose", action="store_true", help="also log each call to Jira that worked")
     args = p.parse_args(argv)
+    args.command = command
     if args.out:                                      # a plain xlsx must never replace the filled workbook (macros, Config)
         out = Path(args.out)
         if out.suffix.lower() != ".xlsx":
@@ -116,12 +138,12 @@ class Collected(logging.Handler):
         self.rows.append((moment, record.levelname, message))
 
 
-def _handlers(path: Path, verbose: bool):
+def _handlers(path: Path, verbose: bool, command: str = "extract"):
     formatter = Scrubbed("%(asctime)s %(levelname)s %(message)s")
     path.parent.mkdir(parents=True, exist_ok=True)
     to_file = logging.handlers.RotatingFileHandler(path, maxBytes=1_000_000, backupCount=1, encoding="utf-8")
     to_console = logging.StreamHandler(sys.stdout)
-    console = Scrubbed("extract: %(message)s")
+    console = Scrubbed(f"{command}: %(message)s")
     console.secrets = formatter.secrets                 # the same list: a secret added later is masked on both
     to_console.setFormatter(console)
     to_console.setLevel(logging.INFO)
@@ -250,6 +272,49 @@ def run(args, formatter: Scrubbed, collected: Collected, sleep=time.sleep, detec
                     extract.unreadable_dates, extract.unreadable_shapes)
     for line in extract.wire:                                       # what Jira really sent: the JSON type of each field read
         log.info("%s", line)
+    source = [("Made by", "jira2dashboard, Python path without VBA (scripts\\run.ps1 extract): values, no formula"),
+              ("Started (UTC)", started_at), ("Workbook read", str(workbook.resolve())), ("Jira", base), ("JQL", jql), ("Proxy", proxy.mode)]
+    return finish(args, started, settings, extract, catalog, info, collected, source, client.retries, out)
+
+
+def compute(args, collected: Collected) -> Path:
+    """`run.ps1 compute`: the same results as `extract`, from the raw and the Jira sheets of a filled workbook instead of Jira (recompute.py), with
+    the parameter sheets as they are now. No call to Jira: no connection parameter is needed."""
+    started = time.monotonic()
+    started_at = dt.datetime.now(dt.UTC).replace(tzinfo=None)
+    workbook = Path(args.workbook)
+    out = Path(args.out) if args.out else workbook.with_name(COMPUTE_NAME)
+    log.info("BEGIN parameters of %s", workbook)
+    sheets = read_params(workbook)
+    for line in parameter_lines(sheets):
+        log.info("PARAM %s", line)
+    settings = run_settings(sheets, COMPUTE_PARAMETERS)
+    log.info("END parameters: %d iterations, AsOf %s, FlowLoadMode %s%s", len(settings.iterations), settings.as_of, settings.mode, took(started))
+    step = time.monotonic()
+    log.info("BEGIN sheets of the extraction")
+    held = recompute.read_workbook(workbook)
+    flow = recompute.flow_of(held.rows, held.changelog, held.links, settings.projects, FieldIds(settings.work_type_field, settings.fields).pi,
+                             settings.checks.feature_types)
+    current = {row[6]: row[8] for row in held.rows if row[6] and row[8]}
+    info = held.workflows
+    settings = dataclasses.replace(settings, workflows=info, rules=Rules.from_params(settings.sheets, held.catalog, current, set(info.starts),
+                                                                                      set(info.free)))
+    log_rules(settings.rules, {issue.workflow for issue in flow})
+    dates, shapes = recompute.unreadable(held.changelog)
+    extract = Extract(held.rows, flow, held.links, len(held.changelog), dates, shapes, held.changelog)
+    log.info("END sheets of the extraction: %d issues, %d changelog items, %d links, %d statuses in the catalog, %d Jira workflows%s",
+             len(held.rows), len(held.changelog), len(held.links), len(held.catalog), len(info.initial), took(step))
+    if dates:
+        log.warning("J2D-DATA-003 | %d status changes ignored: their date cannot be read | created: %s", dates, shapes)
+    source = [("Made by", "jira2dashboard, Python path without VBA (scripts\\run.ps1 compute): the results made again from the sheets of the "
+                          "workbook read, no call to Jira"),
+              ("Started (UTC)", started_at), ("Workbook read", str(workbook.resolve()))]
+    return finish(args, started, settings, extract, held.catalog, info, collected, source, 0, out)
+
+
+def finish(args, started: float, settings, extract, catalog: dict[str, str], info: JiraWorkflows, collected: Collected, source: list[tuple],
+           retries: int, out: Path) -> Path:
+    """What both commands do once they hold the extraction: the intervals, the results, the charts, the health, and the xlsx."""
     step = time.monotonic()
     intervals = [row for issue in extract.flow for row in interval_rows(issue, settings.as_of, settings.rules)]
     unknown = sorted({row[3] for row in intervals if row[4] == UNCLASSIFIED})
@@ -267,15 +332,13 @@ def run(args, formatter: Scrubbed, collected: Collected, sleep=time.sleep, detec
     reconciliation = R.reconciliation_rows(results, extract.flow, settings)
     health = log_health(extract.flow, results, settings, [row[-1] for row in reconciliation])
     run_rows = [
-        ("Made by", "jira2dashboard, Python path without VBA (scripts\\run.ps1 extract): values, no formula"),
-        ("Started (UTC)", started_at), ("Workbook read", str(workbook.resolve())), ("Jira", base), ("JQL", jql),
-        ("Proxy", proxy.mode), ("AsOf (UTC)", settings.as_of), ("FlowLoadMode", settings.mode), ("PredictabilityMode", settings.predictability_mode),
+        *source, ("AsOf (UTC)", settings.as_of), ("FlowLoadMode", settings.mode), ("PredictabilityMode", settings.predictability_mode),
         ("Iterations", f"{len(settings.iterations)}: {settings.iterations[0].name} to {settings.iterations[-1].name}"),
         ("Issues", len(extract.rows)), ("Changelog items", extract.changelog_items),
         ("Status intervals", len(intervals)), ("Blocking links", len(extract.links)),
         ("Column types", raw_types.status_field(types).removeprefix(" | Column types: ") or "every column has the type of its label"),
         ("Health", "".join(health).removeprefix(" | ") or "nothing to look at"),
-        ("Retries of a call to Jira", client.retries), ("Flow Distribution chart", args.team),
+        ("Retries of a call to Jira", retries), ("Flow Distribution chart", args.team),
         ("Warnings", f"{len(collected.rows)} (sheet {ERRORS_SHEET})"), ("Log", str(Path(args.log).resolve())),
         ("Duration (s)", round(time.monotonic() - started, 1)),
     ]
@@ -308,7 +371,7 @@ def run(args, formatter: Scrubbed, collected: Collected, sleep=time.sleep, detec
         Sheet(S.of("Changelog"), CHANGELOG_RAW, extract.changelog),
         *jira_sheets(catalog, info, settings.rules),
         Sheet(ERRORS_SHEET, ("TimeUtc", "Level", "Message"), collected.rows),
-    ] + _masked(sheets)
+    ] + _masked(settings.sheets)
     write_xlsx(out, sheets_out)
     return out
 
@@ -339,19 +402,19 @@ def support_code(err: Exception) -> str:
     return "J2D-SYS-011"                                # the workbook: not found, not a zip, not a workbook
 
 
-def main(argv: list[str] | None = None, *, sleep=time.sleep, detect=detect_proxy, transport=WinHttp) -> int:
-    args = parse(argv)
+def main(argv: list[str] | None = None, *, sleep=time.sleep, detect=detect_proxy, transport=WinHttp, command: str = "extract") -> int:
+    args = parse(argv, command)
     try:
-        formatter, collected, handlers = _handlers(Path(args.log), args.verbose)
+        formatter, collected, handlers = _handlers(Path(args.log), args.verbose, command)
     except OSError as err:                              # a read-only or locked folder next to the workbook
         args.log = str(Path(tempfile.gettempdir()) / "jira2dashboard" / "logs" / LOG_NAME)
-        print(f"extract: cannot write the log there ({err}); the log goes to {args.log}")
-        formatter, collected, handlers = _handlers(Path(args.log), args.verbose)
+        print(f"{command}: cannot write the log there ({err}); the log goes to {args.log}")
+        formatter, collected, handlers = _handlers(Path(args.log), args.verbose, command)
     started = time.monotonic()
     try:
-        log.info("RUN extract | Python %s | %s | jira2dashboard %s", sys.version.split()[0], Path(args.workbook).name,
+        log.info("RUN %s | Python %s | %s | jira2dashboard %s", command, sys.version.split()[0], Path(args.workbook).name,
                  defined_name(Path(args.workbook), version.NAME) or version.UNKNOWN)
-        out = run(args, formatter, collected, sleep, detect, transport)
+        out = compute(args, collected) if command == "compute" else run(args, formatter, collected, sleep, detect, transport)
         log.info("RUN end ok: %s%s", out, took(started))
         return 0
     except (ParamsError, J.JiraError, XlsxLocked, NotAWorkbook, FileNotFoundError, zipfile.BadZipFile) as err:

@@ -252,6 +252,16 @@ When the macros cannot run, Python does their work:
 - On failure nothing is written. Differences from the workbook: no `Metrics` row for a team without items;
   `DailyLoad` stops at `AsOf`.
 
+On the development PC, with fake data only, `compute` makes the same results again without Jira:
+
+```powershell
+.\scripts\run.ps1 compute --workbook out\manual_test\jira2dashboard4manualtest.xlsm   # writes jira2dashboard-compute.xlsx next to it
+```
+
+- It reads the parameter sheets as they are now and what the extraction left: `Issues`, `Changelog`, `IssueLinks` and
+  the Jira sheets. The rules and the status intervals are made again, so a corrected `Workflows` takes effect.
+- The input is a saved `.xlsm` whose button 1 ran, or the `.xlsx` of `extract` (which also writes the Jira sheets).
+
 ## 10. Metrics and data checks
 
 Definitions: [`docs/safe-flow-metrics-and-data-checks.md`](docs/safe-flow-metrics-and-data-checks.md). Metrics are

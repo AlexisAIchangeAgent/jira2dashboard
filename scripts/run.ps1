@@ -22,6 +22,7 @@ Commands:
   build          the workbook to deliver: out\release\jira2dashboard.xlsm (--out name.xlsm: in out\inter)
   clean          empty out\inter, except the test caches and the logs (build and vba-tests do it first)
   extract        without VBA: read Jira with Python, write data, results and charts to jira2dashboard.xlsx
+  compute        without Jira: the same results again from the sheets of a filled workbook (development PC, fake data)
   test-scripts   Pester tests of scripts\*.ps1 and their coverage; fails under 93 % (-Filter, -Minimum)
 
 USE CASES
@@ -32,6 +33,7 @@ USE CASES
   The workbook to deliver            .\scripts\run.ps1 build           then .\scripts\release.ps1 -Version v1.0.0
   Try the macros against a fake Jira .\scripts\manual-test.ps1  (by hand)   or   .\scripts\scenario.ps1  (unattended)
   Extract without Excel macros       .\scripts\run.ps1 extract --workbook C:\Data\jira2dashboard.xlsm
+  Compute again after a correction   .\scripts\run.ps1 compute --workbook out\manual_test\jira2dashboard4manualtest.xlsm   (no call to Jira)
   The macros are blocked at a client .\scripts\run.ps1 check-machine ; .\scripts\run.ps1 diagnose   (a report to paste into the ticket)
   Where are the logs                 scripts\logs\run_<command>.log (last run of each command, with the output of Python);
                                      scripts\logs\<script>.log for the other scripts; the workbook logs in its own logs folder
@@ -65,6 +67,7 @@ $commands = [ordered]@{
     "build"         = "the workbook to deliver: out\release\jira2dashboard.xlsm (--out name.xlsm: in out\inter)"
     "clean"         = "empty out\inter, except the test caches and the logs (build and vba-tests do it first)"
     "extract"       = "without VBA: read Jira with Python, write data, results and charts to jira2dashboard.xlsx"
+    "compute"       = "without Jira: the same results again from the sheets of a filled workbook (development PC, fake data)"
     "test-scripts"  = "Pester tests of scripts\*.ps1 and their coverage; fails under 93 % (-Filter, -Minimum)"
 }
 if ($args.Count -lt 1 -or @("--help", "-h", "-help", "help", "/?") -contains $args[0]) {
@@ -131,6 +134,7 @@ try {
         "build"         { & $python -m jira2dashboard.build_workbook @rest 2>&1 | Show-Line }
         "clean"         { & $python -m jira2dashboard.clean @rest 2>&1 | Show-Line }
         "extract"       { & $python -m jira2dashboard.standalone @rest 2>&1 | Show-Line }
+        "compute"       { & $python -m jira2dashboard.standalone.compute @rest 2>&1 | Show-Line }
         "test-scripts"  { & powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $root "tests\ps\Run-ScriptTests.ps1") @rest 2>&1 | Show-Line }
     }
 } finally {
