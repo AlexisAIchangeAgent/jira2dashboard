@@ -106,6 +106,8 @@ def parse(argv: list[str] | None = None, command: str = "extract"):
     args = p.parse_args(argv)
     args.command = command
     args.check = getattr(args, "check", False)
+    if command == "compute" and not args.out and Path(args.workbook).name.lower() == COMPUTE_NAME:
+        p.error(f"the workbook is itself {COMPUTE_NAME}: give --out, or compute would write over the workbook it reads")
     if args.check and Path(args.workbook).suffix.lower() != ".xlsm":
         p.error("--check compares with the values Excel calculated: give an .xlsm saved by Excel (an .xlsx of run.ps1 extract holds Python's own)")
     if args.out:                                      # a plain xlsx must never replace the filled workbook (macros, Config)

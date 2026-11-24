@@ -57,7 +57,7 @@ def test_a_missing_sheet_and_dailyload_are_said_and_the_summary_names_what_to_lo
     checks = C.check({"Reconciliation": EXCEL}, {"Reconciliation": PYTHON})
     by_table = {c.table: c for c in checks}
     assert by_table["Reconciliation"].ok and by_table["DailyLoad"].note.startswith("not compared")
-    assert by_table["Metrics"].note == "the sheet Metrics_from_excel is missing in the workbook"
+    assert by_table["Metrics"].note == "the sheet Metrics_from_excel is missing in the workbook" and not by_table["Metrics"].ok      # J2D-FLOW-012
     assert "0 differ" in C.summary(checks) and "to look at: Metrics" in C.summary(checks)
 
 
@@ -75,3 +75,16 @@ def test_check_needs_a_workbook_that_excel_calculated():
     assert stop.value.code == 2
     assert X.parse(["--workbook", "book.xlsm", "--check"], "compute").check
     assert not hasattr(X.parse(["--workbook", "book.xlsm"]), "check") or not X.parse(["--workbook", "book.xlsm"]).check
+
+
+def test_every_table_the_python_path_writes_is_compared_or_says_why_not():
+    tables = set(F.TABLES) | {"StatusRules"}
+    assert tables <= set(C.TABLE_KEYS) | set(C.NOT_COMPARED), sorted(tables - set(C.TABLE_KEYS) - set(C.NOT_COMPARED))
+    assert all(set(keys) <= set(F.TABLES.get(table, keys)) for table, keys in C.TABLE_KEYS.items())          # the keys are columns of the table
+
+
+def test_compute_never_writes_over_the_workbook_it_reads():
+    with pytest.raises(SystemExit) as stop:
+        X.parse(["--workbook", "C:/x/jira2dashboard-compute.xlsx"], "compute")
+    assert stop.value.code == 2
+    assert X.parse(["--workbook", "C:/x/jira2dashboard-compute.xlsx", "--out", "C:/x/again.xlsx"], "compute").out

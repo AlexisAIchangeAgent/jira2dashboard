@@ -461,10 +461,11 @@ Private Function RawCount(ByVal cols As Collection) As Long
 End Function
 
 Private Sub RequireDynamicArrays()
-    ' The formulas of the plan use LET, XLOOKUP and FILTER (Excel 365 or 2021): say so before anything is read or cleared.
+    ' The formulas of the plan use LET, XLOOKUP, FILTER and TEXTSPLIT (Excel for Microsoft 365 or Excel 2024; Excel 2021 has no TEXTSPLIT, which the
+    ' lists of FeatureTypes use): say so before anything is read or cleared.
     Cov "FLB35"
-    If IsError(Application.Evaluate("LET(x,1,x)")) Then
-        Err.Raise vbObjectError + 708, "BuildFlowSheets", "This workbook needs Excel 365 or Excel 2021 (dynamic array formulas: LET, XLOOKUP, FILTER)."
+    If IsError(Application.Evaluate("LET(x,1,x)")) Or IsError(Application.Evaluate("COLUMNS(TEXTSPLIT(""a,b"","",""))")) Then
+        Err.Raise vbObjectError + 708, "BuildFlowSheets", "This workbook needs Excel for Microsoft 365 or Excel 2024 (dynamic array formulas: LET, XLOOKUP, FILTER, TEXTSPLIT)."
     End If
 End Sub
 

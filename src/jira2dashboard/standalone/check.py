@@ -18,8 +18,12 @@ TABLE_KEYS = {
     "Metrics": F.METRICS_KEYS, "PIMetrics": ("PI",), "PIStatusTime": ("PI", "Status"), "VelocityCheck": F.METRICS_KEYS,
     "FlowTimeCheck": F.METRICS_KEYS, "FlowEfficiencyCheck": F.METRICS_KEYS, "FlowLoadCheck": F.METRICS_KEYS, "FlowDistCheck": F.METRICS_KEYS,
     "IterationFeatures": F.ITERATIONFEATURES_KEYS, "ItemFlow": ("Key",), "Reconciliation": ("Control",),
+    "DataChecks": ("Id",), "FillRates": ("Field", "Team", "Type"), "PIIntervals": ("Key", "PI", "FromUtc"),
+    # what the rules made of Jira under the exceptions of Workflows (modExtract.RefreshRules against flow/status_rules) and what follows from them
+    "StatusRules": ("Workflow", "Status"), "StatusIntervals": ("Key", "Seq"),
 }
-NOT_COMPARED = {"DailyLoad": "the Python path stops at AsOf, the workbook at the end of the last iteration"}
+NOT_COMPARED = {"DailyLoad": "the Python path stops at AsOf, the workbook at the end of the last iteration",
+                "Issues": "the raw input that compute reads", "IssueLinks": "the raw input that compute reads (the workbook adds helper columns)"}
 LISTS = "MetricItems"
 
 
@@ -40,10 +44,11 @@ class TableCheck:
     only_excel: list[str] = field(default_factory=list)       # keys of the rows Python does not have
     only_python: list[str] = field(default_factory=list)
     note: str = ""
+    missing: bool = False          # the sheet is not on one side: nothing was compared (a workbook saved before 2. Compute the metrics)
 
     @property
     def ok(self) -> bool:
-        return not (self.differences or self.only_excel or self.only_python)
+        return not (self.differences or self.only_excel or self.only_python or self.missing)
 
 
 def _blank(value):
@@ -146,7 +151,8 @@ def check(excel: dict[str, list[list]], python: dict[str, list[list]]) -> list[T
     out = []
     for table, keys in TABLE_KEYS.items():
         if table not in excel or table not in python:
-            out.append(TableCheck(table, note=f"the sheet {S.of(table)} is missing in the {'workbook' if table not in excel else 'Python results'}"))
+            out.append(TableCheck(table, note=f"the sheet {S.of(table)} is missing in the {'workbook' if table not in excel else 'Python results'}",
+                                  missing=True))
             continue
         out.append(compare_table(table, keys, excel[table], python[table]))
     if LISTS in excel and LISTS in python:
@@ -156,7 +162,7 @@ def check(excel: dict[str, list[list]], python: dict[str, list[list]]) -> list[T
 
 
 def summary(checks: list[TableCheck]) -> str:
-    wrong = [c.table for c in checks if not c.ok or c.note.startswith("the sheet")]
+    wrong = [c.table for c in checks if not c.ok]
     cells = sum(c.cells for c in checks)
     return (f"{len(checks)} tables, {cells} cells, {sum(len(c.differences) for c in checks)} differ, "
             f"{sum(len(c.only_excel) + len(c.only_python) for c in checks)} rows on one side only"

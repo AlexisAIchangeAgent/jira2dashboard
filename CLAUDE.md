@@ -306,7 +306,9 @@ python.log). `tests/unit/test_claude_hooks.py` and `test_claude_skills.py` test 
   parameters in force sit under Reconciliation), compares the columns both hold (numbers within 1e-5, a date half a second; TRUE is no 1), the
   MetricItems lists as sets of rows, writes `<out>.check.html` and `INFO check | n tables, n cells, n differ, n rows on one side only`, a
   `WARN J2D-FLOW-012` when something differs; DailyLoad is not compared (the Python path stops at AsOf). The Excel step "compute --check sur une
-  copie enregistrée" (SaveCopyAs, then in process) found 0 of 18 269 cells different on the generated data with anomalies, 0 of 4 654 on art-metrics.
+  copie enregistrée" (SaveCopyAs, then in process) found 0 of 29 941 cells different on the generated data with anomalies, 0 of 7 028 on art-metrics
+  (20 tables, StatusRules of RefreshRules and StatusIntervals included). Every table of `formulas.TABLES` and StatusRules is in `check.TABLE_KEYS` or
+  `NOT_COMPARED` with its reason (a test): a new table needs its keys there. A sheet missing on one side is not OK (J2D-FLOW-012).
 - **Python path without VBA (`standalone/`, `run.ps1 extract`).** A second consumer of the flow reference: it reads
   the parameter sheets of the filled workbook as a zip (`xlsx_read`, by header name, shape rules shared with
   params/*.md through `params.model.shape_problems`, Config rules of the VBA in `params_book`), calls Jira with the
@@ -467,7 +469,7 @@ then `mermaid.parse`), and check every `](#anchor)` link against the headings.
 2. A new sheet name in the THREE lists (`sheet_names.EXCEL`, `modText.EXCEL_SHEETS`, `flow/sheets.error_cells`); with its suffix it fits the 31 characters of Excel
    (`_from_excel` takes 11: `test_sheet_names` fails otherwise, and the Python path stops at the write of its xlsx), then `modHealth` (cells in error),
    `DeleteDerived` and `BuildAll` of `modFlowBuild`.
-3. Python path: `standalone/results.py` (+ its `Sheet(...)` in `__main__`) and `charts_svg.chart_pictures` (a new SERIES branch goes BEFORE the PI-axis one).
+3. Python path: `standalone/results.py` (+ its `Sheet(...)` in `__main__`) and `charts_svg.chart_pictures` (a new SERIES branch goes BEFORE the PI-axis one); its keys in `standalone/check.TABLE_KEYS` (compute --check).
 4. Pinned numbers: `test_run_vba_tests_pure` (markers, `FLB` range), `T_FlowBuild` ("N charts"), `test_blueprint` (`[CHARTS_SHEET] * n`), `test_dashboard_spec`
    (the chart list), `chart_blocks` / `_series` / the "== N" check of `tests/steps/test_flow_excel.py`, "N charts" in README, `manual.py`,
    `rovo/confluence_flow_metrics_page.md`, `tests/art_report.py` (the figure count).
@@ -546,7 +548,9 @@ then `mermaid.parse`), and check every `](#anchor)` link against the headings.
   protection reads `ADODB.Stream` (next to an HTTP client) and `MSXML2` (as a Base64 codec) as a downloader. UTF-8 and Base64 are plain VBA
   in `modText`; `modTests` keeps ADODB and MSXML only as the oracle of `T_Utf8Oracle` and `T_Base64Oracle`.
 - **Excel functions: only those of `tests/unit/test_blueprint.ALLOWED_FUNCTIONS`** (2026-11-24). The newest, TEXTSPLIT (lists of FeatureTypes since 2026-11-04),
-  needs Microsoft 365 / Excel 2024: the client's Excel has it (its Velocity counts through it). Every test runs on a current Microsoft 365, so a function the
+  needs Excel for Microsoft 365 or Excel 2024, NOT Excel 2021 (support.microsoft.com, checked 2026-11-24); `modFlowBuild.RequireDynamicArrays` probes it
+  (error 708, J2D-FLOW-005). The client's version is TO CONFIRM with AL: until v0.12.0 the ART did not go through IsFeature, so its Velocity proves
+  nothing; on an Excel 2021 every IsFeature would be #NAME?. Every test runs on a current Microsoft 365, so a function the
   client lacks only shows there as an empty list or a control to REVIEW (the IFERROR hides the #NAME?): add one to the list on purpose, after checking which Excel has it.
 - Excel formula traps: a formula typed in one cell of a table column fills the whole column (write key columns as values
   before creating the table); a structured reference to a column whose name contains `_` is refused; compare dates with a

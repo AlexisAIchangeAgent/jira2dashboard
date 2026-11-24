@@ -35,8 +35,9 @@ def test_a_formula_fits_in_a_cell():
 
 
 # The Excel functions the formulas may use (2026-11-24). Every test runs on a current Microsoft 365, so none can see a function the client's Excel
-# lacks: there, the IFERROR around it hides a #NAME? (an empty list, a control to REVIEW). TEXTSPLIT (Microsoft 365 / Excel 2024, since 2026-11-04,
-# in the lists of FeatureTypes) is the newest one: the client's Velocity counts through it, so its Excel has it. A new function goes here on
+# lacks: there, the IFERROR around it hides a #NAME? (an empty list, a control to REVIEW). TEXTSPLIT (Excel for Microsoft 365 or Excel 2024, not
+# Excel 2021; since 2026-11-04, in the lists of FeatureTypes) is the newest one: modFlowBuild.RequireDynamicArrays stops a build on an Excel without
+# it (error 708); the client's version is to confirm. A new function goes here on
 # purpose, after checking which Excel has it (the 4th list of MetricItems was rewritten with INDEX and CHOOSE instead of TOCOL, HSTACK, CHOOSEROWS).
 ALLOWED_FUNCTIONS = {
     "ABS", "AND", "AVERAGEIFS", "CHAR", "CHOOSE", "CLEAN", "COLUMNS", "COUNT", "COUNTA", "COUNTIF", "COUNTIFS", "DATEVALUE", "EXACT", "FILTER", "FIND", "IF",

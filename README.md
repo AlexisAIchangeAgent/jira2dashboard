@@ -51,8 +51,8 @@ fake Jira with `.\scripts\stop-mock.ps1`. Excel may crash after the last search 
 | `jira2dashboard.xlsx` | Fallback when macros cannot run: values and SVG charts. | `run.ps1 extract` |
 | `rovo/*.md` | Rovo Studio agents that read the published figures. | Written by hand |
 
-- Windows 11, Excel 365 or 2021 (dynamic array formulas). Python builds and tests the workbook; its runtime is
-  pywin32 + the standard library.
+- Windows 11, Excel for Microsoft 365 or Excel 2024 (dynamic array formulas, TEXTSPLIT). Python builds and tests the
+  workbook; its runtime is pywin32 + the standard library.
 - Site values (URL, account, token, proxy, filter, field ids, as-of date, calendar) stay empty in the repository and
   are typed in the workbook. Statuses, transitions and fields are **workbook parameters**, never code.
 
@@ -144,7 +144,8 @@ Excel tables keep the logical names (`Config`, `Issues[Key]`); `sheet_names.py` 
 
 - **Developer:** Windows 11, PowerShell 5.1, Python 3.14 (`py`), Excel 365 with **Trust access to the VBA project
   object model** (File > Options > Trust Center > Macro Settings).
-- **User:** Excel 365 or 2021 with macros. Python 3.14 + pywin32 only to build there or to use `run.ps1 extract`.
+- **User:** Excel for Microsoft 365 or Excel 2024 with macros (Excel 2021 lacks TEXTSPLIT). Python 3.14 + pywin32
+  only to build there or to use `run.ps1 extract`.
 - **Endpoint protection:** it may undo what an Excel started by a script writes (`build` leaves no file, `mock-workbook`
   leaves an empty copy: `J2D-SYS-012` or `J2D-SYS-013`). `run.ps1 check-machine` tests it. Ask for an allow-list on the
   folder of the repository, or use the workbook of a release: no build is needed to use it.

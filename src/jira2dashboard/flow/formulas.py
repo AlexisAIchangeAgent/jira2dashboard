@@ -362,7 +362,7 @@ _AT_END_LIST = (
     f't,TRANSPOSE(st+XLOOKUP(it,{_FLC}[Iteration-label],{_FLC}[DaysMeasured])+{HALF}),a,cfg_FlowLoadMode="A",'
     f'm,IF(a,({SI}[Counted]=1)*({SI}[EnteredUtc]<=t)*({SI}[LeftEff]>t)*({SI}[FirstStart]<>"")*({SI}[FirstStart]<=t),'
     f'({IF_}[StartUtc]<>"")*({IF_}[StartUtc]<=t)*({IF_}[EndUtc]>t)),'
-    # the cells of m that hold 1, as numbers k = (row - 1) x w + column, flattened with INDEX (Excel 2021: no TOCOL, HSTACK, CHOOSEROWS...)
+    # the cells of m that hold 1, as numbers k = (row - 1) x w + column, flattened with INDEX (no TOCOL, HSTACK, CHOOSEROWS...: test_blueprint.ALLOWED_FUNCTIONS)
     f'w,COLUMNS(m),k,SEQUENCE(ROWS(m)*w),code,FILTER(k,INDEX(m,INT((k-1)/w)+1,MOD(k-1,w)+1)),rw,INT((code-1)/w)+1,cl,MOD(code-1,w)+1,'
     f'key,INDEX(IF(a,{SI}[Key],{IF_}[Key]),rw),team,INDEX(IF(a,{SI}[Team],{IF_}[Team]),rw),iter,INDEX(it,cl),start,INDEX(st,cl),'
     f'ok,XLOOKUP(iter&"|"&team,{_FLC}[Iteration-label]&"|"&{_FLC}[Team],{_FLC}[Reason],"x")="",'
