@@ -39,6 +39,7 @@ from jira2dashboard.standalone import jira_api as J
 from jira2dashboard.standalone import results as R
 from jira2dashboard.standalone.charts_svg import chart_pictures, iteration_chart_pictures
 from jira2dashboard.standalone.http_winhttp import JiraClient, WinHttp, took
+from jira2dashboard.standalone import check as C
 from jira2dashboard.standalone import recompute
 from jira2dashboard.standalone.mapping import Extract, FieldIds, extracted, interval_rows
 from jira2dashboard.standalone.params_book import config_values, read_params, run_settings
@@ -46,7 +47,7 @@ from jira2dashboard.standalone.proxy import choose_proxy, detect_proxy
 from jira2dashboard.standalone.workflows import read_workflows
 from jira2dashboard import sheet_names as S
 from jira2dashboard import version
-from jira2dashboard.standalone.xlsx_read import NotAWorkbook, defined_name
+from jira2dashboard.standalone.xlsx_read import NotAWorkbook, defined_name, read_sheets
 from jira2dashboard.standalone.xlsx_write import Sheet, XlsxLocked, write_xlsx
 
 LOG_NAME = "python.log"
@@ -78,12 +79,15 @@ COMPUTE_DOC = """Compute the flow metrics again from a filled workbook, without 
 2. Makes the status rules and the status intervals again (never from StatusIntervals or StatusRules: a corrected sheet Workflows takes
    effect), then the same results, checks and charts as run.ps1 extract. No call to Jira: BaseUrl, Email and ApiToken are not needed.
 3. Writes them as values in jira2dashboard-compute.xlsx next to the workbook read (or --out). The workbook read is never changed.
+4. --check: compares every result table with the figures Excel calculated and saved in the .xlsm (the rows joined on their keys, numbers
+   within 1e-5) and writes jira2dashboard-compute.check.html next to it: the tables that differ first, each difference with both values.
 Log: logs\\python.log next to the workbook. Exit code 0 when the file is written, 1 otherwise.
 """
 COMPUTE_EXAMPLES = """
 examples:
   scripts\\run.ps1 compute --workbook out\\manual_test\\jira2dashboard4manualtest.xlsm
   scripts\\run.ps1 compute --workbook out\\manual_test\\jira2dashboard.xlsx --out C:\\Temp\\again.xlsx
+  scripts\\run.ps1 compute --workbook out\\manual_test\\art-metrics\\jira2dashboard4art-metrics.xlsm --check
 """
 
 
@@ -96,8 +100,14 @@ def parse(argv: list[str] | None = None, command: str = "extract"):
                    help=f"the team of the Flow Distribution chart (default {D.ALL_TEAMS!r}, as the Dashboard)")
     p.add_argument("--log", default="", help=f"the log file (default: logs\\{LOG_NAME} next to the workbook)")
     p.add_argument("--verbose", action="store_true", help="also log each call to Jira that worked")
+    if command == "compute":
+        p.add_argument("--check", action="store_true",
+                       help="then compare with the figures Excel calculated in the workbook (an .xlsm saved by Excel) and write a page next to --out")
     args = p.parse_args(argv)
     args.command = command
+    args.check = getattr(args, "check", False)
+    if args.check and Path(args.workbook).suffix.lower() != ".xlsm":
+        p.error("--check compares with the values Excel calculated: give an .xlsm saved by Excel (an .xlsx of run.ps1 extract holds Python's own)")
     if args.out:                                      # a plain xlsx must never replace the filled workbook (macros, Config)
         out = Path(args.out)
         if out.suffix.lower() != ".xlsx":
@@ -309,7 +319,26 @@ def compute(args, collected: Collected) -> Path:
     source = [("Made by", "jira2dashboard, Python path without VBA (scripts\\run.ps1 compute): the results made again from the sheets of the "
                           "workbook read, no call to Jira"),
               ("Started (UTC)", started_at), ("Workbook read", str(workbook.resolve()))]
-    return finish(args, started, settings, extract, held.catalog, info, collected, source, 0, out)
+    written = finish(args, started, settings, extract, held.catalog, info, collected, source, 0, out)
+    if args.check:
+        check_page(workbook, written)
+    return written
+
+
+def check_page(workbook: Path, results: Path) -> Path:
+    """compute --check: every result table of the workbook (what Excel calculated and saved) against the file just written (check.py), a page
+    next to it, one INFO line, and a WARN J2D-FLOW-012 when a figure differs."""
+    started = time.monotonic()
+    names = {S.of(name): name for name in (*C.TABLE_KEYS, C.LISTS)}
+    excel = {names[k]: grid for k, grid in read_sheets(workbook, set(names)).items()}
+    python = {names[k]: grid for k, grid in read_sheets(results, set(names)).items()}
+    checks = C.check(excel, python)
+    target = results.with_name(results.stem + ".check.html")
+    target.write_text(C.page(checks, str(workbook.resolve()), str(results.resolve())), encoding="utf-8")
+    log.info("check | %s | page: %s%s", C.summary(checks), target, took(started))
+    if not all(c.ok for c in checks):
+        log.warning("J2D-FLOW-012 | figures of the workbook differ from the same figures made again by Python: %s", C.summary(checks))
+    return target
 
 
 def finish(args, started: float, settings, extract, catalog: dict[str, str], info: JiraWorkflows, collected: Collected, source: list[tuple],

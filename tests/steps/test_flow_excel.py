@@ -721,6 +721,24 @@ def _flow_distribution_check_generated(world):
     assert {i.work_type for i in world["items"]} >= {"defect", None}, "the generated data holds a lower-case and a missing work type"
 
 
+@then("compute --check sur une copie enregistrée du classeur retrouve chaque chiffre")
+def _compute_check(world):
+    """Step F: a copy of the computed workbook saved by Excel (its formulas' values kept), then run.ps1 compute --check on it: the Python path makes
+    every result again from the raw sheets and finds every figure of every table, and the lists of MetricItems (nothing differs, no row on one
+    side only)."""
+    from jira2dashboard.standalone import __main__ as X
+    folder = INTER_DIR / (f"compute_check_{WORKER}" if WORKER else "compute_check")
+    folder.mkdir(parents=True, exist_ok=True)
+    copy = folder / "computed.xlsm"
+    retry(lambda: world["wb"].SaveCopyAs(str(copy)))
+    log = folder / "compute.log"
+    code = X.main(["--workbook", str(copy), "--out", str(folder / "computed.xlsx"), "--log", str(log), "--check"], command="compute")
+    text = log.read_text(encoding="utf-8")
+    assert code == 0, text[-2000:]
+    line = next(l for l in text.splitlines() if " check | " in l)
+    assert " 0 differ, 0 rows on one side only | page: " in line, (line, (folder / "computed.check.html"))
+
+
 @then("les colonnes de trace de ItemFlow reproduisent la référence Python sur les données générées")
 def _trace_generated(world):
     """DoneIteration, its Start and End, DonePI, Account, WhyNotInFlowTime and BoundaryHours of every ticket against flow/trace, and the data holds

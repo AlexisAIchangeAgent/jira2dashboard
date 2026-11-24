@@ -36,7 +36,7 @@ powershell -ExecutionPolicy Bypass -File scripts\setup.ps1        # create .venv
 .\scripts\run.ps1 build           # delivery workbook out\release\jira2dashboard.xlsm (--out name.xlsm: to out\inter)
 .\scripts\run.ps1 clean           # empty out\inter except the test caches and the logs (build and vba-tests do it first)
 .\scripts\run.ps1 extract         # Python path without VBA: Jira -> jira2dashboard.xlsx (values + SVG charts)
-.\scripts\run.ps1 compute         # the same results again from the sheets of a filled workbook, no call to Jira (dev PC, fake data only)
+.\scripts\run.ps1 compute         # the same results again from the sheets of a filled workbook, no call to Jira (dev PC, fake data only); --check: against what Excel calculated
 .\scripts\manual-test.ps1         # manual try: fake Jira + pre-filled copy (mock-workbook), opened in a new Excel
 .\scripts\stop-mock.ps1           # kill the fake Jira that start-mock.ps1 / manual-test.ps1 started
 .\scripts\scenario.ps1            # unattended scenario: fake Jira, filled copy, Python extraction, checks, clean-up (-Excel: + test-excel)
@@ -301,6 +301,12 @@ python.log). `tests/unit/test_claude_hooks.py` and `test_claude_skills.py` test 
   stored as numbers as their digits. `__main__.finish` is shared by `run` (extract) and `compute`; compute checks only `COMPUTE_PARAMETERS` (= modActions,
   a test reads it), never the connection. Oracle without Excel (`tests/unit/test_compute.py`): extract then compute gives the same sheets but Run and
   Errors (generated data and art-metrics), a Workflows corrected in the xlsx = a fresh extraction with it, no request reaches the fake Jira.
+  **`compute --check`** (an .xlsm saved by Excel only: an .xlsx of extract holds Python's own values, argparse refuses it): `standalone/check.py`
+  joins each result table of the workbook and of the computed xlsx on its keys (`TABLE_KEYS`; a table ends at its first row with no key, the
+  parameters in force sit under Reconciliation), compares the columns both hold (numbers within 1e-5, a date half a second; TRUE is no 1), the
+  MetricItems lists as sets of rows, writes `<out>.check.html` and `INFO check | n tables, n cells, n differ, n rows on one side only`, a
+  `WARN J2D-FLOW-012` when something differs; DailyLoad is not compared (the Python path stops at AsOf). The Excel step "compute --check sur une
+  copie enregistrée" (SaveCopyAs, then in process) found 0 of 18 269 cells different on the generated data with anomalies, 0 of 4 654 on art-metrics.
 - **Python path without VBA (`standalone/`, `run.ps1 extract`).** A second consumer of the flow reference: it reads
   the parameter sheets of the filled workbook as a zip (`xlsx_read`, by header name, shape rules shared with
   params/*.md through `params.model.shape_problems`, Config rules of the VBA in `params_book`), calls Jira with the

@@ -36,6 +36,7 @@ Fonctionnalité: Le scénario art-metrics du faux Jira donne, dans le classeur l
     Et la table FlowEfficiencyCheck de l'ART est celle calculée à la main
     Et la table FlowLoadCheck de l'ART est celle calculée à la main
     Et la table FlowDistCheck de l'ART est celle calculée à la main
+    Et compute --check sur une copie enregistrée du classeur retrouve chaque chiffre
 
   @excel
   Scénario: Les statuts viennent de Jira : la feuille Workflows ne déclare que les trois statuts d'attente et les chiffres ne changent pas

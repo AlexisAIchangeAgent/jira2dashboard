@@ -261,6 +261,8 @@ On the development PC, with fake data only, `compute` makes the same results aga
 - It reads the parameter sheets as they are now and what the extraction left: `Issues`, `Changelog`, `IssueLinks` and
   the Jira sheets. The rules and the status intervals are made again, so a corrected `Workflows` takes effect.
 - The input is a saved `.xlsm` whose button 1 ran, or the `.xlsx` of `extract` (which also writes the Jira sheets).
+- `--check` (an `.xlsm` saved by Excel) compares every result table with the figures Excel calculated and writes
+  `jira2dashboard-compute.check.html`: each difference with its row, its column and both values.
 
 ## 10. Metrics and data checks
 

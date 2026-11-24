@@ -60,6 +60,7 @@ Fonctionnalité: Le classeur livré extrait Jira et calcule les mêmes chiffres 
     Et les colonnes de trace de ItemFlow reproduisent la référence Python sur les données générées
     Et les listes de la feuille MetricItems reproduisent la référence Python sur les données générées
     Et la table Reconciliation reproduit la référence Python sur les données générées
+    Et compute --check sur une copie enregistrée du classeur retrouve chaque chiffre
 
   @excel
   Scénario: Un contrôle dont le champ Jira n'est pas configuré est « not computable » et ne signale personne
