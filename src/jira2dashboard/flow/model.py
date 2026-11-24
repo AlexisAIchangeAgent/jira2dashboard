@@ -33,9 +33,10 @@ class Rules:
     """The status rules: what Jira says (flow/status_rules.py) and the exceptions of the sheet Workflows. A status that no source knows is
     Unclassified. `waits` is True once a status is declared Wait (Flow Efficiency needs one)."""
 
-    def __init__(self, rows: dict[tuple[str, str], StatusRule], waits: bool = True):
+    def __init__(self, rows: dict[tuple[str, str], StatusRule], waits: bool = True, entries: tuple = ()):
         self._rows = rows
         self.waits = waits
+        self.entries = entries          # the status_rules.Rule of each row with its source (from_params): the sheet StatusRules
 
     @classmethod
     def from_params(cls, sheets: list[ParamSheet] | None = None, catalog: dict[str, str] | None = None, current: dict[str, str] | None = None,
@@ -48,7 +49,7 @@ class Rules:
         exceptions = [Exception_(wf, status, category, start, end, free_) for wf, status, category, start, end, free_ in workflows.rows]
         rules = effective_rules(("Team", "Feature"), catalog or {}, current or {}, set(starts or ()), set(free or ()), exceptions)
         return cls({(r.workflow, r.status): StatusRule(r.category, bool(r.is_start), bool(r.is_end), bool(r.is_free)) for r in rules},
-                   waits=has_wait(rules))
+                   waits=has_wait(rules), entries=tuple(rules))
 
     def listed(self) -> list:
         """The rules one by one (status_rules.Rule, source left empty): what status_rules.rule_counts reads."""

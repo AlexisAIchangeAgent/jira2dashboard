@@ -163,3 +163,12 @@ def rule_warnings(counts: Iterable[KindCounts], kinds_with_tickets: set[str]) ->
     if kinds_with_tickets and not any(c.wait for c in counts):
         out.append(f"{NO_WAIT_CODE} | {NO_WAIT_TEXT}")
     return out
+
+
+STATUS_RULES_HEADER = ("Workflow", "Status", "Category", "IsStart", "IsEnd", "IsFree", "Source")    # modExtract.RulesInit / RefreshRules
+
+
+def status_rule_rows(rules: Iterable[Rule]) -> list[tuple]:
+    """The sheet StatusRules: the Feature rules then the Team ones, by status (the order of modParams.EffectiveRules(Array("Feature", "Team")))."""
+    return [(r.workflow, r.status, r.category, r.is_start, r.is_end, r.is_free, r.source)
+            for r in sorted(rules, key=lambda r: (r.workflow != "Feature", r.status))]

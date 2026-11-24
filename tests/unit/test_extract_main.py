@@ -213,3 +213,23 @@ def test_a_refused_workflow_reading_is_a_warning_with_its_code(tmp_path, jira):
     jira.fail_next("POST", "/rest/api/3/workflows/preview", 403)
     code, log = run(tmp_path, params(tmp_path, jira.base_url))
     assert code == 0 and "J2D-JIRA-030 | the workflows of Jira could not be read" in log
+
+
+def test_the_xlsx_holds_the_jira_sheets_in_the_layout_of_the_vba_and_the_rules_made_of_them(tmp_path, jira, dataset):
+    """Step F: what the run read of Jira's configuration is kept (a later compute reads it again): the four sheets read back give the workflows of the
+    fake Jira, the catalog its statuses; StatusRules holds the rules with a start for each workflow kind."""
+    from jira2dashboard import sheet_names as S
+    from jira2dashboard.flow import jira_workflows as JW
+    from jira2dashboard.mockjira.flow_adapter import jira_workflows
+    from jira2dashboard.standalone.xlsx_read import read_sheets
+    code, _log = run(tmp_path, params(tmp_path, jira.base_url))
+    assert code == 0
+    names = {S.of(n): n for n in ("JiraStatusCatalog", "JiraIssueTypes", "JiraWorkflows", "JiraTransitions", "StatusRules")}
+    sheets = {names[k]: rows for k, rows in read_sheets(tmp_path / "out.xlsx", set(names)).items()}
+    assert set(sheets) == set(names.values()) and tuple(sheets["JiraWorkflows"][0]) == JW.WORKFLOWS_HEADER
+    info = JW.from_sheets(*(sheets[n][1:] for n in ("JiraIssueTypes", "JiraWorkflows", "JiraTransitions")))
+    expected = jira_workflows(dataset)
+    assert (info.moves, info.starts, info.initial) == (expected.moves, expected.starts, expected.initial) and info.workflow_of
+    assert len(JW.catalog_of(sheets["JiraStatusCatalog"][1:])) > 5
+    rules = sheets["StatusRules"][1:]
+    assert {r[0] for r in rules if r[3] == 1} == {"Feature", "Team"} and {r[6] for r in rules} <= {"Jira", "user"}

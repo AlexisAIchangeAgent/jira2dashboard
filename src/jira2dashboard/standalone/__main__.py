@@ -29,9 +29,10 @@ from jira2dashboard.flow import dashboard_spec as D
 from jira2dashboard.flow import raw_types
 from jira2dashboard.flow.formulas import CHANGELOG_RAW, INTERVALS_RAW, ISSUES, PIINTERVALS_RAW
 from jira2dashboard.flow.health import health_fields
+from jira2dashboard.flow import jira_workflows as JW
 from jira2dashboard.flow.jira_workflows import JiraWorkflows
 from jira2dashboard.flow.model import UNCLASSIFIED, Rules
-from jira2dashboard.flow.status_rules import counts_line, rule_counts, rule_warnings
+from jira2dashboard.flow.status_rules import STATUS_RULES_HEADER, counts_line, rule_counts, rule_warnings, status_rule_rows
 from jira2dashboard.params.model import ParamsError
 from jira2dashboard.paths import RELEASE_DIR
 from jira2dashboard.standalone import jira_api as J
@@ -305,10 +306,22 @@ def run(args, formatter: Scrubbed, collected: Collected, sleep=time.sleep, detec
         Sheet(S.of("PIIntervals"), PIINTERVALS_RAW, R.piinterval_rows(extract.flow)),
         Sheet(S.of("IssueLinks"), ("Blocker", "Blocked"), extract.links),
         Sheet(S.of("Changelog"), CHANGELOG_RAW, extract.changelog),
+        *jira_sheets(catalog, info, settings.rules),
         Sheet(ERRORS_SHEET, ("TimeUtc", "Level", "Message"), collected.rows),
     ] + _masked(sheets)
     write_xlsx(out, sheets_out)
     return out
+
+
+def jira_sheets(catalog: dict[str, str], info: JiraWorkflows, rules: Rules) -> list[Sheet]:
+    """What the run read of Jira's configuration, in the sheets and layout of the VBA (flow/jira_workflows), and the rules it made of them (StatusRules):
+    a later `compute` reads the first four again, never StatusRules (it makes the rules again under the exceptions of Workflows)."""
+    rows = JW.sheet_rows(info)
+    return [Sheet(S.of("JiraStatusCatalog"), JW.CATALOG_HEADER, JW.catalog_rows(catalog)),
+            Sheet(S.of("JiraIssueTypes"), JW.ISSUE_TYPES_HEADER, rows["JiraIssueTypes"]),
+            Sheet(S.of("JiraWorkflows"), JW.WORKFLOWS_HEADER, rows["JiraWorkflows"]),
+            Sheet(S.of("JiraTransitions"), JW.TRANSITIONS_HEADER, rows["JiraTransitions"]),
+            Sheet(S.of("StatusRules"), STATUS_RULES_HEADER, status_rule_rows(rules.entries))]
 
 
 RUN_SHEET = S.of("Run")                     # sheets of this path only: written by the tool, like the calculated ones

@@ -142,3 +142,49 @@ def test_the_only_moves_the_jira_workflow_does_not_have_are_those_of_the_three_s
 
 def test_without_the_jira_workflow_and_with_an_empty_sheet_transitions_nothing_can_be_judged():
     assert dc28_keys(with_jira=False) == []
+
+
+
+# --- the sheets: the layout of the VBA, written and read back ------------------------------------------------------------------------------
+
+def test_the_headers_of_the_jira_sheets_are_those_the_vba_writes():
+    import re
+    from pathlib import Path
+    from jira2dashboard.flow import jira_workflows as JW
+    from jira2dashboard.flow.status_rules import STATUS_RULES_HEADER
+    vba = (Path(__file__).parents[2] / "vba" / "modJiraConfig.bas").read_text(encoding="utf-8")
+    extract = (Path(__file__).parents[2] / "vba" / "modExtract.bas").read_text(encoding="utf-8")
+    def header(source, sheet):
+        found = re.search(rf'"{sheet}", Array\(([^)]*)\)', source)
+        return tuple(re.findall(r'"([^"]*)"', found.group(1)))
+    assert header(vba, "JiraStatusCatalog") == JW.CATALOG_HEADER
+    assert header(vba, "JiraIssueTypes") == JW.ISSUE_TYPES_HEADER
+    assert header(vba, "JiraWorkflows") == JW.WORKFLOWS_HEADER
+    assert header(vba, "JiraTransitions") == JW.TRANSITIONS_HEADER
+    assert re.search(r'Array\("Workflow", "Status", "Category", "IsStart", "IsEnd", "IsFree", "Source"\)', extract) and len(STATUS_RULES_HEADER) == 7
+
+
+def test_the_workflows_written_in_the_sheets_read_back_the_same():
+    from jira2dashboard.flow import jira_workflows as JW
+    info = JiraWorkflows(initial={"WF-A": "Open", "WF-B": "New"},
+                         moves=frozenset({("WF-A", "Open", "Doing"), ("WF-A", "Doing", "Closed"), ("WF-B", "New", "Review"), ("WF-B", "Review", "Doing")}),
+                         starts=frozenset({"Doing", "Review"}), free=frozenset({"Closed", "Cancelled"}),       # Cancelled: reached by a global move only
+                         workflow_of={("PRG", "Feature"): "WF-A", ("TEAM", "Story"): "WF-B"})
+    rows = JW.sheet_rows(info)
+    assert rows["JiraWorkflows"][0] == ("WF-A", "Open", "", "", "", 0, "", 1, "")                    # the creation status first, Initial 1
+    assert ("", "Cancelled", "", "", "", 1, "", "", "") in rows["JiraWorkflows"]                     # a free status no workflow lists
+    assert all(len(r) == len(JW.WORKFLOWS_HEADER) for r in rows["JiraWorkflows"])
+    assert JW.from_sheets(rows["JiraIssueTypes"], rows["JiraWorkflows"], rows["JiraTransitions"]) == info
+    assert JW.catalog_of(JW.catalog_rows({"Open": "new", "Doing": "indeterminate"})) == {"Open": "new", "Doing": "indeterminate"}
+
+
+def test_the_sheets_written_by_the_vba_are_read_as_the_vba_reads_them():
+    """A row of the VBA: IsStart 1 or empty, IsFree 1 or 0, Initial 1 or empty, numbers read back from a file as floats; an empty table keeps one
+    blank row."""
+    from jira2dashboard.flow import jira_workflows as JW
+    workflows = [("Flow", "To do", "Backlog", None, None, 0.0, "new", 1.0, "PRG"), ("Flow", "Doing", "Active", 1.0, None, 0.0, "indeterminate", None, "PRG"),
+                 ("Flow", "Done", "Done", None, 1.0, 1.0, "done", None, "PRG"), (None, None, None, None, None, None, None, None, None)]
+    info = JW.from_sheets([("PRG", "Feature", "Flow", "no", 1.0, "company-managed"), (None, None, None, None, None, None)], workflows,
+                          [("Flow", "To do", "Doing", "Start", "11", "DIRECTED", "PRG")])
+    assert info == JiraWorkflows({"Flow": "To do"}, frozenset({("Flow", "To do", "Doing")}), frozenset({"Doing"}), frozenset({"Done"}),
+                                 {("PRG", "Feature"): "Flow"})
