@@ -70,8 +70,9 @@ VelocityCheck.Reason, MetricItems with the days and bucket of each ticket and th
 Excel 2024), J2D-FLOW-012 of compute --check; MD5 6025e069cba913958edab7726ee2363e) and `v0.18.1` (2026-11-24, commit 44bf340: the sheet
 Manual shorter, one section per button and "Check the figures"; MD5 52e8486dce73e4d1b647c01b4526d0e8) and `v0.18.2` (2026-11-24, commit 9426bb1:
 "Never entered the start status" / "Back to the backlog after the start", the column JiraWorkflows of StatusRules; MD5 7cb23872b3530e4a008d93d283d4e38a)
-exist on GitHub: AL removed the
-releases and the tags `v0.1.0` to `v0.4.0` (2026-11-13, they were 2026-11-06, 878807e, 31c9574, f0bbf32). Their numbers are never used again; the next one is above `v0.18.2`.
+and `v0.18.3` (2026-11-25, commit 2c469d5: a PI without Start and End is left out, no J2D-CFG-013, health field "PIs without dates", one PI per row of the
+CSV; MD5 d7e323daa450457cf7757b84241cc893) exist on GitHub: AL removed the
+releases and the tags `v0.1.0` to `v0.4.0` (2026-11-13, they were 2026-11-06, 878807e, 31c9574, f0bbf32). Their numbers are never used again; the next one is above `v0.18.3`.
 A clone may keep old tags (`git fetch --tags`): `version.py` stamps the commit, never `git describe`.
 `diagnose` never opens the workbook, never reads `python.log` (JQL, Jira's messages) nor the Windows event log, and masks the home
 folder: keep it that way when adding a section. Allow-lists of an endpoint protection ask for the MD5 (`notes.md` has it) or, lasting longer, the path and name:
