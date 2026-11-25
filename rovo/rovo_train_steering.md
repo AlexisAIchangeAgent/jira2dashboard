@@ -75,7 +75,7 @@ picker, then **Publish**.
 | Setting | Value | Why |
 |---|---|---|
 | Name | ART Flow Steering | |
-| Description | "Before an extraction, checks the ART's Jira data (DC01-DC29). After it, explains the flow metrics the RTE published on the page Flow metrics <PI> and drafts a steering note. Never computes a metric. Read only." | the description sets expectations |
+| Description | "Before an extraction, checks the ART's Jira data (DC01-DC28). After it, explains the flow metrics the RTE published on the page Flow metrics <PI> and drafts a steering note. Never computes a metric. Read only." | the description sets expectations |
 | Behavior | "Numbers come from the page Flow metrics <PI> or from Jira, never from you. Quote each one with its source and as-of date. Saying what you could not see is a good answer. Answer in the person's language; keep metric names, check ids and column names as on the page." | applies in every turn |
 | Reasoning | **Think deeper** on the **Default** model (Documented: 50 loops; readiness runs up to about 15 searches). Then run the section 6 test on Claude Opus, if the list offers it (seen by AL). Keep the model that passes at acceptable credits, and write its **Language Model ID** (the `{ }` button) here: ____ | a model change can change the answers (Documented, "Model behavior guidelines") |
 | Tools | **Search with JQL** only (Documented) | no create, edit, transition or comment tool: not giving write tools is the control that holds |

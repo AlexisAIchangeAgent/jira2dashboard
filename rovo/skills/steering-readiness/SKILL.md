@@ -1,6 +1,6 @@
 ---
 name: steering-readiness
-description: Check the ART's Jira data before the workbook extraction with the data checks DC01-DC29. Use when asked whether the data is ready, which work items fail a check, or about a check id DCxx. Gives JQL links and the keys received, never a computed total. Read only.
+description: Check the ART's Jira data before the workbook extraction with the data checks DC01-DC28. Use when asked whether the data is ready, which work items fail a check, or about a check id DCxx. Gives JQL links and the keys received, never a computed total. Read only.
 ---
 
 # Data readiness before the extraction

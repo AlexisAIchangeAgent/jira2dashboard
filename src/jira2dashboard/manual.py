@@ -65,7 +65,7 @@ def manual(mandatory: tuple[str, ...]) -> list[tuple[str, str]]:
             "ApiToken stays in clear in the sheet: empty it before you send the workbook to anyone.",
             f"{PROJECTS}: Project, Role, Team. One project is the Program (the Features); the others are Team projects (none for an ART of "
             "Features only).",
-            f"{ITERATIONS}: Iteration-label, Start, End (End excluded, UTC). {PIS}: PI, Start, End, with names such as PI#01-2026, one PI per row.",
+            f"{ITERATIONS}: Iteration-label, Start, End (End excluded, UTC). {PIS}: PI, Start, End, one PI per row, any name (PI#01-2026, PI#4.1-2024); the charts show the PIs by Start.",
             "A PI with no Start and no End is left out of the metrics (the status says PIs without dates); one date alone stops 2.",
             f"{WORKFLOWS}: the exceptions to what Jira says (an empty cell takes Jira's value): Category = Wait for a status that waits (Jira has "
             "no such category), Removed for a Done status that is no delivery, IsStart = 1 when Jira's workflows cannot be read.",

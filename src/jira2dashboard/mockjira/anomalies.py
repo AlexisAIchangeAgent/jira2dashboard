@@ -70,7 +70,7 @@ def known_anomalies(projects: tuple[str, ...]) -> dict[Issue, frozenset[str]]:
     story(clean.key, "DC15", sprints=())
     story(clean.key, "DC16", sprints=CLOSED + (ACTIVE,))
     story(clean.key, "DC27", key_changes=(dt.datetime(2026, 10, 5, 10, 0),))
-    story(clean.key, "DC29", pi="PI#1-2026")
+    story(clean.key, pi="PI#1-2026")                               # one digit: a PI like any other, nothing to flag (DC29 is gone, AL 2026-11-25)
     story(None, "DC01")
     story(story(clean.key).key, "DC02")                             # the parent is a story: wrong level
     wrong = issue(key(alpha), project=alpha, moves=CHAIN[:2], parent=clean.key, story_points=3, team=team_of(alpha),

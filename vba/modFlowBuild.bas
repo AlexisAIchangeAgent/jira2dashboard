@@ -853,14 +853,11 @@ Private Function FeatureTeamNames(ByVal wb As Object, ByVal programTeam As Strin
 End Function
 
 Private Function IterationFeatureKeys(ByVal wb As Object, ByVal iterations As Collection, ByVal featureTeams As Collection) As Collection
-    ' One row per iteration, PI that holds its start (the sheet PIs: Start <= iteration start < End; none = one row with an empty PI) and
-    ' team of the Features: Array(label, start, end, team, PI). The counts are the formulas of the table IterationFeatures.
+    ' One row per iteration, PI that holds its start (the sheet PIs: Start <= iteration start < End, by Start then name: DatedPis; none = one row
+    ' with an empty PI) and team of the Features: Array(label, start, end, team, PI). The counts are the formulas of the table IterationFeatures.
     Cov "FLB46"
-    Dim out As New Collection, pisSheet As New Collection, p As Variant, q As Variant, holders As Collection, t As Long, s As Variant, e As Variant
-    For Each q In ReadTable(wb.Worksheets(SheetName("PIs")))
-        s = SerialOf(q("Start")): e = SerialOf(q("End"))
-        If Len(Trim$(CStr(q("PI") & ""))) > 0 And Not IsEmpty(s) And Not IsEmpty(e) Then pisSheet.Add Array(Trim$(CStr(q("PI"))), s, e)
-    Next q
+    Dim out As New Collection, pisSheet As Collection, p As Variant, q As Variant, holders As Collection, t As Long
+    Set pisSheet = DatedPis(wb)
     For Each p In iterations
         Set holders = New Collection
         For Each q In pisSheet
@@ -994,23 +991,17 @@ Private Sub BuildCharts(ByVal wb As Object, ByVal spec As Object, ByVal teams As
 End Sub
 
 Private Function PiNames(ByVal wb As Object, ByVal noPi As String) As Collection
-    ' The PIs of the sheet PIs (first column, from row 2), in its order, then those that Features carry but the sheet lacks
-    ' (FeaturePis); noPi alone when there is none, so that the chart still has a row (a gap). They are the keys of the table
-    ' PIMetrics and the axis of the Feature Predictability chart. The dates are not read here: the table looks them up itself,
-    ' and a PI it cannot read is not computable, never an error of the build. A row with no Start and no End counts as a PI the sheet
-    ' lacks (AL, 2026-11-25): FeaturePis adds it back, by year then number, when Features carry it. Reference: flow/metrics.feature_predictability.
-    Dim out As New Collection, seen As Object, ws As Object, last As Long, r As Long, v As String
+    ' The PIs of the sheet PIs that have dates, by Start (AL, 2026-11-25: DatedPis), then those that Features carry but the sheet lacks or holds
+    ' without dates (FeaturePis), in the natural order of their names; noPi alone when there is none, so that the chart still has a row (a gap).
+    ' They are the keys of the table PIMetrics and the axis of the Feature Predictability chart (the table looks the dates up itself).
+    ' Reference: flow/metrics.feature_predictability.
+    Dim out As New Collection, seen As Object, q As Variant
     Cov "FLB37"
     Set seen = CreateObject("Scripting.Dictionary")
-    Set ws = wb.Worksheets(SheetName("PIs"))
-    last = ws.Cells(ws.Rows.Count, 1).End(-4162).Row     ' -4162 = xlUp
-    For r = 2 To last
-        v = Trim$(CStr(ws.Cells(r, 1).Value & ""))
-        If Len(v) > 0 And Not PiWithoutDates(ws.Cells(r, 2).Value, ws.Cells(r, 3).Value) Then
-            out.Add v
-            seen(UCase$(v)) = True                       ' MATCH and COUNTIFS of the table ignore the case
-        End If
-    Next r
+    For Each q In DatedPis(wb)
+        out.Add CStr(q(0))
+        seen(UCase$(CStr(q(0)))) = True                  ' MATCH and COUNTIFS of the table ignore the case
+    Next q
     FeaturePis out, seen, wb
     If out.Count = 0 Then Cov "FLB38": out.Add noPi
     Set PiNames = out
@@ -1018,8 +1009,8 @@ End Function
 
 Private Sub FeaturePis(ByVal out As Collection, ByVal seen As Object, ByVal wb As Object)
     ' Adds to out the PIs of the Features (type in FeatureTypes, case-sensitive like IsFeature) of the sheet Issues that the
-    ' sheet PIs lacks (AL, 2026-11-12), by year then number: without dates they are not computable, but the RTE sees them.
-    ' Only a valid PI (PI#XX-YYYY) counts: a malformed one is for DC17 and DC29.
+    ' sheet PIs lacks or holds without dates (AL, 2026-11-12), the first spelling of each, in the natural order of the names (PiComesBefore):
+    ' without dates they are not computable, but the RTE sees them. Any name is a PI (AL, 2026-11-25).
     Dim wsI As Object, last As Long, types As Variant, pis As Variant, features As Object, extra As New Collection
     Dim r As Long, j As Long, v As String, t As Variant
     Set wsI = wb.Worksheets(SheetName("Issues"))
@@ -1033,12 +1024,12 @@ Private Sub FeaturePis(ByVal out As Collection, ByVal seen As Object, ByVal wb A
     pis = IssueColumn(wsI, "PI", last)
     For r = 1 To last
         v = CStr(pis(r, 1) & "")
-        If IsPiName(v) Then
+        If Len(v) > 0 Then
             If features.Exists(CStr(types(r, 1) & "")) And Not seen.Exists(UCase$(v)) Then
                 Cov "FLB41"
                 seen(UCase$(v)) = True
                 For j = 1 To extra.Count
-                    If PiOrder(v) < PiOrder(CStr(extra(j))) Then Exit For
+                    If PiComesBefore(v, 0, CStr(extra(j)), 0) Then Exit For
                 Next j
                 If j > extra.Count Then
                     extra.Add v
@@ -1054,18 +1045,61 @@ Private Sub FeaturePis(ByVal out As Collection, ByVal seen As Object, ByVal wb A
     Next j
 End Sub
 
-Private Function IsPiName(ByVal v As String) As Boolean
-    ' PI#XX-YYYY, XX and YYYY digits, PI# in capitals: the format of DC17 and DC29 (flow/checks.valid_pi).
-    Dim k As Variant
-    If Len(v) <> 10 Or Left$(v, 3) <> "PI#" Or Mid$(v, 6, 1) <> "-" Then Exit Function
-    For Each k In Array(4, 5, 7, 8, 9, 10)
-        If InStr(1, "0123456789", Mid$(v, k, 1), vbBinaryCompare) = 0 Then Exit Function
-    Next k
-    IsPiName = True
+Private Function DatedPis(ByVal wb As Object) As Collection
+    ' The PIs of the sheet PIs that have dates, Array(name, start, end), by Start, then in the natural order of the names (AL, 2026-11-25: the
+    ' order of the rows does not count): the keys of PIMetrics (PiNames) and the PIs of an iteration (IterationFeatureKeys). Python:
+    ' flow/model.ordered_pis.
+    Dim out As New Collection, q As Variant, s As Variant, e As Variant, nm As String, i As Long
+    For Each q In ReadTable(wb.Worksheets(SheetName("PIs")))
+        s = SerialOf(q("Start")): e = SerialOf(q("End")): nm = Trim$(CStr(q("PI") & ""))
+        If Len(nm) > 0 And Not IsEmpty(s) And Not IsEmpty(e) Then
+            For i = 1 To out.Count
+                If PiComesBefore(nm, CDbl(s), CStr(out(i)(0)), CDbl(out(i)(1))) Then Exit For
+            Next i
+            If i > out.Count Then
+                out.Add Array(nm, s, e)
+            Else
+                Cov "FLB69"                                          ' before a later PI already read
+                out.Add Array(nm, s, e), , i
+            End If
+        End If
+    Next q
+    Set DatedPis = out
 End Function
 
-Private Function PiOrder(ByVal v As String) As String
-    PiOrder = Right$(v, 4) & Mid$(v, 4, 2)                             ' PI#XX-YYYY: by year, then number
+Public Function PiComesBefore(ByVal nameA As String, ByVal startA As Double, ByVal nameB As String, ByVal startB As Double) As Boolean
+    ' The order of the PIs (AL, 2026-11-25): by Start (0 for a PI without dates), then by PiSortKey, then by the name itself.
+    Dim c As Long
+    If startA <> startB Then PiComesBefore = (startA < startB): Exit Function
+    c = StrComp(PiSortKey(nameA), PiSortKey(nameB), vbBinaryCompare)
+    If c = 0 Then c = StrComp(nameA, nameB, vbBinaryCompare)
+    PiComesBefore = (c < 0)
+End Function
+
+Public Function PiSortKey(ByVal name As String) As String
+    ' The natural order of PI names: a run of digits compares as a number (PI#3-2024 before PI#10-2026), a to z as A to Z, compared as binary
+    ' text. The same text as flow/model.pi_sort_key: a run of digits = character 1, its length on 4 digits, the digits without leading zeros.
+    Dim i As Long, ch As String, digits As String, out As String, code As Long
+    For i = 1 To Len(name)
+        ch = Mid$(name, i, 1)
+        code = AscW(ch)
+        If code >= 48 And code <= 57 Then
+            digits = digits & ch
+        Else
+            If Len(digits) > 0 Then out = out & DigitRun(digits): digits = ""
+            If code >= 97 And code <= 122 Then ch = ChrW(code - 32)
+            out = out & ch
+        End If
+    Next i
+    If Len(digits) > 0 Then out = out & DigitRun(digits)
+    PiSortKey = out
+End Function
+
+Private Function DigitRun(ByVal digits As String) As String
+    Do While Left$(digits, 1) = "0"
+        digits = Mid$(digits, 2)
+    Loop
+    DigitRun = Chr$(1) & Format$(Len(digits), "0000") & digits
 End Function
 
 Private Sub WriteSelectorList(ByVal wb As Object, ByVal dash As Object, ByVal data As Object, ByVal spec As Object, _

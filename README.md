@@ -1,6 +1,6 @@
 # jira2dashboard
 
-jira2dashboard computes the six SAFe flow metrics and 29 data-quality checks from Jira Cloud, and shows them on a
+jira2dashboard computes the six SAFe flow metrics and 28 data-quality checks from Jira Cloud, and shows them on a
 dashboard in an Excel workbook, for the RTE of an Agile Release Train. The workbook needs Excel only: VBA reads Jira,
 Excel formulas compute every figure. No server, no Python at run time, and the data stays on the machine.
 
@@ -287,7 +287,7 @@ A figure that cannot be computed shows "not computable", never 0. Each data chec
 | Hierarchy and types | DC01–DC03, DC24 |
 | Status history and workflow | DC04–DC10, DC27, DC28 |
 | Sprints and story points | DC11, DC12, DC15, DC16 |
-| Team and PI | DC13, DC14, DC17, DC18, DC29 |
+| Team and PI | DC13, DC14, DC17, DC18 |
 | Dates, business value, fix versions | DC19–DC21, DC26 |
 | Dependencies, fill rates | DC22, DC23; DC25 |
 

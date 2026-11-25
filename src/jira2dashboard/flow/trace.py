@@ -18,7 +18,7 @@ import datetime as dt
 from dataclasses import dataclass, field
 
 from jira2dashboard.flow.itemflow import ItemFlow
-from jira2dashboard.flow.model import OTHER_TYPES, Iteration, work_type_bucket
+from jira2dashboard.flow.model import OTHER_TYPES, Iteration, ordered_pis, work_type_bucket
 
 ACCOUNT_COUNTED = "Done in an iteration"
 ACCOUNT_OUTSIDE = "Done outside the iterations"
@@ -69,7 +69,7 @@ def boundary_hours(item: ItemFlow, iterations: list[Iteration]) -> float | None:
 
 def trace(item: ItemFlow, iterations: list[Iteration], pis: dict[str, tuple[dt.datetime | None, dt.datetime | None]]) -> Trace:
     found = done_iteration(item, iterations)
-    pi = next((name for name, (start, end) in pis.items()
+    pi = next((name for name, (start, end) in ordered_pis(pis)
                if start is not None and end is not None and item.done is not None and start <= item.done < end), "")
     return Trace(found.name if found else "", found.start if found else None, found.end if found else None, pi,
                  account(item, found is not None), why_not_in_flow_time(item), boundary_hours(item, iterations))

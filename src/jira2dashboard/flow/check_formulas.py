@@ -41,12 +41,6 @@ def _flag(rule: str, *needs: str) -> str:
     return f"=IF({rule},1,0)"
 
 
-def valid_pi(cell: str) -> str:
-    """PI#XX-YYYY, XX and YYYY digits only (the case of PI# counts, like in the reference)."""
-    return (f'AND(LEN({cell})=10,EXACT(LEFT({cell},3),"PI#"),MID({cell},6,1)="-",'
-            f'SUMPRODUCT(--ISNUMBER(FIND(MID({cell},{{4,5,7,8,9,10}},1),"0123456789")))=6)')
-
-
 def _copy(column: str) -> str:
     return f'=IF(INDEX({IS}[{column}],{row_index(IF_)})="","",INDEX({IS}[{column}],{row_index(IF_)}))'
 
@@ -103,8 +97,8 @@ FLAGS = {
     "DC14": _flag('AND([@Workflow]="Team",[@TeamValue]<>"",[@TeamValue]<>[@Team])', "TeamField"),
     "DC15": _flag('AND([@Workflow]="Team",[@StatusCategory]="indeterminate",[@SprintCount]=0)', "SprintField"),
     "DC16": _flag("[@SprintCount]>=3", "SprintField"),
-    "DC17": _flag(f"AND([@IsFeature]=1,NOT({valid_pi('[@PI]')}))", "PIField"),
-    "DC18": _flag(f"AND([@IsFeature]=1,{valid_pi('[@PI]')},COUNTIFS({bounded("PIs", "A", PIS_LAST)},[@PI])>0,IFERROR({_PI_WINDOW},0)>0)",
+    "DC17": _flag('AND([@IsFeature]=1,[@PI]="")', "PIField"),
+    "DC18": _flag(f"AND([@IsFeature]=1,[@PI]<>\"\",COUNTIFS({bounded("PIs", "A", PIS_LAST)},[@PI])>0,IFERROR({_PI_WINDOW},0)>0)",
                   "PIField", "SprintField", "PIs"),
     "DC19": _flag('AND([@IsFeature]=1,[@CurrentCategory]<>"Backlog",[@CurrentCategory]<>"Removed",'
                   'OR([@TargetStart]="",[@TargetEnd]=""))', "TargetStartField", "TargetEndField"),
@@ -119,7 +113,6 @@ FLAGS = {
     "DC26": _flag('AND([@IsFeature]=1,[@FixVersions]="")'),
     "DC27": _flag("[@KeyChanges]>0"),
     "DC28": f"=IF(COUNTIFS({SI}[Key],[@Key],{SI}[BadMove],1)>0,1,0)",
-    "DC29": _flag(f'AND([@PI]<>"",NOT({valid_pi("[@PI]")}))', "PIField"),
 }
 assert tuple(FLAGS) == PER_ISSUE, "one formula per issue-level check, in the order of the catalogue"
 

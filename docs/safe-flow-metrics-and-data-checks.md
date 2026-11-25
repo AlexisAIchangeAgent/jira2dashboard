@@ -103,7 +103,7 @@ MisAjour, Resolu, Echeance, Label, FixVersion, PIsource, Parent, BusinessValue, 
 | `BusinessValue` | integer |
 | `Parent` | can be empty (so DC01 is meaningful; a feature has no parent) |
 | `TypeCategorie` | the **work type** (**Decided**): `Feature`, `Enabler`, `Autre` or `Defect`. Used directly by Flow Distribution |
-| `PIsource` | the PI field of the Jira tickets (`PI`). Values look like `PI#XX-YYYY`: `XX` = PI number, `YYYY` = year. `XX` has 2 digits (maximum `PI#99-2046`). Can be empty, or contain the text `Champ_customefield_11339`: a placeholder whose origin is unknown and not needed, reported by DC29 |
+| `PIsource` | the PI field of the Jira tickets (`PI`). Values often look like `PI#XX-YYYY` (`XX` = PI number, `YYYY` = year), but any name is a PI (AL, 2026-11-25: `PI#3-2024`, `PI#4.1-2024`): the metrics of a PI need only its Start and End in the sheet `PIs`. Can be empty (DC17); a placeholder such as `Champ_customefield_11339` is read as a PI name too |
 
 - **To confirm:** the first list had an empty slot (`MisAjour, , Parent`): a field may be missing from the
   "always have a value" list.
@@ -142,7 +142,7 @@ One row per column of the extract: which metric or check uses it and what is wro
 | Echeance | DueDate | date | yes | DC20 if the plan uses due dates | Optional | none | Yes |
 | Label | Labels | text | yes | none today | Optional | none | Yes |
 | FixVersion | FixVersion | text | yes | DC26 | Optional | DC26 not computable | Yes |
-| PIsource | PI | text (`PI#XX-YYYY`, `XX` 2 digits) | yes | DC17, DC18, DC29 | Required for PI views | DC17, DC18 not computable | Yes |
+| PIsource | PI | text (any name, for example `PI#01-2026`) | yes | DC17, DC18 | Required for PI views | DC17, DC18 not computable | Yes |
 | Parent | ParentKey | text (issue key) | yes | DC01, DC02, DC24, hierarchy | Required | DC01, DC02, DC24 not computable | Yes |
 | BusinessValue | BusinessValue | integer | yes | DC21 only (Flow Predictability needs the business value of PI objectives, which are not in the extract) | Optional | DC21 not computable | Yes |
 | StoryPoint | StoryPoints | number | yes | DC12, Flow Velocity in points, fill rate; DC11 (needs `Sprint`, not in the extract) | Optional | points view "not reliable"; DC11 not computable | Yes |
@@ -250,7 +250,7 @@ The JQL is a starting point: field names differ per site; take the real ids from
 | DC26 | Missing release / fix version on features (if the client uses releases in Plans) | Minor | Release view in Plans | `fixVersions` empty | `issuetype = Feature AND fixVersion is EMPTY` |
 | DC27 | Issue moved between projects (key changed) | Minor | Team history and metrics split across keys | changelog rows with field `Key` or `project`; join on `Id` | (Excel only) |
 | DC28 | Status transition not in `Transitions` | Major | Workflow bypassed, intervals unreliable | an interval change (From, To) with no matching `Transitions` row (same workflow) and `To` not `IsFree` | (Excel only) |
-| DC29 | PI field not empty but not in the format `PI#XX-YYYY` (includes the placeholder `Champ_customefield_...`) | Major | The PI looks filled but is not a real value; PI views, DC17 and DC18 are wrong | `PIsource` not empty and not matching `PI#` + 2 digits + `-` + 4 digits (for example `LIKE "PI#??-????"` with digit test); treated as empty for DC17 and DC18 | (Excel only) |
+| DC29 | Removed (AL, 2026-11-25): the format of the name of a PI is no problem, any name is a PI; the id is not used again | - | - | - | - |
 
 Each check writes rows to `DataChecks` with the same Id, so the Excel results, the Rovo agents and the Jira
 saved filters (`DQ DC01 ...`) can be compared.

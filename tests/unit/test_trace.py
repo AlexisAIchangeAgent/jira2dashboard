@@ -60,6 +60,13 @@ def test_a_ticket_done_after_every_iteration_is_in_the_account_outside_and_has_n
     assert got.boundary_hours == 4 * 24                                                  # 05-25 is 4 days after the end of I2 (05-21)
 
 
+def test_the_pi_of_a_done_ticket_is_the_first_by_start_that_holds_it():
+    """AL, 2026-11-25: the PIs come by Start (the order of PIMetrics, whose first window holding DoneUtc is ItemFlow.DonePI), not by the sheet."""
+    item = ticket("A-9", [("2025-05-02T00:00", "En analyse"), ("2025-05-06T12:00", "Terminé")])
+    overlapping = {"Wide": (day("2025-05-03"), day("2025-07-01")), "Early": (day("2025-04-01"), day("2025-06-01"))}
+    assert trace(item, [I1, I2], overlapping).done_pi == "Early"
+
+
 def test_a_ticket_done_before_every_pi_has_no_pi():
     got = traced(ticket("A-4", [("2025-03-02T00:00", "En analyse"), ("2025-03-05T00:00", "Terminé")]))
     assert (got.done_iteration, got.done_pi, got.account) == ("", "", ACCOUNT_OUTSIDE)

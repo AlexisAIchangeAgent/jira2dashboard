@@ -2091,17 +2091,19 @@ def art_close(value, expected):
 
 @then("la feuille PIMetrics donne pour les 4 PI 6 prévues et 6, 5, 3 et 4 faites")
 def _art_pimetrics_a(world):
-    from art_oracle import DONE_A, PIS, PLANNED
+    from art_oracle import DONE_A, NOT_IN_SHEET, PIS, PLANNED
     rows = art_table(world, "PIMetrics")
-    assert [r["PI"] for r in rows] == list(PIS)
-    assert [(r["FeaturesPlanned"], r["FeaturesDone"]) for r in rows] == [(PLANNED[pi], DONE_A[pi]) for pi in PIS]
+    assert [r["PI"] for r in rows] == list(PIS) + list(NOT_IN_SHEET)
+    assert [(r["FeaturesPlanned"], r["FeaturesDone"]) for r in rows[:4]] == [(PLANNED[pi], DONE_A[pi]) for pi in PIS]
+    assert [(r["FeaturesPlanned"], r["FeaturesDone"] or "", r["FeaturePredictability"]) for r in rows[4:]] == [
+        (n, "", NOT_COMPUTABLE) for n in NOT_IN_SHEET.values()]
 
 
 @then("la feuille PIMetrics donne pour les 4 PI 6 prévues et 6, 5, 3 et 5 faites")
 def _art_pimetrics_b(world):
     from art_oracle import DONE_B, PIS, PLANNED
     rows = art_table(world, "PIMetrics")
-    assert [(r["FeaturesPlanned"], r["FeaturesDone"]) for r in rows] == [(PLANNED[pi], DONE_B[pi]) for pi in PIS]
+    assert [(r["FeaturesPlanned"], r["FeaturesDone"]) for r in rows[:4]] == [(PLANNED[pi], DONE_B[pi]) for pi in PIS]
 
 
 @then("la Feature Predictability des PI est 100 %, 83,33 %, 50 % et 66,67 %")
@@ -2151,8 +2153,10 @@ def _art_reference(world):
             wrong.append((ref.iteration, ref.team, "Baseline"))
     assert wrong == [], wrong[:8]
     reference = feature_predictability(issues, items, settings, scenario.iterations)
-    for p, row in zip(reference, art_table(world, "PIMetrics")):
-        assert (row["PI"], row["FeaturesPlanned"], row["FeaturesDone"]) == (p.pi, p.planned, p.done) and art_close(row["FeaturePredictability"], p.ratio)
+    for p, row in zip(reference, art_table(world, "PIMetrics"), strict=True):      # PI-5 too: the sheet lacks it (any name is a PI, AL 2026-11-25)
+        ratio = row["FeaturePredictability"]
+        same_ratio = ratio == p.ratio if p.ratio == NOT_COMPUTABLE else art_close(ratio, p.ratio)
+        assert (row["PI"], row["FeaturesPlanned"], row["FeaturesDone"]) == (p.pi, p.planned, "" if p.done is None else p.done) and same_ratio, (p, row)
 
 
 @then("la vélocité par itération de l'ART est celle du scénario")
@@ -2261,13 +2265,15 @@ def chart_note(world, name):
 
 @then("la table PIStatusTime donne pour chaque PI ses Features livrées, la durée moyenne et la part de chaque statut calculées à la main")
 def _art_status_time(world):
-    from art_oracle import CHAIN, PI_ITEMS, PIS, STATUS_AVERAGE_DAYS, STATUS_SHARE
+    from art_oracle import CHAIN, NOT_IN_SHEET, PI_ITEMS, PIS, STATUS_AVERAGE_DAYS, STATUS_SHARE
     rows = art_table(world, "PIStatusTime")
-    assert [(r["PI"], r["Status"]) for r in rows] == [(pi, s) for pi in PIS for s in CHAIN]              # PI order, then the order of the flow (Jira)
-    assert {r["PI"]: int(r["Items"]) for r in rows} == PI_ITEMS                                           # the item set, not only the shares
-    assert all(art_close(r["AverageDays"], STATUS_AVERAGE_DAYS[r["PI"]][r["Status"]]) for r in rows), rows[:3]
-    assert all(art_close(r["Share"], STATUS_SHARE[r["PI"]][r["Status"]]) for r in rows), rows[:3]
-    assert all(r["Start"] and r["End"] for r in rows)                                                     # the dates come from the sheet PIs
+    assert [(r["PI"], r["Status"]) for r in rows] == [(pi, s) for pi in [*PIS, *NOT_IN_SHEET] for s in CHAIN]   # PI order, then the order of the flow (Jira)
+    dated = [r for r in rows if r["PI"] in PIS]
+    assert {r["PI"]: int(r["Items"]) for r in dated} == PI_ITEMS                                          # the item set, not only the shares
+    assert all(art_close(r["AverageDays"], STATUS_AVERAGE_DAYS[r["PI"]][r["Status"]]) for r in dated), dated[:3]
+    assert all(art_close(r["Share"], STATUS_SHARE[r["PI"]][r["Status"]]) for r in dated), dated[:3]
+    assert all(r["Start"] and r["End"] for r in dated)                                                    # the dates come from the sheet PIs
+    assert all(r["Items"] == NOT_COMPUTABLE and not r["Start"] for r in rows if r["PI"] in NOT_IN_SHEET)   # PI-5: no dates, not computable
 
 
 @then("la table VelocityCheck donne pour chaque itération de l'ART autant de passages vers l'état de fin que de Features livrées, "
@@ -2389,7 +2395,9 @@ def _art_status_time_reference(world):
     rules = jira_rules(ds)
     items = [item_flow(i, ds.as_of, rules) for i in to_flow_issues(ds)]
     windows = {p.name: (p.start, p.end) for p in scenario.pis}
-    expected = pi_status_time(items, feature_statuses(items, status_depths(ds)), list(windows), windows)
+    issues = to_flow_issues(ds)
+    names = [p.pi for p in feature_predictability(issues, items, CheckSettings(feature_types=frozenset({"Feature"}), pis=windows), scenario.iterations)]
+    expected = pi_status_time(items, feature_statuses(items, status_depths(ds)), names, windows)       # the keys of PIMetrics: PI-5 too
     got = art_table(world, "PIStatusTime")
     assert [(r["PI"], r["Status"]) for r in got] == [(e.pi, e.status) for e in expected]
     for row, ref in zip(got, expected):
@@ -2405,15 +2413,19 @@ def _art_status_time_reference(world):
 
 @then("le graphique Cycle time by status empile les parts des statuts de chaque PI")
 def _art_status_chart(world):
-    from art_oracle import CHAIN, PIS, STATUS_SHARE
+    from art_oracle import CHAIN, NOT_IN_SHEET, PIS, STATUS_SHARE
     ws = world["wb"].Worksheets(S.of(D.CHARTS_SHEET))
     chart = ws.ChartObjects("pi_status_time").Chart
     assert chart.ChartType == D.XL_COLUMN_STACKED_100                                            # PIs on the X axis, shares stacked to 100 %
     assert [chart.SeriesCollection(n).Name for n in range(1, chart.SeriesCollection().Count + 1)] == CHAIN
+    axis = [*PIS, *NOT_IN_SHEET]                                                                  # PI-5: the sheet lacks it, a gap (AL, 2026-11-25)
     for n, status in enumerate(CHAIN, start=1):
-        assert [float(v) for v in chart.SeriesCollection(n).Values] == [STATUS_SHARE[pi][status] for pi in PIS], status
-    assert list(chart.SeriesCollection(1).XValues) == list(PIS)
-    assert chart_note(world, "pi_status_time") == f"0 of {len(CHAIN) * len(PIS)} points are not computable (gaps) - {D.PI_STATUS_REASON}"
+        values = list(chart.SeriesCollection(n).Values)
+        assert [float(v) for v in values[:len(PIS)]] == [STATUS_SHARE[pi][status] for pi in PIS], status
+        assert all(not isinstance(v, float) for v in values[len(PIS):]), (status, values)        # no share for PI-5
+    assert list(chart.SeriesCollection(1).XValues) == axis
+    gaps = len(CHAIN) * len(NOT_IN_SHEET)
+    assert chart_note(world, "pi_status_time") == f"{gaps} of {len(CHAIN) * len(axis)} points are not computable (gaps) - {D.PI_STATUS_REASON}"
 
 
 @then("le graphique Velocity écrit la valeur au-dessus des barres de l'ART et sa note compte 6 points à 0")

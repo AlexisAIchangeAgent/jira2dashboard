@@ -3,11 +3,12 @@ Predictability per PI (the variant of Flow Predictability that AL chose)."""
 import datetime as dt
 from dataclasses import dataclass
 
-from jira2dashboard.flow.checks import CheckSettings, valid_pi
+from jira2dashboard.flow.checks import CheckSettings
 from jira2dashboard.flow.itemflow import ItemFlow
 from jira2dashboard.flow.iteration_features import IterationFeatures, iteration_features
 from jira2dashboard.flow.load import ONE_DAY, in_process_at, snapshot_days
-from jira2dashboard.flow.model import ART, NOT_COMPUTABLE, UNMAPPED, WORK_TYPES, FlowIssue, Iteration, work_type_bucket
+from jira2dashboard.flow.model import (ART, NOT_COMPUTABLE, UNMAPPED, WORK_TYPES, FlowIssue, Iteration, ordered_pis, pi_sort_key,
+                                       work_type_bucket)
 
 BUCKETS = WORK_TYPES + (UNMAPPED,)
 
@@ -97,10 +98,6 @@ class PIPredictability:
     ratio: float | str                     # done / planned; NOT_COMPUTABLE when nothing is planned or the end is unknown
 
 
-def _pi_order(pi: str) -> tuple[str, str]:
-    return pi[6:], pi[3:5]                 # PI#XX-YYYY: by year, then number
-
-
 def pi_predictability(rows: list[IterationFeatures], issues: list[FlowIssue], settings: CheckSettings,
                       mode: str = "A") -> list[PIPredictability]:
     """The variant of Flow Predictability chosen by AL (2026-11-12): Flow Predictability itself needs the business value of the
@@ -109,20 +106,24 @@ def pi_predictability(rows: list[IterationFeatures], issues: list[FlowIssue], se
     baseline (the start of the first iteration of the PI), so a Feature deferred later is still planned and a cancelled one stays
     planned, not done. Done = released in an iteration of the PI: mode A counts the planned ones only (the commitment), mode B also
     those added after the baseline (the ratio can pass 100 %). A PI with no iteration has no baseline: nothing planned, a gap.
-    Then one row per PI that Features carry but the sheet lacks (AL, 2026-11-12), by year then number: without an end date it is
-    not computable, but the RTE sees it (the PI field as it is now). Only a valid PI (PI#XX-YYYY) counts: a malformed one is for
-    DC17 and DC29."""
+    The PIs of the sheet come by Start (AL, 2026-11-25: ordered_pis). Then one row per PI that Features carry but the sheet lacks or
+    holds without dates (AL, 2026-11-12), in the natural order of the names (pi_sort_key): without an end date it is not computable,
+    but the RTE sees it (the PI field as it is now). Any name is a PI (AL, 2026-11-25)."""
     features = [i for i in issues if i.type in settings.feature_types]
     out = []
-    for pi in settings.pis:
+    for pi, _window in ordered_pis(settings.pis):
         mine = sorted((r for r in rows if r.team == ART and r.pi == pi), key=lambda r: r.start)
         planned = mine[0].engaged if mine else 0
         done = sum(r.released if mode == "B" else r.released_planned for r in mine)
         out.append(PIPredictability(pi, planned, done, done / planned if planned else NOT_COMPUTABLE))
-    in_sheet = {pi.upper() for pi in settings.pis}           # MATCH and COUNTIFS of the workbook ignore the case
-    missing = {i.pi for i in features if valid_pi(i.pi) and i.pi.upper() not in in_sheet}
-    out += [PIPredictability(pi, sum(1 for i in features if (i.pi or "").strip() == pi), None, NOT_COMPUTABLE)
-            for pi in sorted(missing, key=_pi_order)]
+    seen = {pi.upper() for pi in settings.pis}               # MATCH and COUNTIFS of the workbook ignore the case
+    missing = []
+    for issue in features:                                   # the first spelling of a name, in the order of the issues (modFlowBuild.FeaturePis)
+        if issue.pi and issue.pi.upper() not in seen:
+            seen.add(issue.pi.upper())
+            missing.append(issue.pi)
+    out += [PIPredictability(pi, sum(1 for i in features if (i.pi or "").strip().upper() == pi.upper()), None, NOT_COMPUTABLE)
+            for pi in sorted(missing, key=lambda name: (pi_sort_key(name), name))]
     return out
 
 

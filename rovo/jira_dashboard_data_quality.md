@@ -32,6 +32,7 @@ value`. The same ids appear everywhere: `DataChecks`, the agent's answers, the f
 | DC13 | `issuetype in (<FeatureTypes>, <ParentRequiredTypes>) AND "<TeamField>" IS EMPTY` |
 | DC14 | one filter per team project P: `project = <P> AND "<TeamField>" IS NOT EMPTY AND "<TeamField>" != "<TeamOfP>"` (test how the Team field compares) |
 | DC15 | `project in (<TeamProjects>) AND statusCategory = "In Progress" AND sprint IS EMPTY` |
+| DC17 | `issuetype in (<FeatureTypes>) AND "<PIField>" IS EMPTY` |
 | DC19 | `issuetype in (<FeatureTypes>) AND status not in (<BacklogStatuses>, <RemovedStatuses>) AND ("<TargetStartField>" IS EMPTY OR "<TargetEndField>" IS EMPTY)` |
 | DC21 | `issuetype in (<FeatureTypes>) AND "<BusinessValueField>" IS NOT EMPTY` |
 | DC26 | `issuetype in (<FeatureTypes>) AND fixVersion IS EMPTY` |
@@ -50,10 +51,9 @@ sandbox (`rovo/rovo-guide.md` section 7, items 9 and 10).
 | DC08 | `status not in (<AllWorkflowStatuses>)` | it sees the current status only; the workbook also flags past statuses |
 | DC09 | `status in (<EndStatuses>) AND status WAS NOT IN (<StartStatuses>)` | it ignores the restart of the clock after a return to Backlog |
 | DC10 | `status CHANGED FROM "<EndStatus>"`, one clause per end status, joined with OR | exact only with one Done status per workflow |
-| DC17 | `issuetype in (<FeatureTypes>) AND "<PIField>" IS EMPTY` | the workbook also counts a malformed PI as empty |
 
 **Workbook only** (no filter):
-- DC02, DC03, DC06, DC07, DC18, DC20, DC24, DC27, DC29;
+- DC02, DC03, DC06, DC07, DC18, DC20, DC24, DC27;
 - DC16, DC22, DC23, DC25, DC28: their JQL gives only loose candidates (`rovo/rovo-guide.md` section 3).
 
 Read these in the `DataChecks` sheet.
@@ -69,7 +69,7 @@ Read these in the `DataChecks` sheet.
   columns Key, Summary, Team, Status and Assignee. The gadget shows how many items match.
 - **Two dimensional filter statistics**, one per other exact filter. Put the Team field on one axis and Status on
   the other, so each team sees its own share.
-- Put the Blocker checks at the top, partial ones included (DC08 and DC17 keep "partial" in their name). Put the
+- Put the Blocker checks at the top, partial ones included (DC08 keeps "partial" in its name). Put the
   other partial filters (DC09, DC10) in a separate column, titled "partial: candidates".
 
 **Counts depend on the viewer.** A viewer sees only the items they may see. A count can differ from the workbook's

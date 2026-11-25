@@ -4,11 +4,12 @@ The expected numbers come from tests/art_oracle.py, worked out by hand; nothing 
 """
 import pytest
 from art_oracle import (ART_ROWS, CHAIN, DONE_A, DONE_B, FLOW_EFFICIENCY, FLOW_TIME_DAYS, ITERATION_STARTS, LONG_STATUS, PI_OF_FEATURE,
-                        PIS, PLANNED, TEAM_ROWS, VELOCITY)
+                        NOT_IN_SHEET, PIS, PLANNED, TEAM_ROWS, VELOCITY)
 from pytest_bdd import given, parsers, scenarios, then, when
 
 from jira2dashboard import mock_workbook as M
 from jira2dashboard import sheet_names as S
+from jira2dashboard.flow.model import NOT_COMPUTABLE
 from jira2dashboard.mockjira.scenarios import get
 from jira2dashboard.mockjira.server import MOCK_EMAIL, MOCK_TOKEN, MockJira
 from jira2dashboard.standalone import __main__ as extract
@@ -86,14 +87,16 @@ def close(value, expected) -> bool:
 @then("la feuille PIMetrics donne pour les 4 PI 6 prévues et 6, 5, 3 et 4 faites")
 def _pimetrics_a(world):
     rows = sheet(world, "PIMetrics")
-    assert [r["PI"] for r in rows] == list(PIS)
-    assert [(r["FeaturesPlanned"], r["FeaturesDone"]) for r in rows] == [(PLANNED[pi], DONE_A[pi]) for pi in PIS]
+    assert [r["PI"] for r in rows] == list(PIS) + list(NOT_IN_SHEET)
+    assert [(r["FeaturesPlanned"], r["FeaturesDone"]) for r in rows[:4]] == [(PLANNED[pi], DONE_A[pi]) for pi in PIS]
+    assert [(r["FeaturesPlanned"], r["FeaturesDone"] or "", r["FeaturePredictability"]) for r in rows[4:]] == [
+        (n, "", NOT_COMPUTABLE) for n in NOT_IN_SHEET.values()]
 
 
 @then("la feuille PIMetrics donne pour les 4 PI 6 prévues et 6, 5, 3 et 5 faites")
 def _pimetrics_b(world):
     rows = sheet(world, "PIMetrics")
-    assert [(r["FeaturesPlanned"], r["FeaturesDone"]) for r in rows] == [(PLANNED[pi], DONE_B[pi]) for pi in PIS]
+    assert [(r["FeaturesPlanned"], r["FeaturesDone"]) for r in rows[:4]] == [(PLANNED[pi], DONE_B[pi]) for pi in PIS]
 
 
 @then("la Feature Predictability des PI est 100 %, 83,33 %, 50 % et 66,67 %")

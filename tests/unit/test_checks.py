@@ -7,8 +7,7 @@ import pytest
 from jira2dashboard.flow import blueprint as B
 from jira2dashboard.flow import check_formulas as C
 from jira2dashboard.flow import formulas as F
-from jira2dashboard.flow.checks import (CHECKS, FILL_FIELDS, IDS, PER_ISSUE, CheckSettings, Moves, fill_rates, run_checks,
-                                         valid_pi)
+from jira2dashboard.flow.checks import CHECKS, FILL_FIELDS, IDS, PER_ISSUE, CheckSettings, Moves, fill_rates, pi_window, run_checks
 from jira2dashboard.flow.model import Change, FlowIssue, Rules
 from jira2dashboard.mockjira.anomalies import known_anomalies, with_anomalies
 from jira2dashboard.mockjira.flow_adapter import to_flow_issues
@@ -61,9 +60,9 @@ def failed(rules, moves, issues, settings=CONFIGURED):
     return run_checks(issues, AS_OF, rules, moves, settings)
 
 
-def test_the_catalogue_covers_dc01_to_dc29_once_and_each_per_issue_check_has_a_formula():
-    assert IDS == tuple(f"DC{n:02d}" for n in range(1, 30))
-    assert "DC25" not in PER_ISSUE and len(PER_ISSUE) == 28
+def test_the_catalogue_covers_dc01_to_dc28_once_and_each_per_issue_check_has_a_formula():
+    assert IDS == tuple(f"DC{n:02d}" for n in range(1, 29))            # DC29 (the format of the PI) is gone: AL, 2026-11-25
+    assert "DC25" not in PER_ISSUE and len(PER_ISSUE) == 27
     assert all(i in dict(F.ITEMFLOW_COLUMNS) for i in PER_ISSUE)
     assert [r[0] for r in B.check_rows()] == list(IDS)
     assert all(r[1] and r[2] for r in B.check_rows()) and all(len(r) == len(B.CHECKS_HEADER) for r in B.check_rows())
@@ -87,7 +86,6 @@ CASES = [
     ("DC15", {"sprint_state": "", "sprint_count": 0, "sprint_start": None, "sprint_end": None}, ()),
     ("DC16", {"sprint_count": 3}, ()),
     ("DC27", {"key_changes": 1}, ()),
-    ("DC29", {"pi": "PI#1-2026"}, ()),
 ]
 
 
@@ -120,13 +118,12 @@ def test_dc12_dc21_dc24_dc26_are_about_the_type(rules, moves):
     assert "DC24" not in failed(rules, moves, [lone, story()])["F-1"]
 
 
-def test_dc17_and_dc29_use_the_pi_format(rules, moves):
-    assert valid_pi("PI#01-2026") and not valid_pi("PI#1-2026") and not valid_pi("pi#01-2026") and not valid_pi(None)
-    assert not valid_pi("Champ_customefield_10300") and not valid_pi("PI#01-202a")
-    placeholder = feature(pi="Champ_customefield_10300")
-    assert {"DC17", "DC29"} <= failed(rules, moves, [placeholder])["F-1"]
-    assert "DC17" in failed(rules, moves, [feature(pi=None)])["F-1"]
-    assert "DC29" not in failed(rules, moves, [feature(pi=None)])["F-1"]
+def test_dc17_flags_a_feature_without_pi_and_any_name_is_a_pi(rules, moves):
+    """AL, 2026-11-25: the format of the name of a PI is no problem (PI#3-2024, PI#4.1-2024 are the client's PIs); DC17 flags an empty PI field only."""
+    assert "DC17" in failed(rules, moves, [feature(pi=None)])["F-1"] and "DC17" in failed(rules, moves, [feature(pi="")])["F-1"]
+    for name in ("PI#3-2024", "PI#4.1-2024", "pi#01-2026", "Champ_customefield_10300"):
+        assert failed(rules, moves, [feature(pi=name), story()])["F-1"] == frozenset(), name
+    assert failed(rules, moves, [feature(), story(pi="PI#1-2026")])["S-1"] == frozenset()      # a story with any PI: nothing
 
 
 def test_dc18_compares_the_sprints_of_the_children_with_the_dates_of_the_pi(rules, moves):
@@ -135,6 +132,11 @@ def test_dc18_compares_the_sprints_of_the_children_with_the_dates_of_the_pi(rule
     assert "DC18" not in failed(rules, moves, [feature(), inside])["F-1"]
     assert "DC18" in failed(rules, moves, [feature(), inside, outside])["F-1"]
     assert "DC18" not in failed(rules, moves, [feature(pi="PI#09-2026"), outside])["F-1"]      # a PI that PIs does not know
+    assert "DC18" in failed(rules, moves, [feature(pi="pi#01-2026"), outside])["F-1"]          # found without case, as MATCH and COUNTIFS
+    one_digit = dataclasses.replace(CONFIGURED, pis={"PI#4.1-2024": (D(2026, 6, 1), D(2026, 12, 31))})
+    assert "DC18" in failed(rules, moves, [feature(pi="PI#4.1-2024"), outside], one_digit)["F-1"]
+    assert pi_window(CONFIGURED.pis, "PI#01-2026") == pi_window(CONFIGURED.pis, "Pi#01-2026") == (D(2026, 6, 1), D(2026, 12, 31))
+    assert pi_window(CONFIGURED.pis, None) is None and pi_window(CONFIGURED.pis, "PI#02-2026") is None
 
 
 def test_dc19_and_dc20_use_the_target_dates(rules, moves):
@@ -163,7 +165,7 @@ def test_dc22_and_dc23_come_from_the_blocking_links(rules, moves):
 
 def test_a_check_that_needs_a_field_flags_nobody_while_the_field_is_not_configured(rules, moves):
     broken = story(story_points=None, team_value="Beta", sprint_count=3, pi="x")
-    assert {"DC11", "DC14", "DC16", "DC29"} <= failed(rules, moves, [feature(), broken])["S-1"]
+    assert {"DC11", "DC14", "DC16"} <= failed(rules, moves, [feature(), broken])["S-1"]
     assert failed(rules, moves, [feature(), broken], UNCONFIGURED)["S-1"] == frozenset()
     assert {c.id for c in CHECKS if not UNCONFIGURED.ready(c)} == {c.id for c in CHECKS if c.needs}
     assert all(CONFIGURED.ready(c) for c in CHECKS)

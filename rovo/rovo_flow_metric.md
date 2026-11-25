@@ -196,11 +196,11 @@ instructions" exactly. Read only. Label every number exact, approximate or sampl
 
 The checks use the same ids as the workbook (`DataChecks`, `docs/safe-flow-metrics-and-data-checks.md` section 3).
 The coverage follows `rovo/rovo-guide.md` section 3, which was checked against `src/jira2dashboard/flow/checks.py`:
-- 10 checks have an exact JQL;
-- 9 have only a partial one;
+- 11 checks have an exact JQL;
+- 8 have only a partial one;
 - DC01 depends on a syntax test (`parent IS EMPTY`);
-- 9 need the change history or a comparison between items, and stay in the workbook only: DC02, DC03, DC06, DC07,
-  DC18, DC20, DC24, DC27 and DC29.
+- 8 need the change history or a comparison between items, and stay in the workbook only: DC02, DC03, DC06, DC07,
+  DC18, DC20, DC24 and DC27.
 
 | Check in the agent | Workbook id | Breaks | JQL status |
 |---|---|---|---|

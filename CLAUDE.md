@@ -147,8 +147,10 @@ python.log). `tests/unit/test_claude_hooks.py` and `test_claude_skills.py` test 
   written from the changelog by `modFlow.PiIntervalRows`: one row per stretch in which an issue carried a PI, touching stretches of
   the same PI merged). Reference `flow/pi_history.py`, `flow/iteration_features.py`, `flow/metrics.pi_predictability`; a PI with no
   iteration has no baseline (a gap). Existing metrics keep Features under the team ART; `FeatureTeam` is for this table only. Then
-  the valid PIs (`PI#XX-YYYY`) that Features carry but `PIs` lacks, by year then number, not computable, counted by the PI field as
-  it is now (AL, 2026-11-12; `modFlowBuild.FeaturePis`). **A row of `PIs` with no Start and no End (AL, 2026-11-25: v0.18.2 stopped with
+  the PIs that Features carry but `PIs` lacks, not computable, counted by the PI field as it is now (AL, 2026-11-12; `modFlowBuild.FeaturePis`).
+  **Any name is a PI and the PIs come by Start (AL, 2026-11-25):** DC29 (the format `PI#XX-YYYY`) is gone, DC17 = a Feature with an empty PI; the PIs with
+  dates by Start then name (`model.ordered_pis` = `modFlowBuild.DatedPis`: the keys of PIMetrics, the PIs of an iteration, DonePI), the others after them in
+  the natural order of the names (`model.pi_sort_key` = `modFlowBuild.PiSortKey`, the same text, typed lists in `test_pi_order` and `T_PiSortKey`). **A row of `PIs` with no Start and no End (AL, 2026-11-25: v0.18.2 stopped with
   J2D-CFG-013)** counts as a PI the sheet lacks (`modParams.PiWithoutDates` = `params.model.pi_without_dates`, `CheckSettings.undated_pis`; DC18 never
   judges its Features), the health field `PIs without dates` names it; one date alone still stops (710). Load settings CSV writes a PI cell that holds a
   list as one row per PI (`modParams.OnePiPerRow`). The manual-test copy declares both PIs of the generator (its Features are
@@ -458,7 +460,7 @@ python.log). `tests/unit/test_claude_hooks.py` and `test_claude_skills.py` test 
   page and never computes a metric; its skills are in `rovo/skills/`. The page template copies the column names of
   `METRICS_COLUMNS` and `DATACHECKS_COLUMNS` and the chart titles: update it when they change.
   Label every Rovo fact Documented / Community / Verify in UI / Proposal; the check coverage of `rovo/rovo-guide.md`
-  section 3 (10 exact, 9 partial, 1 to test, 9 workbook only) is the reference for the other `rovo/` files. Research
+  section 3 (11 exact, 8 partial, 1 to test, 8 workbook only; DC29 removed 2026-11-25) is the reference for the other `rovo/` files. Research
   behind them: `C:\dev\reports\Agents Rovo Studio et métriques.md` (outside the repo).
 - **Fake Jira.** `mockjira/` is a stdlib `http.server` Jira Cloud (search/jql, changelog bulkfetch, proxy/CONNECT, fault
   injection) fed by `dataset.py` (hand-written cases via `issue()`) and `generator.py` (seeded volume);

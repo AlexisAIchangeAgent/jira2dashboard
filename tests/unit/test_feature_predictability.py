@@ -50,22 +50,38 @@ def test_each_pi_gives_its_features_done_before_its_end_over_its_features_planne
 
 
 def test_a_pi_that_features_carry_but_the_sheet_lacks_is_shown_after_them_not_computable():
-    """AL (2026-11-12): a PI missing from the sheet PIs has no end date, so its ratio is not computable, but the RTE sees it.
-    By year, then number; a malformed PI (DC17, DC29), another type, or a PI the sheet holds add no row."""
+    """AL (2026-11-12): a PI missing from the sheet PIs has no end date, so its ratio is not computable, but the RTE sees it. Any name is a PI
+    (AL, 2026-11-25), in the natural order of the names (the numbers as numbers), one row per name whatever its case (the first spelling, as
+    MATCH and COUNTIFS ignore the case); another type, or a PI the sheet holds, add no row."""
     issues = cases() + [
         feature("F-7", "PI#01-2027", FEATURE_FLOW),
         feature("F-8", "PI#04-2026", FEATURE_FLOW + [("10-10", "Terminé")]),         # done, but no end date to compare with
         feature("F-9", "PI#04-2026", FEATURE_FLOW[:2]),
-        feature("F-10", "PI 4", FEATURE_FLOW),                                       # malformed: DC29, not a PI
-        feature("F-11", "pi#05-2026", FEATURE_FLOW),                                 # PI# in capitals only, as DC17
+        feature("F-10", "PI 4", FEATURE_FLOW),                                       # any name is a PI
+        feature("F-11", "pi#05-2026", FEATURE_FLOW),
+        feature("F-13", "PI#05-2026", FEATURE_FLOW),                                 # the same PI in capitals: one row, counted with F-11
+        feature("F-14", "PI#10-2026", FEATURE_FLOW),                                 # 10 after 5
         feature("F-12", "PI#02-2026", FEATURE_FLOW),                                 # in the sheet: counted there
         feature("S-2", "PI#06-2026", FEATURE_FLOW, "Story"),                         # not a Feature type
     ]
     items = [item_flow(issue, FLOW_AS_OF, Rules.from_params()) for issue in issues]
     rows = feature_predictability(issues, items, SETTINGS, ITERATIONS)
     assert [p.pi for p in rows[:3]] == list(SETTINGS.pis) and rows[1].planned == 2
-    assert rows[3:] == [PIPredictability("PI#04-2026", planned=2, done=None, ratio=NOT_COMPUTABLE),
-                        PIPredictability("PI#01-2027", planned=1, done=None, ratio=NOT_COMPUTABLE)]
+    assert rows[3:] == [PIPredictability("PI 4", planned=1, done=None, ratio=NOT_COMPUTABLE),
+                        PIPredictability("PI#01-2027", planned=1, done=None, ratio=NOT_COMPUTABLE),
+                        PIPredictability("PI#04-2026", planned=2, done=None, ratio=NOT_COMPUTABLE),
+                        PIPredictability("pi#05-2026", planned=2, done=None, ratio=NOT_COMPUTABLE),
+                        PIPredictability("PI#10-2026", planned=1, done=None, ratio=NOT_COMPUTABLE)]
+
+
+def test_the_pis_of_the_sheet_come_by_start_whatever_the_order_of_its_rows():
+    """AL, 2026-11-25: the order of the PIs is their Start; the order of the rows of the sheet PIs does not count."""
+    issues = cases()
+    items = [item_flow(issue, FLOW_AS_OF, Rules.from_params()) for issue in issues]
+    reversed_sheet = dataclasses.replace(SETTINGS, pis=dict(reversed(list(SETTINGS.pis.items()))))
+    got = feature_predictability(issues, items, reversed_sheet, ITERATIONS)
+    assert [p.pi for p in got[:3]] == ["PI#01-2026", "PI#02-2026", "PI#03-2026"]
+    assert got == feature_predictability(issues, items, SETTINGS, ITERATIONS)
 
 
 def test_without_any_pi_in_the_sheet_the_pis_of_the_features_are_listed():

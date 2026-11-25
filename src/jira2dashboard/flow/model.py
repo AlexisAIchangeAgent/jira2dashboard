@@ -1,5 +1,6 @@
 """Domain vocabulary of the flow metrics (names as in the documentation). All datetimes are naive UTC."""
 import datetime as dt
+import re
 from dataclasses import dataclass
 
 from jira2dashboard.params.model import ParamSheet, load_all
@@ -92,6 +93,26 @@ def change_order(change: Change) -> tuple:
     their id as a number (9 before 10: a text sort would put 10 first), which is the order Jira gave them in (the VBA keeps
     it: modFlow.SortByDate is stable)."""
     return (change.at, len(change.id), change.id)
+
+
+def pi_sort_key(name: str) -> str:
+    """The natural order of PI names (AL, 2026-11-25: any name is a PI, PIs without dates come in this order): a run of digits compares as a
+    number (PI#3-2024 before PI#10-2026), a to z as A to Z. The same text as modFlowBuild.PiSortKey, compared as binary text; two names with
+    the same key (PI#01-2027, PI#1-2027) go by the name itself."""
+    out = []
+    for n, part in enumerate(re.split(r"([0-9]+)", name)):
+        if n % 2:
+            digits = part.lstrip("0")
+            out.append(f"\x01{len(digits):04d}{digits}")
+        else:
+            out.append("".join(chr(ord(c) - 32) if "a" <= c <= "z" else c for c in part))
+    return "".join(out)
+
+
+def ordered_pis(pis: dict) -> list[tuple]:
+    """The PIs of the sheet PIs that have dates, (name, (start, end)), by Start, then by the natural order of their names (AL, 2026-11-25): the
+    order of PIMetrics (modFlowBuild.PiNames), so also the first PI that holds a date (ItemFlow.DonePI) and the PIs of an iteration."""
+    return sorted(pis.items(), key=lambda kv: (kv[1][0] is None, kv[1][0] or dt.datetime.min, pi_sort_key(kv[0]), kv[0]))
 
 
 def program_team(type_: str, feature_types: frozenset[str] | None) -> str:

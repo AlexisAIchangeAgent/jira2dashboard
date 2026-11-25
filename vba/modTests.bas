@@ -53,7 +53,7 @@ Private Function TestNames() As Variant
         "T_HttpNetworkAndCancel", "T_RetryExhausted", "T_ChangelogChunks", "T_IssueRows", "T_WriteTable", "T_StatusIntervals", "T_IntervalsUnreadableDate", "T_StatusChangesUnreadableDate", "T_ChangelogRows", "T_UserFieldIds", "T_DateShape", "T_ParseJiraDateEpoch", "T_DateKind", "T_IsPlausibleDate", "T_FindDateKey", "T_ChangelogDateKey", "T_SkippedDatesWarning", "T_SheetName", "T_ProposeFromSheets", "T_ProposeIterations", "T_ReadSprints", "T_TeamNames", "T_ReadStatusCatalog", "T_ReadWorkflowRules", "T_ReadLinkTypes", "T_ProposeTypes", "T_ProposeValuesNotAdmin", "T_HealthFields", "T_StatusRules", "T_JiraWorkflowNames", "T_RefreshRules", "T_WorkflowExceptions", "T_NotFeatures", "T_ReconciliationFindings", "T_CellKind", "T_FitsType", "T_ShapeOfCell", "T_TypeHints", "T_TypeProblems", "T_TypeEmptyTable", "T_TypeBlocks", "T_TypeFillLines", "T_WireTypes", _
         "T_StatusChanges", "T_RetryDelay", "T_SafeAccess", "T_FilesUtf8", "T_StringifyBadObject", _
         "T_TooManyPages", "T_BackgroundExport", "T_TextNotConverted", "T_ParamsTables", "T_ParamsOnWorkbook", _
-        "T_TrimWhite", "T_ConfigSheet", "T_MandatoryConfig", "T_Locked", "T_PiIntervals", "T_ProxyDetect", "T_ProxyScript", "T_ProjectsSheet", "T_StatusNames", "T_ParseMoment", "T_ExtractFlowData", "T_ExtractJob", "T_ExtractCheckFields", "T_FlowBuild", "T_BaseUrlHttps", "T_Log", "T_LogInputsAndTimes", "T_StatusParts", "T_ErrorCodes", "T_LogHintAndOpen", "T_StepsSheet", "T_RovoPrompt", "T_RovoCsv", _
+        "T_TrimWhite", "T_ConfigSheet", "T_MandatoryConfig", "T_Locked", "T_PiIntervals", "T_ProxyDetect", "T_ProxyScript", "T_ProjectsSheet", "T_StatusNames", "T_ParseMoment", "T_ExtractFlowData", "T_ExtractJob", "T_ExtractCheckFields", "T_FlowBuild", "T_PiSortKey", "T_BaseUrlHttps", "T_Log", "T_LogInputsAndTimes", "T_StatusParts", "T_ErrorCodes", "T_LogHintAndOpen", "T_StepsSheet", "T_RovoPrompt", "T_RovoCsv", _
         "T_JiraConfig", "T_AbortExtraction", "T_Utf8Oracle", "T_Utf8Invalid", "T_Base64Oracle")
 End Function
 
@@ -1417,6 +1417,15 @@ Private Function FlowBuildError() As Long
     Err.Clear
 End Function
 
+Private Function PiMetricsCell(ByVal address As String) As String
+    ' A cell of the sheet PIMetrics as text; "?" when it cannot be read or holds an error (a test must never stop on a dialog).
+    Dim v As Variant
+    On Error Resume Next
+    v = ThisWorkbook.Worksheets(SheetName("PIMetrics")).Range(address).Value
+    If Err.Number <> 0 Then PiMetricsCell = "?" Else If IsError(v) Then PiMetricsCell = "?" Else PiMetricsCell = CStr(v)
+    Err.Clear
+End Function
+
 Private Function IterationCell(ByVal column As String, ByVal row As Long) As String
     ' A cell of the table IterationFeatures as text; "?" when it cannot be read or holds an error (a test must never stop on a dialog).
     Dim v As Variant
@@ -1440,11 +1449,33 @@ Private Function TableRows(ByVal sheetKey As String) As Long
 End Function
 
 Private Function PiRows() As Variant
+    ' Two PIs, the later one first: the PIs come by Start, never in the order of the rows (AL, 2026-11-25)
     Dim rows(1 To 2, 1 To 3) As Variant
-    rows(1, 1) = "PI#01-2026": rows(1, 2) = DateSerial(2026, 9, 1): rows(1, 3) = DateSerial(2026, 10, 15)
-    rows(2, 1) = "PI#02-2026": rows(2, 2) = "'2026-10-15": rows(2, 3) = "'2026-12-01T00:00:00"   ' text, as Load settings CSV or Rovo writes it
+    rows(1, 1) = "PI#02-2026": rows(1, 2) = "'2026-10-15": rows(1, 3) = "'2026-12-01T00:00:00"   ' text, as Load settings CSV or Rovo writes it
+    rows(2, 1) = "PI#01-2026": rows(2, 2) = DateSerial(2026, 9, 1): rows(2, 3) = DateSerial(2026, 10, 15)
     PiRows = rows
 End Function
+
+Public Sub T_PiSortKey()
+    ' The natural order of PI names (AL, 2026-11-25), typed by hand as in tests/unit/test_pi_order.py: the VBA key sorts them as the Python key.
+    Dim names As Variant, inOrder As New Collection, i As Long, j As Long, text As String
+    names = Array("PI#10-2026", "pi#05-2026", "PI#9-2027", "Champ_customefield_11339", "PI#4.2-2024", "PI#1-2027", "PI 4", "PI#3-2024", _
+                  "PI#9-2026", "PI#01-2027", "PI#4.1-2024")
+    For i = 0 To UBound(names)
+        For j = 1 To inOrder.Count
+            If PiComesBefore(CStr(names(i)), 0, CStr(inOrder(j)), 0) Then Exit For
+        Next j
+        If j > inOrder.Count Then inOrder.Add names(i) Else inOrder.Add names(i), , j
+    Next i
+    For j = 1 To inOrder.Count
+        text = text & IIf(j > 1, "|", "") & inOrder(j)
+    Next j
+    Check "piorder", "the names without dates in the natural order (numbers as numbers, a to z as A to Z, then the name)", "11 names", _
+          "Champ_customefield_11339|PI 4|PI#01-2027|PI#1-2027|PI#3-2024|PI#4.1-2024|PI#4.2-2024|pi#05-2026|PI#9-2026|PI#9-2027|PI#10-2026", text
+    Check "piorder", "the key is the text of flow/model.pi_sort_key", "pi#05-2026", "PI#" & Chr$(1) & "00015-" & Chr$(1) & "00042026", PiSortKey("pi#05-2026")
+    Check "piorder", "by Start first: a later PI with a smaller name comes after", "PI#1-2025 on day 2", "no|yes", _
+          IIf(PiComesBefore("PI#1-2025", 2, "PI#9-2026", 1), "yes", "no") & "|" & IIf(PiComesBefore("PI#9-2026", 1, "PI#1-2025", 2), "yes", "no")
+End Sub
 
 Public Sub T_FlowBuild()
     ' The flow sheets and the dashboard are built from the plan sheets (FlowFormulas, ChartSpec), and rebuilt to the size
@@ -1496,7 +1527,7 @@ Public Sub T_FlowBuild()
     Check "flowbuild", "Metrics: one row per iteration and team", "2 iterations x 9", 2 * teams, TableRows("Metrics")
     Check "flowbuild", "ten charts, on the sheet Charts", "Charts", 10, dash.ChartObjects.Count
     Check "flowbuild", "and none on the Dashboard", "Dashboard", 0, wb.Worksheets(SheetName("Dashboard")).ChartObjects.Count
-    Check "flowbuild", "DataChecks: one row per check of ChecksSpec", "29 checks", 29, TableRows("DataChecks")
+    Check "flowbuild", "DataChecks: one row per check of ChecksSpec", "28 checks (DC29 is gone)", 28, TableRows("DataChecks")
     Check "flowbuild", "DataChecks: the first check, and the check that needs a field is not computable", "DC01 / DC11", "DC01|OK|not computable", _
           wb.Worksheets(SheetName("DataChecks")).Range("A2").Value & "|" & wb.Worksheets(SheetName("DataChecks")).Range("J2").Value & "|" & wb.Worksheets(SheetName("DataChecks")).Range("J12").Value
     Check "flowbuild", "FillRates: the system fields x teams x issue types (the fields not configured are left out)", "3 x 9 x 2", 54, TableRows("FillRates")
@@ -1577,27 +1608,27 @@ Public Sub T_FlowBuild()
     Check "flowbuild", "3. Draw: the ten charts again from the tables", "10 charts", "10|yes", dash.ChartObjects.Count & "|" & IIf(SheetExists(wb, "ChartData"), "yes", "no")
     Check "flowbuild", "an unknown team in the selector goes back to All teams", "Nowhere", "All teams", dash.Range("B2").Value
     dash.Range("B2").Value = "AAA"
-    wb.Worksheets(SheetName("PIs")).Range("A2:C3").Value = PiRows()                 ' two PIs: the PI axis lists them in order
+    wb.Worksheets(SheetName("PIs")).Range("A2:C3").Value = PiRows()                 ' two PIs, the later one first: the PI axis lists them by Start
     BuildFlowSheetsIn wb
     Check "flowbuild", "a known team stays selected", "AAA", "AAA", dash.Range("B2").Value
-    Check "flowbuild", "the PI axis lists the PIs of the sheet PIs in order", "two PIs", "PI#01-2026|PI#02-2026", _
+    Check "flowbuild", "the PI axis lists the PIs of the sheet PIs by Start, not in the order of the rows", "PI#02-2026, PI#01-2026", "PI#01-2026|PI#02-2026", _
           AxisEnds(dash.ChartObjects("feature_predictability").Chart, False)
     Check "flowbuild", "PIMetrics: one row per PI, its dates looked up in the sheet PIs, a date or an ISO text", "two PIs", _
           "2|" & CLng(DateSerial(2026, 10, 15)) & "|PI#02-2026|" & CLng(DateSerial(2026, 12, 1)), _
           TableRows("PIMetrics") & "|" & wb.Worksheets(SheetName("PIMetrics")).Range("C2").Value2 & "|" & wb.Worksheets(SheetName("PIMetrics")).Range("A3").Value & _
           "|" & wb.Worksheets(SheetName("PIMetrics")).Range("C3").Value2
-    ' Features in PIs that the sheet PIs lacks (AL, 2026-11-12): after the sheet's, by year then number, not computable; a PI
-    ' of the sheet, a malformed one (DC29) and the PI of a story add no row. A PI of the sheet without dates (AL, 2026-11-25: v0.18.2 stopped with
-    ' J2D-CFG-013) counts as one the sheet lacks: PI#04-2026, carried by Features, comes after the dated PIs; PI#09-2026, carried by none, gives no row
+    ' Features in PIs that the sheet PIs lacks (AL, 2026-11-12): after the sheet's, in the natural order of the names, not computable; any name
+    ' is a PI (AL, 2026-11-25); a PI of the sheet and the PI of a story add no row. A PI of the sheet without dates (AL, 2026-11-25: v0.18.2 stopped
+    ' with J2D-CFG-013) counts as one the sheet lacks: PI#04-2026, carried by Features, comes after the dated PIs; PI#09-2026, carried by none, none
     wb.Worksheets(SheetName("PIs")).Range("A4").Value = "PI#09-2026"
     wb.Worksheets(SheetName("PIs")).Range("A5").Value = "PI#04-2026"
     FlowRaw True, Array("PI#01-2027", "PI#04-2026", "PI#04-2026", "PI#02-2026", "PI 4", "pi#05-2026"), "PI#06-2026"
     Check "flowbuild", "a PI without dates does not stop the build", "PI#09-2026, PI#04-2026", "built", IIf(FlowBuildError() + vbObjectError = 0, "built", "stopped")
-    Check "flowbuild", "PIMetrics: the PIs of Features missing from the sheet PIs come after it, in order, not computable", _
-          "PI#04-2026 (2 features), PI#01-2027", "4|PI#04-2026|2||not computable|PI#01-2027|PI#01-2026|PI#01-2027", _
-          TableRows("PIMetrics") & "|" & wb.Worksheets(SheetName("PIMetrics")).Range("A4").Value & "|" & wb.Worksheets(SheetName("PIMetrics")).Range("D4").Value & _
-          "|" & wb.Worksheets(SheetName("PIMetrics")).Range("C4").Value & "|" & wb.Worksheets(SheetName("PIMetrics")).Range("F4").Value & "|" & _
-          wb.Worksheets(SheetName("PIMetrics")).Range("A5").Value & "|" & AxisEnds(dash.ChartObjects("feature_predictability").Chart, False)
+    Check "flowbuild", "PIMetrics: the PIs of Features missing from the sheet PIs come after it, numbers as numbers, any name, not computable", _
+          "PI 4, PI#01-2027, PI#04-2026 (2 features), pi#05-2026", "6|PI 4|1||not computable|PI#01-2027|PI#04-2026|2|pi#05-2026|1|PI#01-2026|pi#05-2026", _
+          TableRows("PIMetrics") & "|" & PiMetricsCell("A4") & "|" & PiMetricsCell("D4") & "|" & PiMetricsCell("C4") & "|" & PiMetricsCell("F4") & "|" & _
+          PiMetricsCell("A5") & "|" & PiMetricsCell("A6") & "|" & PiMetricsCell("D6") & "|" & PiMetricsCell("A7") & "|" & PiMetricsCell("D7") & "|" & _
+          AxisEnds(dash.ChartObjects("feature_predictability").Chart, False)
     ' IterationFeatures: one row per iteration, PI that holds its start and team (the ART, then the teams of the Features, alphabetical)
     Check "flowbuild", "IterationFeatures: 1 iteration x 3 teams, in order, in the PI that holds its start", "ART, team-a, team-b", _
           "3|ART|team-a|team-b|PI#01-2026", TableRows("IterationFeatures") & "|" & IterationCell("Team", 1) & "|" & IterationCell("Team", 2) & "|" & _

@@ -15,7 +15,8 @@ Interpretations (proposals; the document gives the idea, not always the exact ru
   status of two consecutive intervals with `Transitions` and `IsFree`.
 * The sprint of an issue is the active one, else a future one, else the last closed one. DC16 counts the sprints in the
   Sprint field (3 or more = carried over twice), not the changelog. DC15: Jira category `indeterminate`, no sprint.
-* DC17 and DC29 use the format `PI#` + 2 digits + `-` + 4 digits; for DC17 and DC18 a malformed value counts as empty.
+* DC17: a Feature with an empty PI field. Any name is a PI (AL, 2026-11-25: the format of the name is no problem, DC29 is gone); DC18 finds
+  the PI in the sheet PIs as MATCH and COUNTIFS do, without case.
   DC18 flags a feature when a child's sprint starts before the PI starts or ends after the PI ends (sheet `PIs`).
 * DC19 applies to features whose current status category is not Backlog and not Removed (the document says "status >=
   Planifie"). DC20 flags an issue whose end is before its start, or whose dates are outside its parent's dates.
@@ -25,7 +26,6 @@ Interpretations (proposals; the document gives the idea, not always the exact ru
   one finding. DC27 flags issues whose key changed (a Key change in the changelog).
 """
 import datetime as dt
-import re
 from collections import defaultdict
 from dataclasses import dataclass, field
 
@@ -34,7 +34,6 @@ from jira2dashboard.flow.jira_workflows import JiraWorkflows
 from jira2dashboard.flow.model import BACKLOG, REMOVED, UNCLASSIFIED, FlowIssue, Rules, change_order
 from jira2dashboard.params.model import ParamSheet, load_all
 
-PI_FORMAT = re.compile(r"PI#[0-9]{2}-[0-9]{4}")
 PIS_SHEET = "PIs"                                    # a need that is a sheet with rows, not a Config parameter
 
 
@@ -79,7 +78,6 @@ CHECKS = (
     Check("DC26", "Missing fix version on features", "Minor"),
     Check("DC27", "Issue moved between projects (key changed)", "Minor"),
     Check("DC28", "Status transition not in Transitions", "Major"),
-    Check("DC29", "PI field not empty but not in the format PI#XX-YYYY", "Major", ("PIField",)),
 )
 IDS = tuple(c.id for c in CHECKS)
 PER_ISSUE = tuple(c.id for c in CHECKS if c.source == "ItemFlow")      # DC25 is counted on the table FillRates
@@ -156,8 +154,10 @@ class Moves:
                 or not self.judges(issue))
 
 
-def valid_pi(value: str | None) -> bool:
-    return bool(value) and PI_FORMAT.fullmatch(value) is not None
+def pi_window(pis: dict, name: str | None) -> tuple | None:
+    """The dates of a PI in the sheet PIs, found without case like MATCH (the first row of the name); None when the sheet has no dates for it."""
+    wanted = (name or "").upper()
+    return next((window for pi, window in pis.items() if pi.upper() == wanted), None) if wanted else None
 
 
 def _status_history(issue: FlowIssue, as_of: dt.datetime, rules: Rules, moves: Moves) -> set[str]:
@@ -241,10 +241,11 @@ def _field_checks(issue: FlowIssue, parent: FlowIssue | None, children: list[Flo
         found.add("DC15")
     if issue.sprint_count >= 3:
         found.add("DC16")
-    if feature and not valid_pi(issue.pi):
+    if feature and not issue.pi:
         found.add("DC17")
-    if feature and valid_pi(issue.pi) and issue.pi in s.pis:
-        start, end = s.pis[issue.pi]
+    window = pi_window(s.pis, issue.pi) if feature else None
+    if window is not None:
+        start, end = window
         if any((c.sprint_start is not None and c.sprint_start < start) or (c.sprint_end is not None and c.sprint_end > end)
                for c in children):
             found.add("DC18")
@@ -261,8 +262,6 @@ def _field_checks(issue: FlowIssue, parent: FlowIssue | None, children: list[Flo
         found.add("DC26")
     if issue.key_changes > 0:
         found.add("DC27")
-    if issue.pi and not valid_pi(issue.pi):
-        found.add("DC29")
     return found
 
 

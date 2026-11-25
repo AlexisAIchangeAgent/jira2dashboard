@@ -14,7 +14,7 @@ For: **you** (Jira admin, using Rovo Chat and Rovo Studio) and **Copilot** (whic
 Goal: find and fix the data anomalies that make the SAFe flow metrics wrong and keep the Jira **Plans**
 program board unusable, then **prevent** them from coming back.
 
-The check ids `DC01`...`DC29` are the same as in `safe-flow-metrics-and-data-checks.md` and in the Excel
+The check ids `DC01`...`DC28` (DC29, the format of the PI, was removed on 2026-11-25: any name is a PI) are the same as in `safe-flow-metrics-and-data-checks.md` and in the Excel
 `DataChecks` sheet. Always use them: it lets you compare Rovo, saved filters and Excel counts.
 
 Labels: **Documented** = Atlassian support docs (checked 2026-11-03, revised 2026-11-05); **Community** = Atlassian
@@ -104,24 +104,24 @@ CONSTRAINTS: Read only. Do not edit anything. Use only data you can see. If a fi
 
 Placeholders to fill once (keep them in a Confluence page "ART data rules", see section 7):
 `<PROGRAM_KEY>`, `<TEAM_KEYS>` (comma list), `<POINTS_FIELD>` (for example `Story point estimate`),
-`<TEAM_FIELD>` (`Team`), `<PI_FIELD>` (`PI`, values like `PI#XX-YYYY`: `XX` = 2-digit PI number, `YYYY` = year), `<BV_FIELD>` (`Business Value`), `<TARGET_START>` / `<TARGET_END>`
+`<TEAM_FIELD>` (`Team`), `<PI_FIELD>` (`PI`, any name, for example `PI#01-2026` or `PI#4.1-2024`), `<BV_FIELD>` (`Business Value`), `<TARGET_START>` / `<TARGET_END>`
 (`Target start` / `Target end`), `<FEATURE_TYPE>` (`Feature` or its French name on the site).
 Field names in JQL differ per site: get the exact names with prompt P00 or from the Excel `FieldCatalog`.
 
 ## 3. Prompt library (copy, fill the placeholders, run in Rovo Chat)
 
-**Coverage (revised 2026-11-05, checked against the rule code `src/jira2dashboard/flow/checks.py`):** 10 checks have
-a JQL that should return exactly the workbook's `DataChecks` list, 9 only partly, 1 depends on a syntax test, 9 need
+**Coverage (revised 2026-11-25, checked against the rule code `src/jira2dashboard/flow/checks.py`):** 11 checks have
+a JQL that should return exactly the workbook's `DataChecks` list, 8 only partly, 1 depends on a syntax test, 8 need
 the workbook.
-- **Exact (10):** DC04, DC05, DC11, DC12, DC13, DC14, DC15, DC19, DC21, DC26. They read only the current state, with no
+- **Exact (11):** DC04, DC05, DC11, DC12, DC13, DC14, DC15, DC17, DC19, DC21, DC26. They read only the current state, with no
   date: a difference with the workbook on the same as-of date is a real signal (scope, field id, renamed status,
   permissions).
-- **Partly (9):** DC08 and DC09 (current status, or `WAS NOT IN`, which ignores the restart after a return to
-  Backlog), DC10 (exact only with one Done status per workflow), DC16 (the number of sprints cannot be counted), DC17
-  (a malformed PI counts as empty in the workbook), DC22 and DC23 (candidates only), DC25 (links, not the ratio), DC28
+- **Partly (8):** DC08 and DC09 (current status, or `WAS NOT IN`, which ignores the restart after a return to
+  Backlog), DC10 (exact only with one Done status per workflow), DC16 (the number of sprints cannot be counted),
+  DC22 and DC23 (candidates only), DC25 (links, not the ratio), DC28
   (chosen forbidden pairs only).
 - **Depends on a test (1):** DC01: `parent IS EMPTY` is not documented for `parent`, community answers say it works.
-- **Workbook only (9):** DC02, DC03, DC06, DC07, DC18, DC20, DC24, DC27, DC29 (parent types, history chains, dates
+- **Workbook only (8):** DC02, DC03, DC06, DC07, DC18, DC20, DC24, DC27 (parent types, history chains, dates
   across items, regular expressions).
 
 Exact JQL (prefix each with the workbook scope `project in (<Projects>) AND (<Filter>)`; placeholders are the
@@ -214,7 +214,7 @@ GOAL: Check that features are planned in a PI and have landing dates for Plans.
 SCOPE: project = <PROGRAM_KEY> AND issuetype = <FEATURE_TYPE> AND statusCategory != Done
 FIELDS: <PI_FIELD>, <TARGET_START>, <TARGET_END>, status, child items and their sprints.
 RULES:
-  DC17: <PI_FIELD> is empty. (The format PI#XX-YYYY is checked by DC29 in Excel only.)
+  DC17: <PI_FIELD> is empty (any name is a PI).
   DC18: the sprints of its children fall outside the PI dates (PI calendar: <PI list with start-end dates>).
   DC19: status is Planifié or later and <TARGET_START> or <TARGET_END> is empty.
   DC20: <TARGET_END> is before <TARGET_START>, or a child has dates outside the feature dates.
@@ -289,7 +289,7 @@ as the master copy.
 
 | Setting | Value | Why |
 |---|---|---|
-| Name / Description | Flow Data Steward. "Explains the jira2dashboard flow metrics and finds the Jira data problems (DC01-DC29) behind them. Gives JQL links, never computes a metric. Read only." | the description sets expectations |
+| Name / Description | Flow Data Steward. "Explains the jira2dashboard flow metrics and finds the Jira data problems (DC01-DC28) behind them. Gives JQL links, never computes a metric. Read only." | the description sets expectations |
 | Behavior | the role and the audience, plus: "Numbers come from the workbook or from Jira, never from you. Saying what you could not see is a good answer." | applies in every turn |
 | Base configuration | one line of scope and a polite refusal for anything else; **no tools, no organisational knowledge** (Proposal: a community trick against drift, to retest after the 2026-04 refresh) | keeps the agent on its job |
 | Subagent 1: Check finder | Trigger: "the user names a DCxx check, or asks which work items lack a parent, team, sprint, points, PI, dates or resolution, or asks for a filter". Tools: Search with JQL (plus get work item if offered). Knowledge: Custom: the Confluence page "ART data rules" with a table DC, Name, JQL match (exact / partial / none), JQL template, the threshold T, and the ART projects | section 3 decides what it may claim |
@@ -306,7 +306,7 @@ the site URL, field ids and project keys go on that page at the client, never in
 
 ```text
 <role>
-You find the Jira work items that fail the jira2dashboard data checks (DC01-DC29) for this ART. People fix data from
+You find the Jira work items that fail the jira2dashboard data checks (DC01-DC28) for this ART. People fix data from
 your answer before the workbook computes the SAFe flow metrics, so a wrong key or an invented count costs them time.
 Saying what you could not see is a good answer.
 </role>
@@ -457,8 +457,8 @@ Rovo answers change when the model, the data or your text changes. Treat prompts
 | 19 | `<SBX_TEAM>` | Story | blocked by #18 | DC22 |
 | 20 | `<SBX_TEAM>` | Sub-task | under #7, no points, clean | none |
 
-   Never put real client data in the sandbox. Checks that need the full history (DC06 to DC10, DC16, DC27 to
-   DC29) are Excel only: they are not in this table.
+   Never put real client data in the sandbox. Checks that need the full history (DC06 to DC10, DC16, DC27 and
+   DC28) are Excel only: they are not in this table.
 2. Write the expected result per prompt: which keys, which check ids. Keep it on a Confluence page.
 3. Run each prompt / agent on the sandbox after every change of the rules, the agent or a skill.
    Score: found / missed / false alarms. Keep the scores in a table (date, prompt version, score).
@@ -469,7 +469,7 @@ Rovo answers change when the model, the data or your text changes. Treat prompts
    by hand against JQL (an LLM judge accepts a count that is merely close). Keep the CSV, the scores, the date and the
    **Language Model ID** (the `{ }` button) in `rovo/`, and run it again after any change of model, reasoning tier or
    instructions, one change at a time (Documented, "Model behavior guidelines").
-6. Each month, compare the 10 exact checks of section 3 with the workbook's `DataChecks` on the same as-of date.
+6. Each month, compare the 11 exact checks of section 3 with the workbook's `DataChecks` on the same as-of date.
 7. Only then run on the real projects.
 
 ## 8. Capitalising on all this
@@ -488,7 +488,7 @@ Rovo answers change when the model, the data or your text changes. Treat prompts
 
 ## 9. For Copilot: how the Excel side aligns with Rovo
 
-- Use exactly the check ids `DC01`...`DC29` in `DataChecks[CheckId]`.
+- Use exactly the check ids `DC01`...`DC28` in `DataChecks[CheckId]`.
 - Add a column `JiraJql` with `key in (A-1, A-2, ...)` (at most 100 keys per cell) so the user can paste it
   into Jira to see the same items.
 - Add a sheet `RovoCompare` (Decided): CheckId | Excel count | Saved filter count (typed by the user) |

@@ -56,6 +56,9 @@ PLANNED = {"PI-1": 6, "PI-2": 6, "PI-3": 6, "PI-4": 6}
 DONE_A = {"PI-1": 6, "PI-2": 5, "PI-3": 3, "PI-4": 4}          # released among the Features engaged at the start of the PI
 DONE_B = {"PI-1": 6, "PI-2": 5, "PI-3": 3, "PI-4": 5}          # + ft-25, added during PI-4
 CURRENT_PI = {"PI-1": 6, "PI-2": 5, "PI-3": 3, "PI-4": 5}      # what reading the PI field as it is today would count as planned
+# a PI that Features carry today and the sheet PIs lacks (AL, 2026-11-25: any name is a PI): ft-13, ft-15 and ft-24 were moved to PI-5 when deferred.
+# Its row of PIMetrics comes after the 4 PIs of the sheet: planned = the Features that carry it today, done empty, not computable
+NOT_IN_SHEET = {"PI-5": 3}
 
 # --- the flow metrics of the ART (a Feature counts for the ART) --------------------------------------------------------------
 VELOCITY = {label: sum(1 for released in RELEASED.values() if released == label) for label in ITERATION_STARTS}

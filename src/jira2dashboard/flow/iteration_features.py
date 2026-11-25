@@ -19,7 +19,7 @@ import datetime as dt
 from dataclasses import dataclass
 
 from jira2dashboard.flow.itemflow import ItemFlow
-from jira2dashboard.flow.model import ART, FlowIssue, Iteration
+from jira2dashboard.flow.model import ART, FlowIssue, Iteration, ordered_pis
 from jira2dashboard.flow.pi_history import PIInterval, interval_at, pi_intervals
 
 
@@ -82,7 +82,7 @@ def _flags(intervals: list[PIInterval], done: dt.datetime | None, pi: str, itera
 
 def iteration_features(issues: list[FlowIssue], items: list[ItemFlow], iterations: list[Iteration],
                        pis: dict[str, tuple[dt.datetime, dt.datetime]], feature_types: frozenset[str]) -> list[IterationFeatures]:
-    """The rows of IterationFeatures: iterations in the given order, for each the PIs that hold its start (the sheet's order; none =
+    """The rows of IterationFeatures: iterations in the given order, for each the PIs that hold its start (by Start: ordered_pis; none =
     one row with an empty PI), for each the ART first and then the teams (feature_teams)."""
     done_at = {item.key: item.done for item in items}
     features = [(i, pi_intervals(i), done_at.get(i.key)) for i in issues if i.type in feature_types]
@@ -90,7 +90,7 @@ def iteration_features(issues: list[FlowIssue], items: list[ItemFlow], iteration
     base = baselines(iterations, pis)
     out = []
     for iteration in iterations:
-        holders = [pi for pi, (start, end) in pis.items() if start <= iteration.start < end] or [""]
+        holders = [pi for pi, (start, end) in ordered_pis(pis) if start <= iteration.start < end] or [""]
         for pi in holders:
             totals = {team: [0] * 5 for team in teams}
             baseline = base.get(pi)
