@@ -106,24 +106,28 @@ class CheckSettings:
     fields: dict[str, str] = field(default_factory=dict)         # Config parameter -> field id ("" = not configured)
     fill_threshold: int = 90
     pis: dict[str, tuple[dt.datetime, dt.datetime]] = field(default_factory=dict)
+    undated_pis: tuple[str, ...] = ()       # the PIs of the sheet with no Start and no End: left out of the metrics (AL, 2026-11-25)
 
     def configured(self, name: str) -> bool:
         return bool(self.fields.get(name))
 
     def ready(self, check: Check) -> bool:
-        """False while a field that the check reads is not configured (the check is "not computable")."""
-        return all(bool(self.pis) if need == PIS_SHEET else self.configured(need) for need in check.needs)
+        """False while a field that the check reads is not configured (the check is "not computable"). The sheet PIs is there when it has a
+        row, dated or not (the workbook counts its column A)."""
+        return all(bool(self.pis or self.undated_pis) if need == PIS_SHEET else self.configured(need) for need in check.needs)
 
     @classmethod
     def from_params(cls, sheets: list[ParamSheet] | None = None) -> "CheckSettings":
         by_name = {s.name: s for s in (sheets or load_all())}
         config = {row[0]: row[1] for row in by_name["Config"].rows}
-        from jira2dashboard.params.model import _parse_moment                       # the reading of the check: a final Z, naive UTC
-        pis = {name: (_parse_moment(start), _parse_moment(end)) for name, start, end in by_name["PIs"].rows}
+        from jira2dashboard.params.model import _parse_moment, pi_without_dates      # the reading of the check: a final Z, naive UTC
+        rows = by_name["PIs"].rows
+        pis = {name: (_parse_moment(start), _parse_moment(end)) for name, start, end in rows if not pi_without_dates(start, end)}
+        undated = tuple(dict.fromkeys(name for name, start, end in rows if name and pi_without_dates(start, end)))
         return cls(parent_types=_list(config["ParentRequiredTypes"]), feature_types=_list(config["FeatureTypes"]),
                    subtask_types=_list(config["SubTaskTypes"]), points_types=_list(config["PointsRequiredTypes"]),
                    fields={name: str(config.get(name) or "") for name in FIELD_PARAMETERS},
-                   fill_threshold=int(config["FillRateThreshold"]), pis=pis)
+                   fill_threshold=int(config["FillRateThreshold"]), pis=pis, undated_pis=undated)
 
 
 class Moves:

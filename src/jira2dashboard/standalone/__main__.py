@@ -213,7 +213,7 @@ def log_health(issues, results, settings, verdicts: list[str]) -> list[str]:
     """What the person should look at (flow/health.py, the fields of modHealth.HealthFields): one INFO line per field, and the fields for the sheet Run."""
     config = next(sheet for sheet in settings.sheets if sheet.name == "Config")
     fields = health_fields(issues, results.items, settings.rules, list(settings.iterations), settings.as_of, results.velocity_check, verdicts,
-                           config_values(config)["FeatureTypes"])
+                           config_values(config)["FeatureTypes"], settings.checks.undated_pis)
     for field in fields:
         log.info("health%s", field)
     return fields

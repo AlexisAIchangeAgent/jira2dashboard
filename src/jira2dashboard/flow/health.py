@@ -5,6 +5,7 @@ Python path (its sheet Run and python.log). They say WHY a figure or a chart is 
   No Wait status                     Flow Efficiency is not computable (Jira cannot say which in-progress statuses wait)
   Not Features                       tickets of the Program that are not Features (team "ART (other types)"), and a FeatureTypes that matches none
   Done outside the iterations        done tickets whose DoneUtc falls in no iteration (no metric counts them)
+  PIs without dates                  PIs of the sheet PIs with no Start and no End: left out of the metrics (AL, 2026-11-25)
   Without a team                     tickets whose Team is empty
   Statuses not in Workflows          statuses of the history that no rule knows (Unclassified)
   Started in the second of the backlog entry   no StartUtc because the start was entered in the same second as the last backlog entry (the
@@ -35,6 +36,8 @@ MATCHES_NONE = """ matches no ticket of the Program (types read: """
 TYPE_IT = "): type the name of the Feature type of Jira in "
 OUTSIDE = " done tickets (no metric counts them): "
 ADD_ITERATIONS = "add iterations to "
+UNDATED = " | PIs without dates: "
+UNDATED_WHY = "): left out of the metrics, type their Start and End in "
 WITHOUT_TEAM = " tickets (a ticket takes its team from "
 UNKNOWN = "): add them to "
 SAME_SECOND = " | Started in the second of the backlog entry: "
@@ -45,7 +48,7 @@ AS_OF_FIX = " to the time of the extraction"
 GAP = " | VelocityCheck gap: "
 REVIEW = " controls to review (sheet "
 VBA_TEXTS = (" | No start status: ", NO_START, NO_WAIT, " | Not Features: ", NOT_FEATURES, LEFT_OUT, " | FeatureTypes ", TYPE_IT,
-             " | Done outside the iterations: ", OUTSIDE, ADD_ITERATIONS, " | Without a team: ", WITHOUT_TEAM, " | Statuses not in Workflows: ", UNKNOWN,
+             " | Done outside the iterations: ", OUTSIDE, ADD_ITERATIONS, UNDATED, UNDATED_WHY, " | Without a team: ", WITHOUT_TEAM, " | Statuses not in Workflows: ", UNKNOWN,
              " with a Category", SAME_SECOND, SAME_SECOND_WHY, AS_OF, AS_OF_WHY, AS_OF_FIX, GAP, " rows (sheet ", " | Reconciliation: ", REVIEW)
 
 
@@ -84,6 +87,12 @@ def outside_iterations(items: list[ItemFlow], iterations: list[Iteration]) -> st
     done = [i for i in items if i.team != OTHER_TYPES and i.done is not None]
     out = sum(1 for i in done if not any(it.contains(i.done) for it in iterations))
     return f" | Done outside the iterations: {out} of {len(done)}{OUTSIDE}{ADD_ITERATIONS}{S.of('Iterations')}" if out else ""
+
+
+def pis_without_dates(names) -> str:
+    """The PIs of the sheet PIs with no Start and no End (CheckSettings.undated_pis), in the order of the sheet."""
+    shown, n = _names(names)
+    return f"{UNDATED}{n} ({shown}{UNDATED_WHY}{S.of('PIs')}" if n else ""
 
 
 def without_team(items: list[ItemFlow]) -> str:
@@ -126,10 +135,10 @@ def reconciliation_findings(verdicts: list[str]) -> str:
 
 
 def health_fields(issues: list[FlowIssue], items: list[ItemFlow], rules: Rules, iterations: list[Iteration], as_of: dt.datetime,
-                  checks: list[VelocityCheck], verdicts: list[str], feature_types: str) -> list[str]:
+                  checks: list[VelocityCheck], verdicts: list[str], feature_types: str, undated_pis=()) -> list[str]:
     """The fields in the order of modHealth.HealthFields; `items[n]` is the ItemFlow of `issues[n]`, `verdicts` the results of the Reconciliation,
-    `feature_types` the text of Config.FeatureTypes."""
+    `feature_types` the text of Config.FeatureTypes, `undated_pis` the PIs of the sheet PIs without dates."""
     found = (no_start_status(issues, rules), no_wait_status(issues, rules), not_features(items, feature_types), outside_iterations(items, iterations),
-             without_team(items), unclassified_statuses(items), same_second_starts(issues, items, rules), as_of_before_data(items, as_of),
+             pis_without_dates(undated_pis), without_team(items), unclassified_statuses(items), same_second_starts(issues, items, rules), as_of_before_data(items, as_of),
              velocity_check_gap(checks), reconciliation_findings(verdicts))
     return [f for f in found if f]

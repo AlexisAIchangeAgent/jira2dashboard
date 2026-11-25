@@ -184,17 +184,21 @@ def put_pis(wb, rows):
     ws.Range("A2:C20").ClearContents()
     for n, (name, start, end) in enumerate(rows, start=2):
         ws.Cells(n, 1).Value = com.as_cell(name)
-        ws.Cells(n, 2).Value2 = com.to_excel_serial(start)
-        ws.Cells(n, 3).Value2 = com.to_excel_serial(end)
+        for column, moment in ((2, start), (3, end)):
+            if moment is not None:                                  # None: a PI without dates (AL, 2026-11-25)
+                ws.Cells(n, column).Value2 = com.to_excel_serial(moment)
 
 
-@given("les champs Jira des contrôles et la fenêtre du PI sont renseignés dans les feuilles Config et PIs")
+UNDATED_PI = "PI#02-2026"        # carried by generated Features: typed without dates, as v0.18.2's client had them (J2D-CFG-013 stopped the compute)
+
+
+@given("les champs Jira des contrôles, la fenêtre du PI et un PI sans dates sont renseignés dans les feuilles Config et PIs")
 def _check_fields(world):
     ids = {name: getattr(world["dataset"].fields, attr) for name, attr in FIELD_IDS.items()}
     for name, value in ids.items():
         set_config(world["wb"], name, value)
-    put_pis(world["wb"], [(PI, *PI_WINDOW)])
-    world["settings"] = dataclasses.replace(CheckSettings.from_params(), fields=ids | {}, pis={PI: PI_WINDOW})
+    put_pis(world["wb"], [(UNDATED_PI, None, None), (PI, *PI_WINDOW)])
+    world["settings"] = dataclasses.replace(CheckSettings.from_params(), fields=ids | {}, pis={PI: PI_WINDOW}, undated_pis=(UNDATED_PI,))
 
 
 @given("les champs Jira des contrôles et la feuille PIs sont vides")
@@ -588,6 +592,22 @@ def _feature_predictability(world):
     for p, row in zip(expected, rows):
         assert same_point(row[0], NA if p.ratio == NOT_COMPUTABLE else p.ratio), (p, row)
     assert any(p.planned > 0 for p in expected), expected                   # the PI of the anomalies holds Features
+
+
+@then("le PI sans dates n'arrête pas le calcul : il est laissé de côté, DC18 ne juge pas ses Features et l'état le nomme")
+def _undated_pi(world):
+    """AL, 2026-11-25: a PI of the sheet PIs with no Start and no End no longer stops the compute (J2D-CFG-013). The PIMetrics row of that PI
+    (after the dated one, as a PI the sheet lacks) is compared by the step above; here: DC18 flags none of its Features although their stories
+    have sprints (an empty cell read as the day 0 would flag them all), and the status names it."""
+    wb = world["wb"]
+    issues = to_flow_issues(world["dataset"])
+    features = {i.key for i in issues if i.type in world["settings"].feature_types and i.pi == UNDATED_PI}
+    assert any(i.parent in features and i.sprint_end is not None for i in issues), "no story in a sprint under a Feature of the undated PI"
+    flags = {row["Key"]: row["DC18"] for row in table_dicts(wb, "ItemFlow") if row["Key"] in features}
+    assert flags and set(flags.values()) == {0}, flags
+    assert [row["PI"] for row in table_dicts(wb, "PIMetrics")] == [PI, UNDATED_PI]
+    health = wb.Application.Run(f"'{wb.Name}'!modHealth.HealthFields", wb)
+    assert f" | PIs without dates: 1 ({UNDATED_PI}): left out of the metrics, type their Start and End in {S.of('PIs')}" in health, health
 
 
 @then("la table PIStatusTime reproduit la référence Python sur les données générées")

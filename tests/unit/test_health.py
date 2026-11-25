@@ -32,9 +32,9 @@ def issue(key, moves, workflow="Team", team="Alpha", type_="Story", first=None, 
     return FlowIssue(key=key, team=team, type=type_, work_type=None, workflow=workflow, created=day(created), status=previous, changes=tuple(changes))
 
 
-def fields(issues, rules=RULES, as_of=AS_OF, checks=(), verdicts=(), feature_types="Feature"):
+def fields(issues, rules=RULES, as_of=AS_OF, checks=(), verdicts=(), feature_types="Feature", undated_pis=()):
     items = [item_flow(i, as_of, rules) for i in issues]
-    return H.health_fields(issues, items, rules, [I1], as_of, list(checks), list(verdicts), feature_types)
+    return H.health_fields(issues, items, rules, [I1], as_of, list(checks), list(verdicts), feature_types, undated_pis)
 
 
 CLEAN = [issue("T-1", [("2025-05-02T00:00", "Dev"), ("2025-05-03T00:00", "Review"), ("2025-05-04T00:00", "Done")]),
@@ -80,6 +80,15 @@ def test_the_tickets_done_outside_the_iterations_but_not_those_of_the_other_type
     assert f" | Done outside the iterations: 1 of 3 done tickets (no metric counts them): add iterations to {S.of('Iterations')}" in got
 
 
+def test_the_pis_without_dates_are_named_left_out_of_the_metrics():
+    """AL, 2026-11-25: a PI of the sheet PIs with no Start and no End no longer stops 2. Compute the metrics (J2D-CFG-013): it is left out, and said."""
+    names = ("PI#11-2027", "PI#3-2024", "PI#4.1-2024", "PI#4.2-2024", "PI#5-2025", "PI#6-2025")
+    assert fields(CLEAN, undated_pis=names[:1]) == [
+        f" | PIs without dates: 1 (PI#11-2027): left out of the metrics, type their Start and End in {S.of('PIs')}"]
+    assert fields(CLEAN, undated_pis=names) == [f" | PIs without dates: 6 (PI#11-2027, PI#3-2024, PI#4.1-2024, PI#4.2-2024, PI#5-2025, ...): "
+                                                f"left out of the metrics, type their Start and End in {S.of('PIs')}"]
+
+
 def test_the_tickets_without_a_team():
     lost = issue("X-1", [], team="")
     assert fields(CLEAN + [lost]) == [f" | Without a team: 1 tickets (a ticket takes its team from {S.of('Projects')})"]
@@ -115,8 +124,9 @@ def test_a_velocity_check_with_a_gap_and_the_controls_to_review():
 def test_the_fields_come_in_the_order_of_the_vba():
     rules = Rules({k: StatusRule(r.category, False, r.is_end, False) for k, r in RULES._rows.items()})
     lost = issue("X-1", [("2025-05-02T00:00", "Odd")], team="")
-    got = [f.split(":")[0] for f in fields(CLEAN + [lost], rules, as_of=day("2025-05-03T12:00"), verdicts=["REVIEW"])]
-    assert got == [" | No start status", " | Without a team", " | Statuses not in Workflows", " | AsOf before the data", " | Reconciliation"]
+    got = [f.split(":")[0] for f in fields(CLEAN + [lost], rules, as_of=day("2025-05-03T12:00"), verdicts=["REVIEW"], undated_pis=["PI#11-2027"])]
+    assert got == [" | No start status", " | PIs without dates", " | Without a team", " | Statuses not in Workflows", " | AsOf before the data",
+                   " | Reconciliation"]
 
 
 def test_the_vba_says_the_same_words():
@@ -124,6 +134,6 @@ def test_the_vba_says_the_same_words():
     for text in H.VBA_TEXTS:
         assert f'"{text}"' in vba, text
     order = vba.split("Public Function HealthFields", 1)[1].split("Exit Function", 1)[0]
-    names = ("NoStartStatus", "NoWaitStatus", "NotFeatures", "OutsideIterations", "WithoutTeam", "UnclassifiedStatuses", "SameSecondStarts",
+    names = ("NoStartStatus", "NoWaitStatus", "NotFeatures", "OutsideIterations", "PisWithoutDates", "WithoutTeam", "UnclassifiedStatuses", "SameSecondStarts",
              "AsOfBeforeData", "VelocityCheckGap", "ReconciliationFindings")
     assert [order.index(n + "(") for n in names] == sorted(order.index(n + "(") for n in names)

@@ -493,12 +493,15 @@ End Sub
 Private Sub CheckPis(ByVal wsPIs As Object)
     ' The dates of the rows of the sheet PIs that have a PI name (ReadTable reads no other row), as the Python path checks them (params/model.py): whole
     ' days from 2000 to 2099 (a date, or ISO text 2026-10-05), Start before End. Not here, unlike the Python path: a row without a name, a name twice. A PI date the formulas read and the VBA did not (a French text 05/10/2026), or the reverse (2026-10-05T00:00:00), made Feature
-    ' Predictability not computable without a word (audit of the dates, 2026-11-23).
+    ' Predictability not computable without a word (audit of the dates, 2026-11-23). A PI with no date at all is left out of the metrics, never a
+    ' stop (AL, 2026-11-25: v0.18.2 stopped there with J2D-CFG-013 for PIs that Rovo saw in Jira without their dates): PiNames, modHealth.
     Cov "FLB64"
     Dim row As Variant, s As Variant, e As Variant, pi As String, bad As Boolean
     For Each row In ReadTable(wsPIs)
         pi = TrimWhite(CStr(row("PI") & ""))
-        If Len(pi) > 0 Or Len(TrimWhite(CStr(row("Start") & ""))) > 0 Or Len(TrimWhite(CStr(row("End") & ""))) > 0 Then
+        If PiWithoutDates(row("Start"), row("End")) Then
+            Cov "FLB68"
+        ElseIf Len(pi) > 0 Or Len(TrimWhite(CStr(row("Start") & ""))) > 0 Or Len(TrimWhite(CStr(row("End") & ""))) > 0 Then
             s = SerialOf(row("Start")): e = SerialOf(row("End"))
             If IsEmpty(s) Or IsEmpty(e) Then
                 bad = True
@@ -994,7 +997,8 @@ Private Function PiNames(ByVal wb As Object, ByVal noPi As String) As Collection
     ' The PIs of the sheet PIs (first column, from row 2), in its order, then those that Features carry but the sheet lacks
     ' (FeaturePis); noPi alone when there is none, so that the chart still has a row (a gap). They are the keys of the table
     ' PIMetrics and the axis of the Feature Predictability chart. The dates are not read here: the table looks them up itself,
-    ' and a PI it cannot read is not computable, never an error of the build. Reference: flow/metrics.feature_predictability.
+    ' and a PI it cannot read is not computable, never an error of the build. A row with no Start and no End counts as a PI the sheet
+    ' lacks (AL, 2026-11-25): FeaturePis adds it back, by year then number, when Features carry it. Reference: flow/metrics.feature_predictability.
     Dim out As New Collection, seen As Object, ws As Object, last As Long, r As Long, v As String
     Cov "FLB37"
     Set seen = CreateObject("Scripting.Dictionary")
@@ -1002,7 +1006,7 @@ Private Function PiNames(ByVal wb As Object, ByVal noPi As String) As Collection
     last = ws.Cells(ws.Rows.Count, 1).End(-4162).Row     ' -4162 = xlUp
     For r = 2 To last
         v = Trim$(CStr(ws.Cells(r, 1).Value & ""))
-        If Len(v) > 0 Then
+        If Len(v) > 0 And Not PiWithoutDates(ws.Cells(r, 2).Value, ws.Cells(r, 3).Value) Then
             out.Add v
             seen(UCase$(v)) = True                       ' MATCH and COUNTIFS of the table ignore the case
         End If

@@ -51,8 +51,9 @@ SHEET_RULES = {
                 "holds the Features (exactly one), Team for the others. Team = the team name shown in the metrics (optional: "
                 "empty = the project key; for the Program project, the name of the train).",
     "PIs": "One row per Program Increment (the long cycle that holds several iterations). PI = the value of the PI field of "
-           "Jira, of the form PI#01-2026. Start = first day (yyyy-mm-dd, included). End = the day the next PI starts (yyyy-mm-dd, "
-           "excluded).",
+           "Jira, of the form PI#01-2026: ONE PI per row, never a list of PIs in one cell. Start = first day (yyyy-mm-dd, included). "
+           "End = the day the next PI starts (yyyy-mm-dd, excluded). A PI whose dates you cannot see still gets a row of its own, with "
+           f"{UNKNOWN} in Start and End.",
     "Workflows": "One row per status for which the workbook must NOT simply take what Jira says (it reads the status categories and the "
                  "workflows from Jira by itself). Status = the status name exactly as in Jira. Workflow = Team or Feature to limit the "
                  "row to one of them, empty for both. Leave a cell empty to keep Jira's value. "

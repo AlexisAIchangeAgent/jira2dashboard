@@ -212,13 +212,23 @@ def _parse_moment(text: str):
         return None
 
 
+def pi_without_dates(start, end) -> bool:
+    """A row of the sheet PIs whose Start and End are both empty (AL, 2026-11-25: v0.18.2 stopped with J2D-CFG-013): the PI is left out of the
+    metrics, as a PI the sheet lacks, and the health field "PIs without dates" names it. One date without the other is still refused."""
+    return not str(start or "").strip() and not str(end or "").strip()
+
+
 def _check_iterations(sheet: ParamSheet, problems: list[str], column: str = "Iteration-label") -> None:
-    """Iterations (column Iteration-label) and PIs (column PI): a name, two dates, Start before End, no name twice."""
+    """Iterations (column Iteration-label) and PIs (column PI): a name, two dates, Start before End, no name twice. A PI with a name and no date
+    at all is left out of the metrics, not refused (pi_without_dates)."""
     seen: Counter = Counter()
     label = sheet.name
     noun = column.lower() if column == "PI" else "iteration"
     for number, rec in _records(sheet):
         where = f"{label} row {number}"
+        if column == "PI" and rec[column] and pi_without_dates(rec["Start"], rec["End"]):
+            seen[rec[column]] += 1
+            continue
         start, end = _parse_moment(rec["Start"] or ""), _parse_moment(rec["End"] or "")
         if not rec[column]:
             problems.append(f"{where}: {column} needs a name")

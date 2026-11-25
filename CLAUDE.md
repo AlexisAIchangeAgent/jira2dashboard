@@ -147,7 +147,10 @@ python.log). `tests/unit/test_claude_hooks.py` and `test_claude_skills.py` test 
   the same PI merged). Reference `flow/pi_history.py`, `flow/iteration_features.py`, `flow/metrics.pi_predictability`; a PI with no
   iteration has no baseline (a gap). Existing metrics keep Features under the team ART; `FeatureTeam` is for this table only. Then
   the valid PIs (`PI#XX-YYYY`) that Features carry but `PIs` lacks, by year then number, not computable, counted by the PI field as
-  it is now (AL, 2026-11-12; `modFlowBuild.FeaturePis`). The manual-test copy declares both PIs of the generator (its Features are
+  it is now (AL, 2026-11-12; `modFlowBuild.FeaturePis`). **A row of `PIs` with no Start and no End (AL, 2026-11-25: v0.18.2 stopped with
+  J2D-CFG-013)** counts as a PI the sheet lacks (`modParams.PiWithoutDates` = `params.model.pi_without_dates`, `CheckSettings.undated_pis`; DC18 never
+  judges its Features), the health field `PIs without dates` names it; one date alone still stops (710). Load settings CSV writes a PI cell that holds a
+  list as one row per PI (`modParams.OnePiPerRow`). The manual-test copy declares both PIs of the generator (its Features are
   created before the PIs start, in the generator, so that they are engaged). Table `PIMetrics` (`formulas.PIMETRICS_COLUMNS`; keys
   `modFlowBuild.PiNames`), chart point `dashboard_spec.pi_point`, the 5 charts of the sheet `IterationCharts`
   (`dashboard_spec.ITERATION_CHARTS`, `ChartSpec` column `Sheet`) and their SVG in `charts_svg`. Known and left: a Feature done in

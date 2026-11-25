@@ -714,6 +714,20 @@ Public Sub T_RovoCsv()
     Check "csv", "the columns Sheet, Row, Column and Value are needed", "header", True, InStr(res("problems")(1), "must name the columns Sheet, Row, Column and Value") > 0
     Set res = RovoCsvRead(ThisWorkbook, "")
     Check "csv", "an empty file is a problem", "empty", "The file has no line.", res("problems")(1)
+    ' several PIs in one cell of the sheet PIs (Rovo, AL 2026-11-25): one row per PI, in the order of the rows, numbered again; the dates of such a
+    ' row are not copied to each PI (a problem says so)
+    Set res = RovoCsvRead(ThisWorkbook, "Sheet,Row,Column,Value" & vbLf & "Projects,1,Project,ZZA" & vbLf & "PIs,1,PI,PI#10-2026" & vbLf & _
+          "PIs,1,Start,2026-09-24" & vbLf & "PIs,4,PI,""PI#3-2024, PI#4.1-2024;PI#12-2027,PI#9-2027,pi#10-2026""" & vbLf & "PIs,4,End,2027-01-01" & vbLf & _
+          "PIs,2,PI,PI#11-2027" & vbLf & "PIs,2,Start,UNKNOWN")
+    Check "csv", "several PIs in one cell: a row each, in the order of the rows, numbered again; one with a row of its own is not written twice", _
+          "PI#3-2024, PI#4.1-2024;...,pi#10-2026", _
+          "Projects 1 Project ZZA|PIs 1 PI PI#10-2026|PIs 1 Start 2026-09-24|PIs 2 PI PI#11-2027|PIs 2 Start |PIs 3 PI PI#3-2024|PIs 4 PI PI#4.1-2024|" & _
+          "PIs 5 PI PI#12-2027|PIs 6 PI PI#9-2027|", ItemsText(res("items"))
+    Check "csv", "the dates of that row are not copied to each PI: a problem says so", "End 2027-01-01", True, _
+          InStr(FirstProblem(res), "Sheet PIs row 4: 5 PIs in one cell, each on a row of its own without the dates of that row.") > 0
+    Set res = RovoCsvRead(ThisWorkbook, "Sheet,Row,Column,Value" & vbLf & "PIs,2,PI,PI#11-2027" & vbLf & "PIs,1,PI,PI#10-2026" & vbLf & "PIs,3,PI,""PI#12-2027,""")
+    Check "csv", "one PI per cell (an empty name after a comma is none): the items stay as they came", "rows 2, 1, 3", _
+          "PIs 2 PI PI#11-2027|PIs 1 PI PI#10-2026|PIs 3 PI PI#12-2027,|0", ItemsText(res("items")) & res("problems").Count
     ' the load: Config, Projects, Iterations are saved, written, read back and restored
     names = Array("Config", "Projects", "Iterations")
     For i = 1 To 3
@@ -758,6 +772,19 @@ Public Sub T_RovoCsv()
     Err.Clear
     On Error GoTo 0
 End Sub
+
+Private Function FirstProblem(ByVal res As Object) As String
+    ' The first problem of RovoCsvRead, "" when there is none (a test must never stop on a dialog).
+    If res("problems").Count > 0 Then FirstProblem = CStr(res("problems")(1))
+End Function
+
+Private Function ItemsText(ByVal items As Collection) As String
+    ' The items of RovoCsvRead as "sheet row column value|..." (a test must read them in one Check).
+    Dim item As Variant
+    For Each item In items
+        ItemsText = ItemsText & item(0) & " " & item(1) & " " & item(2) & " " & item(3) & "|"
+    Next item
+End Function
 
 Private Function FindRowOf(ByVal ws As Object, ByVal name As String) As Long
     Dim r As Long
@@ -1442,6 +1469,8 @@ Public Sub T_FlowBuild()
     Check "flowbuild", "a PI date in French text is refused (the French DATEVALUE read it, the VBA did not)", "05/10/2026", 710, FlowBuildError()
     wb.Worksheets(SheetName("PIs")).Range("A2:C2").Value = Array("PI#01-2026", "'2026-10-19", "'2026-10-05")
     Check "flowbuild", "a PI that ends before it starts is refused", "19 Oct -> 5 Oct", 710, FlowBuildError()
+    wb.Worksheets(SheetName("PIs")).Range("A2:C2").Value = Array("PI#01-2026", "'2026-10-05", "")
+    Check "flowbuild", "a PI with a Start and no End is still refused (a typo; with no date at all it is left out)", "5 Oct -> (empty)", 710, FlowBuildError()
     wb.Worksheets(SheetName("PIs")).Range("A2:C2").ClearContents
     Dim modeCell As Object, oldMode As Variant, cr As Long
     For cr = 2 To LastRow(wb.Worksheets(SheetName("Config")))
@@ -1558,9 +1587,12 @@ Public Sub T_FlowBuild()
           TableRows("PIMetrics") & "|" & wb.Worksheets(SheetName("PIMetrics")).Range("C2").Value2 & "|" & wb.Worksheets(SheetName("PIMetrics")).Range("A3").Value & _
           "|" & wb.Worksheets(SheetName("PIMetrics")).Range("C3").Value2
     ' Features in PIs that the sheet PIs lacks (AL, 2026-11-12): after the sheet's, by year then number, not computable; a PI
-    ' of the sheet, a malformed one (DC29) and the PI of a story add no row
+    ' of the sheet, a malformed one (DC29) and the PI of a story add no row. A PI of the sheet without dates (AL, 2026-11-25: v0.18.2 stopped with
+    ' J2D-CFG-013) counts as one the sheet lacks: PI#04-2026, carried by Features, comes after the dated PIs; PI#09-2026, carried by none, gives no row
+    wb.Worksheets(SheetName("PIs")).Range("A4").Value = "PI#09-2026"
+    wb.Worksheets(SheetName("PIs")).Range("A5").Value = "PI#04-2026"
     FlowRaw True, Array("PI#01-2027", "PI#04-2026", "PI#04-2026", "PI#02-2026", "PI 4", "pi#05-2026"), "PI#06-2026"
-    BuildFlowSheetsIn wb
+    Check "flowbuild", "a PI without dates does not stop the build", "PI#09-2026, PI#04-2026", "built", IIf(FlowBuildError() + vbObjectError = 0, "built", "stopped")
     Check "flowbuild", "PIMetrics: the PIs of Features missing from the sheet PIs come after it, in order, not computable", _
           "PI#04-2026 (2 features), PI#01-2027", "4|PI#04-2026|2||not computable|PI#01-2027|PI#01-2026|PI#01-2027", _
           TableRows("PIMetrics") & "|" & wb.Worksheets(SheetName("PIMetrics")).Range("A4").Value & "|" & wb.Worksheets(SheetName("PIMetrics")).Range("D4").Value & _
@@ -1575,7 +1607,7 @@ Public Sub T_FlowBuild()
           IterationCell("Baseline", 1)
     Check "flowbuild", "PIIntervals: one row per Feature with a PI, helpers from ItemFlow", "6 features + 1 story", "7", TableRows("PIIntervals")
     FlowRaw False
-    wb.Worksheets(SheetName("PIs")).Range("A2:C3").ClearContents
+    wb.Worksheets(SheetName("PIs")).Range("A2:C5").ClearContents
     ' Excel left in manual mode by the user: the build gives the mode back and still ends with every figure calculated
     ' (guard only: removing CalculateFull for this case changed nothing observable, entering a formula calculates it)
     Application.Calculation = -4135                               ' xlCalculationManual
@@ -2720,11 +2752,13 @@ End Sub
 
 Private Function HealthBook(ByVal clean As Boolean) As Object
     ' A scratch workbook with the tables HealthFields reads: ItemFlow (Key, Team, DoneUtc, DC03, Workflow, StartUtc), StatusIntervals, VelocityCheck,
-    ' the sheets Iterations, Config (AsOf) and StatusRules.
+    ' the sheets Iterations, PIs (one without dates when not clean), Config (AsOf) and StatusRules.
     Dim wb As Object, ws As Object, done1 As Double, outside As Double, t0 As Double
     Set wb = Workbooks.Add
     done1 = CDbl(DateSerial(2026, 1, 5)): outside = IIf(clean, CDbl(DateSerial(2026, 1, 9)), CDbl(DateSerial(2026, 3, 1)))
     PutRows wb, "Iterations", Array(Array("Iteration-label", "Start", "End"), Array("I1", "2026-01-01", "2026-01-15"))
+    PutRows wb, "PIs", Array(Array("PI", "Start", "End"), Array("PI#01-2026", "2026-01-01", "2026-03-01"), _
+                             Array("PI#11-2027", IIf(clean, "2027-01-04", ""), IIf(clean, "2027-03-01", "")), Array(IIf(clean, "", "PI#11-2027"), "", ""))
     t0 = CDbl(DateSerial(2026, 1, 2))
     PutRows wb, "ItemFlow", Array(Array("Key", "Team", "DoneUtc", "DC03", "Workflow", "StartUtc"), _
                                   Array("K1", "Team A", done1, 0, "Team", IIf(clean, t0 + 1, "")), Array("K2", "Team A", outside, 0, "Team", ""), _
@@ -3027,6 +3061,8 @@ Public Sub T_HealthFields()
     Check "health", "done tickets that no iteration holds", "1 of 3", True, _
           InStr(text, " | Done outside the iterations: 1 of 3 done tickets (no metric counts them): add iterations to Iterations_from_user") > 0
     Check "health", "a ticket without a team", "1", True, InStr(text, " | Without a team: 1 tickets (a ticket takes its team from Projects_from_user)") > 0
+    Check "health", "a PI of the sheet PIs without dates, named once", "PI#11-2027 x 2", True, _
+          InStr(text, " | PIs without dates: 1 (PI#11-2027): left out of the metrics, type their Start and End in PIs_from_user") > 0
     Check "health", "the statuses the sheet Workflows lacks, each once", "Weird, Odd", True, _
           InStr(text, " | Statuses not in Workflows: 2 (Weird, Odd): add them to Workflows_from_user with a Category") > 0
     Check "health", "the column of a formula that fails on the data", "DC03 x 2", True, _
@@ -3042,6 +3078,7 @@ Public Sub T_HealthFields()
     Check "health", "a row of VelocityCheck whose Gap is not 0", "1 of 2", True, InStr(text, " | VelocityCheck gap: 1 of 2 rows (sheet VelocityCheck_from_excel)") > 0
     Check "health", "the rules first, then the tickets, then the checks", "order", True, _
           InStr(text, " | No start status") < InStr(text, " | No Wait status") And InStr(text, " | No Wait status") < InStr(text, " | Done outside") And _
+          InStr(text, " | Done outside") < InStr(text, " | PIs without dates") And InStr(text, " | PIs without dates") < InStr(text, " | Without a team") And _
           InStr(text, " | Statuses not in") < InStr(text, " | Started in the second") And InStr(text, " | AsOf before") < InStr(text, " | VelocityCheck gap")
     wb.Worksheets(SheetName("Config")).Range("B2").Value = "'x"           ' an AsOf that cannot be read: that field says nothing, the others stay
     text = HealthFields(wb)

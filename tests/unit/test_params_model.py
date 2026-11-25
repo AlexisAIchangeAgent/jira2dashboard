@@ -197,6 +197,18 @@ def test_pis_are_empty_in_the_repo_and_checked_like_iterations(params_copy):
     assert "PIs row 3: Start must be before End" in text
 
 
+def test_a_pi_without_dates_is_left_out_not_refused_but_one_date_alone_is(params_copy):
+    """AL, 2026-11-25 (v0.18.2 stopped with J2D-CFG-013): a PI typed without Start and End (Rovo saw it in Jira, not its dates) must not stop the
+    metrics of the other PIs; it is left out of them and told by the health field "PIs without dates". One date without the other is a typo."""
+    path = params_copy / "pis.md"
+    base = path.read_text(encoding="utf-8")
+    path.write_text(base + "| PI#10-2026 | 2026-09-24 | 2027-01-20 |\n| PI#11-2027 |  |  |\n", encoding="utf-8")
+    assert sheet(model.load_all(params_copy), "PIs").rows == (("PI#10-2026", "2026-09-24", "2027-01-20"), ("PI#11-2027", None, None))
+    path.write_text(base + "| PI#11-2027 | 2026-09-24 |  |\n", encoding="utf-8")
+    with pytest.raises(ParamsError, match="PIs row 1: Start and End must be dates"):
+        model.load_all(params_copy)
+
+
 def test_flow_parameters_default_to_mode_a_and_no_fixed_as_of_date():
     config = {row[0]: row[1] for row in sheet(model.load_all(), "Config").rows}
     assert config["FlowLoadMode"] == "A" and config["AsOf"] is None

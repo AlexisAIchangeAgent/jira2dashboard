@@ -76,7 +76,9 @@ _PI_END = f'INDEX(PIs_from_user!$C:$C,MATCH([@PI],PIs_from_user!$A:$A,0))'
 
 
 def _date(cell: str) -> str:
-    return f"LET(v,{cell},IF(ISNUMBER(v),v,DATEVALUE(LEFT(TRIM(v),10))))"
+    # an empty cell is no date (AL, 2026-11-25: a PI of the sheet without dates is left out, so DC18 never judges its Features): an error, which the
+    # IFERROR of DC18 turns into "no flag", never the day 0 that would put every sprint outside the PI
+    return f"LET(v,{cell},IF(ISNUMBER(v),IF(v>0,v,NA()),DATEVALUE(LEFT(TRIM(v),10))))"
 
 
 _PI_WINDOW = (f"LET(s,{_date(_PI_START)},e,{_date(_PI_END)},"

@@ -9,6 +9,7 @@ Option Explicit
 '   Not Features                  tickets of the Program that are not Features (team "ART (other types)" in ItemFlow): left out of the ART metrics;
 '                                 and, when the ART has no Feature at all, that FeatureTypes matches none of them (a type named otherwise in Jira)
 '   Done outside the iterations   tickets whose DoneUtc falls in no iteration of the sheet Iterations (no metric counts them)
+'   PIs without dates             PIs of the sheet PIs with no Start and no End: left out of the metrics (AL, 2026-11-25)
 '   Without a team                tickets whose Team is empty (the Team comes from the sheet Projects)
 '   Statuses not in Workflows     statuses of the history that the sheet Workflows lacks (category Unclassified: the Flow
 '                                 Efficiency is not computable and the Done of the ticket is not known)
@@ -41,7 +42,7 @@ Public Function HealthFields(ByVal wb As Object) As String
     Set starts = CreateObject("Scripting.Dictionary")
     ruled = RuleFacts(wb, starts, waitFound)
     found = found & NoStartStatus(kinds, starts, ruled) & NoWaitStatus(kinds, waitFound, ruled) & NotFeatures(wb) & OutsideIterations(wb) & _
-            WithoutTeam(wb) & UnclassifiedStatuses(wb) & SameSecondStarts(wb) & AsOfBeforeData(wb) & VelocityCheckGap(wb) & ReconciliationFindings(wb) & _
+            PisWithoutDates(wb) & WithoutTeam(wb) & UnclassifiedStatuses(wb) & SameSecondStarts(wb) & AsOfBeforeData(wb) & VelocityCheckGap(wb) & ReconciliationFindings(wb) & _
             CellsInError(wb)
     LogEnd "health"
     HealthFields = found
@@ -327,6 +328,26 @@ Private Function OutsideIterations(ByVal wb As Object) As String
         Cov "HLT03"
         OutsideIterations = " | Done outside the iterations: " & nOut & " of " & nDone & " done tickets (no metric counts them): " & _
                             "add iterations to " & SheetName("Iterations")
+    End If
+End Function
+
+Private Function PisWithoutDates(ByVal wb As Object) As String
+    ' The PIs of the sheet PIs with no Start and no End (modParams.PiWithoutDates), each once, in the order of the sheet: the metrics leave them out.
+    Dim row As Variant, seen As Object, names As String, n As Long, name As String
+    If Not SheetExists(wb, "PIs") Then Exit Function
+    Set seen = CreateObject("Scripting.Dictionary")
+    For Each row In ReadTable(wb.Worksheets(SheetName("PIs")))
+        name = TrimWhite(CStr(row("PI") & ""))
+        If Len(name) > 0 And PiWithoutDates(row("Start"), row("End")) And Not seen.Exists(name) Then
+            seen(name) = True
+            n = n + 1
+            If n <= MAX_NAMES Then names = names & IIf(Len(names) > 0, ", ", "") & name
+        End If
+    Next row
+    If n > 0 Then
+        Cov "HLT70"
+        PisWithoutDates = " | PIs without dates: " & n & " (" & names & IIf(n > MAX_NAMES, ", ...", "") & _
+                          "): left out of the metrics, type their Start and End in " & SheetName("PIs")
     End If
 End Function
 

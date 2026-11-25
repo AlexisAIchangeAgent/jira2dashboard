@@ -33,6 +33,14 @@ Public Function ReadTable(ByVal ws As Object) As Collection
     Next r
 End Function
 
+Public Function PiWithoutDates(ByVal startValue As Variant, ByVal endValue As Variant) As Boolean
+    ' A row of the sheet PIs whose Start and End are both empty (AL, 2026-11-25: v0.18.2 stopped with J2D-CFG-013): the PI is left out of the
+    ' metrics, as a PI the sheet lacks (modFlowBuild.PiNames), and the status says so (modHealth "PIs without dates"); one date alone is still
+    ' refused (CheckPis). Python: params/model.pi_without_dates.
+    If IsError(startValue) Or IsError(endValue) Then Exit Function
+    PiWithoutDates = (Len(TrimWhite(CStr(startValue & ""))) = 0 And Len(TrimWhite(CStr(endValue & ""))) = 0)
+End Function
+
 Public Function StatusCategories(ByVal wsWorkflows As Object, ByVal workflow As String) As Object
     ' status -> category ("Active", "Wait", ...) for one workflow. This is the input of BuildStatusIntervals.
     Cov "PRM03"
@@ -417,7 +425,91 @@ Public Function RovoCsvRead(ByVal wb As Object, ByVal text As String) As Object
             End If
         End If
     Next rec
+    Set res("items") = OnePiPerRow(items, problems)
     Set RovoCsvRead = res
+End Function
+
+Private Function IsPiCell(ByVal item As Variant) As Boolean
+    ' An item of the column PI of the sheet PIs.
+    IsPiCell = (StrComp(CStr(item(0)), "PIs", vbTextCompare) = 0 And StrComp(CStr(item(2)), "PI", vbTextCompare) = 0)
+End Function
+
+Private Function PiNamesOf(ByVal text As String) As Collection
+    ' The names of a cell of the column PI: separated by commas, semicolons or line breaks, trimmed, the empty ones left out.
+    Dim part As Variant, out As New Collection
+    text = Replace(Replace(Replace(text, ";", ","), vbCr, ","), vbLf, ",")
+    For Each part In Split(text, ",")
+        If Len(TrimWhite(CStr(part))) > 0 Then out.Add TrimWhite(CStr(part))
+    Next part
+    Set PiNamesOf = out
+End Function
+
+Private Function OnePiPerRow(ByVal items As Collection, ByVal problems As Collection) As Collection
+    ' One PI per row of the sheet PIs (AL, 2026-11-25): Rovo once put the PIs it could not date in one cell ("PI#3-2024, PI#4.1-2024, ..."), which
+    ' the metrics read as one PI. Each name of such a cell gets a row of its own, in the order of the rows of the CSV, the rows of the sheet numbered
+    ' again from 1; the dates of a row that held several PIs are not copied to each of them (a problem says so), and a name that has a row of its own,
+    ' or came earlier in a list, is not written again (MATCH reads the first row of a name: a copy without dates above the dated row would hide its
+    ' dates). Nothing changes when no cell holds a list.
+    Dim item As Variant, byRow As Object, rowOrder As New Collection, out As New Collection, rowCells As Object, k As Variant, c As Variant
+    Dim p As Variant, i As Long, n As Long, piCol As String, sh As String, pis As Collection, hasList As Boolean, dated As Boolean, written As Object
+    Set OnePiPerRow = items
+    Set written = CreateObject("Scripting.Dictionary")
+    For Each item In items
+        If IsPiCell(item) Then
+            If PiNamesOf(CStr(item(3))).Count > 1 Then hasList = True Else written(UCase$(TrimWhite(CStr(item(3))))) = True
+        End If
+    Next item
+    If Not hasList Then Exit Function
+    Cov "PRM75"
+    Set byRow = CreateObject("Scripting.Dictionary")
+    For Each item In items
+        If StrComp(CStr(item(0)), "PIs", vbTextCompare) = 0 Then
+            sh = CStr(item(0))
+            If Not byRow.Exists(CLng(item(1))) Then
+                Set byRow(CLng(item(1))) = CreateObject("Scripting.Dictionary")
+                For i = 1 To rowOrder.Count                                  ' the rows in the order of their numbers
+                    If rowOrder(i) > CLng(item(1)) Then Exit For
+                Next i
+                If i > rowOrder.Count Then rowOrder.Add CLng(item(1)) Else rowOrder.Add CLng(item(1)), , i
+            End If
+            Set rowCells = byRow(CLng(item(1)))
+            rowCells(CStr(item(2))) = CStr(item(3))
+        Else
+            out.Add item
+        End If
+    Next item
+    For Each k In rowOrder
+        Set rowCells = byRow(k)
+        piCol = "": dated = False
+        For Each c In rowCells.Keys
+            If StrComp(CStr(c), "PI", vbTextCompare) = 0 Then
+                piCol = CStr(c)
+            ElseIf Len(CStr(rowCells(c))) > 0 Then
+                dated = True
+            End If
+        Next c
+        Set pis = New Collection
+        If Len(piCol) > 0 Then Set pis = PiNamesOf(CStr(rowCells(piCol)))
+        If pis.Count > 1 Then
+            If dated Then
+                Cov "PRM76"
+                problems.Add "Sheet PIs row " & k & ": " & pis.Count & " PIs in one cell, each on a row of its own without the dates of that row."
+            End If
+            For Each p In pis
+                If Not written.Exists(UCase$(CStr(p))) Then
+                    written(UCase$(CStr(p))) = True
+                    n = n + 1
+                    out.Add Array(sh, n, piCol, CStr(p))
+                End If
+            Next p
+        Else
+            n = n + 1
+            For Each c In rowCells.Keys
+                out.Add Array(sh, n, CStr(c), CStr(rowCells(c)))
+            Next c
+        End If
+    Next k
+    Set OnePiPerRow = out
 End Function
 
 Private Sub ImportItem(ByVal items As Collection, ByVal problems As Collection, ByVal res As Object, ByVal protected As Object, ByVal line As Long, _

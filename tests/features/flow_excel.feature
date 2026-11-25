@@ -42,7 +42,7 @@ Fonctionnalité: Le classeur livré extrait Jira et calcule les mêmes chiffres 
   Scénario: Les contrôles de données trouvent les anomalies connues et rien d'autre
     Soit un faux Jira avec 150 tickets générés et les anomalies de données connues
     Et le classeur à livrer dont la feuille Config pointe sur ce faux Jira avec FlowLoadMode "A"
-    Et les champs Jira des contrôles et la fenêtre du PI sont renseignés dans les feuilles Config et PIs
+    Et les champs Jira des contrôles, la fenêtre du PI et un PI sans dates sont renseignés dans les feuilles Config et PIs
     Et les itérations de 14 jours depuis le "2026-08-17" jusqu'à la date de référence dans la feuille Iterations
     Quand j'exécute la macro Extraire et calculer du classeur
     Alors aucune cellule des feuilles de flux ne montre une erreur Excel
@@ -51,6 +51,7 @@ Fonctionnalité: Le classeur livré extrait Jira et calcule les mêmes chiffres 
     Et la table DataChecks et les colonnes DC de ItemFlow reproduisent les contrôles de la référence Python
     Et chaque anomalie connue est trouvée par les contrôles qui lui correspondent et seulement par eux
     Et la table PIMetrics et le graphique Feature Predictability donnent pour chaque PI les Features faites avant sa fin sur les Features planifiées
+    Et le PI sans dates n'arrête pas le calcul : il est laissé de côté, DC18 ne juge pas ses Features et l'état le nomme
     Et la table PIStatusTime reproduit la référence Python sur les données générées
     Et la table VelocityCheck reproduit la référence Python sur les données générées
     Et la table FlowTimeCheck reproduit la référence Python sur les données générées

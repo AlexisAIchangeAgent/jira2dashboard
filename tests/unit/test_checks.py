@@ -13,7 +13,7 @@ from jira2dashboard.flow.model import Change, FlowIssue, Rules
 from jira2dashboard.mockjira.anomalies import known_anomalies, with_anomalies
 from jira2dashboard.mockjira.flow_adapter import to_flow_issues
 from jira2dashboard.mockjira.generator import generate
-from jira2dashboard.params.model import project_keys
+from jira2dashboard.params.model import load_all, project_keys
 
 AS_OF = dt.datetime(2026, 11, 3, 18, 0)
 D = dt.datetime
@@ -263,6 +263,20 @@ def test_the_settings_come_from_the_config_and_pis_sheets():
     assert settings.subtask_types == {"Sub-task"} and settings.points_types == {"Story"}
     assert settings.fill_threshold == 90 and settings.pis == {}
     assert set(settings.fields) == set(FIELD_PARAMETERS) and not any(settings.fields.values())   # client values stay empty
+
+
+def test_a_pi_without_dates_is_not_a_window_but_the_sheet_pis_still_has_rows():
+    """AL, 2026-11-25: a PI with no Start and no End is left out of the windows (DC18 never judges its Features, the metrics treat it as a PI the
+    sheet lacks) and kept by name for the health field; DC18 stays ready, as the workbook's COUNTA of the sheet PIs counts that row."""
+    sheets = [s if s.name != "PIs" else dataclasses.replace(s, rows=(("PI#01-2026", "2026-06-01", "2026-12-31"), ("PI#02-2026", None, None),
+                                                                      ("PI#03-2026", "", " ")))
+              for s in load_all()]
+    settings = CheckSettings.from_params(sheets)
+    assert settings.pis == {"PI#01-2026": (D(2026, 6, 1), D(2026, 12, 31))}
+    assert settings.undated_pis == ("PI#02-2026", "PI#03-2026")
+    only_undated = dataclasses.replace(settings, pis={}, fields=CONFIGURED.fields)
+    assert only_undated.ready(next(c for c in CHECKS if c.id == "DC18"))
+    assert not dataclasses.replace(only_undated, undated_pis=()).ready(next(c for c in CHECKS if c.id == "DC18"))
 
 
 def test_the_known_anomalies_fail_exactly_the_checks_they_were_written_for(rules, moves):
