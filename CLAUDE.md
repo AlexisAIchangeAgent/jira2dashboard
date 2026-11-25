@@ -479,7 +479,7 @@ python.log). `tests/unit/test_claude_hooks.py` and `test_claude_skills.py` test 
   COM: `flow/sheets.py`, `cli/check_machine.py`, `cli/diagnose.py`, `mockjira/__main__.py`, and the `build*`/`main` functions (see
   `pyproject.toml`).
 
-Domain decisions and the metric definitions are in `docs/` (7 md files, **never edit them** unless AL says so: he allowed it on 2026-11-18 for the removal of `FieldMapping`, `Order` and `Type`). The handoff file `claude-code-handoff.md` was deleted
+Domain decisions and the metric definitions are in `docs/` (7 md files, **never edit them** unless AL says so: he allowed it on 2026-11-18 for the removal of `FieldMapping`, `Order` and `Type`, on 2026-11-25 for the PI rule and the removal of DC29). The handoff file `claude-code-handoff.md` was deleted
 on 2026-11-06; its last version is `git show 6a93cdd:claude-code-handoff.md` (section 7: COM traps, 8b: open defect, 8c: Jira calls, and the roadmap).
 `README.md` (English) is the engineering guide: keep it concise,
 tables rather than code blocks for lists, never the word "client" nor the vendor or product name of the endpoint protection

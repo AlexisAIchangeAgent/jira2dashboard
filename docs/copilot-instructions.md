@@ -13,7 +13,7 @@ You have no internet access. These files are your only API sources. Read them be
 | `vba-modules-tested.md` | The **tested VBA modules** (JSON, UTF-8, HTTP with proxy and retries, Jira API, status intervals, option B, coverage, test runner, buttons) |
 | `cookbook_python.md` | Every Python file of the kit (bootstrap extractor, `xlsm_ref.py` helpers, machine readiness check, VBA test harness), each with its MD5 |
 | `jira-cloud-api-vba-reference.md` | Jira Cloud endpoints, limits, auth, proxy, rate limits, workbook layout, extraction flow, VBA traps |
-| `safe-flow-metrics-and-data-checks.md` | The six SAFe flow metrics, intermediate tables, traceability, data checks DC01-DC29, missing data, Jira Plans readiness |
+| `safe-flow-metrics-and-data-checks.md` | The six SAFe flow metrics, intermediate tables, traceability, data checks DC01-DC28 (DC29 removed on 2026-11-25), missing data, Jira Plans readiness |
 | `rovo-guide.md` | Rovo prompts, agents, skills and Jira automations (mostly for the developer; section 9 is for you) |
 
 **The project:** a macro-enabled workbook that extracts all issues and change logs of a SAFe train from
@@ -341,7 +341,7 @@ and section 12 (definition of done). Fix what fails. Do not list this check in y
 - [ ] Python coverage >= 90 % and VBA marker coverage >= 90 %, both measured and reported.
 - [ ] Every test is visible in `TestResults` with Input, Expected, Actual and OK/KO.
 - [ ] No VBA code starts a process. No token in code, logs, tests or file names.
-- [ ] Data checks use the ids DC01-DC29; every excluded item has a `DataChecks` row.
+- [ ] Data checks use the ids DC01-DC28 (DC29 removed, never used again); every excluded item has a `DataChecks` row.
 - [ ] Every metric shows its inputs and item counts; Included + Excluded = Extracted is checked.
 
 ## 13. The Jira workbook in short (details in the other files)

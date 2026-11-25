@@ -4,7 +4,7 @@ For: **you** (Jira admin, using Rovo Chat and Rovo Studio) and **Copilot** (whic
 Goal: find and fix the data anomalies that make the SAFe flow metrics wrong and keep the Jira **Plans**
 program board unusable, then **prevent** them from coming back.
 
-The check ids `DC01`...`DC29` are the same as in `safe-flow-metrics-and-data-checks.md` and in the Excel
+The check ids `DC01`...`DC28` (DC29, the format of the PI, was removed on 2026-11-25: any name is a PI) are the same as in `safe-flow-metrics-and-data-checks.md` and in the Excel
 `DataChecks` sheet. Always use them: it lets you compare Rovo, saved filters and Excel counts.
 
 Labels: **Documented** = Atlassian support docs (checked 2026-11-03); **Beta** = marked beta by Atlassian;
@@ -63,14 +63,14 @@ CONSTRAINTS: Read only. Do not edit anything. Use only data you can see. If a fi
 
 Placeholders to fill once (keep them in a Confluence page "ART data rules", see section 7):
 `<PROGRAM_KEY>`, `<TEAM_KEYS>` (comma list), `<POINTS_FIELD>` (for example `Story point estimate`),
-`<TEAM_FIELD>` (`Team`), `<PI_FIELD>` (`PI`, values like `PI#XX-YYYY`: `XX` = 2-digit PI number, `YYYY` = year), `<BV_FIELD>` (`Business Value`), `<TARGET_START>` / `<TARGET_END>`
+`<TEAM_FIELD>` (`Team`), `<PI_FIELD>` (`PI`, any name, for example `PI#01-2026` or `PI#4.1-2024`), `<BV_FIELD>` (`Business Value`), `<TARGET_START>` / `<TARGET_END>`
 (`Target start` / `Target end`), `<FEATURE_TYPE>` (`Feature` or its French name on the site).
 Field names in JQL differ per site: get the exact names with prompt P00 or from the Excel `FieldCatalog`.
 
 ## 3. Prompt library (copy, fill the placeholders, run in Rovo Chat)
 
 Not covered by Rovo: **DC06, DC07, DC08, DC09** (history mismatch, change before creation, status not in
-the workflow sheet, done without a start status), **DC27** (moved issues), **DC28** (transition not allowed) and **DC29** (PI format). They need the complete change log
+the workflow sheet, done without a start status), **DC27** (moved issues) and **DC28** (transition not allowed). They need the complete change log
 and the workflow sheets:
 only the Excel workbook checks them. Rovo can explain them, not count them.
 
@@ -145,7 +145,7 @@ GOAL: Check that features are planned in a PI and have landing dates for Plans.
 SCOPE: project = <PROGRAM_KEY> AND issuetype = <FEATURE_TYPE> AND statusCategory != Done
 FIELDS: <PI_FIELD>, <TARGET_START>, <TARGET_END>, status, child items and their sprints.
 RULES:
-  DC17: <PI_FIELD> is empty. (The format PI#XX-YYYY is checked by DC29 in Excel only.)
+  DC17: <PI_FIELD> is empty (any name is a PI).
   DC18: the sprints of its children fall outside the PI dates (PI calendar: <PI list with start-end dates>).
   DC19: status is Planifié or later and <TARGET_START> or <TARGET_END> is empty.
   DC20: <TARGET_END> is before <TARGET_START>, or a child has dates outside the feature dates.
@@ -215,7 +215,7 @@ Behavior text short: the rules live on the Confluence page, not in the agent.
 ### Agent: ART Data Quality
 
 - **Name:** ART Data Quality
-- **Description:** Finds Jira data anomalies (DC01-DC29) that break SAFe flow metrics and the Plans program board. Read only.
+- **Description:** Finds Jira data anomalies (DC01-DC28) that break SAFe flow metrics and the Plans program board. Read only.
 - **Behavior:**
 
 ```text
@@ -366,8 +366,8 @@ Rovo answers change when the model, the data or your text changes. Treat prompts
 | 19 | `<SBX_TEAM>` | Story | blocked by #18 | DC22 |
 | 20 | `<SBX_TEAM>` | Sub-task | under #7, no points, clean | none |
 
-   Never put real client data in the sandbox. Checks that need the full history (DC06 to DC10, DC16, DC27 to
-   DC29) are Excel only: they are not in this table.
+   Never put real client data in the sandbox. Checks that need the full history (DC06 to DC10, DC16, DC27 and
+   DC28) are Excel only: they are not in this table.
 2. Write the expected result per prompt: which keys, which check ids. Keep it on a Confluence page.
 3. Run each prompt / agent on the sandbox after every change of the rules, the agent or a skill.
    Score: found / missed / false alarms. Keep the scores in a table (date, prompt version, score).
@@ -390,7 +390,7 @@ Rovo answers change when the model, the data or your text changes. Treat prompts
 
 ## 9. For Copilot: how the Excel side aligns with Rovo
 
-- Use exactly the check ids `DC01`...`DC29` in `DataChecks[CheckId]`.
+- Use exactly the check ids `DC01`...`DC28` in `DataChecks[CheckId]`.
 - Add a column `JiraJql` with `key in (A-1, A-2, ...)` (at most 100 keys per cell) so the user can paste it
   into Jira to see the same items.
 - Add a sheet `RovoCompare` (Decided): CheckId | Excel count | Saved filter count (typed by the user) |
