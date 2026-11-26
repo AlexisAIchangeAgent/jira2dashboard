@@ -75,8 +75,9 @@ CSV; MD5 d7e323daa450457cf7757b84241cc893) and `v0.19.0` (2026-11-25, commit 90f
 in the natural order of their names; MD5 f58082ada84ffe9d31b26b00fc5b1253) and `v0.19.1` (2026-11-26, commit 7a36a00: the headers of Iterations and PIs
 checked, J2D-CFG-014, an iteration label empty or twice refused, J2D-CFG-015; MD5 c069cc120afa8a55a09a2b35f301953b) and `v0.19.2` (2026-11-26,
 commit c6411f1: the account checked first (GET myself, J2D-JIRA-401), the project keys Jira does not know named (J2D-CFG-016), every message names the
-real sheet; MD5 6000577773039d82368834ecc4f16b51) exist on GitHub: AL removed the
-releases and the tags `v0.1.0` to `v0.4.0` (2026-11-13, they were 2026-11-06, 878807e, 31c9574, f0bbf32). Their numbers are never used again; the next one is above `v0.19.2`.
+real sheet; MD5 6000577773039d82368834ecc4f16b51) and `v0.20.0` (2026-11-26, commit ed56d50: the button Debug prompt for Rovo, A19, the files
+rovo-debug/01.md... with the JQL of each iteration and team, the Filter in clear in the log; MD5 79abb4a21bd4c378290ee9e73fdcbd67) exist on GitHub: AL removed the
+releases and the tags `v0.1.0` to `v0.4.0` (2026-11-13, they were 2026-11-06, 878807e, 31c9574, f0bbf32). Their numbers are never used again; the next one is above `v0.20.0`.
 A clone may keep old tags (`git fetch --tags`): `version.py` stamps the commit, never `git describe`.
 `diagnose` never opens the workbook, never reads `python.log` (JQL, Jira's messages) nor the Windows event log, and masks the home
 folder: keep it that way when adding a section. Allow-lists of an endpoint protection ask for the MD5 (`notes.md` has it) or, lasting longer, the path and name:
