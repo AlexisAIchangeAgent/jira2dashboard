@@ -657,7 +657,8 @@ then `mermaid.parse`), and check every `](#anchor)` link against the headings.
   dismissing a new crash there. `vba-tests` loses Excel at `BEGIN flow sheets: charts` (T_FlowBuild) too: 4 runs in about 14 on
   2026-11-13, none tied to a change: rerun up to 3 times. **`T_RovoDebug` (it builds the tables again) must stay right after `T_FlowBuild` in
   `TestNames`:** as the LAST test of the list, `vba-tests --offline` lost Excel at its `BEGIN flow sheets: prepare` 7 runs in 7 (2026-11-26; the
-  full `vba-tests` passed 3 in 3 there), and right after `T_FlowBuild` both pass. The cause was not found.
+  full `vba-tests` passed 3 in 3 there), and right after `T_FlowBuild` both pass. The cause was not found. `test-network` lost Excel there once more,
+  after `END flow sheets: calculation` (release of v0.20.0), green on the rerun: rerun before suspecting a change.
 - **Jira API documentation:** the Atlassian MCP is not connected (only its authenticate tools) and a real site is never authenticated (hard constraint). Read the
   official OpenAPI schema with Context7 (`/openapi/dac-static_atlassian_cloud_jira_platform_swagger-v3_v3_json`, and Jira Software `.../swagger.v3.json`) or WebFetch of
   `https://dac-static.atlassian.com/cloud/jira/platform/swagger-v3.v3.json`: the developer.atlassian.com pages need JavaScript.
@@ -751,10 +752,15 @@ then `mermaid.parse`), and check every `](#anchor)` link against the headings.
   it belongs to the run; stop it by its PID once its start time is checked.
 - **A few VBA tests only:** copy `modTests.bas`, cut `TestNames()` to the tests wanted, run `vba-tests --offline`, restore with `cp`
   (`vba-tests` takes about 1 minute whole, measured 2026-11-18: rarely worth it; never commit the cut list).
-- **Mutation of a VBA test:** no `summary:` line in the log = no proof (a mutation that raises inside a test, e.g. a type mismatch, loses the run:
+- **Mutation of a VBA test:** no `summary:` line = no proof; that line is on the output of `run.ps1` and in `scripts\logs\run_vba-tests.log`, never in
+  `out\inter\logs\vba-tests.log` (a mutation that raises inside a test, e.g. a type mismatch, loses the run:
   pick one that changes a result without raising). `Check` takes (area, label, input, expected, actual); the log cuts a line at 300 characters.
 - pywin32: `Range.Address` is a property (`cell.Address.replace("$", "")`), not a call with arguments; `ws.Cells(1, n).Value` reads a one-cell range as a scalar.
 - `tests/steps/test_build_workbook.py` holds only `@pipeline` scenarios: with `-k "not pipeline"` it selects none (exit 5): expected.
+- `test-network` runs ONE scenario (`build_workbook.feature`, `@network @pipeline`, about 45 s); `test-excel tests/steps/test_build_workbook.py` runs
+  the other `@pipeline` one: together they are the `@pipeline` part of a release pass.
+- In `tests/steps/test_flow_excel.py`, `param_rows(sheet)` reads `params/*.md` (the repo defaults), not the workbook: a step that changed a
+  parameter sheet reads it back through COM.
 - A text the client reports dates its release: `git log -S"<text>" --oneline -- src`, then `git tag --contains <sha>` ("No valid start" = v0.12.0-v0.13.0).
 - `mock-workbook --run` needs `--scenario` (only a scenario runs unattended). For the generic data against Python, the Excel step
   "compute --check sur une copie enregistrée" does it.
