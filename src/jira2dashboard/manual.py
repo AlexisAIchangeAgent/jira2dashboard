@@ -31,7 +31,8 @@ def first_steps() -> list[str]:
     return [
         f"First time: do these steps in this order (details: sheet {S.of(MANUAL_SHEET)})",
         f"1. Sheet {CONFIG}: fill every value whose Mandatory is True. {', '.join(TYPED_AT_CLIENT)} are empty in a new workbook.",
-        f"2. Sheet {PROJECTS}: your Jira projects, one of them the Program. Sheets {ITERATIONS} and {PIS}: your calendar. "
+        f"2. Sheet {PROJECTS}: the KEYS of your Jira projects (ABC as in ABC-123; a new workbook holds example keys), one of them the "
+        f"Program. Sheets {ITERATIONS} and {PIS}: your calendar. "
         f'"{ROVO_CAPTION}" and "{ROVO_LOAD_CAPTION}" can fill them with Rovo.',
         f'3. Click "{PROPOSE_CAPTION}" (or "{CONFIG_CAPTION}" to only read Jira), then check the yellow cells it wrote.',
         f"4. Sheet {WORKFLOWS}: type only what Jira cannot say (a status that waits, a Done status that is no delivery).",
@@ -85,6 +86,9 @@ def manual(mandatory: tuple[str, ...]) -> list[tuple[str, str]]:
         ]),
         (f'Button "{CONFIG_CAPTION}"', [
             f"It reads Jira (read only) for the projects of {PROJECTS} and writes {PROPOSAL_SHEETS}. It never changes the sheets you type.",
+            "Every button that reads Jira first checks the account: a wrong Email or ApiToken stops it with J2D-JIRA-401 (Jira itself would "
+            "answer with empty lists, not an error).",
+            f'"Not found in Jira" names the keys of {PROJECTS} that Jira does not know: type the key of each project, not its name.',
             "IsUserProjectAdmin = False: the workflows are not read (they need the project administrator right): declare the start statuses "
             f"(IsStart) in {WORKFLOWS}.",
         ]),

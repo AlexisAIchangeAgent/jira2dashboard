@@ -72,6 +72,7 @@ class _State:
     proxy_challenge: str | None = None
     changelog_date: tuple[str, str] = ("created", "ms")    # key and format of the date of a history (api.bulk_changelog)
     delay: float = 0.0                       # seconds every API call waits before it answers (slow Jira)
+    anonymous: bool = False                  # a wrong account is served as Jira Cloud does: an unknown visitor (anonymous_answer)
     base_url: str = ""
     address: tuple = ("", 0)
     faults: list[Fault] = field(default_factory=list)
@@ -192,7 +193,7 @@ def _make_handler(state: _State):
                 return 407, {"errorMessages": ["Proxy Authentication Required"], "errors": {}}, \
                     {"Proxy-Authenticate": state.proxy_challenge}
             if state.credentials and self.headers.get("Authorization") != _basic(*state.credentials):
-                return 401, "Unauthorized", {}
+                return anonymous_answer(self.command, path) if state.anonymous else (401, "Unauthorized", {})
             fault = self._take_fault(path)
             if fault:
                 headers = {"Retry-After": fault.retry_after} if fault.retry_after is not None else {}
@@ -283,18 +284,34 @@ class _ExclusiveServer(ThreadingHTTPServer):
     allow_reuse_address = False              # on Windows SO_REUSEADDR lets a second server take the port of a running one
 
 
+ANONYMOUS_HEADERS = {"X-Seraph-LoginReason": "AUTHENTICATED_FAILED", "X-AUSERNAME": "anonymous"}
+ANONYMOUS_MESSAGE = "Client must be authenticated to access this resource."
+
+
+def anonymous_answer(method: str, path: str) -> tuple[int, object, dict]:
+    """What Jira Cloud answers to a wrong Email or ApiToken (JRACLOUD-82932, AL 2026-11-26): it serves an unknown visitor, so the
+    lists come back empty with 200 (project/search found no project at the client) and only GET myself says 401."""
+    if (method, path) == ("GET", "/rest/api/3/myself"):
+        return 401, {"errorMessages": [ANONYMOUS_MESSAGE], "errors": {}}, dict(ANONYMOUS_HEADERS)
+    if path == "/rest/api/3/search/jql":
+        return 200, {"issues": [], "isLast": True}, dict(ANONYMOUS_HEADERS)
+    return 200, {"startAt": 0, "maxResults": 50, "total": 0, "isLast": True, "values": []}, dict(ANONYMOUS_HEADERS)
+
+
 class MockJira:
     """The fake Jira. `page_clamp` / `bulk_clamp` cap what one response can hold (Jira serves smaller pages than
     asked when many fields are requested: the client must read what came back). `proxy_challenge` ("Negotiate",
     "NTLM", "Basic realm=x") makes it behave as a proxy that wants authentication: requests that came through
-    the proxy (absolute form or CONNECT) get 407 until they carry a Proxy-Authorization header."""
+    the proxy (absolute form or CONNECT) get 407 until they carry a Proxy-Authorization header. `anonymous` serves a wrong account
+    as Jira Cloud does (`anonymous_answer`: 200 with empty lists, 401 on myself) instead of 401 everywhere."""
 
     def __init__(self, dataset: Dataset, *, host: str = "127.0.0.1", port: int = 0,
                  credentials: tuple[str, str] | None = None, tz_minutes: int = 120,
                  page_clamp: int = 100, bulk_clamp: int = 1000, near_limit: bool = False,
-                 proxy_challenge: str | None = None, delay: float = 0.0, changelog_date: tuple[str, str] = ("created", "ms")):
+                 proxy_challenge: str | None = None, delay: float = 0.0, changelog_date: tuple[str, str] = ("created", "ms"),
+                 anonymous: bool = False):
         self._state = _State(dataset, credentials, tz_minutes, page_clamp, bulk_clamp, near_limit, proxy_challenge,
-                             changelog_date=changelog_date, delay=delay)
+                             changelog_date=changelog_date, delay=delay, anonymous=anonymous)
         self._server = _ExclusiveServer((host, port), _make_handler(self._state))
         self._state.address = self._server.server_address[:2]
         self._server.daemon_threads = True

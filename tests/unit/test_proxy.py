@@ -45,8 +45,8 @@ def test_no_setting_no_script():
 def test_config_decides_first():
     def detect(url):
         return P.Detected("http://detected:8080/", "*.detected", "proxy script (PAC): a proxy")
-    assert P.choose_proxy(" direct ", "x", URL, detect) == P.Detected("", "x", "DIRECT in Config: no proxy")
-    assert P.choose_proxy("http://typed:3128/", "", URL, detect) == P.Detected("typed:3128", "", "typed in Config")
+    assert P.choose_proxy(" direct ", "x", URL, detect) == P.Detected("", "x", "DIRECT in Config_from_user: no proxy")
+    assert P.choose_proxy("http://typed:3128/", "", URL, detect) == P.Detected("typed:3128", "", "typed in Config_from_user")
     assert P.choose_proxy("", "", URL, detect) == P.Detected("detected:8080", "*.detected", "proxy script (PAC): a proxy")
     assert P.choose_proxy("", "*.mine", URL, detect).bypass == "*.mine"            # a typed bypass list stays
 

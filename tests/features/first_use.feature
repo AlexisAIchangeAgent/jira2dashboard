@@ -36,6 +36,19 @@ Fonctionnalité: Première utilisation du classeur
     Et le faux Jira n'a reçu aucune requête
 
   @excel
+  Scénario: Un mauvais compte arrête les boutons avant de lire Jira, garde les résultats et dit de vérifier Config_from_user
+    Soit un faux Jira de 30 tickets qui sert un mauvais compte comme Jira Cloud, en visiteur inconnu aux listes vides
+    Et le classeur à livrer dont la feuille Config pointe sur ce faux Jira avec FlowLoadMode "A"
+    Et une première extraction a rempli la feuille Issues
+    Quand le jeton ApiToken de la feuille Config est faux
+    Et je clique sur le bouton Lire la configuration Jira
+    Alors l'état du tableau de bord donne le code J2D-JIRA-401 et dit de vérifier Email et ApiToken dans la feuille Config_from_user
+    Quand je clique sur le bouton « 1. Extract from Jira »
+    Alors l'état du tableau de bord donne le code J2D-JIRA-401 et dit de vérifier Email et ApiToken dans la feuille Config_from_user
+    Et avec le jeton faux, le faux Jira n'a reçu que la vérification du compte, une par bouton
+    Et la feuille Issues garde les tickets de la première extraction
+
+  @excel
   Scénario: Un classeur verrouillé arrête le bouton avant tout appel à Jira et dit comment le déverrouiller
     Soit un faux Jira avec 30 tickets générés avec les projets des paramètres
     Et le classeur à livrer dont la feuille Config pointe sur ce faux Jira avec FlowLoadMode "A"

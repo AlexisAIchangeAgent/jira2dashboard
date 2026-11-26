@@ -9,6 +9,9 @@ import json
 from urllib.parse import quote
 
 from jira2dashboard import error_codes as EC
+from jira2dashboard import sheet_names as S
+
+CONFIG = S.of("Config")                   # a message names the sheet as Excel shows it (AL, 2026-11-26)
 
 PAGE_SIZE = 100
 CHANGELOG_CHUNK = 1000
@@ -54,7 +57,7 @@ def check_base_url(value: str) -> str:
     url = trim_white(value).rstrip("/")
     if url and not url.lower().startswith("https://") and not _is_local(url):
         raise JiraError(602, "BaseUrl must start with https:// (the API token would travel in clear text). "
-                             "Fix it in the Config sheet.")
+                             f"Fix it in the sheet {CONFIG}.")
     return url
 
 
@@ -76,12 +79,12 @@ def projects_jql(projects: list[tuple[str, str, str]], extra: str = "") -> str:
     """project in ("PRG","TA") [AND (filter)] ORDER BY key ASC, the Program project first (modJira.ProjectsJql)."""
     keys = [row[0] for row in sorted(projects, key=lambda r: (r[1] or "").lower() != "program") if row[0]]
     if not keys:
-        raise JiraError(600, "No project to extract: fill the Projects sheet (Project, Role, Team).")
+        raise JiraError(600, f"No project to extract: fill the sheet {S.of('Projects')} (Project, Role, Team).")
     jql = "project in (" + ",".join(f'"{key.strip(" ").replace(chr(34), "")}"' for key in keys) + ")"
     extra = trim_white(extra)
     if extra:
         if "order by" in extra.lower():
-            raise JiraError(603, "The Filter of the Config sheet must not contain ORDER BY")
+            raise JiraError(603, f"The Filter of the sheet {CONFIG} must not contain ORDER BY")
         jql += f" AND ({extra})"
     return jql + " ORDER BY key ASC"
 
@@ -142,11 +145,12 @@ def jira_message(text: str) -> str:
     return "; ".join(messages) or text.strip()[:500]
 
 
-HINTS = {
-    407: " Hint: the proxy asks for authentication. In the Config sheet check ProxyServer and ProxyWindowsAuth "
+HINTS = {                                 # modJira.StatusHint: the same text
+    407: f" Hint: the proxy asks for authentication. In the sheet {CONFIG} check ProxyServer and ProxyWindowsAuth "
          "(Yes = the Windows session is sent to the proxy).",
-    401: " Hint: Jira refused the account. In the Config sheet check Email and ApiToken.",
-    0: " Hint: no answer. In the Config sheet check BaseUrl, ProxyServer and ProxyBypass (ProxyServer empty = the proxy "
+    401: " Hint: Jira refused the account (Jira Cloud answers a wrong account as an unknown visitor). "
+         f"In the sheet {CONFIG} check Email and ApiToken: an API token without scopes, made at id.atlassian.com, not expired.",
+    0: f" Hint: no answer. In the sheet {CONFIG} check BaseUrl, ProxyServer and ProxyBypass (ProxyServer empty = the proxy "
        "of the Windows settings, DIRECT = no proxy).",
 }
 
@@ -158,10 +162,18 @@ def status_error(status: int, attempts: int, error: str, text: str) -> JiraError
     return JiraError(602, f"HTTP {status} after {attempts} attempt(s). {detail}{HINTS.get(status, '')}".replace("  ", " "))
 
 
+def require_account(answer) -> None:
+    """GET myself must name an account (modJira.RequireLogin): Jira Cloud answers a wrong account as an unknown visitor, 200 with empty
+    lists, so only this call tells it. "HTTP 401" gives the code J2D-JIRA-401."""
+    account = answer.get("accountId") if isinstance(answer, dict) else None
+    if not (isinstance(account, str) and account):
+        raise JiraError(602, "HTTP 401: Jira gave no account (it answered as to an unknown visitor)." + HINTS[401])
+
+
 def parse_json(text: str, what: str):
     """The answer as JSON; a proxy or a login page can answer 200 with HTML (modJira.RequireJson, error 607)."""
     if text.lstrip()[:1] not in ("{", "["):
         raise JiraError(607, f"Jira {what}: Jira answered 200 with something that is not JSON (a proxy or a login "
-                             "page?). Check ProxyServer and BaseUrl in the Config sheet. Start of the answer: "
+                             f"page?). Check ProxyServer and BaseUrl in the sheet {CONFIG}. Start of the answer: "
                              + text[:200])
     return json.loads(text)

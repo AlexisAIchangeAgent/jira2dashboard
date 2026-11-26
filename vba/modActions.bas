@@ -7,7 +7,7 @@ Option Explicit
 ' Trivial entry points (like modButtons): the scenarios of flow_excel.feature run them against the fake Jira.
 ' A button macro must be a Public Sub without arguments.
 '
-' The extraction works in slices: BtnExtract starts the extraction job (modExtract) and returns at once; one step of the job (a page of the
+' The extraction works in slices: BtnExtract checks the account (GET myself), starts the extraction job (modExtract) and returns; one step of the job (a page of the
 ' search, a chunk of changelogs...) then runs per Application.OnTime call, so Excel stays usable, the bar of the Dashboard moves and the button
 ' Cancel works between two steps (and during a wait for Jira: modHttp reads gHttpCancel). Nothing of an earlier run is touched before the raw
 ' sheets are written (the last step of the extraction), so a cancel before that keeps the previous results. Compute and Draw take a few seconds
@@ -79,9 +79,14 @@ Public Sub BtnExtract()
     Exit Sub
 Failed:
     num = Err.Number: desc = Err.Description                        ' first: the calls below may clear Err
+    ExtractJobAbort
+    If num = vbObjectError + 610 Then                                ' the Cancel button, pressed during the check of the account
+        LogRunEnd "cancelled during a wait for Jira"
+        EndRun "Cancelled | Results: the results of the previous run are kept", 0
+        Exit Sub
+    End If
     LogError "BtnExtract", num, desc
     LogRunEnd "stopped"
-    ExtractJobAbort
     EndRunStopped num, desc
 End Sub
 
@@ -183,7 +188,7 @@ Private Sub RunJiraConfiguration(ByVal propose As Boolean)
     ' Reads the configuration of Jira (read-only) into the proposal sheets JiraIssueTypes, JiraStatuses, JiraWorkflows,
     ' JiraTransitions and JiraFields (modJiraConfig). One go, about two calls per project: no slices. Cancel works during
     ' a wait for Jira; the proposal sheets are written only at the end, so a cancel or an error leaves them as they were.
-    Dim num As Long, desc As String, summary As String, withWorkflows As Boolean
+    Dim num As Long, desc As String, summary As String, withWorkflows As Boolean, cfg As Object, keys As Collection
     If mBusy Then Beep: Exit Sub
     On Error GoTo Failed
     mBusy = True: mCancel = False: mExtracting = True: gHttpCancel = False
@@ -194,10 +199,14 @@ Private Sub RunJiraConfiguration(ByVal propose As Boolean)
     ShowProgress 0, "Reading the Jira configuration..."
     RequireMandatory ThisWorkbook.Worksheets(SheetName("Config")), "BaseUrl,Email,ApiToken"      ' only the connection is needed here
     withWorkflows = IsYes(ConfigValue(ThisWorkbook.Worksheets(SheetName("Config")), "IsUserProjectAdmin", "True"))
+    Set cfg = JiraConfigFromWorkbook()
+    Set keys = ProjectKeys(ThisWorkbook.Worksheets(SheetName("Projects")))
+    If keys.Count > 0 Then RequireLogin cfg                         ' a wrong account stops here (Jira Cloud would answer empty lists); an
+                                                                    ' empty Projects stops in ReadJiraConfiguration (620), with no call
     If propose Then
-        summary = ProposeValues(JiraConfigFromWorkbook(), ProjectKeys(ThisWorkbook.Worksheets(SheetName("Projects"))), ThisWorkbook, withWorkflows)
+        summary = ProposeValues(cfg, keys, ThisWorkbook, withWorkflows)
     Else
-        summary = ReadJiraConfiguration(JiraConfigFromWorkbook(), ProjectKeys(ThisWorkbook.Worksheets(SheetName("Projects"))), ThisWorkbook, withWorkflows)
+        summary = ReadJiraConfiguration(cfg, keys, ThisWorkbook, withWorkflows)
     End If
     LogRunEnd "ok"
     mExtracting = False
@@ -265,8 +274,9 @@ Public Sub BtnLoadRovoCsv()
         Exit Sub
     End If
     If MsgBox("Load " & Mid$(file, InStrRev(file, "\") + 1) & " into the parameter sheets?" & vbLf & vbLf & _
-              "The Value of each parameter of Config that the file gives replaces the current one. For every other sheet " & _
-              "in the file (Projects, Iterations, PIs, Workflows, Transitions) all the current rows are replaced by its rows. " & _
+              "The Value of each parameter of " & SheetName("Config") & " that the file gives replaces the current one. For every " & _
+              "other sheet in the file (" & SheetName("Projects") & ", " & SheetName("Iterations") & ", " & SheetName("PIs") & ", " & _
+              SheetName("Workflows") & ", " & SheetName("Transitions") & ") all the current rows are replaced by its rows. " & _
               "Save a copy of the workbook first if you want to keep the current values.", vbOKCancel + vbQuestion, _
               "Load settings CSV") <> vbOK Then
         ShowProgress -1, "Settings CSV | Result: cancelled, nothing loaded"

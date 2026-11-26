@@ -10,8 +10,8 @@ Public Const SHEET_TRANSITIONS As String = "Transitions"
 Public Const SHEET_ROVO_SPEC As String = "RovoPromptSpec"
 Public Const SHEET_ROVO As String = "RovoPrompt"
 ' The warnings of RuleWarnings: the same texts as flow/status_rules.py (tests/unit/test_status_rules.py reads them here).
-Private Const NO_START_TEXT As String = " workflow: Flow Time, Flow Efficiency and Flow Load cannot be computed | declare IsStart = 1 for its first in-progress status in the sheet Workflows"
-Private Const NO_WAIT_TEXT As String = "no status is declared Wait: Flow Efficiency cannot be computed | declare Category = Wait in the sheet Workflows for the statuses where the work waits"
+Private Const NO_START_TEXT As String = " workflow: Flow Time, Flow Efficiency and Flow Load cannot be computed | declare IsStart = 1 for its first in-progress status in the sheet Workflows_from_user"
+Private Const NO_WAIT_TEXT As String = "no status is declared Wait: Flow Efficiency cannot be computed | declare Category = Wait in the sheet Workflows_from_user for the statuses where the work waits"
 
 Public Function ReadTable(ByVal ws As Object) As Collection
     ' Row 1 holds the headers, trimmed as the Python path reads them ("Iteration-label " is Iteration-label: params_book.text). Returns one
@@ -132,18 +132,18 @@ Public Function AsOfFromConfig(ByVal wsConfig As Object) As Date
         Cov "PRM24"                                  ' typed as a date: Excel keeps the date, not the text
         If CDbl(v) < 36526 Or CDbl(v) >= 73051 Then  ' 2000 to 2099: a plain number such as 5 or 20261120 was typed, not a date
             Cov "PRM25"
-            Err.Raise vbObjectError + 604, "AsOfFromConfig", "AsOf in the Config sheet is not a date (" & CStr(v) & "): type a UTC date and time such as 2026-11-03 18:00"
+            Err.Raise vbObjectError + 604, "AsOfFromConfig", "AsOf in the sheet " & SheetName("Config") & " is not a date (" & CStr(v) & "): type a UTC date and time such as 2026-11-03 18:00"
         End If
         AsOfFromConfig = CDate(v): Exit Function
     End If
     v = ParseMoment(CStr(v & ""))
     If IsEmpty(v) Then
         Cov "PRM23"
-        Err.Raise vbObjectError + 604, "AsOfFromConfig", "Type AsOf in the Config sheet: a UTC date and time such as 2026-11-03 18:00"
+        Err.Raise vbObjectError + 604, "AsOfFromConfig", "Type AsOf in the sheet " & SheetName("Config") & ": a UTC date and time such as 2026-11-03 18:00"
     End If
     If CDbl(v) < 36526 Or CDbl(v) >= 73051 Then
         Cov "PRM73"
-        Err.Raise vbObjectError + 604, "AsOfFromConfig", "AsOf in the Config sheet must be from 2000 to 2099: type a UTC date and time such as 2026-11-03 18:00"
+        Err.Raise vbObjectError + 604, "AsOfFromConfig", "AsOf in the sheet " & SheetName("Config") & " must be from 2000 to 2099: type a UTC date and time such as 2026-11-03 18:00"
     End If
     AsOfFromConfig = v
 End Function
@@ -191,7 +191,7 @@ Public Sub RequireMandatory(ByVal wsConfig As Object, Optional ByVal onlyNames A
     missing = MissingMandatory(wsConfig, onlyNames)
     If Len(missing) > 0 Then
         Cov "PRM29"
-        Err.Raise vbObjectError + 608, "RequireMandatory", "Fill these values of the Config sheet first (Mandatory = True): " & missing
+        Err.Raise vbObjectError + 608, "RequireMandatory", "Fill these values of the sheet " & SheetName("Config") & " first (Mandatory = True): " & missing
     End If
 End Sub
 
@@ -498,7 +498,7 @@ Private Function OnePiPerRow(ByVal items As Collection, ByVal problems As Collec
         If pis.Count > 1 Then
             If dated Then
                 Cov "PRM76"
-                problems.Add "Sheet PIs row " & k & ": " & pis.Count & " PIs in one cell, each on a row of its own without the dates of that row."
+                problems.Add "Sheet " & SheetName("PIs") & " row " & k & ": " & pis.Count & " PIs in one cell, each on a row of its own without the dates of that row."
             End If
             For Each p In pis
                 If Not written.Exists(UCase$(CStr(p))) Then
@@ -524,7 +524,7 @@ Private Sub ImportItem(ByVal items As Collection, ByVal problems As Collection, 
     If isConfig Then
         If Not IsPlainAscii(col) Then
             Cov "PRM51"
-            problems.Add "Line " & line & ": a Config parameter name must be plain ASCII letters and digits."
+            problems.Add "Line " & line & ": a parameter name of " & SheetName("Config") & " must be plain ASCII letters and digits."
             Exit Sub
         End If
         If protected.Exists(LCase$(col)) Then
@@ -543,7 +543,7 @@ Private Sub ImportItem(ByVal items As Collection, ByVal problems As Collection, 
         Exit Sub
     End If
     If Not IsNumeric(rowText) Or Len(rowText) = 0 Then
-        Cov "PRM45": problems.Add "Line " & line & ": Row must be a number for the sheet " & sh & " (got '" & rowText & "')."
+        Cov "PRM45": problems.Add "Line " & line & ": Row must be a number for the sheet " & SheetName(sh) & " (got '" & rowText & "')."
         Exit Sub
     End If
     r = CLng(Val(rowText))
@@ -594,7 +594,7 @@ Public Function RovoCsvApply(ByVal wb As Object, ByVal res As Object) As String
     Set problems = res("problems")
     For Each item In res("items")
         If Not SheetExists(wb, CStr(item(0))) Then
-            problems.Add "The sheet " & item(0) & " is not in the workbook."
+            problems.Add "The sheet " & SheetName(CStr(item(0))) & " is not in the workbook."
         Else
             Set ws = wb.Worksheets(SheetName(CStr(item(0))))
             If StrComp(CStr(item(0)), "Config", vbTextCompare) = 0 Then

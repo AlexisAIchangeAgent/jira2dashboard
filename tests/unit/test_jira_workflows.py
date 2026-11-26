@@ -118,6 +118,24 @@ def test_another_error_stops_the_reading_and_the_warning_gives_its_support_code(
     assert "J2D-JIRA-030 | the workflows of Jira could not be read (J2D-JIRA-500)" in caplog.text
 
 
+def test_the_keys_jira_did_not_give_back_are_named_in_the_log_and_sent_in_capitals(caplog):
+    """AL, 2026-11-26: the example keys left in Projects_from_user gave Projects 0, Workflows 0 and a count only. The keys go in capitals
+    (Jira Cloud's keys are; JQL ignores the case, project/search is not said to) and the ones Jira did not give back are named, case ignored."""
+    client = Client([PROJECTS, PREVIEW])
+    calls = []
+    client.call = lambda method, path, what, body=None, _call=client.call: calls.append(path) or _call(method, path, what, body)
+    read_workflows(client, ["prg", "TTT", "Phoenix train"])
+    assert calls[0].startswith("/rest/api/3/project/search?keys=PRG&keys=TTT&keys=PHOENIX%20TRAIN&")
+    assert ("J2D-CFG-016 | project keys not found in Jira: 2 of 3 (sheet Projects_from_user: the keys, not the names): TTT, "
+            "Phoenix train") in caplog.text
+
+
+def test_missing_keys_keeps_the_order_of_the_sheet_and_ignores_case():
+    from jira2dashboard.standalone.workflows import missing_keys
+    assert missing_keys(["B", "a", "C"], {"A"}) == ["B", "C"]
+    assert missing_keys(["A"], {"a"}) == [] and missing_keys([], set()) == []
+
+
 def test_a_refused_call_gives_nothing_and_never_raises():
     client = Client([PROJECTS, J.JiraError(602, "no right")])
     assert read_workflows(client, ["PRG"]) == JiraWorkflows()

@@ -293,27 +293,27 @@ Private Function IterationRows(ByVal wsIterations As Object) As Collection
             If IsError(lv) Then label = "" Else label = TrimWhite(CStr(lv & ""))
             If Len(label) = 0 Then
                 Cov "FLB72"
-                Err.Raise vbObjectError + 714, "BuildFlowSheets", "Sheet Iterations: row " & r & " has no Iteration-label: give each iteration its own label."
+                Err.Raise vbObjectError + 714, "BuildFlowSheets", "Sheet " & wsIterations.Name & ": row " & r & " has no Iteration-label: give each iteration its own label."
             End If
             s = SerialOf(sv): e = SerialOf(ev)
             If Not IsEmpty(s) Then If s < 36526 Or s >= 73051 Then s = Empty   ' 2000 to 2099: 1026 for 2026, or 20261005 typed as a number, is a typo
             If Not IsEmpty(e) Then If e < 36526 Or e >= 73051 Then e = Empty
             If IsEmpty(s) Or IsEmpty(e) Then
                 Cov "FLB28"
-                Err.Raise vbObjectError + 701, "BuildFlowSheets", "Sheet Iterations: Start and End of iteration " & label & " must be dates from 2000 to 2099."
+                Err.Raise vbObjectError + 701, "BuildFlowSheets", "Sheet " & wsIterations.Name & ": Start and End of iteration " & label & " must be dates from 2000 to 2099."
             End If
             If s <> Int(s) Or e <> Int(e) Then                          ' a time of day: the daily load counts whole days (the Python path refuses it too)
                 Cov "FLB63"
-                Err.Raise vbObjectError + 701, "BuildFlowSheets", "Sheet Iterations: Start and End of iteration " & label & _
+                Err.Raise vbObjectError + 701, "BuildFlowSheets", "Sheet " & wsIterations.Name & ": Start and End of iteration " & label & _
                           " are whole days (no time of day): the daily load counts days."
             End If
             If e <= s Then
                 Cov "FLB27"
-                Err.Raise vbObjectError + 704, "BuildFlowSheets", "Sheet Iterations: iteration " & label & " ends before it starts."
+                Err.Raise vbObjectError + 704, "BuildFlowSheets", "Sheet " & wsIterations.Name & ": iteration " & label & " ends before it starts."
             End If
             If seen.Exists(UCase$(label)) Then
                 Cov "FLB73"
-                Err.Raise vbObjectError + 714, "BuildFlowSheets", "Sheet Iterations: iteration " & label & " is listed twice (case ignored, as Excel " & _
+                Err.Raise vbObjectError + 714, "BuildFlowSheets", "Sheet " & wsIterations.Name & ": iteration " & label & " is listed twice (case ignored, as Excel " & _
                           "compares): give each iteration its own label."
             End If
             seen(UCase$(label)) = True
@@ -531,7 +531,7 @@ Private Sub LoadPlan(ByVal wb As Object, ByRef spec As Object, ByRef teams As Co
     Set iterations = IterationRows(wb.Worksheets(SheetName("Iterations")))
     If iterations.Count = 0 Then
         Cov "FLB15"
-        Err.Raise vbObjectError + 703, "BuildFlowSheets", "Sheet Iterations has no iteration: fill Iteration-label, Start and End first."
+        Err.Raise vbObjectError + 703, "BuildFlowSheets", "Sheet " & SheetName("Iterations") & " has no iteration: fill Iteration-label, Start and End first."
     End If
     CheckPis wb.Worksheets(SheetName("PIs"))
     CheckModes wb.Worksheets(SheetName("Config"))
@@ -574,7 +574,7 @@ Private Sub CheckPis(ByVal wsPIs As Object)
             End If
             If bad Then
                 Cov "FLB65"
-                Err.Raise vbObjectError + 710, "BuildFlowSheets", "Sheet PIs: Start and End of PI " & pi & " must be whole days from 2000 to 2099 " & _
+                Err.Raise vbObjectError + 710, "BuildFlowSheets", "Sheet " & SheetName("PIs") & ": Start and End of PI " & pi & " must be whole days from 2000 to 2099 " & _
                           "(a date, or 2026-10-05 as text), Start before End."
             End If
         End If
@@ -589,7 +589,7 @@ Private Sub CheckModes(ByVal wsConfig As Object)
         v = UCase$(ConfigValue(wsConfig, CStr(nm), "A"))
         If v <> "A" And v <> "B" Then
             Cov "FLB66"
-            Err.Raise vbObjectError + 711, "BuildFlowSheets", "Config: " & CStr(nm) & " must be A or B, got """ & ConfigValue(wsConfig, CStr(nm)) & """."
+            Err.Raise vbObjectError + 711, "BuildFlowSheets", SheetName("Config") & ": " & CStr(nm) & " must be A or B, got """ & ConfigValue(wsConfig, CStr(nm)) & """."
         End If
     Next nm
 End Sub

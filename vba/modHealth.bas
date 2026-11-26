@@ -581,7 +581,7 @@ Public Function HintFor(ByVal typ As String, ByVal found As String, ByVal requir
         Else
             Cov "HLT22"
             If required Then
-                HintFor = "a required column is empty: the extraction wrote nothing there (check the field and its id in Config)"
+                HintFor = "a required column is empty: the extraction wrote nothing there (check the field and its id in Config_from_user)"
             Else
                 HintFor = "no ticket has a value: fine when the field is not configured or not used"
             End If
@@ -609,7 +609,7 @@ Public Function HintFor(ByVal typ As String, ByVal found As String, ByVal requir
             End If
         Case "integer", "number"
             If found = "text" Then
-                Cov "HLT30": HintFor = "a text where a number is expected: Jira sent text, or the custom field is of another type (check its id in Config)"
+                Cov "HLT30": HintFor = "a text where a number is expected: Jira sent text, or the custom field is of another type (check its id in Config_from_user)"
             ElseIf found = "number" Then
                 Cov "HLT31": HintFor = "a number with decimals where a whole number is expected"
             Else

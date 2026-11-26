@@ -33,6 +33,9 @@ Private Sub ExtractParameters(ByRef cfg As Object, ByRef jql As String, ByRef se
     Set cfg = JiraConfigFromSheet(wsConfig)
     jql = ExtractionJql(ThisWorkbook.Worksheets(SheetName("Projects")), wsConfig)
     Set settings = FieldSettings(wsConfig)
+    AsOfFromConfig wsConfig                          ' its check (604) before the call; the caller reads it again
+    RequireLogin cfg                                 ' last, after the checks that need no call: a wrong account would read 0 tickets and
+                                                     ' clear the previous results (Jira Cloud answers it as an unknown visitor)
 End Sub
 
 Public Sub ExtractFlowData()
@@ -287,7 +290,8 @@ Public Function ExtractJobStep() As Boolean
             mToken = JiraSearchPage(mCfg, mJql, mToken, mIssues, mNames, ExtractFields(mWorkType, mSettings), "", isLast)
             mPage = mPage + 1
             LogEnd "search page " & mPage & ": " & mIssues.Count & " issues"
-            If Not isLast And mPage >= MAX_SEARCH_PAGES Then Err.Raise vbObjectError + 601, "ExtractJobStep", "Jira search did not end after " & MAX_SEARCH_PAGES & " pages: narrow the extraction with the Filter of the Config sheet."
+            If Not isLast And mPage >= MAX_SEARCH_PAGES Then Err.Raise vbObjectError + 601, "ExtractJobStep", "Jira search did not end after " & MAX_SEARCH_PAGES & " pages: narrow the extraction with the Filter of the sheet " & _
+                                                                       SheetName("Config") & "."
             If isLast Then
                 Set mKeys = New Collection: Set mIdToKey = CreateObject("Scripting.Dictionary")
                 For Each issue In mIssues
@@ -466,7 +470,8 @@ Private Sub RulesInit()
             If refused <> 0 Then
                 Cov "MEX18"
                 LogLine "WARN", "J2D-JIRA-030 | the workflows of Jira could not be read (" & IIf(refused > 0, refused & " project(s) refused", failCode) & _
-                                "): the start of a flow comes from the sheet Workflows, the check DC28 from the sheet Transitions"
+                                "): the start of a flow comes from the sheet " & SheetName("Workflows") & ", the check DC28 from the sheet " & _
+                                SheetName("Transitions")
             End If
         Else
             Cov "MEX19"

@@ -77,6 +77,21 @@ def test_credentials_are_checked_when_configured(small_dataset, call):
         assert call(jira, "GET", "/rest/api/3/myself", headers={"Authorization": good}).status == 200
 
 
+def test_anonymous_serves_a_wrong_account_as_jira_cloud_does(small_dataset, call):
+    """JRACLOUD-82932 (AL, 2026-11-26): a wrong account is an unknown visitor, 200 with empty lists; only myself says 401."""
+    good = "Basic " + base64.b64encode(b"me@example.com:tok").decode()
+    with MockJira(small_dataset, credentials=("me@example.com", "tok"), anonymous=True) as jira:
+        me = call(jira, "GET", "/rest/api/3/myself", headers={"Authorization": "Basic eA=="})
+        assert me.status == 401 and me.headers.get("X-Seraph-LoginReason") == "AUTHENTICATED_FAILED"
+        projects = call(jira, "GET", "/rest/api/3/project/search?keys=TTT", headers={"Authorization": "Basic eA=="})
+        assert projects.status == 200 and projects.json["values"] == [] and projects.json["isLast"] is True
+        found = call(jira, "GET", get_search_path("project = TTT"), headers={"Authorization": "Basic eA=="})
+        assert found.status == 200 and found.json["issues"] == []
+        assert call(jira, "GET", "/rest/api/3/myself", headers={"Authorization": good}).status == 200
+        key = small_dataset.projects()[0]
+        assert call(jira, "GET", f"/rest/api/3/project/search?keys={key}", headers={"Authorization": good}).json["values"]
+
+
 def test_credentials_must_match_exactly_like_the_powershell_script_builds_them(small_dataset, call):
     """Authorization = Basic base64("email:token") with the token trimmed by the client."""
     email, token = "genericemail@domain.com", "tok-123"

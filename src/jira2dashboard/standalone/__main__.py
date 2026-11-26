@@ -74,9 +74,9 @@ examples:
 COMPUTE_DOC = """Compute the flow metrics again from a filled workbook, without Jira: writes jira2dashboard-compute.xlsx (step F, the PC of development).
 
 1. Reads the parameter sheets of the workbook as they are now (Config, Projects, Iterations, PIs, Workflows, Transitions) and what the
-   extraction left in it: the sheets Issues, Changelog, IssueLinks and the Jira sheets (JiraStatusCatalog, JiraIssueTypes, JiraWorkflows,
+   extraction left in it: the sheets Issues_from_Jira, Changelog_from_Jira, IssueLinks_from_Jira and the Jira sheets (JiraStatusCatalog, JiraIssueTypes, JiraWorkflows,
    JiraTransitions). The workbook is an .xlsm whose button 1. Extract from Jira ran and that was saved, or the .xlsx of run.ps1 extract.
-2. Makes the status rules and the status intervals again (never from StatusIntervals or StatusRules: a corrected sheet Workflows takes
+2. Makes the status rules and the status intervals again (never from StatusIntervals or StatusRules: a corrected sheet Workflows_from_user takes
    effect), then the same results, checks and charts as run.ps1 extract. No call to Jira: BaseUrl, Email and ApiToken are not needed.
 3. Writes them as values in jira2dashboard-compute.xlsx next to the workbook read (or --out). The workbook read is never changed.
 4. --check: compares every result table with the figures Excel calculated and saved in the .xlsm (the rows joined on their keys, numbers
@@ -258,6 +258,9 @@ def run(args, formatter: Scrubbed, collected: Collected, sleep=time.sleep, detec
     log.info("END proxy: %s%s%s", proxy.mode, f" ({proxy.server})" if proxy.server else "", took(step))
     client = JiraClient(base, authorization, c.max_retries,
                         transport(c.timeout_s, proxy.server, proxy.bypass, c.windows_auth), sleep=sleep)
+    step = time.monotonic()
+    client.require_login()
+    log.info("END login%s", took(step))
     log.info("BEGIN search: %s", jql)
     step = time.monotonic()
     issues = client.search_all(jql, fields)
@@ -350,7 +353,7 @@ def finish(args, started: float, settings, extract, catalog: dict[str, str], inf
     intervals = [row for issue in extract.flow for row in interval_rows(issue, settings.as_of, settings.rules)]
     unknown = sorted({row[3] for row in intervals if row[4] == UNCLASSIFIED})
     if unknown:
-        log.warning("statuses not in the sheet Workflows (category Unclassified, data check DC08): %s",
+        log.warning("statuses not in the sheet Workflows_from_user (category Unclassified, data check DC08): %s",
                     ", ".join(unknown))
     types = log_column_types(extract, intervals)
     results = R.compute(extract.flow, settings)

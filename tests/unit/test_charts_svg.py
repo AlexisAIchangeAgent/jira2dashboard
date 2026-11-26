@@ -127,7 +127,7 @@ def test_the_cycle_time_by_status_chart_stacks_the_shares_of_each_pi_and_leaves_
     found = texts(picture.svg)
     assert "PI-1" in found and "PI-2" in found and "doing" in found and "testing" in found       # the PIs on the X axis, a legend of statuses
     assert "100%" in found                                                                          # a 100 % scale
-    assert "2 of 4 points are not computable (gaps) - no Feature was released in the PI, or the PI is not in the sheet PIs" in found
+    assert "2 of 4 points are not computable (gaps) - no Feature was released in the PI, or the PI is not in the sheet PIs_from_user" in found
 
 
 

@@ -23,6 +23,7 @@ examples:
   scripts\\run.ps1 mock-jira                            1200 issues on http://127.0.0.1:8099
   scripts\\run.ps1 mock-jira --anomalies --issues 150   a small fake Jira with the known data anomalies
   scripts\\run.ps1 mock-jira --no-auth --port 8100      any account accepted, on another port
+  scripts\\run.ps1 mock-jira --anonymous               a wrong account served as Jira Cloud does: empty lists, 401 on myself only
   scripts\\run.ps1 mock-jira --scenario art-metrics     only the 25 Features of the scenario art-metrics (known history), on port 8101
 """
 
@@ -47,6 +48,8 @@ def parse(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--email", default=MOCK_EMAIL, help=f"account accepted (default {MOCK_EMAIL})")
     parser.add_argument("--token", default=MOCK_TOKEN, help=f"API token accepted (default {MOCK_TOKEN})")
     parser.add_argument("--no-auth", action="store_true", help="accept any credentials")
+    parser.add_argument("--anonymous", action="store_true",
+                        help="serve a wrong account as Jira Cloud does: 200 with empty lists, 401 on myself only")
     parser.add_argument("--proxy-challenge", default=None, metavar="SCHEME",
                         help="act as a proxy that asks for authentication (Negotiate, NTLM, ...): 407 until "
                              "the request carries Proxy-Authorization")
@@ -77,7 +80,7 @@ def main(argv: list[str] | None = None) -> int:
     credentials = None if args.no_auth else (args.email, args.token)
     try:
         jira = MockJira(dataset, port=port_for(args), credentials=credentials, page_clamp=args.page_clamp,
-                        proxy_challenge=args.proxy_challenge).start()
+                        proxy_challenge=args.proxy_challenge, anonymous=args.anonymous).start()
     except OSError as err:                                  # a port that is taken or out of range: tell, no traceback
         print(f"mock-jira: cannot listen on port {port_for(args)} ({err}). Choose another one with --port.")
         return 1

@@ -88,8 +88,9 @@ def test_the_wait_grows_and_never_beats_retry_after():
 def test_an_error_names_the_status_the_attempts_what_jira_said_and_a_hint():
     error = J.status_error(401, 1, "", json.dumps({"errorMessages": ["Bad credentials"], "errors": {"jql": "x"}}))
     assert error.code == 602
-    assert str(error) == ("HTTP 401 after 1 attempt(s). Bad credentials; jql: x Hint: Jira refused the account. "
-                          "In the Config sheet check Email and ApiToken.")
+    assert str(error) == ("HTTP 401 after 1 attempt(s). Bad credentials; jql: x Hint: Jira refused the account (Jira Cloud answers a "
+                          "wrong account as an unknown visitor). In the sheet Config_from_user check Email and ApiToken: an API token "
+                          "without scopes, made at id.atlassian.com, not expired.")
     assert "Hint: no answer" in str(J.status_error(0, 3, "-2147012867 cannot connect", ""))
     assert str(J.status_error(500, 5, "", "<html>oops</html>")).startswith("HTTP 500 after 5 attempt(s). <html>oops")
 

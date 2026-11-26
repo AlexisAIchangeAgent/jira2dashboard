@@ -8,8 +8,11 @@ from collections import Counter
 from dataclasses import dataclass
 from pathlib import Path
 
+from jira2dashboard import sheet_names as S
 from jira2dashboard.params.mdtable import MarkdownTableError, parse_table
 from jira2dashboard.paths import PARAMS_DIR
+
+CONFIG = S.of("Config")                                  # a problem names the sheet as Excel shows it (AL, 2026-11-26)
 
 WORKFLOWS = ("Team", "Feature")
 CATEGORIES = ("Active", "Wait", "Done", "Removed", "Backlog", "Unclassified")
@@ -87,7 +90,7 @@ def _read(spec: SheetSpec, params_dir: Path, problems: list[str]) -> ParamSheet 
         return None
     rows = []
     for number, raw_row in enumerate(table.rows, start=1):
-        where = f"{spec.name} row {number}"
+        where = f"{S.of(spec.name)} row {number}"
         rows.append(tuple(_typed_cell(spec, col, raw, where, problems)
                           for col, raw in zip(spec.columns, raw_row)))
     return ParamSheet(spec.name, spec.columns, tuple(rows))
@@ -104,7 +107,7 @@ def _check_workflows(sheet: ParamSheet, problems: list[str]) -> None:
     no start or end status here."""
     seen: Counter = Counter()
     for number, rec in _records(sheet):
-        where = f"Workflows row {number}"
+        where = f"{S.of('Workflows')} row {number}"
         if rec["Workflow"] is not None and rec["Workflow"] not in WORKFLOWS:
             problems.append(f"{where}: Workflow {rec['Workflow']!r} is not one of {', '.join(WORKFLOWS)} (or empty: both)")
         if not rec["Status"]:
@@ -117,7 +120,7 @@ def _check_workflows(sheet: ParamSheet, problems: list[str]) -> None:
         seen[(rec["Workflow"], rec["Status"])] += 1
     for (workflow, status), count in seen.items():
         if count > 1:
-            problems.append(f"Workflows: workflow {workflow!r} lists status {status!r} twice")
+            problems.append(f"{S.of('Workflows')}: workflow {workflow!r} lists status {status!r} twice")
 
 
 def _statuses(workflows: ParamSheet) -> dict[str, set[str]]:
@@ -132,7 +135,7 @@ def _check_transitions(sheet: ParamSheet, workflows: ParamSheet, problems: list[
     statuses = _statuses(workflows)
     seen: Counter = Counter()
     for number, rec in _records(sheet):
-        where = f"Transitions row {number}"
+        where = f"{S.of('Transitions')} row {number}"
         workflow = rec["Workflow"]
         if workflow not in WORKFLOWS:
             problems.append(f"{where}: Workflow {workflow!r} is not one of {', '.join(WORKFLOWS)}")
@@ -143,56 +146,56 @@ def _check_transitions(sheet: ParamSheet, workflows: ParamSheet, problems: list[
         seen[(workflow, rec["From"], rec["To"])] += 1
     for (workflow, source, target), count in seen.items():
         if count > 1:
-            problems.append(f"Transitions: {workflow!r} {source!r} -> {target!r} listed twice")
+            problems.append(f"{S.of('Transitions')}: {workflow!r} {source!r} -> {target!r} listed twice")
 
 
 def _check_config(sheet: ParamSheet, problems: list[str]) -> None:
     names = [row[0] for row in sheet.rows]
     for number, name in enumerate(names, start=1):
         if name not in CONFIG_PARAMETERS:
-            problems.append(f"Config row {number}: unknown parameter {name!r}")
+            problems.append(f"{CONFIG} row {number}: unknown parameter {name!r}")
     for missing in (p for p in CONFIG_PARAMETERS if p not in names):
-        problems.append(f"Config: parameter {missing!r} is missing")
+        problems.append(f"{CONFIG}: parameter {missing!r} is missing")
     for name, count in Counter(names).items():
         if count > 1:
-            problems.append(f"Config: parameter {name!r} listed twice")
+            problems.append(f"{CONFIG}: parameter {name!r} listed twice")
     for _n, rec in _records(sheet):
         name, flag = rec["Parameter"], rec["Mandatory"]
         if not rec["Example"]:
-            problems.append(f"Config: give {name} an example (column Example: the expected form of the value)")
+            problems.append(f"{CONFIG}: give {name} an example (column Example: the expected form of the value)")
         if flag not in ("True", "False"):
-            problems.append(f"Config: Mandatory of {name} must be True or False, got {flag!r}")
+            problems.append(f"{CONFIG}: Mandatory of {name} must be True or False, got {flag!r}")
         elif flag == "True" and name not in TYPED_AT_CLIENT and not rec["Value"]:
-            problems.append(f"Config: {name} is mandatory: give it a value (only {', '.join(TYPED_AT_CLIENT)} "
+            problems.append(f"{CONFIG}: {name} is mandatory: give it a value (only {', '.join(TYPED_AT_CLIENT)} "
                             "are typed at the client)")
     values = {row[0]: row[1] for row in sheet.rows}
     if values.get("ApiToken"):
-        problems.append("Config: ApiToken must stay empty in params/config.md (type the token in the workbook)")
+        problems.append(f"{CONFIG}: ApiToken must stay empty in params/config.md (type the token in the workbook)")
     if values.get("ProxyWindowsAuth") not in ("Yes", "No"):
-        problems.append(f"Config: ProxyWindowsAuth must be Yes or No, got {values.get('ProxyWindowsAuth')!r}")
+        problems.append(f"{CONFIG}: ProxyWindowsAuth must be Yes or No, got {values.get('ProxyWindowsAuth')!r}")
     for name, minimum in (("TimeoutSeconds", 1), ("MaxRetries", 0)):
         text = values.get(name)
         if text is None or not text.isdecimal() or int(text) < minimum:
-            problems.append(f"Config: {name} must be a whole number >= {minimum}, got {text!r}")
+            problems.append(f"{CONFIG}: {name} must be a whole number >= {minimum}, got {text!r}")
     threshold = values.get("FillRateThreshold")
     if threshold is None or not threshold.isdecimal() or not 0 <= int(threshold) <= 100:
-        problems.append(f"Config: FillRateThreshold must be a whole number between 0 and 100, got {threshold!r}")
+        problems.append(f"{CONFIG}: FillRateThreshold must be a whole number between 0 and 100, got {threshold!r}")
     base = values.get("BaseUrl")
     if base and not base.lower().startswith(("http://", "https://")):
-        problems.append(f"Config: BaseUrl must start with http:// or https://, got {base!r}")
+        problems.append(f"{CONFIG}: BaseUrl must start with http:// or https://, got {base!r}")
     if base and "@" in base.split("//", 1)[-1].split("/", 1)[0]:
-        problems.append("Config: BaseUrl must not contain a user name or a token (user:token@host)")
+        problems.append(f"{CONFIG}: BaseUrl must not contain a user name or a token (user:token@host)")
     if values.get("LogLevel") not in ("Steps", "Errors"):
-        problems.append(f"Config: LogLevel must be Steps or Errors, got {values.get('LogLevel')!r}")
+        problems.append(f"{CONFIG}: LogLevel must be Steps or Errors, got {values.get('LogLevel')!r}")
     if values.get("OpenLogOnError") not in ("Yes", "No"):
-        problems.append(f"Config: OpenLogOnError must be Yes or No, got {values.get('OpenLogOnError')!r}")
+        problems.append(f"{CONFIG}: OpenLogOnError must be Yes or No, got {values.get('OpenLogOnError')!r}")
     if values.get("FlowLoadMode") not in ("A", "B"):
-        problems.append(f"Config: FlowLoadMode must be A or B, got {values.get('FlowLoadMode')!r}")
+        problems.append(f"{CONFIG}: FlowLoadMode must be A or B, got {values.get('FlowLoadMode')!r}")
     if values.get("PredictabilityMode") not in ("A", "B"):
-        problems.append(f"Config: PredictabilityMode must be A or B, got {values.get('PredictabilityMode')!r}")
+        problems.append(f"{CONFIG}: PredictabilityMode must be A or B, got {values.get('PredictabilityMode')!r}")
     as_of = values.get("AsOf")
     if as_of and _parse_moment(as_of) is None:
-        problems.append(f"Config: AsOf must be a UTC date or date and time such as 2026-11-03 18:00, got {as_of!r}")
+        problems.append(f"{CONFIG}: AsOf must be a UTC date or date and time such as 2026-11-03 18:00, got {as_of!r}")
 
 
 MOMENT = re.compile(r"^\d{4}-\d{2}-\d{2}([ T]\d{2}:\d{2}(:\d{2})?)?$")
@@ -224,7 +227,7 @@ def _check_iterations(sheet: ParamSheet, problems: list[str], column: str = "Ite
     (pi_without_dates)."""
     seen: Counter = Counter()                                  # by the name without case: Excel looks the names up so (SUMIFS, MATCH, COUNTIFS)
     spelling: dict = {}
-    label = sheet.name
+    label = S.of(sheet.name)
     noun = column.lower() if column == "PI" else "iteration"
     for number, rec in _records(sheet):
         where = f"{label} row {number}"
@@ -253,7 +256,7 @@ def _check_iterations(sheet: ParamSheet, problems: list[str], column: str = "Ite
 def _check_projects(sheet: ParamSheet, problems: list[str]) -> None:
     seen: Counter = Counter()
     for number, rec in _records(sheet):
-        where = f"Projects row {number}"
+        where = f"{S.of('Projects')} row {number}"
         key = rec["Project"] or ""
         if not _PROJECT_KEY.fullmatch(key):
             problems.append(f"{where}: Project {key!r} is not a Jira project key (capital letters, digits, _)")
@@ -262,10 +265,10 @@ def _check_projects(sheet: ParamSheet, problems: list[str]) -> None:
         seen[key] += 1
     for key, count in seen.items():
         if count > 1:
-            problems.append(f"Projects: project {key!r} listed twice")
+            problems.append(f"{S.of('Projects')}: project {key!r} listed twice")
     programs = [rec["Project"] for _n, rec in _records(sheet) if rec["Role"] == "Program"]
     if len(programs) != 1:
-        problems.append(f"Projects: exactly one Program project is needed, found {len(programs)}")
+        problems.append(f"{S.of('Projects')}: exactly one Program project is needed, found {len(programs)}")
 
 
 def mandatory_parameters(config: ParamSheet) -> tuple[str, ...]:

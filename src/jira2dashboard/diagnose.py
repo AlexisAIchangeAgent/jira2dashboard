@@ -234,7 +234,7 @@ def report(workbook: Path | None, readings: Readings, *, home: str, local_app_da
                 ("Security products", _security_section(readings.security_products)),
                 ("Interpreters of the fake Jira", _interpreters_section(readings.interpreters)), (log_title, log)]
     text = [f"jira2dashboard diagnostic, {dt.datetime.now():%Y-%m-%d %H:%M}",
-            "Nothing of Config, no token, e-mail, URL or Jira answer is read. Check the text before sharing it."]
+            "Nothing of Config_from_user, no token, e-mail, URL or Jira answer is read. Check the text before sharing it."]
     for title, lines in sections:
         text += ["", f"[{title}]", *lines]
     return mask_home("\n".join(text) + "\n", home)

@@ -126,8 +126,11 @@ python.log). `tests/unit/test_claude_hooks.py` and `test_claude_skills.py` test 
   drawn or written by the workbook (Charts, Metrics, ItemFlow, Dashboard, Manual, Steps, the plan sheets...). The code keeps the LOGICAL names (`Config`,
   `Issues`; the Excel tables too: `Issues[Key]`) and converts at the edge: `sheet_names.of(name)` in Python, `modText.SheetName(name)` in VBA (both idempotent,
   an unknown name such as a test's scratch sheet comes back unchanged; `LogicalSheet` goes back). The three lists must be the same on both sides
-  (`tests/unit/test_sheet_names.py`); a new sheet is added to both, then to the scenario "chaque feuille ... suffixe". A message may name a sheet by the
-  start of its name ("the Config sheet"). Never name a VBA variable or parameter like a procedure (VBA ignores case: `sheetName` hid `SheetName`,
+  (`tests/unit/test_sheet_names.py`); a new sheet is added to both, then to the scenario "chaque feuille ... suffixe". **A text the person sees that sends
+  them to a sheet names the REAL sheet** (AL, 2026-11-26: "of the sheet Projects" sent him to a sheet called `Projects_from_user`): `SheetName(...)` / `ws.Name`
+  in VBA, `S.of(...)` in Python, the literal real name in a VBA `Const` and in a text both sides compare. `tests/unit/test_sheet_names_in_messages.py` reads every
+  string literal (VBA without modTests and comments, Python without docstrings, the fake Jira and the dev tools) and refuses "sheet Config", "the Config
+  sheet", "in Config", "Config: ..."; its `ALLOWED` names the exceptions (field and check names, keys of formulas, log lines). Never name a VBA variable or parameter like a procedure (VBA ignores case: `sheetName` hid `SheetName`,
   `readWorkflows` hid `ReadWorkflows`; only `vba-tests` shows it, as COMPILE_FAILED).
 - **Python generates, Excel computes.** `src/jira2dashboard/build_workbook.py` writes the parameter sheets, the empty raw
   sheets and a *plan*, injects the `vba/*.bas` modules and compiles them. VBA writes only raw data (`Issues`,
@@ -376,6 +379,18 @@ python.log). `tests/unit/test_claude_hooks.py` and `test_claude_skills.py` test 
   the label trimmed and refuses a label empty or listed twice, case ignored as Excel compares (error 714, `J2D-CFG-015`; Python `_check_iterations`).
   `ReadTable` and `HeaderColumn` trim the headers as `params_book.text` does; `HeaderColumn` (Propose, the CSV load) still ignores case: a header
   `iteration-label` is filled there and refused at the build. The 713 message joins with ", ": a " | " would cut it into fields of the Dashboard status.
+  **The account first, and the keys Jira does not know (AL, 2026-11-26: v0.19.1 at the client, Read the Jira configuration gave Projects 0, Workflows 0: the
+  example keys of the delivered `Projects_from_user` were left in place).** Jira Cloud answers a WRONG Email or ApiToken (or a token with scopes on the site
+  address) as an unknown visitor: 200 with empty lists (JRACLOUD-82932), only `GET /rest/api/3/myself` says 401; an extraction would read 0 tickets and clear
+  the previous results without a word. `modJira.RequireLogin` (Python `JiraClient.require_login`, `jira_api.require_account`) asks myself first, after
+  `RequireEditable` and `RequireMandatory` (so `first_use.feature` still sees no request then): `RunJiraConfiguration` and `modExtract.ExtractParameters`
+  (BtnExtract, ExtractAndCompute; `BtnExtract` has the 610 branch for a Cancel during that wait); a 401 or an answer without `accountId` is error 602
+  "HTTP 401 ..." = `J2D-JIRA-401`, whose hint (`StatusHint` = `jira_api.HINTS[401]`, the same text) names `Config_from_user` and the token without scopes.
+  The fake Jira imitates it with `MockJira(..., anonymous=True)` / `mock-jira --anonymous` (`server.anonymous_answer`); its default stays 401 everywhere.
+  `project/search` drops an unknown key silently: `modJiraConfig.MissingKeys` (case ignored, the order of the sheet; Python `workflows.missing_keys`) feeds the
+  field `Not found in Jira: n of m project keys of the sheet Projects_from_user: K1, K2. Type the key ...` (the status only: the log gets
+  `WARN J2D-CFG-016` with the counts, the code in the Const `MISSING_KEYS_CODE` because the log guard reads "cfg" in "J2D-CFG-016"; python.log names
+  the keys), also at the extraction (`ReadWorkflowRules`: a project NAME typed for its key passes JQL, not project/search). The keys go in capitals.
 - **Support codes.** Every error shown or logged carries `J2D-<AREA>-<NNN>` (`CFG`, `JIRA`, `NET`, `DATA`, `FLOW`, `ROVO`, `SYS`, `VBA`, `GEN`):
   the table is `src/jira2dashboard/error_codes.py` (code, vba number, meaning, cause, check, what support asks), shown in the sheet
   `ErrorCodes`; `modLog.ErrorCode(number, description)` is the VBA rule (602 has two causes: BaseUrl check, HTTP status = `JIRA-<status>`,

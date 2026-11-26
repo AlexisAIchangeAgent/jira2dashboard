@@ -53,6 +53,26 @@ def test_a_wrong_account_stops_at_once_with_the_hint_of_the_vba(jira):
     assert error.value.code == 602 and waits == []
 
 
+def test_the_login_check_reads_the_account_first(dataset):
+    """Jira Cloud answers a wrong account with empty lists (anonymous): only myself refuses it, so the Python path asks it first."""
+    with MockJira(dataset, credentials=(MOCK_EMAIL, MOCK_TOKEN), anonymous=True) as server:
+        client(server.base_url, []).require_login()
+        wrong = client(server.base_url, [], auth=J.basic_auth(MOCK_EMAIL, "wrong"))
+        assert wrong.search_all(J.projects_jql(PROJECTS), J.search_fields("", {})) == []    # the trap: no error, no ticket
+        with pytest.raises(J.JiraError, match=r"HTTP 401 after 1 attempt\(s\).*Config_from_user check Email and ApiToken") as error:
+            wrong.require_login()
+        assert error.value.support_code == "J2D-JIRA-401"
+
+
+def test_an_answer_without_an_account_is_a_refused_account():
+    with pytest.raises(J.JiraError, match=r"HTTP 401: Jira gave no account") as error:
+        J.require_account({"self": "x"})
+    assert error.value.support_code == "J2D-JIRA-401" and "Config_from_user" in str(error.value)
+    with pytest.raises(J.JiraError, match=r"HTTP 401: Jira gave no account"):
+        J.require_account({"accountId": {"id": "x"}})                    # an object is no account (the VBA reads it so too)
+    J.require_account({"accountId": "acc-1"})
+
+
 def test_server_errors_are_retried_and_each_attempt_is_logged(jira, caplog):
     waits = []
     jira.fail_next("GET", "/rest/api/3/myself", 503, times=2, body={"errorMessages": ["Jira is down"]})

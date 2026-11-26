@@ -21,7 +21,8 @@ Public Function JiraConfig(ByVal baseUrl As String, ByVal email As String, ByVal
     Loop
     If Len(baseUrl) > 0 And LCase$(Left$(baseUrl, 8)) <> "https://" And Not IsLocalUrl(baseUrl) Then
         Cov "JIR22"
-        Err.Raise vbObjectError + 602, "JiraConfig", "BaseUrl must start with https:// (the API token would travel in clear text). Fix it in the Config sheet."
+        Err.Raise vbObjectError + 602, "JiraConfig", "BaseUrl must start with https:// (the API token would travel in clear text). Fix it in the sheet " & _
+                  SheetName("Config") & "."
     End If
     c("BaseUrl") = baseUrl
     c("Authorization") = BasicAuthHeader(TrimWhite(email), TrimWhite(apiToken))   ' as the PowerShell script: $Token.Trim()
@@ -69,7 +70,7 @@ Public Function JiraConfigFromSheet(ByVal wsConfig As Object) As Object
                        IIf(UCase$(proxy) = "DIRECT", "", proxy), bypass, IsYes(ConfigValue(wsConfig, "ProxyWindowsAuth", "Yes")))
     If UCase$(proxy) = "DIRECT" Then
         Cov "JIR26"
-        c("ProxyMode") = "direct (ProxyServer = DIRECT in the Config sheet)"
+        c("ProxyMode") = "direct (ProxyServer = DIRECT in the sheet " & SheetName("Config") & ")"
     ElseIf Len(proxy) = 0 Then
         Cov "JIR27"
         LogBegin "proxy detection"
@@ -79,7 +80,7 @@ Public Function JiraConfigFromSheet(ByVal wsConfig As Object) As Object
         c("ProxyMode") = found("Mode")
         LogEnd "proxy detection: " & found("Mode")
     Else
-        c("ProxyMode") = "the proxy of the Config sheet"
+        c("ProxyMode") = "the proxy of the sheet " & SheetName("Config")
     End If
     secs = CLng(Val(ConfigValue(wsConfig, "TimeoutSeconds", "60")))
     If secs < 1 Then secs = 60
@@ -98,7 +99,7 @@ Public Function ProjectsJql(ByVal projectKeys As Collection, Optional ByVal filt
     ' A filter (Config sheet) is a JQL restriction added with AND: ... AND (updated >= -90d) ORDER BY key ASC.
     Cov "JIR02"
     Dim parts() As String, i As Long, jql As String
-    If projectKeys.Count = 0 Then Cov "JIR03": Err.Raise vbObjectError + 600, "ProjectsJql", "No project to extract: fill the Projects sheet (Project, Role, Team)."
+    If projectKeys.Count = 0 Then Cov "JIR03": Err.Raise vbObjectError + 600, "ProjectsJql", "No project to extract: fill the sheet " & SheetName("Projects") & " (Project, Role, Team)."
     ReDim parts(1 To projectKeys.Count)
     For i = 1 To projectKeys.Count
         parts(i) = """" & Replace(Trim$(projectKeys(i)), """", "") & """"
@@ -108,7 +109,7 @@ Public Function ProjectsJql(ByVal projectKeys As Collection, Optional ByVal filt
     If Len(filter) > 0 Then
         Cov "JIR19"
         If InStr(1, filter, "order by", vbTextCompare) > 0 Then
-            Cov "JIR20": Err.Raise vbObjectError + 603, "ProjectsJql", "The Filter of the Config sheet must not contain ORDER BY"
+            Cov "JIR20": Err.Raise vbObjectError + 603, "ProjectsJql", "The Filter of the sheet " & SheetName("Config") & " must not contain ORDER BY"
         End If
         jql = jql & " AND (" & filter & ")"
     End If
@@ -170,7 +171,7 @@ Public Sub RequireJson(ByVal resp As Object, ByVal what As String)
     If first = "{" Or first = "[" Then Exit Sub
     Cov "JIR24"
     Err.Raise vbObjectError + 607, "Jira " & what, "Jira answered 200 with something that is not JSON (a proxy or a login page?). " & _
-              "Check ProxyServer and BaseUrl in the Config sheet. Start of the answer: " & Left$(resp("Text"), 200)
+              "Check ProxyServer and BaseUrl in the sheet " & SheetName("Config") & ". Start of the answer: " & Left$(resp("Text"), 200)
 End Sub
 
 Public Sub CheckStatus(ByVal resp As Object, ByVal what As String)
@@ -180,12 +181,36 @@ Public Sub CheckStatus(ByVal resp As Object, ByVal what As String)
               resp("Attempts") & " attempt(s). " & resp("Error") & " " & Left$(resp("Text"), 300) & StatusHint(resp("Status"))
 End Sub
 
+Public Sub RequireLogin(ByVal cfg As Object)
+    ' The account first, before any other call (AL, 2026-11-26). Jira Cloud answers a wrong Email or ApiToken (or a token with scopes on the
+    ' address of the site) as an unknown visitor: HTTP 200 with empty lists (JRACLOUD-82932). Read the Jira configuration found no project,
+    ' and an extraction would find no ticket and clear the previous results without a word. Only GET myself refuses it (401). The account
+    ' read is never logged nor shown (a person).
+    Cov "JIR49"
+    Dim resp As Object, parsed As Object, account As String
+    LogBegin "login"
+    Set resp = HttpRequest(cfg, "GET", cfg("BaseUrl") & "/rest/api/3/myself")
+    CheckStatus resp, "login"
+    RequireJson resp, "login"
+    Set parsed = JsonParse(resp("Text"))
+    If Not IsObject(JGet(parsed, "accountId")) Then account = CStr(JGet(parsed, "accountId") & "")
+    If Len(account) = 0 Then
+        Cov "JIR50"                                             ' "HTTP 401": the code J2D-JIRA-401 (modLog.ErrorCode reads the status there)
+        Err.Raise vbObjectError + 602, "Jira login", "HTTP 401: Jira gave no account (it answered as to an unknown visitor)." & StatusHint(401)
+    End If
+    LogEnd "login"
+End Sub
+
 Private Function StatusHint(ByVal status As Long) As String
-    ' Points to the Config cells to check, for the three failures that come from the connection itself.
+    ' Points to the Config cells to check, for the three failures that come from the connection itself (standalone/jira_api.HINTS: the same text).
     Select Case status
-        Case 407: Cov "JIR16": StatusHint = " Hint: the proxy asks for authentication. In the Config sheet check ProxyServer and ProxyWindowsAuth (Yes = the Windows session is sent to the proxy)."
-        Case 401: Cov "JIR17": StatusHint = " Hint: Jira refused the account. In the Config sheet check Email and ApiToken."
-        Case 0: Cov "JIR18": StatusHint = " Hint: no answer. In the Config sheet check BaseUrl, ProxyServer and ProxyBypass (ProxyServer empty = the proxy of the Windows settings, DIRECT = no proxy)."
+        Case 407: Cov "JIR16": StatusHint = " Hint: the proxy asks for authentication. In the sheet " & SheetName("Config") & _
+                                            " check ProxyServer and ProxyWindowsAuth (Yes = the Windows session is sent to the proxy)."
+        Case 401: Cov "JIR17": StatusHint = " Hint: Jira refused the account (Jira Cloud answers a wrong account as an unknown visitor). " & _
+                                            "In the sheet " & SheetName("Config") & " check Email and ApiToken: an API token without " & _
+                                            "scopes, made at id.atlassian.com, not expired."
+        Case 0: Cov "JIR18": StatusHint = " Hint: no answer. In the sheet " & SheetName("Config") & " check BaseUrl, ProxyServer and " & _
+                                          "ProxyBypass (ProxyServer empty = the proxy of the Windows settings, DIRECT = no proxy)."
     End Select
 End Function
 

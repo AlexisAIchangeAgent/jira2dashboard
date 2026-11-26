@@ -24,7 +24,7 @@ Fonctionnalité: Extraction Python sans VBA
     Quand je lance l'extraction Python
     Alors elle se termine avec le code 1
     Et le faux Jira n'a reçu aucun appel
-    Et le journal dit "Fill these values of the Config sheet first (Mandatory = True): AsOf"
+    Et le journal dit "Fill these values of the sheet Config_from_user first (Mandatory = True): AsOf"
 
   Scénario: Une erreur de Jira qui dure est décrite dans le journal et le fichier précédent reste
     Soit un fichier de résultats précédent

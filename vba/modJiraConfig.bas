@@ -23,6 +23,7 @@ Private Const MAX_PAGES As Long = 100
 Private Const FIELDS_PER_PAGE As Long = 100          ' createmeta page size
 Private Const BOARDS_PER_PAGE As Long = 50           ' API limit of board and of board/sprint
 Private Const STATUSES_PER_PAGE As Long = 200        ' API limit of statuses/search
+Private Const MISSING_KEYS_CODE As String = "J2D-CFG-016"   ' a Const: the guard of the log (test_vba_log_guard) reads "cfg" in a log call
 
 Public Function ReadJiraConfiguration(ByVal cfg As Object, ByVal keys As Collection, ByVal wb As Object, _
                                       Optional ByVal withWorkflows As Boolean = True) As String
@@ -32,9 +33,10 @@ Public Function ReadJiraConfiguration(ByVal cfg As Object, ByVal keys As Collect
     Dim typeRows As New Collection, statusRows As New Collection, flowRows As New Collection, moveRows As New Collection
     Dim fieldRows As New Collection, key As String, summary As String, projectsOf As Object, noMeta As Long
     Dim metaRows As New Collection, usageRows As New Collection, sumRows As New Collection, skipped As Long, catalogRows As Collection
+    Dim missing As Collection
     If keys.Count = 0 Then
         Cov "JCF02"
-        Err.Raise vbObjectError + 620, "ReadJiraConfiguration", "Sheet Projects has no project: type the keys of the Jira projects first."
+        Err.Raise vbObjectError + 620, "ReadJiraConfiguration", "Sheet " & SheetName("Projects") & " has no project: type the keys of the Jira projects first."
     End If
     LogBegin "projects"
     Set projects = ReadProjects(cfg, keys)
@@ -73,17 +75,20 @@ Public Function ReadJiraConfiguration(ByVal cfg As Object, ByVal keys As Collect
     ' "Title | Name: value | ...": the Dashboard shows the title in its status cell and one row per field under it.
     summary = "Jira configuration read | Projects: " & projects.Count & " | Workflows: " & seen.Count & _
               " | Fields: " & fieldRows.Count & _
-              " | Review: the sheets JiraIssueTypes, JiraStatuses, JiraWorkflows, JiraTransitions and JiraFields, then copy " & _
-              "what fits into the parameter sheets" & _
-              " | Per project: the sheets JiraProjectWorkflows, JiraProjectFields and JiraFieldUsage"
-    If projects.Count < keys.Count Then
+              " | Review: the sheets " & SheetName("JiraIssueTypes") & ", " & SheetName("JiraStatuses") & ", " & SheetName("JiraWorkflows") & _
+              ", " & SheetName("JiraTransitions") & " and " & SheetName("JiraFields") & ", then copy what fits into the parameter sheets" & _
+              " | Per project: the sheets " & SheetName("JiraProjectWorkflows") & ", " & SheetName("JiraProjectFields") & " and " & _
+              SheetName("JiraFieldUsage")
+    Set missing = MissingKeys(keys, projects)
+    If missing.Count > 0 Then
         Cov "JCF03"
-        summary = summary & " | Not found in Jira: " & (keys.Count - projects.Count) & " project key(s) of the sheet Projects"
+        summary = summary & " | Not found in Jira: " & MissingText(missing, keys.Count)
+        WarnMissingKeys missing.Count, keys.Count
     End If
     If denied > 0 Then
         Cov "JCF04"
         summary = summary & " | Workflows not read: " & denied & " project(s), ask for the project permission View " & _
-                  "(read-only) workflow; JiraStatuses still shows the statuses of each issue type"
+                  "(read-only) workflow; " & SheetName("JiraStatuses") & " still shows the statuses of each issue type"
     End If
     If skipped > 0 Then
         Cov "JCF36"
@@ -93,21 +98,56 @@ Public Function ReadJiraConfiguration(ByVal cfg As Object, ByVal keys As Collect
     If noMeta > 0 Then
         Cov "JCF34"
         summary = summary & " | Create screen not read: " & noMeta & " project(s), ask for the project permission " & _
-                  "Create issues; JiraFieldUsage still shows the fields of the issues"
+                  "Create issues; " & SheetName("JiraFieldUsage") & " still shows the fields of the issues"
     End If
     ReadJiraConfiguration = summary
 End Function
 
+Public Function MissingKeys(ByVal keys As Collection, ByVal projects As Collection) As Collection
+    ' The keys of the sheet Projects that Jira did not give back, in the order of the sheet: project/search drops an unknown key without a word.
+    ' At the client (AL, 2026-11-26) the example keys of the delivered workbook were left in place: Projects 0, Workflows 0, and only a count
+    ' said it. A project NAME typed for its key is found by JQL, not here. Case ignored: the keys of Jira Cloud are capitals.
+    Cov "JCF51"
+    Dim out As New Collection, found As Object, project As Variant, k As Variant
+    Set found = CreateObject("Scripting.Dictionary")
+    For Each project In projects
+        found(UCase$(CStr(JGet(project, "key") & ""))) = True
+    Next project
+    For Each k In keys
+        If Not found.Exists(UCase$(CStr(k))) Then Cov "JCF52": out.Add CStr(k)
+    Next k
+    Set MissingKeys = out
+End Function
+
+Public Function MissingText(ByVal missing As Collection, ByVal total As Long) As String
+    ' "2 of 9 project keys of the sheet Projects_from_user: TTT, AAA. Type the key...": the status of the Dashboard only, never the log (the
+    ' keys are the client's). Joined by ", ": a " | " would cut it into fields of the status (modText.StatusParts).
+    Dim parts() As String, i As Long
+    ReDim parts(1 To missing.Count)
+    For i = 1 To missing.Count
+        parts(i) = CStr(missing(i))
+    Next i
+    MissingText = missing.Count & " of " & total & " project keys of the sheet " & SheetName("Projects") & ": " & Join(parts, ", ") & _
+                  ". Type the key of each project (ABC as in the issue ABC-123), not its name"
+End Function
+
+Private Sub WarnMissingKeys(ByVal missing As Long, ByVal total As Long)
+    ' The log gets the counts only (the keys are the client's: the status of the Dashboard names them).
+    LogLine "WARN", MISSING_KEYS_CODE & " | project keys not found in Jira: " & missing & " of " & total & " (sheet " & SheetName("Projects") & _
+                    ": the keys, not the names)"
+End Sub
+
 Public Function ProjectSearchUrl(ByVal baseUrl As String, ByVal keys As Collection, ByVal first As Long, _
                                  ByVal startAt As Long) As String
-    ' keys(first) to keys(first + 49), with their issue types, one page of 50 projects from startAt.
+    ' keys(first) to keys(first + 49), with their issue types, one page of 50 projects from startAt. In capitals: JQL ignores the case of
+    ' a key, project/search is not said to.
     Cov "JCF05"
     Dim url As String, i As Long, last As Long
     last = first + KEYS_PER_CALL - 1
     If last > keys.Count Then last = keys.Count
     url = baseUrl & "/rest/api/3/project/search?"
     For i = first To last
-        url = url & "keys=" & UrlEncode(CStr(keys(i))) & "&"
+        url = url & "keys=" & UrlEncode(UCase$(CStr(keys(i)))) & "&"
     Next i
     ProjectSearchUrl = url & "expand=issueTypes&startAt=" & startAt & "&maxResults=" & PROJECTS_PER_PAGE
 End Function
@@ -546,9 +586,11 @@ Public Function ReadWorkflowRules(ByVal cfg As Object, ByVal keys As Collection,
     ' start status makes Flow Time, Flow Efficiency and Flow Load not computable.
     Cov "JCF47"
     Dim projects As Collection, project As Variant, workflowOf As Object, seen As Object, flowRows As New Collection, moveRows As New Collection, row As Variant
-    Dim typeRows As New Collection, projectsOf As Object, refused As Long
+    Dim typeRows As New Collection, projectsOf As Object, refused As Long, missing As Collection
     On Error GoTo Failed
     Set projects = ReadProjects(cfg, keys)
+    Set missing = MissingKeys(keys, projects)
+    If missing.Count > 0 Then Cov "JCF53": WarnMissingKeys missing.Count, keys.Count   ' a key or a NAME Jira does not know: no workflow read for it
     Set seen = CreateObject("Scripting.Dictionary")
     Set projectsOf = CreateObject("Scripting.Dictionary")
     For Each project In projects

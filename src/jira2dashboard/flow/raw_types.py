@@ -204,7 +204,7 @@ def hint(rule: Rule, found: str, first=None) -> str:
         if expected in ("datetime", "date"):
             return ("no cell holds a date: Jira's date was not read (see WARN J2D-DATA-003 and the INFO line 'changelog date key')"
                     if rule.required else "no ticket has this date: fine when the field is not used")
-        return ("a required column is empty: the extraction wrote nothing there (check the field and its id in Config)"
+        return ("a required column is empty: the extraction wrote nothing there (check the field and its id in Config_from_user)"
                 if rule.required else "no ticket has a value: fine when the field is not configured or not used")
     if expected in ("datetime", "date"):
         digits = digits_of(first)
@@ -223,7 +223,7 @@ def hint(rule: Rule, found: str, first=None) -> str:
         return "not a Jira id or key (ABC-12 or digits): the field is not the one expected"
     if expected in ("integer", "number"):
         if found == "text":
-            return "a text where a number is expected: Jira sent text, or the custom field is of another type (check its id in Config)"
+            return "a text where a number is expected: Jira sent text, or the custom field is of another type (check its id in Config_from_user)"
         if found == "number":
             return "a number with decimals where a whole number is expected"
         return "not a number: the cell holds another type"

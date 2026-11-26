@@ -76,13 +76,13 @@ STEPS_CELL = "T1"           # the first steps (manual.first_steps), right of the
 # Efficiency (a gap: never 0, never a guess). The value is written above the bar and the note under the chart says why.
 NO_ITEM_DONE = "no item was done in these iterations, so there is nothing to measure"
 # AL, 2026-11-22: the note names every cause of a gap, the start status first (a setting to fix; WhyNotInFlowTime of the sheet MetricItems says it per ticket)
-FLOW_TIME_REASON = ("no item was done in these iterations, or every done item was left out: no start status (IsStart, the sheet Workflows), "
-                    "never in the start status, back to the backlog after it, or reopened (WhyNotInFlowTime, the sheet MetricItems)")
+FLOW_TIME_REASON = ("no item was done in these iterations, or every done item was left out: no start status (IsStart, the sheet Workflows_from_user), "
+                    "never in the start status, back to the backlog after it, or reopened (WhyNotInFlowTime, the sheet MetricItems_from_excel)")
 EFFICIENCY_REASON = ("no item was done in these iterations, or every done item was left out (no start status: see Flow Time), or no status is "
-                     "declared Wait (the sheet Workflows): Jira cannot say which in-progress statuses wait")
-LOAD_REASON = "the workflow of the team has no start status (IsStart, the sheet Workflows), or the iteration ends after the as-of date"
-DAILY_LOAD_REASON = "the day is after the as-of date, or the workflow of the team has no start status (IsStart, the sheet Workflows)"
-PI_STATUS_REASON = "no Feature was released in the PI, or the PI is not in the sheet PIs"
+                     "declared Wait (the sheet Workflows_from_user): Jira cannot say which in-progress statuses wait")
+LOAD_REASON = "the workflow of the team has no start status (IsStart, the sheet Workflows_from_user), or the iteration ends after the as-of date"
+DAILY_LOAD_REASON = "the day is after the as-of date, or the workflow of the team has no start status (IsStart, the sheet Workflows_from_user)"
+PI_STATUS_REASON = "no Feature was released in the PI, or the PI is not in the sheet PIs_from_user"
 ZERO_NOTE = "no item was done (no bar)"
 
 CHARTS = (
@@ -102,7 +102,7 @@ CHARTS = (
     # AL's variant (2026-11-12): the Features done before the end of the PI over the Features planned in it (flow/metrics.py)
     ChartSpec("feature_predictability", "Feature Predictability - features released in the PI / features engaged at its start",
               None, XL_COLUMN_CLUSTERED, "0%", series=ART_SERIES, axis=PI_AXIS, band=(0.8, 1.0),
-              reason="no feature planned in the PI, or the PI is not in the sheet PIs"),
+              reason="no feature planned in the PI, or the PI is not in the sheet PIs_from_user"),
     # AL, 2026-11-17: where the cycle time goes. One bar per PI, one colour per status; the bars add up to 100 %. The purpose is to
     # see the statuses that take most of it (flow/pi_status_time.py, table PIStatusTime).
     ChartSpec("pi_status_time", "Cycle time by status - share of the average cycle time of the Features released in each PI", None,

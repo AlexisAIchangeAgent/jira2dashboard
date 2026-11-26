@@ -87,7 +87,7 @@ def sheet_from_grid(spec, grid: list[list], problems: list[str]) -> ParamSheet:
         else:
             positions.append(None)
             if (spec.name, column) not in OPTIONAL:
-                problems.append(f"Sheet {spec.name}: no column {column} in its first row")
+                problems.append(f"Sheet {S.of(spec.name)}: no column {column} in its first row")
     rows = []
     for raw in grid[1:]:
         cells = [raw[i] if i is not None and i < len(raw) else None for i in positions]
@@ -141,19 +141,19 @@ def config_problems(config: ParamSheet) -> list[str]:
     here: missing_mandatory names those)."""
     values, problems = config_values(config), []
     if values["FlowLoadMode"].strip().upper() not in ("A", "B"):
-        problems.append(f"Config: FlowLoadMode must be A or B, got {values['FlowLoadMode']!r}")
+        problems.append(f"{S.of('Config')}: FlowLoadMode must be A or B, got {values['FlowLoadMode']!r}")
     if values["PredictabilityMode"].strip().upper() not in ("A", "B"):
-        problems.append(f"Config: PredictabilityMode must be A or B, got {values['PredictabilityMode']!r}")
+        problems.append(f"{S.of('Config')}: PredictabilityMode must be A or B, got {values['PredictabilityMode']!r}")
     threshold = values["FillRateThreshold"]
     if threshold and not (threshold.isdecimal() and 0 <= int(threshold) <= 100):
-        problems.append(f"Config: FillRateThreshold must be a whole number between 0 and 100, got {threshold!r}")
+        problems.append(f"{S.of('Config')}: FillRateThreshold must be a whole number between 0 and 100, got {threshold!r}")
     as_of = _parse_moment(values["AsOf"]) if values["AsOf"] else None
     if values["AsOf"] and (as_of is None or not 2000 <= as_of.year <= 2099):
-        problems.append("Config: AsOf must be a UTC date or date and time such as 2026-11-03 18:00, "
+        problems.append(f"{S.of('Config')}: AsOf must be a UTC date or date and time such as 2026-11-03 18:00, "
                         f"got {values['AsOf']!r}")
     base = values["BaseUrl"]
     if base and "@" in base.split("//", 1)[-1].split("/", 1)[0]:
-        problems.append("Config: BaseUrl must not contain a user name or a token (user:token@host)")
+        problems.append(f"{S.of('Config')}: BaseUrl must not contain a user name or a token (user:token@host)")
     return problems
 
 
@@ -203,15 +203,15 @@ def run_settings(sheets: list[ParamSheet], required: tuple[str, ...] | None = No
     config = by_name["Config"]
     missing = [name for name in missing_mandatory(config) if required is None or name in required]
     if missing:
-        raise ParamsError(f"Fill these values of the Config sheet first (Mandatory = True): {', '.join(missing)}", "J2D-CFG-002")
+        raise ParamsError(f"Fill these values of the sheet {S.of('Config')} first (Mandatory = True): {', '.join(missing)}", "J2D-CFG-002")
     iterations = [Iteration(name, _parse_moment(start), _parse_moment(end)) for name, start, end in by_name["Iterations"].rows]
     if not iterations:
-        raise ParamsError("Sheet Iterations has no iteration: type the iterations (Iteration-label | Start | End) to compute",
+        raise ParamsError(f"Sheet {S.of('Iterations')} has no iteration: type the iterations (Iteration-label | Start | End) to compute",
                           "J2D-CFG-012")
     values = config_values(config)
     as_of = _parse_moment(values["AsOf"])
     if as_of is None:
-        raise ParamsError("Config: AsOf is empty: type the UTC date and time of the extraction, for example "
+        raise ParamsError(f"{S.of('Config')}: AsOf is empty: type the UTC date and time of the extraction, for example "
                           "2026-11-03 18:00", "J2D-CFG-004")
     connection = Connection(
         base_url=values["BaseUrl"], email=values["Email"], token=values["ApiToken"],

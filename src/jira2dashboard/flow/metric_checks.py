@@ -19,7 +19,7 @@ from jira2dashboard.flow.model import ACTIVE, ART, UNMAPPED, WAIT, WORK_TYPES, F
 
 NO_ITEM = "no item done in the iteration"
 ALL, LEFT_OUT = "all ", " done items left out: "
-NO_START_RULE = " no start status in the rules (set IsStart in Workflows)"
+NO_START_RULE = " no start status in the rules (set IsStart in Workflows_from_user)"
 NEVER_STARTED = " never entered the start status"
 BACK_TO_BACKLOG = " back to the backlog after the start"
 REOPENED = " reopened"
@@ -82,7 +82,7 @@ def flow_time_check(issues: list[FlowIssue], items: list[ItemFlow], iteration: I
 # again from the status intervals (Excel: StatusIntervals.InCycle, an independent path from ItemFlow.ActiveDays / WaitDays), the Wait statuses of
 # the rules, the efficiency recounted, Gap = recount - Metrics.FlowEfficiency where it is computable (0 elsewhere), and the Reason in the order of the
 # formula of Metrics: no Wait status, nothing counted, unclassified time, no active or wait time.
-NO_WAIT = "no status is declared Wait (set Category = Wait in Workflows)"
+NO_WAIT = "no status is declared Wait (set Category = Wait in Workflows_from_user)"
 NOTHING_COUNTED = "no item counted in Flow Time (see FlowTimeCheck)"
 UNCLASSIFIED_TIME = " items spent time in statuses no rule knows (Unclassified)"
 NO_TIME = "no active or wait time"
@@ -141,7 +141,7 @@ def flow_efficiency_check(items: list[ItemFlow], iteration: Iteration, team: str
 # --- FlowLoadCheck: the days of the iteration, those that have a snapshot (not after AsOf), the start statuses of the workflow of the team, the
 # average load and the load at the end of the last measured day counted again (Excel: SUMPRODUCT over StatusIntervals in mode A, over ItemFlow in
 # mode B: another writing of the rule than the COUNTIFS of DailyLoad), Gap against Metrics where it is computable, and the Reason.
-NO_START_STATUS = "the workflow of the team has no start status (set IsStart in Workflows)"
+NO_START_STATUS = "the workflow of the team has no start status (set IsStart in Workflows_from_user)"
 AFTER_AS_OF = "every day of the iteration is after the as-of date (AsOf)"
 
 
@@ -203,7 +203,7 @@ def flow_load_check(items: list[ItemFlow], iteration: Iteration, team: str, rule
 # ItemFlow.WorkType, not on WorkTypeBucket), Unmapped = the rest, Gap = the sum of |count - DistDone x Velocity| of Metrics, Reason (only "no item
 # done" makes it not computable) and a Note when every done item is Unmapped (WorkTypeField empty, or no known work type).
 ALL_UNMAPPED = "every done item is Unmapped: "
-NO_WORK_TYPE_FIELD = "WorkTypeField is empty in Config"
+NO_WORK_TYPE_FIELD = "WorkTypeField is empty in Config_from_user"
 NO_KNOWN_TYPE = "no known work type (Feature, Enabler, Defect, Autre)"
 BLANK = "".join(map(chr, range(33))) + "\u00a0"     # what TRIM(SUBSTITUTE(CLEAN(x),CHAR(160)," ")) of the formula leaves out
 

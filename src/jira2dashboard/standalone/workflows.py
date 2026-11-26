@@ -6,6 +6,7 @@ import json
 import logging
 from urllib.parse import quote
 
+from jira2dashboard import sheet_names as S
 from jira2dashboard.flow.jira_workflows import JiraWorkflows
 from jira2dashboard.flow.status_rules import first_in_progress, jira_category
 from jira2dashboard.standalone import jira_api as J
@@ -13,7 +14,16 @@ from jira2dashboard.standalone import jira_api as J
 log = logging.getLogger("jira2dashboard.extract")
 KEYS_PER_CALL, PROJECTS_PER_PAGE, TYPES_PER_PREVIEW, MAX_PAGES = 50, 50, 25, 100
 REFUSED = ("J2D-JIRA-401", "J2D-JIRA-403", "J2D-JIRA-404")        # no project administrator right (modJiraConfig.IsNotAllowed): the next project may be readable
-WARNING = "J2D-JIRA-030 | the workflows of Jira could not be read (%s): the start of a flow comes from the sheet Workflows, the check DC28 from the sheet Transitions"
+WARNING = (f"J2D-JIRA-030 | the workflows of Jira could not be read (%s): the start of a flow comes from the sheet {S.of('Workflows')}, "
+           f"the check DC28 from the sheet {S.of('Transitions')}")
+MISSING = f"J2D-CFG-016 | project keys not found in Jira: %d of %d (sheet {S.of('Projects')}: the keys, not the names): %s"
+
+
+def missing_keys(keys: list[str], found: set[str]) -> list[str]:
+    """The keys of the sheet Projects that project/search did not give back, in the order of the sheet, case ignored (modJiraConfig.MissingKeys):
+    a key mistyped, a project NAME typed for its key (JQL finds it, project/search does not), the example keys left in place (AL, 2026-11-26)."""
+    upper = {key.upper() for key in found}
+    return [key for key in keys if key.upper() not in upper]
 
 
 def parse_preview(answer: dict, project: str, type_names: dict[str, str], workflow_of: dict, seen: set, initial: dict, moves: set,
@@ -56,15 +66,17 @@ def read_workflows(client, keys: list[str]) -> JiraWorkflows:
     """The JiraWorkflows of the projects `keys` (empty when Jira says nothing: no right, an unreadable answer). A project whose preview Jira refuses
     (401, 403, 404) is counted and the next one is read, as the VBA does; another error stops the reading. One WARN line says either."""
     workflow_of, seen, initial, moves, starts, free, refused, statuses = {}, set(), {}, set(), set(), set(), 0, {}
+    found: set[str] = set()
     try:
         for first in range(0, len(keys), KEYS_PER_CALL):
             start = 0
             for _page in range(MAX_PAGES):
-                path = "/rest/api/3/project/search?" + "".join(f"keys={quote(k)}&" for k in keys[first:first + KEYS_PER_CALL]) \
+                path = "/rest/api/3/project/search?" + "".join(f"keys={quote(k.upper())}&" for k in keys[first:first + KEYS_PER_CALL]) \
                        + f"expand=issueTypes&startAt={start}&maxResults={PROJECTS_PER_PAGE}"
                 page = client.call("GET", path, "projects")
                 values = page.get("values") or []
                 for project in values:
+                    found.add(str(project.get("key") or ""))
                     types = {str(t.get("id")): t.get("name") or "" for t in project.get("issueTypes") or []}
                     ids = list(types)
                     try:
@@ -82,6 +94,9 @@ def read_workflows(client, keys: list[str]) -> JiraWorkflows:
     except J.JiraError as err:
         log.warning(WARNING, err.support_code)
     else:
+        missing = missing_keys(keys, found)
+        if missing:
+            log.warning(MISSING, len(missing), len(keys), ", ".join(missing))     # python.log names them (AL's choice: a complete log)
         if refused:
             log.warning(WARNING, f"{refused} project(s) refused")
     return JiraWorkflows(initial, frozenset(moves), frozenset(starts), frozenset(free), workflow_of, statuses)

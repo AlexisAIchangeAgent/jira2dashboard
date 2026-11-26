@@ -26,6 +26,15 @@ Fonctionnalité: Le bouton « Read the Jira configuration » propose les paramè
     Et le journal local décrit la lecture de la configuration, avec ses paramètres et le temps de chaque étape, sans jeton, adresse ni réponse de Jira
 
   @excel
+  Scénario: Une clé que Jira ne connaît pas est nommée, avec la vraie feuille où la corriger
+    Soit un faux Jira avec 120 tickets générés avec les projets des paramètres
+    Et le classeur à livrer dont la feuille Config pointe sur ce faux Jira avec FlowLoadMode "A"
+    Quand la feuille Projects a aussi la ligne "Train Phoenix", un nom que Jira ne connaît pas comme clé
+    Et je clique sur le bouton Lire la configuration Jira
+    Alors l'état du tableau de bord nomme "Train Phoenix" parmi les clés que Jira ne connaît pas, avec la feuille Projects_from_user
+    Et le journal local compte les clés non trouvées sans les nommer
+
+  @excel
   Scénario: Sans droit de lire les workflows, les autres propositions sont écrites et l'état le dit
     Soit un faux Jira avec 120 tickets générés avec les projets des paramètres
     Et le faux Jira refuse l'aperçu des workflows avec 401

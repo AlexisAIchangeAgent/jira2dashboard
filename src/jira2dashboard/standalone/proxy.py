@@ -134,8 +134,8 @@ def choose_proxy(server: str, bypass: str, url: str,
     settings, whose bypass list is used only when none is typed."""
     typed, typed_bypass = trim_white(server), trim_white(bypass)
     if typed.upper() == "DIRECT":
-        return Detected("", typed_bypass, "DIRECT in Config: no proxy")
+        return Detected("", typed_bypass, "DIRECT in Config_from_user: no proxy")
     if typed:
-        return Detected(normalize_proxy(typed), typed_bypass, "typed in Config")
+        return Detected(normalize_proxy(typed), typed_bypass, "typed in Config_from_user")
     found = detect(url)
     return Detected(normalize_proxy(found.server), typed_bypass or found.bypass, found.mode)

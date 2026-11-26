@@ -60,7 +60,7 @@ def test_the_settings_of_a_run(tmp_path):
 
 def test_an_empty_mandatory_value_stops_with_the_message_of_the_vba(tmp_path):
     sheets = P.read_params(book(tmp_path, {"Email": "", "AsOf": ""}))
-    with pytest.raises(ParamsError, match=r"^Fill these values of the Config sheet first \(Mandatory = True\): "
+    with pytest.raises(ParamsError, match=r"^Fill these values of the sheet Config_from_user first \(Mandatory = True\): "
                                           r"Email, AsOf$"):
         P.run_settings(sheets)
 
@@ -125,7 +125,7 @@ def test_the_rules_of_the_md_files_apply_to_the_sheets(tmp_path):
         rows = [list(r) for r in workflows.rows]
         rows[1][2] = "Actif"
         replace(sheets, "Workflows", Sheet(S.of("Workflows"), workflows.header, [tuple(r) for r in rows]))
-    with pytest.raises(ParamsError, match=r"Workflows row 2: Category 'Actif'"):
+    with pytest.raises(ParamsError, match=r"Workflows_from_user row 2: Category 'Actif'"):
         P.read_params(book(tmp_path, change=wrong))
 
 
@@ -137,13 +137,13 @@ def test_a_missing_sheet_or_column_is_named(tmp_path):
     with pytest.raises(ParamsError) as error:
         P.read_params(book(tmp_path, change=broken))
     assert "The workbook has no sheet PIs" in str(error.value)
-    assert "Sheet Projects: no column Role in its first row" in str(error.value)
+    assert "Sheet Projects_from_user: no column Role in its first row" in str(error.value)
 
 
 def test_no_iteration_stops_the_run(tmp_path):
     def empty(sheets):
         replace(sheets, "Iterations", Sheet(S.of("Iterations"), ("Iteration-label", "Start", "End"), []))
-    with pytest.raises(ParamsError, match="Sheet Iterations has no iteration"):
+    with pytest.raises(ParamsError, match="Sheet Iterations_from_user has no iteration"):
         P.run_settings(P.read_params(book(tmp_path, change=empty)))
 
 

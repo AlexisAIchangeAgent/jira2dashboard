@@ -53,7 +53,7 @@ Private Function TestNames() As Variant
         "T_HttpNetworkAndCancel", "T_RetryExhausted", "T_ChangelogChunks", "T_IssueRows", "T_WriteTable", "T_StatusIntervals", "T_IntervalsUnreadableDate", "T_StatusChangesUnreadableDate", "T_ChangelogRows", "T_UserFieldIds", "T_DateShape", "T_ParseJiraDateEpoch", "T_DateKind", "T_IsPlausibleDate", "T_FindDateKey", "T_ChangelogDateKey", "T_SkippedDatesWarning", "T_SheetName", "T_ProposeFromSheets", "T_ProposeIterations", "T_ReadSprints", "T_TeamNames", "T_ReadStatusCatalog", "T_ReadWorkflowRules", "T_ReadLinkTypes", "T_ProposeTypes", "T_ProposeValuesNotAdmin", "T_HealthFields", "T_StatusRules", "T_JiraWorkflowNames", "T_RefreshRules", "T_WorkflowExceptions", "T_NotFeatures", "T_ReconciliationFindings", "T_CellKind", "T_FitsType", "T_ShapeOfCell", "T_TypeHints", "T_TypeProblems", "T_TypeEmptyTable", "T_TypeBlocks", "T_TypeFillLines", "T_WireTypes", _
         "T_StatusChanges", "T_RetryDelay", "T_SafeAccess", "T_FilesUtf8", "T_StringifyBadObject", _
         "T_TooManyPages", "T_BackgroundExport", "T_TextNotConverted", "T_ParamsTables", "T_ParamsOnWorkbook", _
-        "T_TrimWhite", "T_ConfigSheet", "T_MandatoryConfig", "T_Locked", "T_PiIntervals", "T_ProxyDetect", "T_ProxyScript", "T_ProjectsSheet", "T_StatusNames", "T_ParseMoment", "T_ExtractFlowData", "T_ExtractJob", "T_ExtractCheckFields", "T_FlowBuild", "T_PiSortKey", "T_BaseUrlHttps", "T_Log", "T_LogInputsAndTimes", "T_StatusParts", "T_ErrorCodes", "T_LogHintAndOpen", "T_StepsSheet", "T_RovoPrompt", "T_RovoCsv", _
+        "T_TrimWhite", "T_ConfigSheet", "T_RequireLogin", "T_MandatoryConfig", "T_Locked", "T_PiIntervals", "T_ProxyDetect", "T_ProxyScript", "T_ProjectsSheet", "T_StatusNames", "T_ParseMoment", "T_ExtractFlowData", "T_ExtractJob", "T_ExtractCheckFields", "T_FlowBuild", "T_PiSortKey", "T_BaseUrlHttps", "T_Log", "T_LogInputsAndTimes", "T_StatusParts", "T_ErrorCodes", "T_LogHintAndOpen", "T_StepsSheet", "T_RovoPrompt", "T_RovoCsv", _
         "T_JiraConfig", "T_AbortExtraction", "T_Utf8Oracle", "T_Utf8Invalid", "T_Base64Oracle")
 End Function
 
@@ -290,7 +290,7 @@ Public Sub T_MandatoryConfig()
           "BaseUrl, FlowLoadMode, AsOf", MissingMandatory(ws)
     Check "mandatory", "an empty value that is not mandatory is fine", "Filter", 0, InStr(MissingMandatory(ws), "Filter")
     Check "mandatory", "limited to the connection", "BaseUrl,Email,ApiToken", "BaseUrl", MissingMandatory(ws, "BaseUrl,Email,ApiToken")
-    Check "mandatory", "the stop names them", "error 608", "608|Fill these values of the Config sheet first (Mandatory = True): BaseUrl, FlowLoadMode, AsOf", _
+    Check "mandatory", "the stop names them", "error 608", "608|Fill these values of the sheet Config_from_user first (Mandatory = True): BaseUrl, FlowLoadMode, AsOf", _
           RequireError(ws, "")
     Check "mandatory", "nothing missing: no stop", "Email, Filter", "", RequireError(ws, "Email, Filter")
     ConfigRows ws, Array("BaseUrl", "", "AsOf", "")
@@ -407,10 +407,10 @@ Public Sub T_ProxyDetect()
     Check "proxy", "a typed bypass stays", "ProxyBypass <local>", "fixed.proxy:8080|<local>", c("ProxyServer") & "|" & c("ProxyBypass")
     ConfigRows ws, Array("BaseUrl", "https://x.atlassian.net", "ProxyServer", "direct")
     Set c = JiraConfigFromSheet(ws)
-    Check "proxy", "DIRECT: no proxy, whatever Windows says", "ProxyServer direct", "|direct (ProxyServer = DIRECT in the Config sheet)", c("ProxyServer") & "|" & c("ProxyMode")
+    Check "proxy", "DIRECT: no proxy, whatever Windows says", "ProxyServer direct", "|direct (ProxyServer = DIRECT in the sheet Config_from_user)", c("ProxyServer") & "|" & c("ProxyMode")
     ConfigRows ws, Array("BaseUrl", "https://x.atlassian.net", "ProxyServer", "typed.proxy:3128")
     Set c = JiraConfigFromSheet(ws)
-    Check "proxy", "a typed proxy wins", "ProxyServer typed", "typed.proxy:3128|the proxy of the Config sheet", c("ProxyServer") & "|" & c("ProxyMode")
+    Check "proxy", "a typed proxy wins", "ProxyServer typed", "typed.proxy:3128|the proxy of the sheet Config_from_user", c("ProxyServer") & "|" & c("ProxyMode")
     ' The real Windows settings of this computer: read without error (their values depend on the computer)
     Set gProxyFake = Nothing
     Set real = WindowsProxySettings()
@@ -427,6 +427,39 @@ Public Sub T_ProxyScript()
     Check "proxy", "the proxy of the PAC script, before the fixed one", "PROXY 127.0.0.1:9", "127.0.0.1:9", d("Server")
     Check "proxy", "found by the script", "PAC", "proxy script (PAC): a proxy", d("Mode")
 End Sub
+
+Public Sub T_RequireLogin()
+    ' The account first (AL, 2026-11-26): Jira Cloud answers a wrong Email or ApiToken as an unknown visitor, 200 with empty lists; only GET
+    ' myself says 401. Read the Jira configuration found no project at the client, and an extraction would have cleared the results.
+    Dim cfg As Object, url As String
+    Set cfg = TestConfig()
+    url = cfg("BaseUrl") & "/rest/api/3/myself"
+    FakeReset
+    FakeAdd "GET", url, 200, J("{'accountId':'acc-1','displayName':'x'}")
+    Check "login", "an account: the run goes on", "200 with accountId", "ok", LoginResult(cfg)
+    FakeReset
+    FakeAdd "GET", url, 401, J("{'errorMessages':['Client must be authenticated to access this resource.'],'errors':{}}")
+    Check "login", "a wrong account stops with J2D-JIRA-401 and the hint names the real sheet", "401", "J2D-JIRA-401|yes", LoginResult(cfg)
+    FakeReset
+    FakeAdd "GET", url, 200, J("{'self':'x'}")
+    Check "login", "an answer without an account stops the same way", "200 without accountId", "J2D-JIRA-401|yes", LoginResult(cfg)
+    FakeOff
+End Sub
+
+Private Function LoginResult(ByVal cfg As Object) As String
+    ' "ok", or the support code of the stop and whether its message sends to the sheet Config_from_user (a test must never stop on a dialog).
+    Dim num As Long, desc As String
+    On Error Resume Next
+    RequireLogin cfg
+    num = Err.Number: desc = Err.Description
+    Err.Clear
+    On Error GoTo 0
+    If num = 0 Then
+        LoginResult = "ok"
+    Else
+        LoginResult = ErrorCode(num, desc) & "|" & IIf(InStr(desc, "In the sheet Config_from_user check Email and ApiToken") > 0, "yes", "no")
+    End If
+End Function
 
 Private Function HintOf(ByVal status As Long) As String
     Dim resp As Object, msg As String
@@ -475,6 +508,8 @@ Public Sub T_ConfigSheet()
     Check "config", "no proxy", "", "", NormalizeProxy("")
     Check "config", "407 points to the proxy cells", "HTTP 407", True, InStr(HintOf(407), "ProxyWindowsAuth") > 0
     Check "config", "401 points to Email and ApiToken", "HTTP 401", True, InStr(HintOf(401), "ApiToken") > 0
+    Check "config", "401 names the real sheet and the token without scopes (Jira Cloud answers a wrong account as an unknown visitor)", _
+          "HTTP 401", True, InStr(HintOf(401), "In the sheet Config_from_user check Email and ApiToken: an API token without scopes") > 0
     Check "config", "no answer points to BaseUrl and proxy", "status 0", True, InStr(HintOf(0), "BaseUrl") > 0
     Check "config", "a 500 has no connection hint", "HTTP 500", False, InStr(HintOf(500), "Hint") > 0
     Set wsReal = ThisWorkbook.Worksheets(SheetName("Config"))
@@ -724,7 +759,7 @@ Public Sub T_RovoCsv()
           "Projects 1 Project ZZA|PIs 1 PI PI#10-2026|PIs 1 Start 2026-09-24|PIs 2 PI PI#11-2027|PIs 2 Start |PIs 3 PI PI#3-2024|PIs 4 PI PI#4.1-2024|" & _
           "PIs 5 PI PI#12-2027|PIs 6 PI PI#9-2027|", ItemsText(res("items"))
     Check "csv", "the dates of that row are not copied to each PI: a problem says so", "End 2027-01-01", True, _
-          InStr(FirstProblem(res), "Sheet PIs row 4: 5 PIs in one cell, each on a row of its own without the dates of that row.") > 0
+          InStr(FirstProblem(res), "Sheet PIs_from_user row 4: 5 PIs in one cell, each on a row of its own without the dates of that row.") > 0
     Set res = RovoCsvRead(ThisWorkbook, "Sheet,Row,Column,Value" & vbLf & "PIs,2,PI,PI#11-2027" & vbLf & "PIs,1,PI,PI#10-2026" & vbLf & "PIs,3,PI,""PI#12-2027,""")
     Check "csv", "one PI per cell (an empty name after a comma is none): the items stay as they came", "rows 2, 1, 3", _
           "PIs 2 PI PI#11-2027|PIs 1 PI PI#10-2026|PIs 3 PI PI#12-2027,|0", ItemsText(res("items")) & res("problems").Count
@@ -2685,6 +2720,26 @@ Public Sub T_ReadWorkflowRules()
     Application.DisplayAlerts = False
     wb.Close False
     Application.DisplayAlerts = True
+    ' A key that Jira does not give back (AL, 2026-11-26: a project NAME typed for its key passes JQL, not project/search): a WARN with the
+    ' counts in the log, never the key (the status of Read the Jira configuration names it).
+    Dim two As New Collection, saved As String, logPath As String, text As String
+    two.Add "PRG": two.Add "Train Phoenix"
+    FakeReset
+    FakeAdd "GET", ProjectSearchUrl(base, two, 1, 0), 200, J("{'startAt':0,'isLast':true,'values':[{'id':'10100','key':'PRG','issueTypes':[]}]}")
+    saved = gLogPath
+    logPath = Environ$("TEMP") & "\j2d_keys_test_" & Format$(Now, "hhnnss") & Int(Rnd() * 1000) & ".log"
+    gLogPath = logPath
+    Set starts = Dict(): Set frees = Dict()
+    Check "rules", "a key Jira does not give back refuses nothing", "PRG, Train Phoenix", 0, ReadWorkflowRules(cfg, two, starts, frees)
+    gLogPath = saved
+    text = FileText(logPath)
+    Check "rules", "the key Jira does not give back is counted in the log, never named", "Train Phoenix", "yes|no", _
+          IIf(InStr(text, " WARN J2D-CFG-016 | project keys not found in Jira: 1 of 2 (sheet Projects_from_user: the keys, not the names)") > 0, _
+              "yes", "no") & "|" & IIf(InStr(text, "Phoenix") > 0, "yes", "no")
+    On Error Resume Next
+    Kill logPath
+    On Error GoTo 0
+    FakeOff
 End Sub
 
 Public Sub T_ReadLinkTypes()
@@ -3483,11 +3538,11 @@ Public Sub T_TypeProblems()
     Check "types", "a text in a number column, the kinds are counted", "J2D-DATA-009", True, _
           InStr(text, " WARN J2D-DATA-009 | Issues.Points | expected number | found text | source fields.points | first filled C2" & vbCrLf) > 0 And _
           InStr(text, " INFO J2D-DATA-009 | Issues.Points | rows 2, filled 2, empty 0 | kinds in first 20: number x 1, text x 1 | value shape String:9 aaaaaa | cell format General" & vbCrLf) > 0 And _
-          InStr(text, " INFO J2D-DATA-009 | Issues.Points | hint: a text where a number is expected: Jira sent text, or the custom field is of another type (check its id in Config)" & vbCrLf) > 0
+          InStr(text, " INFO J2D-DATA-009 | Issues.Points | hint: a text where a number is expected: Jira sent text, or the custom field is of another type (check its id in Config_from_user)" & vbCrLf) > 0
     Check "types", "a required column that is empty", "J2D-DATA-010", True, _
           InStr(text, " WARN J2D-DATA-010 | Issues.Open | expected boolean | found empty | source computed | first filled -" & vbCrLf) > 0 And _
           InStr(text, " INFO J2D-DATA-010 | Issues.Open | rows 2, filled 0, empty 2 | kinds in first 20: - | value shape Empty" & vbCrLf) > 0 And _
-          InStr(text, " INFO J2D-DATA-010 | Issues.Open | hint: a required column is empty: the extraction wrote nothing there (check the field and its id in Config)" & vbCrLf) > 0
+          InStr(text, " INFO J2D-DATA-010 | Issues.Open | hint: a required column is empty: the extraction wrote nothing there (check the field and its id in Config_from_user)" & vbCrLf) > 0
     Check "types", "an optional column that is empty says nothing", "FromString", False, InStr(text, "WARN J2D-DATA-013 | Changelog.FromString") > 0
     Check "types", "a table of the spec the workbook lacks is not read", "Other", False, InStr(text, "Other.A") > 0
     Check "types", "the filled cells of each column, in one line per table", "INFO", True, _
@@ -3836,7 +3891,13 @@ Public Sub T_JiraConfig()
     Check "jiraconfig", "fields filled: 4 fields for each of 3 projects", "rows", 13, LastRow(wsG)
     Check "jiraconfig", "summary counts", "3 of 4 keys, 2 workflows, 2 fields", True, _
           InStr(summary, "Jira configuration read | Projects: 3 | Workflows: 2 | Fields: 2 | ") = 1
-    Check "jiraconfig", "a key that Jira does not know is told", "XX", True, InStr(summary, " | Not found in Jira: 1 project key(s) of the sheet Projects") > 0
+    Check "jiraconfig", "a key that Jira does not know is named, with the real sheet (AL, 2026-11-26: a count only, and the sheet Projects)", "XX", _
+          True, InStr(summary, " | Not found in Jira: 1 of 4 project keys of the sheet Projects_from_user: XX. Type the key of each project " & _
+                               "(ABC as in the issue ABC-123), not its name") > 0
+    Check "jiraconfig", "the keys Jira did not give back: in the order of the sheet, case ignored", "prg, B, a, c / PRG, A", "|B|c", _
+          JoinNames(MissingKeys(ColOf("prg", "B", "a", "c"), JsonParse(J("[{'key':'PRG'},{'key':'A'}]"))))
+    Check "jiraconfig", "no project given back: every key is missing", "X, Y / none", "|X|Y", JoinNames(MissingKeys(ColOf("X", "Y"), New Collection))
+    Check "jiraconfig", "every key given back: none is missing", "A / A", 0, MissingKeys(ColOf("A"), JsonParse(J("[{'key':'A'}]"))).Count
     Check "jiraconfig", "a project whose workflows cannot be read is told", "401 on TB", True, InStr(summary, " | Workflows not read: 1 project(s), ") > 0
     Check "jiraconfig", "issue type of the first page", "PRG", "PRG|Feature|WF-A|No|1|classic", RowText(wsT, 2, 6)
     Check "jiraconfig", "one project, two workflows: the story", "TA Story", "TA|Story|WF-A|No|0|next-gen", RowText(wsT, 3, 6)
@@ -3902,6 +3963,8 @@ Public Sub T_JiraConfig()
     Check "jiraconfig", "keys 51 and up go to the next call", "51 keys", _
           base & "/rest/api/3/project/search?keys=K51&expand=issueTypes&startAt=0&maxResults=50", ProjectSearchUrl(base, many, 51, 0)
     Check "jiraconfig", "a key is URL-encoded", "A B", True, InStr(ProjectSearchUrl(base, ColOf("A B"), 1, 0), "keys=A%20B&") > 0
+    Check "jiraconfig", "a key goes in capitals (JQL ignores the case, project/search is not said to)", "prg", True, _
+          InStr(ProjectSearchUrl(base, ColOf("prg"), 1, 0), "keys=PRG&") > 0
     Check "jiraconfig", "issue types 26 and up go to the next preview", "27 ids", J("{'projectId':'7','issueTypeIds':['K26','K27']}"), _
           PreviewBody("7", Head(many, 27), 26)
     Check "jiraconfig", "401, 403 and 404 mean no right to read the workflows; 500 does not", "401|403|404|500", _

@@ -55,7 +55,7 @@ def test_every_row_has_as_many_cells_as_the_header():
 
 def test_unknown_category_is_refused(params_copy):
     edit(params_copy, "workflows.md", "| Team | En analyse | Active |", "| Team | En analyse | Actif |")
-    with pytest.raises(ParamsError, match=r"Workflows row 2.*Category 'Actif'"):
+    with pytest.raises(ParamsError, match=r"Workflows_from_user row 2.*Category 'Actif'"):
         model.load_all(params_copy)
 
 
@@ -79,7 +79,7 @@ def test_unknown_workflow_name_is_refused(params_copy):
 
 def test_transition_to_an_unknown_status_is_refused(params_copy):
     edit(params_copy, "transitions.md", "| Team | Nouveau | En analyse |", "| Team | Nouveau | En analyze |")
-    with pytest.raises(ParamsError, match=r"Transitions row 1.*'En analyze'.*Team"):
+    with pytest.raises(ParamsError, match=r"Transitions_from_user row 1.*'En analyze'.*Team"):
         model.load_all(params_copy)
 
 
@@ -111,12 +111,12 @@ def test_an_empty_status_is_refused(params_copy):
     edit(params_copy, "workflows.md", "| Team | Prêt | Wait |", "| Team |  | Wait |")
     with pytest.raises(ParamsError) as err:
         model.load_all(params_copy)
-    assert "Workflows row 3: Status is empty" in str(err.value)
+    assert "Workflows_from_user row 3: Status is empty" in str(err.value)
 
 
 def test_transition_with_an_unknown_workflow_is_refused(params_copy):
     edit(params_copy, "transitions.md", "| Team | Nouveau | En analyse |", "| Equipe | Nouveau | En analyse |")
-    with pytest.raises(ParamsError, match="Transitions row 1: Workflow 'Equipe'"):
+    with pytest.raises(ParamsError, match="Transitions_from_user row 1: Workflow 'Equipe'"):
         model.load_all(params_copy)
 
 
@@ -193,8 +193,8 @@ def test_pis_are_empty_in_the_repo_and_checked_like_iterations(params_copy):
     with pytest.raises(ParamsError) as err:
         model.load_all(params_copy)
     text = str(err.value)
-    assert "pi 'PI#01-2026' listed twice" in text and "PIs row 2: Start and End must be dates" in text
-    assert "PIs row 3: Start must be before End" in text
+    assert "pi 'PI#01-2026' listed twice" in text and "PIs_from_user row 2: Start and End must be dates" in text
+    assert "PIs_from_user row 3: Start must be before End" in text
 
 
 def test_a_pi_without_dates_is_left_out_not_refused_but_one_date_alone_is(params_copy):
@@ -205,7 +205,7 @@ def test_a_pi_without_dates_is_left_out_not_refused_but_one_date_alone_is(params
     path.write_text(base + "| PI#10-2026 | 2026-09-24 | 2027-01-20 |\n| PI#11-2027 |  |  |\n", encoding="utf-8")
     assert sheet(model.load_all(params_copy), "PIs").rows == (("PI#10-2026", "2026-09-24", "2027-01-20"), ("PI#11-2027", None, None))
     path.write_text(base + "| PI#11-2027 | 2026-09-24 |  |\n", encoding="utf-8")
-    with pytest.raises(ParamsError, match="PIs row 1: Start and End must be dates"):
+    with pytest.raises(ParamsError, match="PIs_from_user row 1: Start and End must be dates"):
         model.load_all(params_copy)
 
 
@@ -255,8 +255,8 @@ def test_iteration_rows_are_checked(params_copy):
     with pytest.raises(ParamsError) as err:
         model.load_all(params_copy)
     text = str(err.value)
-    assert "iteration 'I1' listed twice" in text and "Iterations row 2: Start and End must be dates" in text
-    assert "Iterations row 3: Start must be before End" in text and "Iterations row 4: Iteration-label needs a name" in text
+    assert "iteration 'I1' listed twice" in text and "Iterations_from_user row 2: Start and End must be dates" in text
+    assert "Iterations_from_user row 3: Start must be before End" in text and "Iterations_from_user row 4: Iteration-label needs a name" in text
 
 
 def test_two_iterations_whose_labels_differ_only_by_case_are_one_name_twice(params_copy):
@@ -273,7 +273,7 @@ def test_iteration_dates_are_from_2000_to_2099(params_copy):
     path.write_text(path.read_text(encoding="utf-8") + "| I1 | 2126-10-05 | 2126-10-19 |\n", encoding="utf-8")
     with pytest.raises(ParamsError) as err:
         model.load_all(params_copy)
-    assert "Iterations row 1: Start and End must be dates from 2000 to 2099" in str(err.value)
+    assert "Iterations_from_user row 1: Start and End must be dates from 2000 to 2099" in str(err.value)
 
 
 def test_a_moment_may_end_with_z_but_an_offset_is_refused():
@@ -332,7 +332,7 @@ def test_config_shows_an_example_next_to_each_value():
 
 def test_an_empty_example_is_refused(params_copy):
     edit(params_copy, "config.md", "| Filter |  | updated >= -90d |", "| Filter |  |  |")
-    with pytest.raises(ParamsError, match="Config: give Filter an example"):
+    with pytest.raises(ParamsError, match="Config_from_user: give Filter an example"):
         model.load_all(params_copy)
 
 
@@ -371,6 +371,6 @@ def test_an_exception_is_still_checked_when_it_is_given():
     rows = (("Equipe", "A", None, None, None, None), (None, "", None, None, None, None), (None, "C", "Actif", None, None, None),
             (None, "D", None, 2, None, None), (None, "E", None, None, None, None), (None, "E", None, None, None, None))
     assert model.shape_problems({"Workflows": model.ParamSheet("Workflows", header, rows)}) == [
-        "Workflows row 1: Workflow 'Equipe' is not one of Team, Feature (or empty: both)", "Workflows row 2: Status is empty",
-        "Workflows row 3: Category 'Actif' is not one of Active, Wait, Done, Removed, Backlog, Unclassified (or empty: Jira's)",
-        "Workflows row 4: IsStart must be 0, 1 or empty, got 2", "Workflows: workflow None lists status 'E' twice"]
+        "Workflows_from_user row 1: Workflow 'Equipe' is not one of Team, Feature (or empty: both)", "Workflows_from_user row 2: Status is empty",
+        "Workflows_from_user row 3: Category 'Actif' is not one of Active, Wait, Done, Removed, Backlog, Unclassified (or empty: Jira's)",
+        "Workflows_from_user row 4: IsStart must be 0, 1 or empty, got 2", "Workflows_from_user: workflow None lists status 'E' twice"]

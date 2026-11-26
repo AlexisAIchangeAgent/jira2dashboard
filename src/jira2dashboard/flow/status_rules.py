@@ -127,8 +127,8 @@ def has_wait(rules: Iterable[Rule]) -> bool:
 
 NO_START_CODE, NO_WAIT_CODE = "J2D-FLOW-010", "J2D-FLOW-011"
 NO_START_TEXT = (" workflow: Flow Time, Flow Efficiency and Flow Load cannot be computed | declare IsStart = 1 for its first in-progress status in the "
-                 "sheet Workflows")
-NO_WAIT_TEXT = ("no status is declared Wait: Flow Efficiency cannot be computed | declare Category = Wait in the sheet Workflows for the statuses where "
+                 "sheet Workflows_from_user")
+NO_WAIT_TEXT = ("no status is declared Wait: Flow Efficiency cannot be computed | declare Category = Wait in the sheet Workflows_from_user for the statuses where "
                 "the work waits")
 
 

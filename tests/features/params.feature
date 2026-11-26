@@ -35,7 +35,7 @@ Fonctionnalité: Paramètres écrits dans le classeur
     Soit les fichiers de paramètres du dépôt
     Quand je remplace "| Filter |  | updated >= -90d | False |" par "| Filter |  | updated >= -90d | Maybe |" dans "config.md"
     Et je les charge
-    Alors le chargement est refusé avec "Config: Mandatory of Filter must be True or False, got 'Maybe'"
+    Alors le chargement est refusé avec "Config_from_user: Mandatory of Filter must be True or False, got 'Maybe'"
 
   Scénario: La feuille Config donne un exemple de chaque valeur, à côté de la valeur
     Soit les fichiers de paramètres du dépôt
@@ -47,13 +47,13 @@ Fonctionnalité: Paramètres écrits dans le classeur
     Soit les fichiers de paramètres du dépôt
     Quand je remplace "| Filter |  | updated >= -90d |" par "| Filter |  |  |" dans "config.md"
     Et je les charge
-    Alors le chargement est refusé avec "Config: give Filter an example"
+    Alors le chargement est refusé avec "Config_from_user: give Filter an example"
 
   Scénario: Un paramètre obligatoire qui n'est pas une valeur du client a une valeur dans le dépôt
     Soit les fichiers de paramètres du dépôt
     Quand je remplace "| BlocksLinkType | Blocks |" par "| BlocksLinkType |  |" dans "config.md"
     Et je les charge
-    Alors le chargement est refusé avec "Config: BlocksLinkType is mandatory: give it a value"
+    Alors le chargement est refusé avec "Config_from_user: BlocksLinkType is mandatory: give it a value"
 
   Scénario: Les projets à extraire et le rôle de chacun sont dans la feuille Projects
     Soit les fichiers de paramètres du dépôt

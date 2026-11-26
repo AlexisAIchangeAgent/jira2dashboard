@@ -108,6 +108,11 @@ class JiraClient:
         log.debug("%s: %s %s -> HTTP 200 (%d bytes, attempt %d)", what, method, urlsplit(path).path, len(text), attempts)
         return J.parse_json(text, what)
 
+    def require_login(self) -> None:
+        """The account first, before any other call (modJira.RequireLogin, AL 2026-11-26): a wrong Email or ApiToken would read empty
+        lists, never an error. The account read is never logged (a person)."""
+        J.require_account(self.call("GET", "/rest/api/3/myself", "login"))
+
     def search_all(self, jql: str, fields: list[str]) -> list[dict]:
         """Every issue of the JQL, page after page (nextPageToken until isLast)."""
         issues, token = [], ""
@@ -123,7 +128,7 @@ class JiraClient:
                 raise J.JiraError(606, "Jira keeps sending the same page token: stop here and try again later.")
             token = following
         raise J.JiraError(601, f"Jira search did not end after {J.MAX_SEARCH_PAGES} pages: narrow the extraction "
-                               "with the Filter of the Config sheet.")
+                               f"with the Filter of the sheet {J.CONFIG}.")
 
     def user_fields(self) -> frozenset:
         """The ids of the fields that hold a person (schema type or items "user": assignee, reporter, a custom people picker):
@@ -145,7 +150,7 @@ class JiraClient:
             try:
                 answer = self.call("GET", f"/rest/api/3/statuses/search?startAt={start}&maxResults=200", "statuses")
             except J.JiraError as err:
-                log.warning("the statuses of the instance could not be read (%s): only the categories of the sheet Workflows and of the tickets apply", err.code)
+                log.warning("the statuses of the instance could not be read (%s): only the categories of the sheet Workflows_from_user and of the tickets apply", err.code)
                 break
             values = answer.get("values") if isinstance(answer, dict) else None
             for status in values or []:

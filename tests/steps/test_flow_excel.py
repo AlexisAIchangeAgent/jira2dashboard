@@ -141,6 +141,13 @@ def _jira_with_another_date_key(world, jira_server, n, key, form):
     world["jira"] = jira_server(world["dataset"], credentials=("me@example.com", "tok-123"), changelog_date=(key, form))
 
 
+@given(parsers.parse("un faux Jira de {n:d} tickets qui sert un mauvais compte comme Jira Cloud, en visiteur inconnu aux listes vides"))
+def _anonymous_jira(world, jira_server, n):
+    """JRACLOUD-82932 (AL, 2026-11-26): Jira Cloud answers a wrong Email or ApiToken with 200 and empty lists; only myself says 401."""
+    world["dataset"] = generate(seed=11, issues=n, projects=project_keys())
+    world["jira"] = jira_server(world["dataset"], credentials=("me@example.com", "tok-123"), anonymous=True)
+
+
 @given(parsers.parse("un faux Jira lent avec {n:d} tickets générés avec les projets des paramètres"))
 def _slow_jira(world, jira_server, n):
     world["dataset"] = generate(seed=11, issues=n, projects=project_keys())
@@ -1457,7 +1464,7 @@ def _configuration_log(world):
     lines, text = logged_run(world, "button Read the Jira configuration")
     begun = [rest[0] for kind, *rest in lines if kind == "BEGIN"]
     count = len(project_keys())
-    assert begun == ["proxy detection", "projects"] + \
+    assert begun == ["proxy detection", "login", "projects"] + \
         [f"configuration of project {n} of {count}" for n in range(1, count + 1)] + ["fields", "proposal sheets"], begun
     for secret in ("tok-123", "me@example.com", "127.0.0.1", "http", "{", "workflows/preview"):
         assert secret not in text, secret
@@ -1779,6 +1786,67 @@ def _locked_workbook(world):
     assert world["status"].startswith("Stopped | Code: J2D-SYS-003 | Message: The workbook is locked: it is open read-only. "
                                       "If a yellow bar is shown at the top of Excel, click Enable Editing."), world["status"]
     assert "J2D-SYS-003" in {row["Code"] for row in sheet_rows(world["wb"], "ErrorCodes")}
+
+
+@given("une première extraction a rempli la feuille Issues")
+def _first_extraction(world):
+    """The raw sheets only (the extraction of button 1, in one go): the sheet Iterations of this workbook is empty, so 2. Compute would stop."""
+    world["wb"].Application.Run(f"'{world['wb'].Name}'!modExtract.ExtractFlowData")
+    world["issues_before"] = issue_rows(world)
+    assert world["issues_before"] == len(world["dataset"].issues)
+
+
+def issue_rows(world) -> int:
+    return retry(lambda: world["wb"].Worksheets(S.of("Issues")).UsedRange.Rows.Count) - 1      # under the header
+
+
+@when("le jeton ApiToken de la feuille Config est faux")
+def _wrong_token(world):
+    world["requests_from"] = len(world["jira"].requests)
+    set_config(world["wb"], "ApiToken", "a-wrong-token")
+
+
+@then("l'état du tableau de bord donne le code J2D-JIRA-401 et dit de vérifier Email et ApiToken dans la feuille Config_from_user")
+def _wrong_account_named(world):
+    rows = status_rows(world)
+    assert world["wb"].Worksheets(S.of("Dashboard")).Range(D.STATUS_CELL).Value == "Stopped", rows
+    assert [name for name, _value in rows] == ["Code", "Message", "Log"] and rows[0][1] == "J2D-JIRA-401", rows    # no " | " in the message
+    assert f"In the sheet {S.of('Config')} check Email and ApiToken: an API token without scopes, made at id.atlassian.com" in rows[1][1], rows
+
+
+@then("avec le jeton faux, le faux Jira n'a reçu que la vérification du compte, une par bouton")
+def _only_the_login(world):
+    asked = [(r.method, r.path) for r in world["jira"].requests[world["requests_from"]:]]
+    assert asked == [("GET", "/rest/api/3/myself")] * 2, asked                   # never the empty lists of an unknown visitor
+
+
+@then("la feuille Issues garde les tickets de la première extraction")
+def _results_kept(world):
+    assert issue_rows(world) == world["issues_before"]                         # the extraction did not clear them
+
+
+@when(parsers.parse('la feuille Projects a aussi la ligne "{key}", un nom que Jira ne connaît pas comme clé'))
+def _unknown_key(world, key):
+    ws = world["wb"].Worksheets(S.of("Projects"))
+    row = ws.UsedRange.Rows.Count + 1
+    ws.Cells(row, 1).Value, ws.Cells(row, 2).Value = key, "Team"
+    world["keys"] = len(project_keys()) + 1
+
+
+@then(parsers.parse('l\'état du tableau de bord nomme "{key}" parmi les clés que Jira ne connaît pas, avec la feuille Projects_from_user'))
+def _unknown_key_named(world, key):
+    found = dict(status_rows(world))
+    assert found.get("Projects") == str(len(project_keys())), found
+    assert found.get("Not found in Jira") == (f"1 of {world['keys']} project keys of the sheet {S.of('Projects')}: {key}. Type the key of "
+                                              "each project (ABC as in the issue ABC-123), not its name"), found
+    world["unknown_key"] = key
+
+
+@then("le journal local compte les clés non trouvées sans les nommer")
+def _missing_keys_counted(world):
+    _lines, text = logged_run(world, "button Read the Jira configuration")
+    assert f" WARN J2D-CFG-016 | project keys not found in Jira: 1 of {world['keys']} (sheet {S.of('Projects')}: the keys, not the names)" in text
+    assert world["unknown_key"] not in text                                      # the keys are the client's: the status names them, never the log
 
 
 @then("le faux Jira n'a reçu aucune requête")
@@ -2400,7 +2468,7 @@ def _art_no_efficiency(world):
             assert art_close(r["FlowTimeMedian"], FLOW_TIME_DAYS) and r["FlowEfficiency"] == "not computable", (r["Iteration-label"], r["FlowEfficiency"])
     assert delivering == sum(1 for v in VELOCITY.values() if v)
     assert chart_note(world, "flow_efficiency") == ("24 of 24 points are not computable (gaps) - most often (24 of 24 rows of "
-                                                     "FlowEfficiencyCheck_from_excel): no status is declared Wait (set Category = Wait in Workflows)")
+                                                     "FlowEfficiencyCheck_from_excel): no status is declared Wait (set Category = Wait in Workflows_from_user)")
 
 
 @then("la feuille StatusRules ne contient que des règles venues de Jira, sans statut d'attente")

@@ -122,7 +122,7 @@ def test_a_kind_with_tickets_and_no_start_status_is_warned_with_its_code():
     counts = [KindCounts("Feature", 1, 2, 1, 1), KindCounts("Team", 0, 3, 0, 1)]
     assert rule_warnings(counts, {"Feature", "Team"}) == [
         "J2D-FLOW-010 | no start status in the Team workflow: Flow Time, Flow Efficiency and Flow Load cannot be computed"
-        " | declare IsStart = 1 for its first in-progress status in the sheet Workflows"]
+        " | declare IsStart = 1 for its first in-progress status in the sheet Workflows_from_user"]
 
 
 def test_a_kind_without_tickets_is_not_warned_and_no_ticket_at_all_gives_no_warning():
@@ -135,9 +135,9 @@ def test_no_wait_status_in_any_kind_is_warned_once_after_the_starts():
     counts = [KindCounts("Feature", 0, 1, 0, 1), KindCounts("Team", 1, 1, 0, 1)]
     assert rule_warnings(counts, {"Feature", "Team"}) == [
         "J2D-FLOW-010 | no start status in the Feature workflow: Flow Time, Flow Efficiency and Flow Load cannot be computed"
-        " | declare IsStart = 1 for its first in-progress status in the sheet Workflows",
+        " | declare IsStart = 1 for its first in-progress status in the sheet Workflows_from_user",
         "J2D-FLOW-011 | no status is declared Wait: Flow Efficiency cannot be computed"
-        " | declare Category = Wait in the sheet Workflows for the statuses where the work waits"]
+        " | declare Category = Wait in the sheet Workflows_from_user for the statuses where the work waits"]
 
 
 def test_the_vba_says_the_same_words():

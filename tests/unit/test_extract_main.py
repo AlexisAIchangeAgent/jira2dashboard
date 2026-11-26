@@ -75,6 +75,19 @@ def test_a_stopped_run_gives_its_code_and_its_time_on_its_last_line(tmp_path):
     assert re.search(r"RUN end stopped J2D-SYS-011 \(log: .*\) \| \d+\.\d{3} s$", log.splitlines()[-1])
 
 
+def test_a_wrong_account_stops_before_the_search_although_jira_cloud_would_answer_empty_lists(tmp_path, dataset):
+    """AL, 2026-11-26: Jira Cloud serves a wrong ApiToken as an unknown visitor (200, no ticket); only myself says 401. Without the check the
+    run would write an empty workbook with exit code 0."""
+    with MockJira(dataset, credentials=(MOCK_EMAIL, MOCK_TOKEN), anonymous=True) as server:
+        book = M.write_params_book(tmp_path / "params.xlsx", server.base_url, {"ProxyServer": "DIRECT", "MaxRetries": "1",
+                                                                              "ApiToken": "a-wrong-token"})
+        code, log = run(tmp_path, book)
+        asked = [r.path for r in server.requests]
+    assert code == 1 and asked == ["/rest/api/3/myself"], asked
+    assert "J2D-JIRA-401" in log and "In the sheet Config_from_user check Email and ApiToken" in log
+    assert not (tmp_path / "out.xlsx").exists()
+
+
 def test_parameter_lines_never_show_the_token():
     config = xlsx_write.Sheet("Config", ("Parameter", "Value"), [("ApiToken", "secret"), ("Email", "a@b.c"), ("Filter", None)])
     lines = X.parameter_lines([config, xlsx_write.Sheet("Projects", ("Key",), [("A",), ("B",)]),
