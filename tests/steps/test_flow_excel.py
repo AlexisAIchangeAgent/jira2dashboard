@@ -1718,6 +1718,28 @@ def _click_extract(world, request):
     world["status"] = macro(world, "ProgressSnapshot").partition("|")[2]
 
 
+@when(parsers.parse("l'en-tête de la colonne des libellés de la feuille Iterations est \"{text}\""))
+def _iterations_header(world, text):
+    world["wb"].Worksheets(S.of("Iterations")).Range("A1").Value = text                 # typed or pasted at the client (v0.19.0, AL 2026-11-26)
+
+
+@when("je clique sur le bouton « 2. Compute the metrics »")
+def _click_compute(world):
+    on_action = dashboard_buttons(world["wb"])[D.COMPUTE_CAPTION]                         # the button the user clicks
+    macro(world, on_action.rpartition(".")[2])
+    world["status"] = macro(world, "ProgressSnapshot").partition("|")[2]
+
+
+@then("l'état du tableau de bord donne le code J2D-CFG-014 et, sur une seule ligne, le message qui nomme l'en-tête à taper")
+def _header_named(world):
+    rows = status_rows(world)
+    assert world["wb"].Worksheets(S.of("Dashboard")).Range(D.STATUS_CELL).Value == "Stopped", rows
+    assert [name for name, _value in rows] == ["Code", "Message", "Log"] and rows[0][1] == "J2D-CFG-014", rows   # no " | " cut the message
+    message = rows[1][1]
+    assert message.startswith(f"Sheet {S.of('Iterations')}: no column Iteration-label in its first row (found: Iteration label, Start, End"), message
+    assert message.endswith("Type the header exactly, capitals and dashes included: Iteration-label, Start, End."), message
+
+
 @then(parsers.parse("l'état du tableau de bord nomme les paramètres obligatoires vides \"{names}\""))
 def _mandatory_named(world, names):
     assert world["status"].startswith("Stopped | Code: J2D-CFG-002 | Message: "), world["status"]

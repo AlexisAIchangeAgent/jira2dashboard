@@ -27,6 +27,15 @@ Fonctionnalité: Première utilisation du classeur
     Et le faux Jira n'a reçu aucune requête
 
   @excel
+  Scénario: Un en-tête faux de la feuille Iterations arrête le calcul et le Dashboard dit quel en-tête taper
+    Soit un faux Jira avec 30 tickets générés avec les projets des paramètres
+    Et le classeur à livrer dont la feuille Config pointe sur ce faux Jira avec FlowLoadMode "A"
+    Quand l'en-tête de la colonne des libellés de la feuille Iterations est "Iteration label"
+    Et je clique sur le bouton « 2. Compute the metrics »
+    Alors l'état du tableau de bord donne le code J2D-CFG-014 et, sur une seule ligne, le message qui nomme l'en-tête à taper
+    Et le faux Jira n'a reçu aucune requête
+
+  @excel
   Scénario: Un classeur verrouillé arrête le bouton avant tout appel à Jira et dit comment le déverrouiller
     Soit un faux Jira avec 30 tickets générés avec les projets des paramètres
     Et le classeur à livrer dont la feuille Config pointe sur ce faux Jira avec FlowLoadMode "A"
