@@ -58,26 +58,11 @@ release (they cannot be removed) leave out the `export-ignore` paths of `.gitatt
 Releases: the version is `vX.Y.Z` only (`v0.0.0-dryrun` is refused) and the number is AL's choice. The dry run
 (`release.ps1 -Version v0.0.0`) needs a clean tree, builds with Excel and leaves `out\release\<version>`: delete it afterwards
 (only that dry-run folder: a real release keeps its `out\release\<version>`, whose `notes.md` holds the SHA-256 and MD5). The release body
-starts with `(commit <40 hex>)`: take the MD5 to note here from the line ending `bytes)` or from `md5sum out\release\<version>\jira2dashboard.xlsm`, never "the first 32 hex".
-`-Publish` also needs HEAD == origin/main and `gh` logged in. Only `v0.5.0` (2026-11-13, commit e01327b), `v0.5.1` (d67e42f), `v0.5.2` (f541e99), `v0.6.0` (57b0d79), `v0.7.0` (2026-11-14, commit cc01848) and `v0.7.1` (2026-11-14, commit db81283) and `v0.8.0` (2026-11-15, commit 5ea633c) and `v0.8.1` (2026-11-15, commit d2035ab: the buttons stop with J2D-SYS-003 when the workbook is locked) and `v0.9.0` (2026-11-16, commit 209f229: Feature Predictability from the PI field history, IterationFeatures and IterationCharts, scenario art-metrics) and `v0.9.1` (2026-11-17, commit 4722b9d: a Program-only ART needs no Team project, text of the Manual; MD5 bbb9220ad709404142953179307b2443) and `v0.10.0` (2026-11-17, commit 41269f9: the value above the Velocity bars and notes under the charts with gaps, the chart Cycle time by status and the table PIStatusTime; MD5 e3612463f3aee8235f7ea64d572d16fd) and `v0.11.0` (2026-11-18, commit 9f674cd: the sheets FieldMapping, Order and Type are gone, Team optional, Propose values fills IsEnd, the issue-type lists and BlocksLinkType, the table VelocityCheck; MD5 bfe9145574abe7fd750a60d5c3030d7b) and `v0.12.0` (2026-11-18, commit 2d61724: the ART counts the Features only, ART (other types), MetricItems and Reconciliation; MD5 08d5fce1cd1975ef28a1eebea8ff170f) and `v0.13.0` (2026-11-19, commit abb84bf: statuses, workflows and moves read from Jira (Jira-first rules, the sheet Workflows holds exceptions), ItemFlow.JiraWorkflow and DC28 by the Jira workflow, the Cycle time by status stack ordered by the Jira flow, Propose no longer copies statuses; MD5 274cc63ede1d7adb0d179af59ab9a286) and `v0.14.0` (2026-11-23, commit f70df7a: why a flow metric is not computable, told
-in the log, the health fields, the Reconciliation and the chart notes, no start status or no Wait status first; the date guards of the audit; MD5
-c74fbacb63b9cc609cc5b2f3e4ce24b5) and `v0.15.0` (2026-11-23, commit a8db023: the three buttons 1. Extract from Jira, 2. Compute the metrics, 3. Draw the
-charts; Compute makes the status rules again without reading Jira; MD5 4e1d7b42616e685281bde9773d11480b) and `v0.16.0` (2026-11-24, commit 80c8f37: the four
-accounting tables FlowTimeCheck, FlowEfficiencyCheck, FlowLoadCheck, FlowDistCheck, 18 controls, the work-type bucket ignores case; MD5
-5a3287c4cda38b0ca3f3ea1f51cf28cb) and `v0.17.0` (2026-11-24, commit 57820b0: the report of 236 figures, 20 controls with CarryOver and the Flow Load list,
-VelocityCheck.Reason, MetricItems with the days and bucket of each ticket and the in-process list; MD5 9071979105af953fbfdfdf5270540671) and `v0.18.0`
-(2026-11-24, commit 1c92335: the note under the flow charts names the most frequent cause, the column Cause, the probe of TEXTSPLIT (Microsoft 365 or
-Excel 2024), J2D-FLOW-012 of compute --check; MD5 6025e069cba913958edab7726ee2363e) and `v0.18.1` (2026-11-24, commit 44bf340: the sheet
-Manual shorter, one section per button and "Check the figures"; MD5 52e8486dce73e4d1b647c01b4526d0e8) and `v0.18.2` (2026-11-24, commit 9426bb1:
-"Never entered the start status" / "Back to the backlog after the start", the column JiraWorkflows of StatusRules; MD5 7cb23872b3530e4a008d93d283d4e38a)
-and `v0.18.3` (2026-11-25, commit 2c469d5: a PI without Start and End is left out, no J2D-CFG-013, health field "PIs without dates", one PI per row of the
-CSV; MD5 d7e323daa450457cf7757b84241cc893) and `v0.19.0` (2026-11-25, commit 90f3d68: any name is a PI, DC29 removed, DC17 = empty PI, the PIs by Start then
-in the natural order of their names; MD5 f58082ada84ffe9d31b26b00fc5b1253) and `v0.19.1` (2026-11-26, commit 7a36a00: the headers of Iterations and PIs
-checked, J2D-CFG-014, an iteration label empty or twice refused, J2D-CFG-015; MD5 c069cc120afa8a55a09a2b35f301953b) and `v0.19.2` (2026-11-26,
-commit c6411f1: the account checked first (GET myself, J2D-JIRA-401), the project keys Jira does not know named (J2D-CFG-016), every message names the
-real sheet; MD5 6000577773039d82368834ecc4f16b51) and `v0.20.0` (2026-11-26, commit ed56d50: the button Debug prompt for Rovo, A19, the files
-rovo-debug/01.md... with the JQL of each iteration and team, the Filter in clear in the log; MD5 79abb4a21bd4c378290ee9e73fdcbd67) exist on GitHub: AL removed the
-releases and the tags `v0.1.0` to `v0.4.0` (2026-11-13, they were 2026-11-06, 878807e, 31c9574, f0bbf32). Their numbers are never used again; the next one is above `v0.20.0`.
+starts with `(commit <40 hex>)`: take the MD5 to give AL from the line ending `bytes)` or from `md5sum out\release\<version>\jira2dashboard.xlsm`, never "the first 32 hex".
+`-Publish` also needs HEAD == origin/main and `gh` logged in.
+Published: `v0.5.0` to `v0.20.0` (the last: 2026-11-26, commit ed56d50). `gh release list` lists them; the body of each starts with its commit and gives
+the MD5, as `out\release\<v>\notes.md`. AL removed `v0.1.0` to `v0.4.0` (2026-11-13): never used again; the next one is above `v0.20.0`. What a
+version changed: its commit message; a text the client reports dates its release (`git log -S`, Environment gotchas).
 A clone may keep old tags (`git fetch --tags`): `version.py` stamps the commit, never `git describe`.
 `diagnose` never opens the workbook, never reads `python.log` (JQL, Jira's messages) nor the Windows event log, and masks the home
 folder: keep it that way when adding a section. Allow-lists of an endpoint protection ask for the MD5 (`notes.md` has it) or, lasting longer, the path and name:
@@ -570,7 +555,7 @@ then `mermaid.parse`), and check every `](#anchor)` link against the headings.
 - **Craftsmanship.** KISS, YAGNI, DDD vocabulary (`flow/model.py`: Issue, Interval, ItemFlow, Rules...). Keep logic in pure
   modules and push COM/IO to thin edges so it can be tested without Excel. Prove that a new test discriminates: break the
   code on purpose (mutation) and watch it fail, then restore.
-- **Coverage.** Pure Python >= 93 % (currently about 99 %), enforced by `run.ps1 coverage`. VBA branches carry
+- **Coverage.** Pure Python >= 93 % (currently about 98.5 %), enforced by `run.ps1 coverage`. VBA branches carry
   `Cov "ID"` markers; `vba-tests` requires **100 % of markers hit** and the unit test
   `test_real_vba_modules_are_ascii_and_have_unique_markers` pins the marker count and ranges: update it when adding markers.
   Trivial entry points (`modActions`, `modButtons`) carry none. A new `.bas` module or `Cov` marker changes numbers pinned in tests:
@@ -662,7 +647,12 @@ then `mermaid.parse`), and check every `](#anchor)` link against the headings.
 - **Jira API documentation:** the Atlassian MCP is not connected (only its authenticate tools) and a real site is never authenticated (hard constraint). Read the
   official OpenAPI schema with Context7 (`/openapi/dac-static_atlassian_cloud_jira_platform_swagger-v3_v3_json`, and Jira Software `.../swagger.v3.json`) or WebFetch of
   `https://dac-static.atlassian.com/cloud/jira/platform/swagger-v3.v3.json`: the developer.atlassian.com pages need JavaScript.
-- A leftover Excel of a crashed run (title "Excel", started during the run) is stopped with PowerShell `Stop-Process -Id <pid>`: `taskkill /PID` is mangled by Git Bash.
+- **Leftover or hung Excel** (skill `excel-hygiene`, AL's rule): after every Excel run `tasklist | grep -c EXCEL` is back to what it was. Stop only
+  the Excel the run started, by PID (`Get-Process EXCEL | Select Id, StartTime, MainWindowTitle`; PowerShell `Stop-Process -Id`, `taskkill /PID` is
+  mangled by Git Bash), never an older one: the recovery Excel Office starts in the same second as a crash (title "Excel" or "... - Récupération"),
+  or a run hung on a VBA error dialog (title "Microsoft Visual Basic": `vba-tests` prints no `summary:` and its log ends at a `BEGIN`; run it with
+  `timeout 420`, read the end of `out\inter\logs\vba-tests.log`). A new raw table needs its fixture written by hand in `modTests` (2026-11-16:
+  `PrepareRaw` found `PIIntervals` empty and opened that dialog); a check that reads Excel objects must not raise: wrap it like `AxisEnds`.
 - **Long runs in the background:** `cmd &` inside a background call notifies at once, not at the end: wait with
   `until grep -qE "passed|failed" log; do sleep 15; done` in a background Bash. The harness kills background shells when the machine is low
   on memory: run the test groups one after the other, and rerun a killed one only when asked.
@@ -670,24 +660,17 @@ then `mermaid.parse`), and check every `](#anchor)` link against the headings.
   `wevtutil /q:`): prefix the command with `MSYS_NO_PATHCONV=1`.
 - The PowerShell tool is slow here (CIM / event-log queries time out): use Bash `tasklist` for processes.
 - Reading PowerShell output from Python (`Get-Help`, the scripts): `encoding="oem", errors="replace"`, not UTF-8.
-- **A Bash call with a heredoc that holds apostrophes (French text, VBA comments, `\'`) can fail with "unexpected EOF while looking for
-  matching `'`" and apply NOTHING** (2026-11-16, several times): write the edit script with the Write tool into the scratchpad, then run it
-  (`python3 <path>`); a heredoc whose body is plain code with no apostrophe is fine. Also never name a test module like another one of
-  `tests/` (`tests/steps/test_art_metrics.py` vs `tests/unit/test_art_metrics.py` broke the collection: "imported module has this
-  `__file__`"): the Python-path steps are `test_art_metrics_python.py`.
-- **A VBA error in a `T_` test or in the build of a test workbook opens the dialog "Microsoft Visual Basic" and hangs `vba-tests`** (no
-  `summary:` line; the log ends at a `BEGIN`): stop that Excel by its PID (title + start time of the run), read the end of
-  `out\inter\logs\vba-tests.log`. The cause on 2026-11-16: `PrepareRaw` of the new raw sheet `PIIntervals` found it empty because the
-  `FlowRaw` fixture of `T_FlowBuild` did not write it: a new raw table needs its fixture written by hand in `modTests`.
+- **Edit scripts** (quotes, apostrophes, backslashes, `\r\n`): a Bash heredoc can apply NOTHING ("unexpected EOF ... `'`" on French text or VBA
+  comments) or turn `tests\\features` into a form feed. Write a `.py` with the Write tool in the scratchpad, run it with `.venv/Scripts/python.exe`:
+  `assert s.count(old) == 1` before each replace, write with `newline="\n"`, raw strings `r'''...'''` (VBA `""` ends a `"""` early; `\v`, `\b`, `\r`,
+  `\t` in `out\release` or `\vba-tests.log` become control characters), a backslash as `chr(92)`. Before: `python -W error -m py_compile` the script.
+  After: `grep -cP '[\x00-\x08\x0b-\x1f]' file` gives 0, and `grep -nP '[A-Za-z]\\[rntbvf][A-Za-z]' file` for an escape left in a Python SOURCE
+  (`scripts\run.ps1` in a `print` compiles and prints a carriage return). A line with a Windows path in a `.ps1` or a doc: the Edit tool. The script
+  writes file by file: start from a clean tree (`git checkout -- .` restores it), or back the work up first.
+- Never name a test module like another one of `tests/` (`tests/steps/test_art_metrics.py` vs `tests/unit/test_art_metrics.py`: "imported module has
+  this `__file__`"): the Python-path steps are `test_art_metrics_python.py`.
 - A local variable must not have the name of a procedure of the same module (`piRows` hid `PiRows`: VBA ignores case); a check of a test that
   reads Excel cells goes through a function that returns "?" on an error or an error value (`IterationCell`, as `AxisEnds`).
-- Edit scripts with quotes, `\r\n` or backslashes (Windows paths in Markdown): write a `.py` file with the Write tool and
-  run it, not a Bash heredoc (a heredoc turned `tests\\features` into a form feed in a Markdown file).
-  Pattern: `assert s.count(old) == 1` before each replace, write with `newline="\n"`, run with `.venv/Scripts/python.exe`.
-- In those `.py` edit scripts, VBA text with `""` ends a `"""` string early and `"\vba-tests.log"` holds a `\v`:
-  use `r'''...'''` and run `python -m py_compile` on the script first. `\r`, `\b`, `\t`, `\v` in `out\release`, `\bootstrap`...
-  become control characters without a warning: raw strings, then `grep -cP '[\x00-\x08\x0b-\x1f]' file` must give 0. Create the
-  script with the Write tool, not a Bash heredoc (one ended at end-of-file and applied nothing).
 - While `test-excel` / `vba-tests` run in the background, do not edit `src/` or `vba/`: each Excel module builds its
   workbook from `vba/*.bas` when it starts, and the child processes import `src`.
 - Pester fakes of python are functions: a line they write to stderr lands in the transcript as a decorated error record,
@@ -707,8 +690,6 @@ then `mermaid.parse`), and check every `](#anchor)` link against the headings.
   survives means the test data cannot tell it (a tautology: add the case, or let the function take the ledger as a parameter so a test can feed a wrong one).
   A mutation script that runs pytest in a subprocess passes `env={**os.environ, "PYTHONPATH": ...}`: a bare env breaks pywin32
   (`PermissionError ... C:\Windows\gen_py`) and every mutation looks KILLED. Run the unmutated control first.
-- An edit script writes file by file: an `assert` that fails midway leaves the earlier files changed. Start from a clean tree (`git status`), so
-  `git checkout -- .` restores it; with work pending, back it up first.
 - **A scenario must not hold what Jira gives in its parameter sheets** (2026-11-18): `Dataset.jira_sheets` = Jira's full Workflows/Transitions, `sheets` = the exceptions. References
   come from `flow_adapter.jira_rules(ds)` / `jira_workflows(ds)`, never `Rules.from_params(list(ds.sheets))`; a test whose dataset still has complete sheets cannot see an exceptions-only workbook.
 - **A sheet that a formula reads must exist from the build** (`flow/sheets.py`, list of `add_sheet_after_last`), even empty: the formula written at the build of the flow sheets would
@@ -723,7 +704,6 @@ then `mermaid.parse`), and check every `](#anchor)` link against the headings.
   this session's own process (pid + `excel.exe` checked) right after Quit; waiting 5 s only delayed the same kill, 5 s for each of the 66 Excel tests. `check-machine` keeps 5 s.
 - **Timings of the full pass (2026-11-19, 14 cores):** coverage 73 s, vba-tests 41 s, test-excel flow `-n 4` 119 s, the other Excel modules 77 s, test-scripts 104 s, build 9 s = about 7 min;
   `test-excel` flow without `-n` is 290 s. A step far above that is worth a look (a leftover Excel, a machine under load: the first symptom is every test 2 to 3 times slower).
-- A line of a `.ps1` or a doc that holds a Windows path (`scripts\run.ps1`) goes through the Edit tool, not a `python -` script: `\s`, `\i` are escapes there (SyntaxWarning, and the `assert s.count(old) == 1` then fails).
 - **Look at a chart:** `start-mock.ps1 -Port 8100`, a scratch copy of `out\release\jira2dashboard.xlsm` filled by
   `mock_workbook.fill_copy(copy, base_url(8100))`, `modActions.ExtractAndCompute`, then in the same session Activate the
   ChartObject, `Chart.Export` to the scratchpad and Read the PNG; `stop-mock.ps1 -Port 8100` after (8099 may be AL's).
@@ -733,28 +713,20 @@ then `mermaid.parse`), and check every `](#anchor)` link against the headings.
   server by its PID, `browser_close`, `rm -rf .playwright-mcp` (the tool leaves that folder in the working directory).
 - **A Bash call that `cd`s away from the repo moves the working directory of the session** (a `cd` into `out\manual_test\charts` put the
   browser tool's `.playwright-mcp` folder there): start each Bash command with `cd /c/dev/jira2dashboard`, or use a subshell `( cd x && ... )`.
-- **Hung test Excel (VBA error dialog):** run `vba-tests` with `timeout 420`. The Excel to kill is the one whose window
-  title is "Microsoft Visual Basic" and whose start time matches the run (`Get-Process EXCEL | Select Id, StartTime,
-  MainWindowTitle`), never an older one. Mutation proof of a VBA test: copy the module to `$TEMP`, mutate it with a Python
-  script (`assert count == 1`), run, restore with `cp` in the same command. A new check that reads Excel objects must not
-  raise (a raise opens that dialog): wrap it like `AxisEnds` in `modTests.bas`.
 - **Excel's writes undone (a machine with an endpoint protection):** `build` prints `built ...` then Excel cannot open the file, or
   `mock-workbook` leaves the copy empty (`J2D-SYS-012` / `J2D-SYS-013`, then `J2D-CFG-002` in the scenario), while a workbook saved by
   hand stays and the macros of a downloaded release run. `run.ps1 check-machine` tests it (`save: ...`, 3 s after the write). Fix: an
   allow-list on the repository folder for `python.exe` and `EXCEL.EXE`; or use the workbook of a release, no build needed.
-- **Excel hygiene (AL's rule):** after every Excel run, even a green one, `tasklist | grep -c EXCEL` must be back to what it was;
-  stop only the Excel your run started (start time; title "Microsoft Visual Basic" when hung), never an older one.
 - The Excel that `manual-test.ps1` opens is AL's: leave it open; when AL says done, check `tasklist`, then `stop-mock.ps1 -Port 8099`.
 - `com_error -2146959355` ("Echec de l'execution du serveur") at `DispatchEx` = Excel failed to start: transient, rerun.
 - Excel rounds the position of a form control down to a whole point: a column of 124.5 pt put every button one cell to the
   left (`TopLeftCell` N1 for O1). `com.add_macro_button` rounds up.
-- After an Excel crash in a test, Office starts a new `EXCEL.EXE` (title "Excel" or "... - Récupération") at the same second:
-  it belongs to the run; stop it by its PID once its start time is checked.
 - **A few VBA tests only:** copy `modTests.bas`, cut `TestNames()` to the tests wanted, run `vba-tests --offline`, restore with `cp`
   (`vba-tests` takes about 1 minute whole, measured 2026-11-18: rarely worth it; never commit the cut list).
 - **Mutation of a VBA test:** no `summary:` line = no proof; that line is on the output of `run.ps1` and in `scripts\logs\run_vba-tests.log`, never in
   `out\inter\logs\vba-tests.log` (a mutation that raises inside a test, e.g. a type mismatch, loses the run:
   pick one that changes a result without raising). `Check` takes (area, label, input, expected, actual); the log cuts a line at 300 characters.
+  Copy the module to `$TEMP`, mutate it with a Python script (`assert count == 1`), run, restore with `cp` in the same command (skill `vba-mutation`).
 - pywin32: `Range.Address` is a property (`cell.Address.replace("$", "")`), not a call with arguments; `ws.Cells(1, n).Value` reads a one-cell range as a scalar.
 - `tests/steps/test_build_workbook.py` holds only `@pipeline` scenarios: with `-k "not pipeline"` it selects none (exit 5): expected.
 - `test-network` runs ONE scenario (`build_workbook.feature`, `@network @pipeline`, about 45 s); `test-excel tests/steps/test_build_workbook.py` runs
@@ -777,11 +749,6 @@ then `mermaid.parse`), and check every `](#anchor)` link against the headings.
 - **Read the parameter sheets of a saved copy without Excel:** `standalone.params_book.read_params(Path(copy))` (a zip read; the keys are the
   LOGICAL names `Config`, `Projects`, `Iterations`, `PIs`, `Workflows`, `Transitions`, not `PIs_from_user`); `xlsx_read.read_sheets` reads any
   sheet by its real name. Use it to check what a run left in `out\manual_test\<scenario>\` (the calendar was checked so on 2026-11-17).
-- In an edit script a backslash goes through `chr(92)` or a raw string; after the run `python -m py_compile` the target and
-  `grep -cP '[\x00-\x08\x0b-\x1f]'` it (a `\b` in a plain triple-quoted string became a backspace, a `\r\n` a real line break).
-  That grep misses the escape still written in the SOURCE of a Python file: `scripts\run.ps1` typed in a `print` string compiles without a
-  warning (`\r` is valid) and prints a carriage return; only `\m` is flagged (`python -W error -m py_compile file`). Also run
-  `grep -nP '[A-Za-z]\\[rntbvf][A-Za-z]' file`; write such a path with `/`, `chr(92)`, a raw string, or with the Edit tool.
 - `_launch.cmd` traps: a `for` list drops `/?` (wildcard), so it is tested apart; a launcher starts the helper without `call`
   (`call` swallows `/?`); from a test, `cmd /c` needs `.\name.cmd`.
 - After moving code between `.bas` modules: `Private` names (Const, Function) used from the new module break the compile of
