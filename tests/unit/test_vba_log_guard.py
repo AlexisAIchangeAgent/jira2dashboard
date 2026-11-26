@@ -34,13 +34,14 @@ def shown_parameters(source: str) -> set[str]:
     return {name for name in literal.split(",") if name}
 
 
-MASKED = {"BaseUrl", "Email", "ApiToken", "ProxyServer", "ProxyBypass", "Filter"}     # the connection, the proxy, the JQL
+MASKED = {"BaseUrl", "Email", "ApiToken", "ProxyServer", "ProxyBypass"}     # the connection, the proxy (the Filter is shown: AL, 2026-11-26)
 
 
-def test_the_log_shows_every_parameter_in_clear_but_the_connection_the_proxy_and_the_filter():
+def test_the_log_shows_every_parameter_in_clear_but_the_connection_and_the_proxy():
     """modLog.LogParameters writes the inputs of a run (PARAM lines): the value of each parameter of Config (AsOf and the
-    field ids too: AL's choice, 2026-11-11), but BaseUrl, Email, ApiToken, ProxyServer, ProxyBypass and Filter read (set) or
-    (empty) (modLog.ParameterShown). A new parameter is masked until it is added to SHOWN_PARAMETERS."""
+    field ids too: AL's choice, 2026-11-11; the Filter since 2026-11-26, AL: the scope of the figures, and diagnose leaves the PARAM
+    lines out of a support ticket), but BaseUrl, Email, ApiToken, ProxyServer and ProxyBypass read (set) or (empty)
+    (modLog.ParameterShown). A new parameter is masked until it is added to SHOWN_PARAMETERS."""
     shown = shown_parameters(rvt.module_sources(rvt.ORDER)["modLog"])
     assert shown == set(CONFIG_PARAMETERS) - MASKED
     assert not shown & MASKED

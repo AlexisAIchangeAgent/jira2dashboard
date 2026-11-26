@@ -50,7 +50,8 @@ def test_the_manual_names_only_sheets_of_the_workbook():
 
 def test_the_buttons_have_their_section_in_the_order_of_the_dashboard():
     headings = [text for kind, text in manual.manual(MANDATORY) if kind == manual.HEADING]
-    captions = (D.ROVO_CAPTION, D.ROVO_LOAD_CAPTION, D.CONFIG_CAPTION, D.PROPOSE_CAPTION, D.EXTRACT_CAPTION, D.COMPUTE_CAPTION, D.DRAW_CAPTION)
+    captions = (D.ROVO_CAPTION, D.ROVO_LOAD_CAPTION, D.CONFIG_CAPTION, D.PROPOSE_CAPTION, D.EXTRACT_CAPTION, D.COMPUTE_CAPTION, D.DRAW_CAPTION,
+                D.ROVO_DEBUG_CAPTION)
     at = [headings.index(f'Button "{caption}"') for caption in captions]
     assert at == sorted(at)
 
@@ -74,5 +75,5 @@ def test_the_manual_says_how_to_check_the_figures_with_the_counts_of_the_code():
 
 def test_the_manual_stays_short():
     rows = manual.manual(MANDATORY)
-    assert max(len(text) for _kind, text in rows) <= 420 and sum(len(text) for _kind, text in rows) <= 10_000
+    assert max(len(text) for _kind, text in rows) <= 420 and sum(len(text) for _kind, text in rows) <= 10_500      # AL, 2026-11-26: + the button Debug prompt for Rovo
     assert sum(len(line) for line in manual.first_steps()) <= 1_300

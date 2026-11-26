@@ -35,10 +35,11 @@ Private mLastCode As String                         ' the support code of the la
 Private mBegun As Collection                        ' start times (Timer) of the steps begun and not ended, for the END lines
 Private mRunStarted As Double                       ' Timer at the start of the run
 Private mRunOn As Boolean                           ' a run started and did not end yet: its RUN end line gets its time
-' The parameters of Config whose value the log shows: all but the connection (BaseUrl, Email, ApiToken), the proxy
-' (ProxyServer, ProxyBypass) and the Filter (JQL), which read (set) or (empty); a parameter not in the list reads so too.
+' The parameters of Config whose value the log shows: all but the connection (BaseUrl, Email, ApiToken) and the proxy
+' (ProxyServer, ProxyBypass), which read (set) or (empty); a parameter not in the list reads so too. The Filter is shown since 2026-11-26 (AL: the
+' scope of the figures; diagnose leaves the PARAM lines out of a support ticket).
 ' tests/unit/test_vba_log_guard.py compares this list with params.model.CONFIG_PARAMETERS.
-Private Const SHOWN_PARAMETERS As String = ",WorkTypeField,ProxyWindowsAuth,IsUserProjectAdmin,FlowLoadMode,PredictabilityMode,AsOf,TimeoutSeconds,MaxRetries," & _
+Private Const SHOWN_PARAMETERS As String = ",Filter,WorkTypeField,ProxyWindowsAuth,IsUserProjectAdmin,FlowLoadMode,PredictabilityMode,AsOf,TimeoutSeconds,MaxRetries," & _
     "ParentRequiredTypes,FeatureTypes,SubTaskTypes,PointsRequiredTypes,StoryPointsField,BusinessValueField,PIField," & _
     "TeamField,SprintField,TargetStartField,TargetEndField,BlocksLinkType,FillRateThreshold,LogLevel,OpenLogOnError,"
 Private Const PARAMETER_SHEETS As String = "Projects,Workflows,Transitions,Iterations,PIs"
@@ -438,6 +439,8 @@ Public Function ErrorCode(ByVal number As Long, Optional ByVal description As St
             Case 630: ErrorCode = "J2D-ROVO-001"
             Case 631: ErrorCode = "J2D-ROVO-002"
             Case 632: ErrorCode = "J2D-ROVO-003"
+            Case 633: ErrorCode = "J2D-ROVO-004"
+            Case 634: ErrorCode = "J2D-ROVO-005"
             Case 610: ErrorCode = "J2D-SYS-001"
             Case 611: ErrorCode = "J2D-SYS-002"
             Case 612: ErrorCode = "J2D-SYS-003"

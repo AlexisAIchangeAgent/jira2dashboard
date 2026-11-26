@@ -53,7 +53,7 @@ Private Function TestNames() As Variant
         "T_HttpNetworkAndCancel", "T_RetryExhausted", "T_ChangelogChunks", "T_IssueRows", "T_WriteTable", "T_StatusIntervals", "T_IntervalsUnreadableDate", "T_StatusChangesUnreadableDate", "T_ChangelogRows", "T_UserFieldIds", "T_DateShape", "T_ParseJiraDateEpoch", "T_DateKind", "T_IsPlausibleDate", "T_FindDateKey", "T_ChangelogDateKey", "T_SkippedDatesWarning", "T_SheetName", "T_ProposeFromSheets", "T_ProposeIterations", "T_ReadSprints", "T_TeamNames", "T_ReadStatusCatalog", "T_ReadWorkflowRules", "T_ReadLinkTypes", "T_ProposeTypes", "T_ProposeValuesNotAdmin", "T_HealthFields", "T_StatusRules", "T_JiraWorkflowNames", "T_RefreshRules", "T_WorkflowExceptions", "T_NotFeatures", "T_ReconciliationFindings", "T_CellKind", "T_FitsType", "T_ShapeOfCell", "T_TypeHints", "T_TypeProblems", "T_TypeEmptyTable", "T_TypeBlocks", "T_TypeFillLines", "T_WireTypes", _
         "T_StatusChanges", "T_RetryDelay", "T_SafeAccess", "T_FilesUtf8", "T_StringifyBadObject", _
         "T_TooManyPages", "T_BackgroundExport", "T_TextNotConverted", "T_ParamsTables", "T_ParamsOnWorkbook", _
-        "T_TrimWhite", "T_ConfigSheet", "T_RequireLogin", "T_MandatoryConfig", "T_Locked", "T_PiIntervals", "T_ProxyDetect", "T_ProxyScript", "T_ProjectsSheet", "T_StatusNames", "T_ParseMoment", "T_ExtractFlowData", "T_ExtractJob", "T_ExtractCheckFields", "T_FlowBuild", "T_PiSortKey", "T_BaseUrlHttps", "T_Log", "T_LogInputsAndTimes", "T_StatusParts", "T_ErrorCodes", "T_LogHintAndOpen", "T_StepsSheet", "T_RovoPrompt", "T_RovoCsv", _
+        "T_TrimWhite", "T_ConfigSheet", "T_RequireLogin", "T_MandatoryConfig", "T_Locked", "T_PiIntervals", "T_ProxyDetect", "T_ProxyScript", "T_ProjectsSheet", "T_StatusNames", "T_ParseMoment", "T_ExtractFlowData", "T_ExtractJob", "T_ExtractCheckFields", "T_FlowBuild", "T_RovoDebug", "T_PiSortKey", "T_BaseUrlHttps", "T_Log", "T_LogInputsAndTimes", "T_StatusParts", "T_ErrorCodes", "T_LogHintAndOpen", "T_StepsSheet", "T_RovoPrompt", "T_RovoCsv", _
         "T_JiraConfig", "T_AbortExtraction", "T_Utf8Oracle", "T_Utf8Invalid", "T_Base64Oracle")
 End Function
 
@@ -831,6 +831,155 @@ Private Function FindRowOf(ByVal ws As Object, ByVal name As String) As Long
     Next r
 End Function
 
+Public Sub T_RovoDebug()
+    ' The debug prompt for Rovo (AL, 2026-11-26): its folder, the stop without the tables of 2. Compute, the pure pieces (tokens, JQL lists, numbers,
+    ' the packing of the iterations into files, the UTF-8 file), then the files of a small computed workbook. The keys of a real scenario are checked
+    ' against the hand-typed oracle by rovo_debug.feature. No check here can raise (a raise opens the VB dialog): the calls go through helpers.
+    Dim wb As Object, ws As Object, starts As New Collection, sizes() As Long, files() As Long, folder As String, text As String, parts() As String
+    Dim items As New Collection, wsC As Object, cr As Long, typesCell As Object, savedTypes As Variant, picked As Collection, spec As Object
+    Set wb = ThisWorkbook
+    Check "rovodebug", "the folder is next to the workbook", "C:\work", "C:\work\rovo-debug", RovoDebugFolder("C:\work", "C:\L", "C:\T")
+    Check "rovodebug", "a workbook on SharePoint (an http path) or never saved writes under the folder of the user", "https / empty", _
+          "C:\L\jira2dashboard\rovo-debug|C:\T\jira2dashboard\rovo-debug", _
+          RovoDebugFolder("https://x.sharepoint.com/sites/a", "C:\L", "C:\T") & "|" & RovoDebugFolder("", "", "C:\T")
+    Check "rovodebug", "the tokens are replaced in order", "{a} {b}", "1 2 {c}", RovoFill("{a} {b} {c}", Array("{a}", "1", "{b}", "2"))
+    items.Add "Ready ""QA""": items.Add "a\b"
+    Check "rovodebug", "a JQL list quotes each name, a quote and a backslash escaped", "Ready ""QA"", a\b", """Ready \""QA\"""", ""a\\b""", JqlQuoted(items)
+    Check "rovodebug", "a number with a point and two decimals at most, never the French comma; an error is not computable", "1.5 0.25 3 -0.5 1/3 #N/A", _
+          "1.5|0.25|3|-0.5|0.33|not computable", RovoNumber(1.5) & "|" & RovoNumber(0.25) & "|" & RovoNumber(3) & "|" & RovoNumber(-0.5) & "|" & _
+          RovoNumber(1 / 3) & "|" & RovoNumber(CVErr(2042))
+    ReDim sizes(0 To 4)
+    sizes(1) = 5: sizes(2) = 4: sizes(3) = 5: sizes(4) = 30
+    files = RovoPack(sizes, 4, 8, 3, 17)
+    Check "rovodebug", "the iterations fill a file up to its limit exactly, then the next; one larger than the limit gets a file of its own", _
+          "summary 8, head 3, limit 17: 5 4 5 30", "1|1|2|3", files(1) & "|" & files(2) & "|" & files(3) & "|" & files(4)
+    files = RovoPack(sizes, 1, 15, 3, 17)
+    Check "rovodebug", "an iteration that does not fit beside the summary goes to file 2", "summary 15 + 5 > 17", 2, files(1)
+    starts.Add 30: starts.Add 10: starts.Add 20: starts.Add 40
+    Set picked = RovoLastStarted(starts, 35, 2)
+    Check "rovodebug", "the iterations that started before AsOf, by Start, the last ones only (AL: 18 at most)", "starts 30 10 20 40, AsOf 35, 2", _
+          "2|3|1", picked.Count & "|" & picked(1) & "|" & picked(2)
+    folder = Environ$("TEMP") & "\j2d_rovo_test_" & Format$(Now, "hhnnss") & Int(Rnd() * 1000)
+    MkDir folder
+    WriteUtf8File folder & "\x.md", String$(50, "x")
+    WriteUtf8File folder & "\x.md", "Termin" & ChrW(233)
+    Check "rovodebug", "a file is UTF-8 without BOM, and an older longer file leaves nothing behind", "Termine (e acute) over 50 x", "8|195|169", _
+          Utf8Probe(FileTextSafe(folder & "\x.md"))
+    Check "rovodebug", "a write that fails closes its file and says why; the next write works", "a folder that does not exist", "76|yes", _
+          Utf8WriteError(folder & "\missing\x.md") & "|" & IIf(Utf8WriteError(folder & "\y.md") = 0, "yes", "no")
+    ' the stop without the tables of 2. Compute the metrics, then a small computed workbook
+    ClearFlowSheets wb
+    Check "rovodebug", "without the tables of 2. Compute the metrics: error 633 (J2D-ROVO-004)", "no Reconciliation", 633, RovoTablesError(wb)
+    FlowIterations DateSerial(2026, 10, 1), DateSerial(2026, 10, 15), True
+    wb.Worksheets(SheetName("PIs")).Range("A2:C10").ClearContents
+    FlowRaw True
+    BuildTablesIn wb
+    Set spec = wb.Worksheets(SheetName("RovoDebugSpec"))
+    spec.Name = "RovoDebugSpecGone"
+    Check "rovodebug", "without the sheet of its texts: error 634 (J2D-ROVO-005)", "RovoDebugSpec renamed", 634, RovoWriteError(wb, folder)
+    spec.Name = SheetName("RovoDebugSpec")
+    ' one ticket done in P1 for the ART (left out of Flow Time), one left out of the metrics, one near a boundary: values typed over the spilled
+    ' lists at the columns of formulas.metricitems_column (Done A, D, E, H, J; left out P, R, S, U; cut-off W, X, Y, AA)
+    Set ws = wb.Worksheets(SheetName("MetricItems"))
+    ws.Range("A3").Value = "P1": ws.Range("D3").Value = "ART": ws.Range("E3").Value = "TTT-1": ws.Range("H3").Value = 0: ws.Range("J3").Value = "Reopened"
+    ws.Range("P3").Value = "TTT-9": ws.Range("R3").Value = "ART (other types)": ws.Range("S3").Value = "P1": ws.Range("U3").Value = "Left out: not a Feature"
+    ws.Range("W3").Value = "AAA-1": ws.Range("X3").Value = "AAA": ws.Range("Y3").Value = "P2": ws.Range("AA3").Value = 3.5
+    WriteUtf8File folder & "\07.md", "an old file of an earlier click"
+    parts = Split(RovoRun(wb, folder, " | No Wait status: Feature, Team"), "|")
+    text = RovoFiles(folder, Val(parts(0)))
+    Check "rovodebug", "the files: within the limit, the iterations of Metrics listed", "2 iterations", "yes|2|2", _
+          IIf(Val(parts(1)) <= 12000 And Val(parts(0)) >= 1, "yes", "no") & "|" & parts(2) & "|" & parts(3)
+    Check "rovodebug", "only the files of an earlier click are deleted: 07.md, not x.md (a wildcard ??.md would take it)", "07.md x.md", "no|yes", _
+          IIf(Len(Dir$(folder & "\07.md")) > 0 And Val(parts(0)) < 7, "yes", "no") & "|" & IIf(Len(Dir$(folder & "\x.md")) > 0, "yes", "no")
+    Check "rovodebug", "file 1: its head, how to answer, the context, the health fields, the controls", "01.md", "yes|yes|yes|yes|yes", _
+          IIf(InStr(text, "file 1 of " & parts(0)) > 0, "yes", "no") & "|" & IIf(InStr(text, "## How to answer") > 0, "yes", "no") & "|" & _
+          IIf(InStr(text, "## Context") > 0, "yes", "no") & "|" & IIf(InStr(text, vbLf & "  - No Wait status: Feature, Team") > 0, "yes", "no") & "|" & _
+          IIf(InStr(text, "- REVIEW: ") + InStr(text, "- OK: ") > 0, "yes", "no")
+    Check "rovodebug", "no token is left and no data-check code is named", "{ DC06", "0|0", InStr(text, "{") & "|" & InStr(text, "DC06")
+    Check "rovodebug", "a done ticket: its key, why it is not in Flow Time, and both JQL name it", "TTT-1 in P1", "yes|yes|yes|yes", _
+          IIf(InStr(text, "- Done in the workbook (1 keys): TTT-1") > 0, "yes", "no") & "|" & IIf(InStr(text, "(key: reason): TTT-1: Reopened") > 0, "yes", "no") & "|" & _
+          IIf(InStr(text, " AND key not in (TTT-1)`") > 0, "yes", "no") & "|" & IIf(InStr(text, "`key in (TTT-1) AND NOT (status CHANGED TO (") > 0, "yes", "no")
+    Check "rovodebug", "the JQL of the ART names the Program and FeatureTypes, the window is the iteration up to its last minute", "P1", "yes|yes", _
+          IIf(InStr(text, "`project in (""TTT"") AND issuetype in (""Feature"")") > 0, "yes", "no") & "|" & _
+          IIf(InStr(text, "DURING (""2026-10-01 00:00"", ""2026-10-14 23:59"")") > 0, "yes", "no")
+    Check "rovodebug", "a team with no done ticket: no key list in its JQL (key in () is no JQL)", "AAA in P1", "yes|0", _
+          IIf(InStr(text, "none: the workbook counts no ticket here") > 0, "yes", "no") & "|" & InStr(text, "()")
+    Check "rovodebug", "the tickets left out and near a boundary are listed in their iteration", "TTT-9 in P1, AAA-1 in P2", "yes|yes", _
+          IIf(InStr(text, "(key: team, reason): TTT-9: ART (other types), Left out: not a Feature") > 0, "yes", "no") & "|" & _
+          IIf(InStr(text, "(key: team, hours): AAA-1: AAA, 3.5 h") > 0, "yes", "no")
+    Set wsC = wb.Worksheets(SheetName("Config"))
+    For cr = 2 To LastRow(wsC)
+        If CStr(wsC.Cells(cr, 1).Value) = "FeatureTypes" Then Set typesCell = wsC.Cells(cr, 2)
+    Next cr
+    If typesCell Is Nothing Then
+        Check "rovodebug", "the sheet Config has a row FeatureTypes", "Config", "yes", "no"
+    Else
+        savedTypes = typesCell.Value
+        typesCell.Value = ""
+        parts = Split(RovoRun(wb, folder, ""), "|")
+        typesCell.Value = savedTypes
+        text = RovoFiles(folder, Val(parts(0)))
+        Check "rovodebug", "no FeatureTypes: no JQL for the ART rather than issuetype in ()", "FeatureTypes empty", "yes|0", _
+              IIf(InStr(text, "none: the workbook has no project for this team, or no FeatureTypes") > 0, "yes", "no") & "|" & InStr(text, "issuetype in ()")
+    End If
+    On Error Resume Next
+    Kill folder & "\*.md"
+    RmDir folder
+    On Error GoTo 0
+    ClearFlowSheets wb
+End Sub
+
+Private Function RovoRun(ByVal wb As Object, ByVal folder As String, ByVal health As String) As String
+    ' WriteRovoDebug, or "0|0|0|0" when it raises (the checks then fail, they do not stop the run).
+    On Error Resume Next
+    RovoRun = "0|0|0|0"
+    RovoRun = WriteRovoDebug(wb, folder, health)
+    Err.Clear
+End Function
+
+Private Function RovoWriteError(ByVal wb As Object, ByVal folder As String) As Long
+    On Error Resume Next
+    WriteRovoDebug wb, folder, ""
+    RovoWriteError = Err.Number - vbObjectError
+    Err.Clear
+End Function
+
+Private Function Utf8WriteError(ByVal path As String) As Long
+    ' The error number of WriteUtf8File (0 when it wrote).
+    On Error Resume Next
+    WriteUtf8File path, "x"
+    Utf8WriteError = Err.Number
+    Err.Clear
+End Function
+
+Private Function Utf8Probe(ByVal text As String) As String
+    ' "bytes|first byte of e acute|second byte" of "Termin" & e acute read as bytes; "?" when the file is too short.
+    If Len(text) < 8 Then Utf8Probe = "?" & Len(text): Exit Function
+    Utf8Probe = Len(text) & "|" & Asc(Mid$(text, 7, 1)) & "|" & Asc(Mid$(text, 8, 1))
+End Function
+
+Private Function FileTextSafe(ByVal file As String) As String
+    ' FileText, or "" when the file cannot be read.
+    On Error Resume Next
+    FileTextSafe = FileText(file)
+    Err.Clear
+End Function
+
+Private Function RovoFiles(ByVal folder As String, ByVal count As Long) As String
+    ' The bytes of 01.md .. NN.md, one after the other ("" for a file that cannot be read).
+    Dim n As Long
+    For n = 1 To count
+        RovoFiles = RovoFiles & FileTextSafe(folder & "\" & Format$(n, "00") & ".md") & vbLf
+    Next n
+End Function
+
+Private Function RovoTablesError(ByVal wb As Object) As Long
+    On Error Resume Next
+    RequireRovoDebugTables wb
+    RovoTablesError = Err.Number - vbObjectError
+    Err.Clear
+End Function
+
 Public Sub T_RovoPrompt()
     ' The prompt for Rovo: the lines of RovoPromptSpec in order, the parameters of Config read live (name, mandatory, meaning,
     ' example), the header of each sheet, and never a Value of Config (it may hold the address, the e-mail or the token).
@@ -1042,7 +1191,7 @@ Public Sub T_LogInputsAndTimes()
     Check "logparam", "a parameter not known reads as a value of the client", "NewOne", "(set)", ParameterShown("NewOne", "v")
     Check "logparam", "AsOf is shown", "AsOf", "2026-11-03 18:00", ParameterShown("AsOf", "2026-11-03 18:00")
     Check "logparam", "a field id is shown", "StoryPointsField", "customfield_10016", ParameterShown("StoryPointsField", "customfield_10016")
-    Check "logparam", "nor the filter", "Filter", "(set)", ParameterShown("Filter", "updated >= -90d")
+    Check "logparam", "the filter is shown: the scope of the figures (AL, 2026-11-26)", "Filter", "updated >= -90d", ParameterShown("Filter", "updated >= -90d")
     Check "logparam", "a date typed in a cell reads in ISO", "AsOf date", "2026-11-03 18:00:00", _
           ParameterText(DateSerial(2026, 11, 3) + TimeSerial(18, 0, 0))
     Check "logparam", "a number reads as typed", "60", "60", ParameterText(60)

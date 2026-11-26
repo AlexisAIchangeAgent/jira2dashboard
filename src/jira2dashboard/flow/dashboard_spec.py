@@ -18,8 +18,8 @@ SELECTOR_CELL = "B2"                          # on the sheet Charts
 STATUS = "dashStatus"                          # name of the cell where the extraction tells what it does (its headline)
 # Top left, one under the other (AL's order): the progress bar, Prompt for Rovo, Load settings CSV, Read the Jira
 # configuration, Propose values from Jira, then the three steps (AL, 2026-11-22: correct and compute again without reading Jira):
-# 1. Extract from Jira, 2. Compute the metrics, 3. Draw the charts, and Cancel; then the status, so that no text of the status runs
-# under a button.
+# 1. Extract from Jira, 2. Compute the metrics, 3. Draw the charts, Cancel, and last Debug prompt for Rovo (AL, 2026-11-26); then the status,
+# so that no text of the status runs under a button.
 BAR_CELL = "A2"                               # the progress bar (rectangles pbBack, pbFill)
 ROVO_CELL = "A3"                              # the button that writes the prompt for Rovo
 ROVO_LOAD_CELL = "A5"                         # the button that loads the settings CSV (the answer of Rovo)
@@ -29,8 +29,9 @@ EXTRACT_CELL = "A11"                          # the button 1. Extract from Jira
 COMPUTE_CELL = "A13"                          # the button 2. Compute the metrics
 DRAW_CELL = "A15"                             # the button 3. Draw the charts
 CANCEL_CELL = "A17"                           # the button Cancel
-STATUS_CELL = "A20"
-STATUS_ROWS = 20                              # rows of fields under it (A21:A40): name in A, value in B (modActions.ShowProgress)
+ROVO_DEBUG_CELL = "A19"                       # the button that writes the debug prompt for Rovo (the files of rovo-debug), last (AL, 2026-11-26)
+STATUS_CELL = "A22"
+STATUS_ROWS = 20                              # rows of fields under it (A23:A42): name in A, value in B (modActions.ShowProgress)
 BUTTON_WIDTH, BUTTON_HEIGHT, BAR_HEIGHT = 190, 26, 14
 
 XL_COLUMN_CLUSTERED, XL_LINE_MARKERS, XL_COLUMN_STACKED_100, XL_LINE = 51, 65, 53, 4
@@ -70,6 +71,7 @@ CONFIG_CAPTION = "Read the Jira configuration"
 PROPOSE_CAPTION = "Propose values from Jira"
 ROVO_CAPTION = "Prompt for Rovo"
 ROVO_LOAD_CAPTION = "Load settings CSV"
+ROVO_DEBUG_CAPTION = "Debug prompt for Rovo"
 STEPS_CELL = "T1"           # the first steps (manual.first_steps), right of the status rows
 
 # AL, 2026-11-17: an iteration where nothing was done (every Feature deferred, say) has Velocity 0 (no bar) and no Flow Time or Flow

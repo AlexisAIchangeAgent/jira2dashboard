@@ -8,7 +8,7 @@ buttons, and a section to check the figures.
 from jira2dashboard import sheet_names as S
 from jira2dashboard.flow.checks import CHECKS
 from jira2dashboard.flow.dashboard_spec import (CANCEL_CAPTION, COMPUTE_CAPTION, CONFIG_CAPTION, DRAW_CAPTION, EXTRACT_CAPTION, PROPOSE_CAPTION,
-                                                ROVO_CAPTION, ROVO_LOAD_CAPTION, STATUS_CELL)
+                                                ROVO_CAPTION, ROVO_DEBUG_CAPTION, ROVO_LOAD_CAPTION, STATUS_CELL)
 from jira2dashboard.flow.reconciliation import CONTROLS
 from jira2dashboard.params.model import TYPED_AT_CLIENT
 
@@ -55,7 +55,7 @@ def manual(mandatory: tuple[str, ...]) -> list[tuple[str, str]]:
         ("The sheets", [
             LEGEND,
             f"Do not edit {S.of('FlowFormulas')}, {S.of('ChartSpec')}, {S.of('ChecksSpec')}, {S.of('RawTypesSpec')} and "
-            f"{S.of('RovoPromptSpec')}: they are the plan the workbook builds from.",
+            f"{S.of('RovoPromptSpec')}, {S.of('RovoDebugSpec')}: they are the plan the workbook builds from.",
         ]),
         ("Set up (once)", [
             f"{CONFIG}: one row per parameter (Parameter, Value, Example, Mandatory, Description). Only Value is read; Example shows its form.",
@@ -116,6 +116,11 @@ def manual(mandatory: tuple[str, ...]) -> list[tuple[str, str]]:
             "calling Jira.",
             "The note under a chart counts its gaps (not computable points) and gives their most frequent cause, read in the check tables.",
         ]),
+        (f'Button "{ROVO_DEBUG_CAPTION}"', [
+            f'After "{COMPUTE_CAPTION}", it writes 01.md, 02.md... in the folder rovo-debug next to the workbook: how Rovo must answer, the '
+            "context, the controls, then the keys of the last 18 iterations with the JQL that show only the differences with Jira.",
+            "In Rovo Chat: +, Upload a file, 01.md first. Rovo lists each key that differs with its cause. Dates are UTC. Filter is in the files.",
+        ]),
         ("Which button after a change", [
             f'The connection, the proxy, Filter, the projects of {PROJECTS}, a field id (...Field, WorkTypeField) or BlocksLinkType: '
             f'"{EXTRACT_CAPTION}", then the two others.',
@@ -151,7 +156,8 @@ def manual(mandatory: tuple[str, ...]) -> list[tuple[str, str]]:
             "Then the done tickets that no figure counts, with the reason; those done within 24 hours of an iteration boundary; those in process "
             "at the end of each iteration (the Flow Load at the end).",
             f"5. To compare with Jira: take an iteration and a team in {METRIC_ITEMS}, then search Jira for status CHANGED TO \"<end status>\" "
-            "DURING (\"<start>\", \"<end>\"). VelocityCheck explains the differences. Dates are UTC; the End of an iteration is excluded.",
+            f'DURING (\"<start>\", \"<end>\"), or let Rovo do it ("{ROVO_DEBUG_CAPTION}"). VelocityCheck explains the differences. Dates are UTC; '
+            "the End of an iteration is excluded.",
             f"6. Most \"not computable\" come from {STATUS_RULES}: no status with IsStart = 1, or none in the category Wait. Correct it in "
             f'{WORKFLOWS}, then click "{COMPUTE_CAPTION}" and "{DRAW_CAPTION}": no new extraction.',
             f"7. {ITEMFLOW}: one row per ticket, with Account (every ticket is in one account), DoneIteration and WhyNotInFlowTime.",

@@ -293,8 +293,9 @@ python.log). `tests/unit/test_claude_hooks.py` and `test_claude_skills.py` test 
   stops the buttons before any call to Jira (`modParams.RequireMandatory`, error 608).
 - **Dashboard and Charts.** Top left, one under the other (AL's order): the progress bar `A2`, the buttons Prompt for Rovo
   `A3`, Load settings CSV `A5`, Read the Jira configuration `A7`, Propose values from Jira `A9`, then the three steps `1. Extract from Jira` `A11`,
-  `2. Compute the metrics` `A13`, `3. Draw the charts` `A15`, Cancel `A17` (cells and captions in `dashboard_spec`, the captions also in `modActions`: a test). A
-  final status is `Title | Name: value | ...`: `A20` (name `dashStatus`) shows the title and `A21:B40` one row per field (`modText.StatusParts`, `modActions.ShowProgress`; `ProgressSnapshot` rebuilds the line from the
+  `2. Compute the metrics` `A13`, `3. Draw the charts` `A15`, Cancel `A17`, and last Debug prompt for Rovo `A19` (AL, 2026-11-26) (cells and captions in
+  `dashboard_spec`, the captions also in `modActions`: a test). A
+  final status is `Title | Name: value | ...`: `A22` (name `dashStatus`) shows the title and `A23:B42` one row per field (`modText.StatusParts`, `modActions.ShowProgress`; `ProgressSnapshot` rebuilds the line from the
   cells for the tests). The 10 charts, their notes and the team selector `B2` (name `dashTeam`) are on the sheet `Charts`, made
   at build after the Dashboard (`CHARTS_SHEET` of `modFlowBuild`/`modActions` = `dashboard_spec.CHARTS_SHEET`, a test pins it). The 5
   charts of the Features per iteration are on the sheet `IterationCharts` (right after `Charts`; `ChartSpec` has a column `Sheet`, the
@@ -306,7 +307,7 @@ python.log). `tests/unit/test_claude_hooks.py` and `test_claude_skills.py` test 
   p85 and Flow Efficiency; `charts_svg.gaps_note` is the Python twin). `-Run` and `manual-test` use `out\release`: run `build` first after a VBA change.
 - **User manual.** `src/jira2dashboard/manual.py` (pure text) is written by `flow/sheets.write_manual` at the delivery
   build: the first steps on the Dashboard from T1, and the sheet `Manual`. Update it when a button, sheet or step changes. AL, 2026-11-24: short
-  lines (a test pins at most 420 characters a line, 10 000 for the sheet, 1 300 for the first steps), one section per button in the order of the
+  lines (a test pins at most 420 characters a line, 10 500 for the sheet since the button Debug prompt for Rovo, 1 300 for the first steps), one section per button in the order of the
   Dashboard, and the section "Check the figures" (the guide: status, Reconciliation, the check tables, MetricItems, compare with Jira, correct in
   Workflows then 2 and 3); the counts of controls and data checks come from `reconciliation.CONTROLS` and `checks.CHECKS`.
 - **Extraction (VBA).** `modHttp` (WinHTTP, proxy with Windows auth, retries; `modProxy` finds the proxy of the Windows
@@ -402,7 +403,8 @@ python.log). `tests/unit/test_claude_hooks.py` and `test_claude_skills.py` test 
   its `Findings` as `J2D-SYS-02x` with the line `Codes to quote to the support`, `check-machine` prints `J2D-SYS-040` on a FAIL.
 - **Logs.** VBA (`modLog`): the version of the workbook on the `RUN` line (hidden name `J2D_Version`, written at build by
   `version.py`: commit and date, plus the version given by `release.ps1`), `PARAM` lines right after `RUN` (`LogParameters`: each Config row in clear
-  but BaseUrl, Email, ApiToken, ProxyServer, ProxyBypass and Filter, which read `(set)`/`(empty)`; `SHOWN_PARAMETERS`, compared with
+  but BaseUrl, Email, ApiToken, ProxyServer and ProxyBypass, which read `(set)`/`(empty)`; the Filter in clear since 2026-11-26, AL: the scope
+  of the figures, and `diagnose` leaves the PARAM lines out of a support ticket; `SHOWN_PARAMETERS`, compared with
   `CONFIG_PARAMETERS` by `test_vba_log_guard.py`: a new parameter is masked until added there), the time at the end of each `END` line and of
   `RUN end`, a `RETRY` line before each new attempt of a call to Jira (`modHttp.RetryText`), the code on `RUN end stopped <code>`, and a `WARN J2D-DATA-003` line when status changes are left out because their date cannot be read (the count and the
   shape of the values, digits and letters masked: `modFlow.DateShape`, `mapping.date_shape`; an Empty date once made a negative DATE of a duration, which Excel
@@ -480,6 +482,22 @@ python.log). `tests/unit/test_claude_hooks.py` and `test_claude_skills.py` test 
   (`modParams.ParseCsv`, `RovoCsvRead`, `RovoCsvApply`: comma, semicolon or tab, UTF-8 with or without BOM): Config gets the Value
   of each parameter named, every other sheet of the file has all its rows replaced; UNKNOWN, empty and the token placeholder are
   not loaded.
+- **Debug prompt for Rovo (button, VBA, AL 2026-11-26: "everything in a prompt file so that Rovo gives the root causes").** `src/jira2dashboard/rovo_debug.py`
+  (pure text: the instructions, the closed list of causes, one Rovo title + hint + group jira/partial/workbook per control of `reconciliation.CONTROLS`, the
+  JQL templates, the columns of MetricItems from `formulas.metricitems_column`, the limits 12 000 characters a file and 18 iterations) is written at build into
+  `RovoDebugSpec` (Part | Name | Text | Hint). `modRovoDebug.WriteRovoDebug` (button `modActions.BtnRovoDebug`, cell `A19`) reads it with the tables of 2. Compute
+  (error 633 `J2D-ROVO-004` without them, 634 `J2D-ROVO-005` without its spec), fills the tokens `{name}` (`RovoFill` with token/value pairs; `test_rovo_debug.py` checks that every token of the spec
+  is one the VBA fills), and writes `01.md`, `02.md`... (UTF-8 without BOM, `WriteUtf8File`: `Kill` then a Binary `Put` of `Utf8Encode`, the file closed if the write fails; only `01.md`..`99.md` are deleted
+  first: a wildcard `??.md` also takes `x.md`) into `rovo-debug` next to the workbook (`RovoDebugFolder`, the folder of the user for an http path). File 1: how to answer, the causes, the context
+  (version, AsOf, Filter, FeatureTypes, Projects, StatusRules per kind, the iteration index with its file, JQL E of the extraction, JQL F of the Features, the health
+  fields, the parameters in force) and the controls (the Rovo title: HISTORIES is named "(DC06, DC07)" and Rovo knows no DCnn). Then one section per iteration (the last
+  18 that started, by Start: `RovoLastStarted`), packed into files while they stay under 12 000 (`RovoPack`; a larger one alone has its file): the keys left out and
+  near a boundary (items joined with "; ": an item holds ", "), then per team of Metrics (named as `TeamNames` names them) its Velocity (VelocityCheck.Reason), its done keys, those left out of Flow Time, and JQL A (done in Jira in the iteration,
+  `key not in` the keys) / B (`key in` the keys AND NOT changed into an end status in it). An empty key list drops the clause (`key in ()` is no JQL); no project, no
+  FeatureTypes or no end status gives a word, never a wrong JQL. Why so (research 2026-11-26): Rovo does not count reliably (ROVO-535, ROVO-287, ROVO-249), so it runs
+  the JQL as written and lists keys with a cause, never a total; `.md` in Rovo Chat; 12 000 characters is a guess to calibrate at the client. The dates are UTC with
+  a warning (JQL reads the time zone of the Jira profile). The log gets counts only (no key, no path); the Excel scenario `rovo_debug.feature` checks the keys of the
+  art-metrics scenario against `art_oracle`. Not done: a Python twin (the path without VBA has no buttons), the in-process list (its JQL `WAS IN ... ON` is approximate).
 - **Rovo side (md only, no code).** `rovo/` holds the master copies of the Rovo Studio agents. `rovo/rovo-guide.md` is
   the current guide; `docs/rovo-guide.md` is frozen. Steering is hybrid: the workbook computes, and the RTE publishes
   the figures on the page `rovo/confluence_flow_metrics_page.md`. The agent `rovo/rovo_train_steering.md` reads that
@@ -633,7 +651,9 @@ then `mermaid.parse`), and check every `](#anchor)` link against the headings.
   `0x1d3df`; it also hits `BEGIN flow sheets: charts` of a second build in the same Excel (scenario "second calcul": 1 in 5
   at 61507d1 on 2026-11-12, `T_FlowBuild` alone 0 in 10). Measured as this defect then; still run the A/B above before
   dismissing a new crash there. `vba-tests` loses Excel at `BEGIN flow sheets: charts` (T_FlowBuild) too: 4 runs in about 14 on
-  2026-11-13, none tied to a change: rerun up to 3 times.
+  2026-11-13, none tied to a change: rerun up to 3 times. **`T_RovoDebug` (it builds the tables again) must stay right after `T_FlowBuild` in
+  `TestNames`:** as the LAST test of the list, `vba-tests --offline` lost Excel at its `BEGIN flow sheets: prepare` 7 runs in 7 (2026-11-26; the
+  full `vba-tests` passed 3 in 3 there), and right after `T_FlowBuild` both pass. The cause was not found.
 - **Jira API documentation:** the Atlassian MCP is not connected (only its authenticate tools) and a real site is never authenticated (hard constraint). Read the
   official OpenAPI schema with Context7 (`/openapi/dac-static_atlassian_cloud_jira_platform_swagger-v3_v3_json`, and Jira Software `.../swagger.v3.json`) or WebFetch of
   `https://dac-static.atlassian.com/cloud/jira/platform/swagger-v3.v3.json`: the developer.atlassian.com pages need JavaScript.
@@ -784,4 +804,4 @@ about 0.3 s each, 25 changelog chunks about 0.3 s each, ItemFlow formulas 1.9 s.
 before starting (the 2026-11-07 figures above predate it).
 Also pending, offered to AL: when the macro loses its state (Esc then End during a long step), the Dashboard stays on its
 last status and Cancel does nothing; `AbortExtraction` and a slice that finds `mBusy` False could write a log line and
-"Stopped" in `A16` (`dashStatus`).
+"Stopped" in `A22` (`dashStatus`).

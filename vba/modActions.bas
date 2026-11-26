@@ -4,6 +4,7 @@ Option Explicit
 '   1. Extract from Jira     (BtnExtract)          reads Jira into the raw sheets; the results of the previous computation are deleted
 '   2. Compute the metrics   (BtnComputeMetrics)   the status rules again (modExtract.RefreshRules), then the tables and formulas; no call to Jira
 '   3. Draw the charts       (BtnDrawCharts)       the charts from the tables; no call to Jira
+' then Debug prompt for Rovo (BtnRovoDebug, last): the files that let Rovo compare the figures with Jira (modRovoDebug); no call to Jira
 ' Trivial entry points (like modButtons): the scenarios of flow_excel.feature run them against the fake Jira.
 ' A button macro must be a Public Sub without arguments.
 '
@@ -25,6 +26,7 @@ Private Const CHARTS_SHEET As String = "Charts"    ' the sheet of the charts (fl
 Private Const EXTRACT_CAPTION As String = "1. Extract from Jira"        ' the captions of the buttons (flow/dashboard_spec)
 Private Const COMPUTE_CAPTION As String = "2. Compute the metrics"
 Private Const DRAW_CAPTION As String = "3. Draw the charts"
+Private Const ROVO_DEBUG_CAPTION As String = "Debug prompt for Rovo"
 ' The mandatory parameters the metrics need (the extraction checks its own: modExtract.EXTRACT_PARAMETERS)
 Private Const COMPUTE_PARAMETERS As String = "FlowLoadMode,PredictabilityMode,AsOf,FeatureTypes,FillRateThreshold"
 Private mNextProc As String                ' the string given to OnTime: Schedule:=False needs the same one
@@ -247,6 +249,33 @@ Public Sub BtnRovoPrompt()
 Failed:
     num = Err.Number: desc = Err.Description
     LogError "BtnRovoPrompt", num, desc
+    LogRunEnd "stopped"
+    EndRunStopped num, desc
+End Sub
+
+Public Sub BtnRovoDebug()
+    ' Debug prompt for Rovo (AL, 2026-11-26): writes 01.md, 02.md... into the folder rovo-debug next to the workbook (modRovoDebug.WriteRovoDebug):
+    ' how to answer, the context, the controls, then the keys of each iteration with the JQL that return only the differences with Jira. The workbook
+    ' sends nothing: the user uploads the files into Rovo Chat. Needs the tables of 2. Compute the metrics (error 633). The log gets the counts only.
+    Dim num As Long, desc As String, health As String, folder As String, parts() As String
+    If mBusy Then Beep: Exit Sub
+    On Error GoTo Failed
+    LogRunStart "button " & ROVO_DEBUG_CAPTION, LogLevelSetting()
+    LogParameters ThisWorkbook
+    RequireEditable
+    RequireRovoDebugTables ThisWorkbook
+    health = HealthFields(ThisWorkbook)                             ' what the last computation says to look at (its own step of the log)
+    folder = RovoDebugFolder(ThisWorkbook.Path, Environ$("LOCALAPPDATA"), Environ$("TEMP"))
+    LogBegin "debug prompt for Rovo"
+    parts = Split(WriteRovoDebug(ThisWorkbook, folder, health), "|")
+    LogEnd "debug prompt for Rovo: " & parts(0) & " files, the largest " & parts(1) & " characters, " & parts(2) & " of " & parts(3) & " iterations"
+    ShowProgress -1, "Rovo debug prompt | Files: " & parts(0) & ", the largest " & parts(1) & " characters | Iterations: " & parts(2) & " of " & _
+                     parts(3) & ", the last ones that started | Folder: " & folder & " | Next: in Rovo Chat, + then Upload a file, 01.md first, then the others"
+    LogRunEnd "ok"
+    Exit Sub
+Failed:
+    num = Err.Number: desc = Err.Description
+    LogError "BtnRovoDebug", num, desc
     LogRunEnd "stopped"
     EndRunStopped num, desc
 End Sub

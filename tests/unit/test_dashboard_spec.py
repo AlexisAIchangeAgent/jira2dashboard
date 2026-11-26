@@ -101,8 +101,10 @@ def test_the_vba_names_the_same_sheet_of_charts_and_the_same_status_rows():
     for module in ("modFlowBuild", "modActions"):
         assert f'Private Const CHARTS_SHEET As String = "{d.CHARTS_SHEET}"' in sources[module], module
     assert f"Private Const STATUS_ROWS As Long = {d.STATUS_ROWS}" in sources["modActions"]
-    for name, caption in (("EXTRACT_CAPTION", d.EXTRACT_CAPTION), ("COMPUTE_CAPTION", d.COMPUTE_CAPTION), ("DRAW_CAPTION", d.DRAW_CAPTION)):
+    for name, caption in (("EXTRACT_CAPTION", d.EXTRACT_CAPTION), ("COMPUTE_CAPTION", d.COMPUTE_CAPTION), ("DRAW_CAPTION", d.DRAW_CAPTION),
+                          ("ROVO_DEBUG_CAPTION", d.ROVO_DEBUG_CAPTION)):
         assert f'Private Const {name} As String = "{caption}"' in sources["modActions"], name      # the run lines and the statuses name the buttons
+    assert f'Private Const COMPUTE_CAPTION As String = "{d.COMPUTE_CAPTION}"' in sources["modRovoDebug"]       # its stop names the button to click
     assert f"Private Const BAND_MARKER As Long = {d.BAND_MARKER}" in sources["modFlowBuild"]
     assert "s.MarkerStyle = BAND_MARKER" in sources["modFlowBuild"]
 
