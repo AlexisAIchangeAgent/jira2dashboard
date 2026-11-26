@@ -368,6 +368,13 @@ python.log). `tests/unit/test_claude_hooks.py` and `test_claude_skills.py` test 
   an offset in a parameter text refused (a final `Z` accepted), FlowLoadMode / PredictabilityMode checked (error 711, `J2D-CFG-007`). Known and left: a start
   entered in the same second as the last backlog entry gives no StartUtc (milliseconds dropped, the start must be strictly after): counted by a health field,
   the rule is AL's to decide; Propose rounds a sprint that starts at local midnight one day early (D7 of the audit).
+  **The headers of Iterations and PIs (AL, 2026-11-26: v0.19.0 at the client, every iteration label empty, 9 of 20 controls to review).** `ReadTable` keys a row
+  by its header text, binary compare: a header that was not exactly `Iteration-label` gave Empty for every label, and nothing stopped. The build now checks the
+  headers (`modFlowBuild.RequireColumns`, error 713, `J2D-CFG-014`; the Python path: `params_book` "no column ... in its first row"). `IterationRows` reads its
+  three columns by header (`HeaderColumns`), not by `ReadTable` (which skips a row whose first cell is empty: a row with dates and no label vanished), writes
+  the label trimmed and refuses a label empty or listed twice, case ignored as Excel compares (error 714, `J2D-CFG-015`; Python `_check_iterations`).
+  `ReadTable` and `HeaderColumn` trim the headers as `params_book.text` does; `HeaderColumn` (Propose, the CSV load) still ignores case: a header
+  `iteration-label` is filled there and refused at the build. The 713 message joins with ", ": a " | " would cut it into fields of the Dashboard status.
 - **Support codes.** Every error shown or logged carries `J2D-<AREA>-<NNN>` (`CFG`, `JIRA`, `NET`, `DATA`, `FLOW`, `ROVO`, `SYS`, `VBA`, `GEN`):
   the table is `src/jira2dashboard/error_codes.py` (code, vba number, meaning, cause, check, what support asks), shown in the sheet
   `ErrorCodes`; `modLog.ErrorCode(number, description)` is the VBA rule (602 has two causes: BaseUrl check, HTTP status = `JIRA-<status>`,

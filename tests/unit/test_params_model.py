@@ -259,6 +259,15 @@ def test_iteration_rows_are_checked(params_copy):
     assert "Iterations row 3: Start must be before End" in text and "Iterations row 4: Iteration-label needs a name" in text
 
 
+def test_two_iterations_whose_labels_differ_only_by_case_are_one_name_twice(params_copy):
+    """Excel looks the labels up without case (SUMIFS, XLOOKUP, COUNTIFS): It1 and IT1 would mix their rows, the VBA refuses them (error 714)."""
+    path = params_copy / "iterations.md"
+    path.write_text(path.read_text(encoding="utf-8") + "| It1 | 2026-10-05 | 2026-10-19 |\n| IT1 | 2026-10-19 | 2026-11-02 |\n", encoding="utf-8")
+    with pytest.raises(ParamsError) as err:
+        model.load_all(params_copy)
+    assert "iteration 'It1' listed twice" in str(err.value)
+
+
 def test_iteration_dates_are_from_2000_to_2099(params_copy):
     path = params_copy / "iterations.md"
     path.write_text(path.read_text(encoding="utf-8") + "| I1 | 2126-10-05 | 2126-10-19 |\n", encoding="utf-8")

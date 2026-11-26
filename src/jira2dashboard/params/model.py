@@ -219,15 +219,19 @@ def pi_without_dates(start, end) -> bool:
 
 
 def _check_iterations(sheet: ParamSheet, problems: list[str], column: str = "Iteration-label") -> None:
-    """Iterations (column Iteration-label) and PIs (column PI): a name, two dates, Start before End, no name twice. A PI with a name and no date
-    at all is left out of the metrics, not refused (pi_without_dates)."""
-    seen: Counter = Counter()
+    """Iterations (column Iteration-label) and PIs (column PI): a name, two dates, Start before End, no name twice (case ignored, as Excel
+    compares: the VBA refuses It1 and IT1 with error 714). A PI with a name and no date at all is left out of the metrics, not refused
+    (pi_without_dates)."""
+    seen: Counter = Counter()                                  # by the name without case: Excel looks the names up so (SUMIFS, MATCH, COUNTIFS)
+    spelling: dict = {}
     label = sheet.name
     noun = column.lower() if column == "PI" else "iteration"
     for number, rec in _records(sheet):
         where = f"{label} row {number}"
+        key = (rec[column] or "").upper()
+        spelling.setdefault(key, rec[column])
         if column == "PI" and rec[column] and pi_without_dates(rec["Start"], rec["End"]):
-            seen[rec[column]] += 1
+            seen[key] += 1
             continue
         start, end = _parse_moment(rec["Start"] or ""), _parse_moment(rec["End"] or "")
         if not rec[column]:
@@ -240,10 +244,10 @@ def _check_iterations(sheet: ParamSheet, problems: list[str], column: str = "Ite
             problems.append(f"{where}: Start and End are whole days (no time): the daily load and the PI window count days")
         elif start >= end:
             problems.append(f"{where}: Start must be before End")
-        seen[rec[column]] += 1
-    for name, count in seen.items():
+        seen[key] += 1
+    for key, count in seen.items():
         if count > 1:
-            problems.append(f"{label}: {noun} {name!r} listed twice")
+            problems.append(f"{label}: {noun} {spelling[key]!r} listed twice")
 
 
 def _check_projects(sheet: ParamSheet, problems: list[str]) -> None:

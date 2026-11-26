@@ -14,19 +14,24 @@ Private Const NO_START_TEXT As String = " workflow: Flow Time, Flow Efficiency a
 Private Const NO_WAIT_TEXT As String = "no status is declared Wait: Flow Efficiency cannot be computed | declare Category = Wait in the sheet Workflows for the statuses where the work waits"
 
 Public Function ReadTable(ByVal ws As Object) As Collection
-    ' Row 1 holds the headers. Returns one Dictionary (header -> cell value) per row whose first cell is not empty.
+    ' Row 1 holds the headers, trimmed as the Python path reads them ("Iteration-label " is Iteration-label: params_book.text). Returns one
+    ' Dictionary (header -> cell value) per row whose first cell is not empty.
     Cov "PRM01"
-    Dim data As Variant, out As New Collection, r As Long, c As Long, d As Object, nRows As Long, nCols As Long
+    Dim data As Variant, out As New Collection, r As Long, c As Long, d As Object, nRows As Long, nCols As Long, heads() As String
     Set ReadTable = out
     nRows = ws.Cells(ws.Rows.Count, 1).End(-4162).Row            ' -4162 = xlUp
     nCols = ws.Cells(1, ws.Columns.Count).End(-4159).Column      ' -4159 = xlToLeft
     If nRows < 2 Then Cov "PRM02": Exit Function
     data = ws.Range(ws.Cells(1, 1), ws.Cells(nRows, nCols)).Value
+    ReDim heads(1 To nCols)
+    For c = 1 To nCols
+        heads(c) = TrimWhite(CStr(data(1, c)))
+    Next c
     For r = 2 To nRows
         If Len(CStr(data(r, 1) & "")) > 0 Then
             Set d = CreateObject("Scripting.Dictionary")
             For c = 1 To nCols
-                d(CStr(data(1, c))) = data(r, c)
+                d(heads(c)) = data(r, c)
             Next c
             out.Add d
         End If
@@ -568,11 +573,11 @@ Private Function CsvAt(ByVal rec As Variant, ByVal i As Long) As String
 End Function
 
 Public Function HeaderColumn(ByVal ws As Object, ByVal name As String) As Long
-    ' The column of a header of row 1 (0 when missing); the cells after the first empty header are not read.
+    ' The column of a header of row 1 (0 when missing), trimmed as ReadTable reads it, case ignored; the cells after the first empty header are not read.
     Dim c As Long
     For c = 1 To ws.Columns.Count
         If Len(CStr(ws.Cells(1, c).Value & "")) = 0 Then Exit Function
-        If StrComp(CStr(ws.Cells(1, c).Value), name, vbTextCompare) = 0 Then HeaderColumn = c: Exit Function
+        If StrComp(TrimWhite(CStr(ws.Cells(1, c).Value)), name, vbTextCompare) = 0 Then HeaderColumn = c: Exit Function
     Next c
 End Function
 

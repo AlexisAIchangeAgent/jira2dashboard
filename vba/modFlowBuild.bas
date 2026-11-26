@@ -271,29 +271,74 @@ Private Sub WritePiStatusKeys(ByVal ws As Object, ByVal pis As Collection, ByVal
 End Sub
 
 Private Function IterationRows(ByVal wsIterations As Object) As Collection
-    ' Iteration-label | Start | End -> Collection of Array(name, start serial, end serial)
+    ' Iteration-label | Start | End -> Collection of Array(label, start serial, end serial). The columns are found by their header (RequireColumns
+    ' checked the three) and a row is read when one of its three cells is filled, as the Python path reads it (params_book.sheet_from_grid): a row
+    ' with dates and no label no longer disappears without a word (ReadTable skips a row whose first cell is empty), and the notes of the column
+    ' Example are not read. The label is the key of every table by iteration (Metrics, the check tables, IterationFeatures, the axis of the
+    ' charts): trimmed as the Python path trims it, never empty, never twice, case ignored as SUMIFS, XLOOKUP and COUNTIFS compare (AL, 2026-11-26).
     Cov "FLB09"
-    Dim out As New Collection, row As Variant, s As Variant, e As Variant
-    For Each row In ReadTable(wsIterations)
-        s = SerialOf(row("Start")): e = SerialOf(row("End"))
-        If Not IsEmpty(s) Then If s < 36526 Or s >= 73051 Then s = Empty   ' 2000 to 2099: 1026 for 2026, or 20261005 typed as a number, is a typo
-        If Not IsEmpty(e) Then If e < 36526 Or e >= 73051 Then e = Empty
-        If IsEmpty(s) Or IsEmpty(e) Then
-            Cov "FLB28"
-            Err.Raise vbObjectError + 701, "BuildFlowSheets", "Sheet Iterations: Start and End of iteration " & row("Iteration-label") & " must be dates from 2000 to 2099."
-        End If
-        If s <> Int(s) Or e <> Int(e) Then                              ' a time of day: the daily load counts whole days (the Python path refuses it too)
-            Cov "FLB63"
-            Err.Raise vbObjectError + 701, "BuildFlowSheets", "Sheet Iterations: Start and End of iteration " & row("Iteration-label") & _
-                      " are whole days (no time of day): the daily load counts days."
-        End If
-        If e <= s Then
-            Cov "FLB27"
-            Err.Raise vbObjectError + 704, "BuildFlowSheets", "Sheet Iterations: iteration " & row("Iteration-label") & " ends before it starts."
-        End If
-        out.Add Array(CStr(row("Iteration-label")), s, e)
-    Next row
+    Dim out As New Collection, cols As Object, col As Variant, last As Long, r As Long, s As Variant, e As Variant
+    Dim lv As Variant, sv As Variant, ev As Variant, label As String, seen As Object
     Set IterationRows = out
+    Set seen = CreateObject("Scripting.Dictionary")
+    Set cols = HeaderColumns(wsIterations)
+    For Each col In Array(cols("Iteration-label"), cols("Start"), cols("End"))
+        r = wsIterations.Cells(wsIterations.Rows.Count, CLng(col)).End(-4162).Row     ' -4162 = xlUp
+        If r > last Then last = r
+    Next col
+    For r = 2 To last
+        lv = wsIterations.Cells(r, cols("Iteration-label")).Value
+        sv = wsIterations.Cells(r, cols("Start")).Value: ev = wsIterations.Cells(r, cols("End")).Value
+        If Not (IsBlankCell(lv) And IsBlankCell(sv) And IsBlankCell(ev)) Then
+            If IsError(lv) Then label = "" Else label = TrimWhite(CStr(lv & ""))
+            If Len(label) = 0 Then
+                Cov "FLB72"
+                Err.Raise vbObjectError + 714, "BuildFlowSheets", "Sheet Iterations: row " & r & " has no Iteration-label: give each iteration its own label."
+            End If
+            s = SerialOf(sv): e = SerialOf(ev)
+            If Not IsEmpty(s) Then If s < 36526 Or s >= 73051 Then s = Empty   ' 2000 to 2099: 1026 for 2026, or 20261005 typed as a number, is a typo
+            If Not IsEmpty(e) Then If e < 36526 Or e >= 73051 Then e = Empty
+            If IsEmpty(s) Or IsEmpty(e) Then
+                Cov "FLB28"
+                Err.Raise vbObjectError + 701, "BuildFlowSheets", "Sheet Iterations: Start and End of iteration " & label & " must be dates from 2000 to 2099."
+            End If
+            If s <> Int(s) Or e <> Int(e) Then                          ' a time of day: the daily load counts whole days (the Python path refuses it too)
+                Cov "FLB63"
+                Err.Raise vbObjectError + 701, "BuildFlowSheets", "Sheet Iterations: Start and End of iteration " & label & _
+                          " are whole days (no time of day): the daily load counts days."
+            End If
+            If e <= s Then
+                Cov "FLB27"
+                Err.Raise vbObjectError + 704, "BuildFlowSheets", "Sheet Iterations: iteration " & label & " ends before it starts."
+            End If
+            If seen.Exists(UCase$(label)) Then
+                Cov "FLB73"
+                Err.Raise vbObjectError + 714, "BuildFlowSheets", "Sheet Iterations: iteration " & label & " is listed twice (case ignored, as Excel " & _
+                          "compares): give each iteration its own label."
+            End If
+            seen(UCase$(label)) = True
+            out.Add Array(label, s, e)
+        End If
+    Next r
+End Function
+
+Private Function IsBlankCell(ByVal v As Variant) As Boolean
+    ' Empty, or blanks only; an error value is not blank.
+    If Not IsError(v) Then IsBlankCell = (Len(TrimWhite(CStr(v & ""))) = 0)
+End Function
+
+Private Function HeaderColumns(ByVal ws As Object) As Object
+    ' The headers of row 1, trimmed and case kept as the Python path reads them (params_book.sheet_from_grid) -> their column; the first one wins.
+    Dim c As Long, v As Variant, heading As String, out As Object
+    Set out = CreateObject("Scripting.Dictionary")
+    For c = 1 To ws.Cells(1, ws.Columns.Count).End(-4159).Column        ' -4159 = xlToLeft
+        v = ws.Cells(1, c).Value
+        If Not IsError(v) Then
+            heading = TrimWhite(CStr(v & ""))
+            If Len(heading) > 0 And Not out.Exists(heading) Then out(heading) = c
+        End If
+    Next c
+    Set HeaderColumns = out
 End Function
 
 Public Function SerialOf(ByVal v As Variant) As Variant
@@ -481,6 +526,8 @@ Private Sub LoadPlan(ByVal wb As Object, ByRef spec As Object, ByRef teams As Co
     Next nm
     Set spec = ReadFormulas(wb)
     Set teams = TeamNames(wb.Worksheets(SheetName("Projects")), SettingOf(spec, "Dashboard", "ProgramTeam"))
+    RequireColumns wb.Worksheets(SheetName("Iterations")), Array("Iteration-label", "Start", "End")
+    RequireColumns wb.Worksheets(SheetName("PIs")), Array("PI", "Start", "End")
     Set iterations = IterationRows(wb.Worksheets(SheetName("Iterations")))
     If iterations.Count = 0 Then
         Cov "FLB15"
@@ -488,6 +535,23 @@ Private Sub LoadPlan(ByVal wb As Object, ByRef spec As Object, ByRef teams As Co
     End If
     CheckPis wb.Worksheets(SheetName("PIs"))
     CheckModes wb.Worksheets(SheetName("Config"))
+End Sub
+
+Private Sub RequireColumns(ByVal ws As Object, ByVal columns As Variant)
+    ' The headers that the build reads by name (ReadTable), as the Python path finds them (params_book.sheet_from_grid: trimmed, case kept). At the
+    ' client (v0.19.0, AL 2026-11-26) a header that was not exactly Iteration-label left every label empty without a word: the keys of Metrics, of the
+    ' check tables and of IterationFeatures were blank and 9 of the 20 controls of the Reconciliation were to review.
+    ' The parts of the message are joined by ", ": " | " would cut it into fields of the Dashboard status (modText.StatusParts).
+    Cov "FLB70"
+    Dim have As Object, nm As Variant
+    Set have = HeaderColumns(ws)
+    For Each nm In columns
+        If Not have.Exists(CStr(nm)) Then
+            Cov "FLB71"
+            Err.Raise vbObjectError + 713, "BuildFlowSheets", "Sheet " & ws.Name & ": no column " & nm & " in its first row (found: " & _
+                      Join(have.Keys, ", ") & "). Type the header exactly, capitals and dashes included: " & Join(columns, ", ") & "."
+        End If
+    Next nm
 End Sub
 
 Private Sub CheckPis(ByVal wsPIs As Object)

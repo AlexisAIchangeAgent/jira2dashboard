@@ -418,6 +418,8 @@ Public Function ErrorCode(ByVal number As Long, Optional ByVal description As St
             Case 704: ErrorCode = "J2D-CFG-011"
             Case 703: ErrorCode = "J2D-CFG-012"
             Case 710: ErrorCode = "J2D-CFG-013"
+            Case 713: ErrorCode = "J2D-CFG-014"
+            Case 714: ErrorCode = "J2D-CFG-015"
             Case 711: ErrorCode = "J2D-CFG-007"
             Case 712: ErrorCode = "J2D-FLOW-007"
             Case 601: ErrorCode = "J2D-JIRA-010"

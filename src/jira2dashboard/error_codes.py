@@ -49,6 +49,15 @@ TABLE: tuple[ErrorCode, ...] = (
     ErrorCode("J2D-CFG-011", 704, "An iteration ends before it starts", "End is earlier than Start in Iterations", "Swap or correct the dates", "The iteration label named in the message"),
     ErrorCode("J2D-CFG-020", None, "The parameter sheets are not as expected", "A sheet or a column is missing, or a value has the wrong shape (the message lists each problem)", "Read each line of the message and fix the sheet named", "The message (it names sheets and columns, never values)"),
     ErrorCode("J2D-CFG-013", 710, "A PI has no valid date", "Start or End of the sheet PIs is not a whole day from 2000 to 2099 (a date, or 2026-10-05 as text: a French text such as 05/10/2026 is not read the same by every part of the tool), or Start is not before End; a PI with no Start and no End is not this error: it is left out of the metrics (status: PIs without dates)", "Type the dates of the PI as dates, or empty both", "The PI named in the message"),
+    ErrorCode("J2D-CFG-014", 713, "A column of Iterations or PIs is missing",
+              "The first row of the sheet does not hold its header exactly (Iteration-label | Start | End, PI | Start | End): a header typed "
+              "or pasted as Iteration label, Iteration-Label or Period left every label empty and the Reconciliation full of REVIEW (v0.19.0)",
+              "Type the header named in the message exactly, capitals and dashes included, then click 2. Compute the metrics",
+              "The text of the first row of the sheet (headers only)"),
+    ErrorCode("J2D-CFG-015", 714, "An iteration has no label, or the same label twice",
+              "A row of Iterations has dates and no Iteration-label, or two rows share a label (case ignored, as Excel compares): the tables "
+              "by iteration would mix their rows", "Give each iteration its own label, then click 2. Compute the metrics",
+              "The iteration label or the Start date named in the message"),
     ErrorCode("J2D-CFG-012", 703, "No iteration", "The sheet Iterations is empty", "Fill Iteration-label, Start and End", "A screenshot of Iterations"),
     # --- JIRA: what Jira answered ----------------------------------------------------------------------------------------
     ErrorCode("J2D-JIRA-010", 601, "The search did not end", "More search pages than the safety limit", "Narrow the extraction with the Filter of Config", "The log lines END search page n"),

@@ -1417,6 +1417,15 @@ Private Function FlowBuildError() As Long
     Err.Clear
 End Function
 
+Private Function SheetCell(ByVal sheetKey As String, ByVal address As String) As String
+    ' A cell of a sheet as text; "?" when it cannot be read or holds an error (a test must never stop on a dialog).
+    Dim v As Variant
+    On Error Resume Next
+    v = ThisWorkbook.Worksheets(SheetName(sheetKey)).Range(address).Value
+    If Err.Number <> 0 Then SheetCell = "?" Else If IsError(v) Then SheetCell = "?" Else SheetCell = CStr(v)
+    Err.Clear
+End Function
+
 Private Function PiMetricsCell(ByVal address As String) As String
     ' A cell of the sheet PIMetrics as text; "?" when it cannot be read or holds an error (a test must never stop on a dialog).
     Dim v As Variant
@@ -1496,6 +1505,20 @@ Public Sub T_FlowBuild()
     FlowIterations "2026-10-01 08:00", "2026-10-15 08:00"
     Check "flowbuild", "an iteration is whole days: a time of day is refused, as the Python path refuses it", "08:00", 701, FlowBuildError()
     FlowIterations DateSerial(2026, 10, 1), DateSerial(2026, 10, 15)
+    Dim wsIt As Object
+    Set wsIt = wb.Worksheets(SheetName("Iterations"))
+    wsIt.Range("A1").Value = "Iteration label"
+    Check "flowbuild", "a header that is not exactly Iteration-label is refused (v0.19.0 wrote every label empty, AL 2026-11-26)", "Iteration label", 713, FlowBuildError()
+    wsIt.Range("A1").Value = "Iteration-label"
+    wsIt.Range("A2").ClearContents
+    Check "flowbuild", "a row with dates and no label is refused, not skipped", "(empty)", 714, FlowBuildError()
+    FlowIterations DateSerial(2026, 10, 1), DateSerial(2026, 10, 15), True
+    wsIt.Range("A3").Value = "p1"
+    Check "flowbuild", "two iterations with one label are refused (case ignored, as Excel looks them up)", "P1, p1", 714, FlowBuildError()
+    FlowIterations DateSerial(2026, 10, 1), DateSerial(2026, 10, 15)
+    wb.Worksheets(SheetName("PIs")).Range("A1").Value = "PI name"
+    Check "flowbuild", "a header that is not exactly PI is refused (every PI name was empty)", "PI name", 713, FlowBuildError()
+    wb.Worksheets(SheetName("PIs")).Range("A1").Value = "PI"
     wb.Worksheets(SheetName("PIs")).Range("A2:C2").Value = Array("PI#01-2026", "'05/10/2026", "'2026-10-19")
     Check "flowbuild", "a PI date in French text is refused (the French DATEVALUE read it, the VBA did not)", "05/10/2026", 710, FlowBuildError()
     wb.Worksheets(SheetName("PIs")).Range("A2:C2").Value = Array("PI#01-2026", "'2026-10-19", "'2026-10-05")
@@ -1519,12 +1542,17 @@ Public Sub T_FlowBuild()
     Check "flowbuild", "no extracted data is refused", "empty Issues", 702, FlowBuildError()
     Check "flowbuild", "the charts need the tables: 3. Draw before 2. Compute is refused", "no Metrics", 712, ChartsBuildError()
     FlowRaw True
-    BuildFlowSheetsIn wb
+    wsIt.Range("A1").Value = "Iteration-label "
+    Check "flowbuild", "a space typed after the header is read as the Python path reads it (trimmed)", "Iteration-label ", "built", _
+          IIf(FlowBuildError() + vbObjectError = 0, "built", "stopped")
+    wsIt.Range("A1").Value = "Iteration-label"
     teams = 9                                                    ' ART and the eight team projects of params\projects.md
     Check "flowbuild", "ItemFlow: one row per issue", "2 issues", 2, TableRows("ItemFlow")
     Check "flowbuild", "Issues and StatusIntervals become tables", "2 + 3 rows", "2|3", TableRows("Issues") & "|" & TableRows("StatusIntervals")
     Check "flowbuild", "DailyLoad: one row per day and team", "28 days x 9", 28 * teams, TableRows("DailyLoad")
     Check "flowbuild", "Metrics: one row per iteration and team", "2 iterations x 9", 2 * teams, TableRows("Metrics")
+    Check "flowbuild", "the labels of Iterations are the keys of Metrics and VelocityCheck (never empty)", "P1, P2", "P1|P2|P1", _
+          SheetCell("Metrics", "A2") & "|" & SheetCell("Metrics", "A" & (2 + teams)) & "|" & SheetCell("VelocityCheck", "A2")
     Check "flowbuild", "ten charts, on the sheet Charts", "Charts", 10, dash.ChartObjects.Count
     Check "flowbuild", "and none on the Dashboard", "Dashboard", 0, wb.Worksheets(SheetName("Dashboard")).ChartObjects.Count
     Check "flowbuild", "DataChecks: one row per check of ChecksSpec", "28 checks (DC29 is gone)", 28, TableRows("DataChecks")
@@ -3679,6 +3707,8 @@ Public Sub T_ParamsTables()
     rows.Add Array("", "ignored: first cell is empty", "", 0, 0, 0)
     WriteTable ws, Array("Workflow", "Status", "Category", "IsStart", "IsEnd", "IsFree"), rows
     Check "params", "rows without a first cell are ignored", "2 rows written", 1, ReadTable(ws).Count
+    ws.Range("B1").Value = " Status "
+    Check "params", "a header is trimmed, as the Python path reads it", "' Status '", "Nouveau", ReadTable(ws)(1)("Status")
     ws.Cells.ClearContents
     Check "params", "empty sheet gives no rows", "", 0, ReadTable(ws).Count
     WriteTable ws, Array("Workflow", "Status"), New Collection
