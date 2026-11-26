@@ -28,3 +28,15 @@ Fonctionnalité: Le bouton « Debug prompt for Rovo » écrit ce qu'il faut à R
     Soit le classeur à livrer
     Quand je clique sur le bouton Debug prompt for Rovo
     Alors l'état du tableau de bord donne le code J2D-ROVO-004 et dit de cliquer sur 2. Compute the metrics
+
+  @excel
+  Scénario: Sur les données générées, chaque équipe a ses requêtes JQL sur ses projets avec les clés livrées, et un fichier trop gros est signalé
+    Soit un faux Jira avec 250 tickets générés avec les projets des paramètres
+    Et le classeur à livrer dont la feuille Config pointe sur ce faux Jira avec FlowLoadMode "A"
+    Et les itérations de 14 jours depuis le "2026-06-01" jusqu'à la date de référence dans la feuille Iterations
+    Et l'équipe du projet AAA s'appelle « Alpha » dans la feuille Projects
+    Quand j'exécute la macro Extraire et calculer du classeur
+    Et la limite des fichiers de la feuille RovoDebugSpec passe à 3000 caractères
+    Et je clique sur le bouton Debug prompt for Rovo
+    Alors chaque équipe de chaque itération a ses requêtes JQL sur ses projets, avec les clés livrées de la liste Done de MetricItems
+    Et l'état du tableau de bord signale le fichier qui dépasse la limite de 3000 caractères

@@ -257,7 +257,7 @@ Public Sub BtnRovoDebug()
     ' Debug prompt for Rovo (AL, 2026-11-26): writes 01.md, 02.md... into the folder rovo-debug next to the workbook (modRovoDebug.WriteRovoDebug):
     ' how to answer, the context, the controls, then the keys of each iteration with the JQL that return only the differences with Jira. The workbook
     ' sends nothing: the user uploads the files into Rovo Chat. Needs the tables of 2. Compute the metrics (error 633). The log gets the counts only.
-    Dim num As Long, desc As String, health As String, folder As String, parts() As String
+    Dim num As Long, desc As String, health As String, folder As String, parts() As String, over As String
     If mBusy Then Beep: Exit Sub
     On Error GoTo Failed
     LogRunStart "button " & ROVO_DEBUG_CAPTION, LogLevelSetting()
@@ -269,8 +269,12 @@ Public Sub BtnRovoDebug()
     LogBegin "debug prompt for Rovo"
     parts = Split(WriteRovoDebug(ThisWorkbook, folder, health), "|")
     LogEnd "debug prompt for Rovo: " & parts(0) & " files, the largest " & parts(1) & " characters, " & parts(2) & " of " & parts(3) & " iterations"
+    If Val(parts(1)) > Val(parts(4)) Then                           ' one iteration larger than the limit alone: Rovo may silently read a part (ROVO-249)
+        over = " | Over the limit: the largest file has " & parts(1) & " characters, more than " & parts(4) & _
+               ": Rovo may read only a part of it (compare the key counts it gives first with those of the file)"
+    End If
     ShowProgress -1, "Rovo debug prompt | Files: " & parts(0) & ", the largest " & parts(1) & " characters | Iterations: " & parts(2) & " of " & _
-                     parts(3) & ", the last ones that started | Folder: " & folder & " | Next: in Rovo Chat, + then Upload a file, 01.md first, then the others"
+                     parts(3) & ", the last ones that started | Folder: " & folder & " | Next: in Rovo Chat, + then Upload a file, 01.md first, then the others" & over
     LogRunEnd "ok"
     Exit Sub
 Failed:

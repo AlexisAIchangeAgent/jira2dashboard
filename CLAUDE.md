@@ -491,13 +491,16 @@ python.log). `tests/unit/test_claude_hooks.py` and `test_claude_skills.py` test 
   first: a wildcard `??.md` also takes `x.md`) into `rovo-debug` next to the workbook (`RovoDebugFolder`, the folder of the user for an http path). File 1: how to answer, the causes, the context
   (version, AsOf, Filter, FeatureTypes, Projects, StatusRules per kind, the iteration index with its file, JQL E of the extraction, JQL F of the Features, the health
   fields, the parameters in force) and the controls (the Rovo title: HISTORIES is named "(DC06, DC07)" and Rovo knows no DCnn). Then one section per iteration (the last
-  18 that started, by Start: `RovoLastStarted`), packed into files while they stay under 12 000 (`RovoPack`; a larger one alone has its file): the keys left out and
+  18 that started, by Start: `RovoLastStarted`), packed into files while they stay under 12 000 (`RovoPack`; a larger one alone has its file, and the status adds
+`Over the limit: the largest file has k characters`: Rovo may read only a part of it): the keys left out and
   near a boundary (items joined with "; ": an item holds ", "), then per team of Metrics (named as `TeamNames` names them) its Velocity (VelocityCheck.Reason), its done keys, those left out of Flow Time, and JQL A (done in Jira in the iteration,
   `key not in` the keys) / B (`key in` the keys AND NOT changed into an end status in it). An empty key list drops the clause (`key in ()` is no JQL); no project, no
   FeatureTypes or no end status gives a word, never a wrong JQL. Why so (research 2026-11-26): Rovo does not count reliably (ROVO-535, ROVO-287, ROVO-249), so it runs
   the JQL as written and lists keys with a cause, never a total; `.md` in Rovo Chat; 12 000 characters is a guess to calibrate at the client. The dates are UTC with
-  a warning (JQL reads the time zone of the Jira profile). The log gets counts only (no key, no path); the Excel scenario `rovo_debug.feature` checks the keys of the
-  art-metrics scenario against `art_oracle`. Not done: a Python twin (the path without VBA has no buttons), the in-process list (its JQL `WAS IN ... ON` is approximate).
+  a warning (JQL reads the time zone of the Jira profile). The log gets counts only (no key, no path); the Excel scenarios `rovo_debug.feature` check the keys of the
+  art-metrics scenario against `art_oracle`, and on the generated data (a team named apart from its key, the limit lowered to 3 000 in the spec sheet) the JQL
+  of every team on its projects with the keys of the Done list of MetricItems, and the Over the limit field. The JQL never ran on a real Jira (the fake one does
+  not evaluate `CHANGED` / `DURING`): paste one iteration's JQL A and B in the Jira search at the client first. Not done: a Python twin (the path without VBA has no buttons), the in-process list (its JQL `WAS IN ... ON` is approximate).
 - **Rovo side (md only, no code).** `rovo/` holds the master copies of the Rovo Studio agents. `rovo/rovo-guide.md` is
   the current guide; `docs/rovo-guide.md` is frozen. Steering is hybrid: the workbook computes, and the RTE publishes
   the figures on the page `rovo/confluence_flow_metrics_page.md`. The agent `rovo/rovo_train_steering.md` reads that

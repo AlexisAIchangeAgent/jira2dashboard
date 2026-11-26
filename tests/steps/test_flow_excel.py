@@ -2717,7 +2717,7 @@ def _rovo_debug_status(world):
     status, n = world["status"], len(rovo_files(world))
     assert status.startswith("Rovo debug prompt | Files: " + f"{n}, the largest "), status
     assert "Iterations: 18 of 24, the last ones that started" in status and f"Folder: {rovo_folder(world)}" in status
-    assert "01.md first" in status
+    assert "01.md first" in status and "Over the limit" not in status
 
 
 @then('le journal local décrit le run du bouton "Debug prompt for Rovo", avec ses paramètres en clair dont le Filter, sans aucune clé de ticket')
@@ -2727,6 +2727,63 @@ def _rovo_debug_log(world):
     ends = [rest[0] for kind, *rest in lines if kind == "END"]
     assert any(end.startswith(f"debug prompt for Rovo: {len(rovo_files(world))} files, the largest ") for end in ends), ends
     assert "TTT-" not in text and str(rovo_folder(world)) not in text          # no key, no path (the home folder)
+
+
+@given(parsers.parse("l'équipe du projet {key} s'appelle « {team} » dans la feuille Projects"))
+def _team_name(world, key, team):
+    """A team named apart from its key (the Team cell): the JQL of the team must name the project, the block the team."""
+    ws = world["wb"].Worksheets(S.of("Projects"))
+    row = next(r for r in range(2, 60) if ws.Cells(r, 1).Value == key)
+    ws.Cells(row, 3).Value = com.as_cell(team)
+    world["renamed_team"] = (key, team)
+
+
+@when(parsers.parse("la limite des fichiers de la feuille RovoDebugSpec passe à {limit:d} caractères"))
+def _rovo_debug_limit(world, limit):
+    ws = world["wb"].Worksheets(S.of(RD.SPEC_SHEET))
+    row = next(r for r in range(2, 200) if ws.Cells(r, 1).Value == RD.LIMIT and ws.Cells(r, 2).Value == "MaxCharacters")
+    ws.Cells(row, 3).Value = com.as_cell(str(limit))
+    world["limit"] = limit
+
+
+@then("chaque équipe de chaque itération a ses requêtes JQL sur ses projets, avec les clés livrées de la liste Done de MetricItems")
+def _rovo_debug_teams(world):
+    wb, text = world["wb"], rovo_text(world)
+    assert "none: the workbook has no project for this team" not in text and "none: the rules of the workbook" not in text
+    assert not [line for line in text.splitlines() if line.startswith("- JQL") and "()" in line]
+    projects = retry(lambda: list(wb.Worksheets(S.of("Projects")).UsedRange.Value[1:]))
+    of_team = {}
+    for key, role, team, *_ in projects:
+        if key and str(role).lower() == "team":
+            of_team.setdefault(str(team or key).strip(), []).append(str(key).strip().upper())
+    done = {}
+    for row in retry(lambda: metric_blocks(wb))[0]:                       # Iteration, Start, End, Team, Key...
+        done.setdefault((row[0], row[3]), []).append(row[4])
+    teams_with_keys = 0
+    for label, section in rovo_sections(world).items():
+        for block in section.split("\n### ")[1:]:
+            team = block.split("\n", 1)[0].split(", team ", 1)[1]
+            keys = done.get((label, team), [])
+            line = rovo_line(block, "- Done in the workbook (")
+            assert line == f"- Done in the workbook ({len(keys)} keys): {', '.join(keys) if keys else 'none'}", (label, team, line)
+            jql_a = rovo_line(block, "- JQL A, ")
+            if team != "ART":
+                scope = "`project in (" + ", ".join(f'"{k}"' for k in of_team[team]) + ")"
+                assert scope in jql_a, (label, team, jql_a)
+                teams_with_keys += bool(keys)
+            if keys:
+                assert jql_a.endswith(f" AND key not in ({', '.join(keys)})`"), (label, team, jql_a)
+                assert f"`key in ({', '.join(keys)}) AND NOT (status CHANGED TO (" in rovo_line(block, "- JQL B, "), (label, team)
+    assert teams_with_keys > 0                                                # the path of a team project with done tickets is exercised
+    key, team = world["renamed_team"]
+    assert f", team {team}\n" in text and of_team[team] == [key]            # the team of the Team cell, its JQL on its project
+
+
+@then(parsers.parse("l'état du tableau de bord signale le fichier qui dépasse la limite de {limit:d} caractères"))
+def _rovo_debug_over(world, limit):
+    status, largest = world["status"], max(len(path.read_bytes().decode("utf-8")) for path in rovo_files(world))
+    assert largest > limit and len(rovo_files(world)) > 2, (largest, len(rovo_files(world)))
+    assert f" | Over the limit: the largest file has {largest} characters, more than {limit}: Rovo may read only a part of it" in status, status
 
 
 @then("l'état du tableau de bord donne le code J2D-ROVO-004 et dit de cliquer sur 2. Compute the metrics")

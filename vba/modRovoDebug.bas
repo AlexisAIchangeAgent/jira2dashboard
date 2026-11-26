@@ -43,8 +43,9 @@ Public Sub RequireRovoDebugTables(ByVal wb As Object)
 End Sub
 
 Public Function WriteRovoDebug(ByVal wb As Object, ByVal folder As String, ByVal health As String) As String
-    ' Writes the files into `folder` (its older NN.md deleted first) and returns "files|largest|listed|total": the number of files, the characters
-    ' of the largest, the iterations listed and those of the table Metrics. `health`: the fields of modHealth.HealthFields (" | Name: value...").
+    ' Writes the files into `folder` (its older NN.md deleted first) and returns "files|largest|listed|total|limit": the number of files, the
+    ' characters of the largest, the iterations listed, those of the table Metrics and MaxCharacters (an iteration larger than it has a file of its
+    ' own: the status says so). `health`: the fields of modHealth.HealthFields (" | Name: value...").
     Cov "RVD05"
     Dim spec As Object, wsConfig As Object, asOf As Double, filter As String, featureTypes As String, filterJql As String
     Dim programKeys As Collection, allKeys As Collection, teamProjects As Object, projectLines As Collection
@@ -104,7 +105,7 @@ Public Function WriteRovoDebug(ByVal wb As Object, ByVal folder As String, ByVal
     For n = 1 To nFiles
         WriteUtf8File folder & "\" & Format$(n, "00") & ".md", texts(n)
     Next n
-    WriteRovoDebug = nFiles & "|" & largest & "|" & chosen.Count & "|" & labels.Count
+    WriteRovoDebug = nFiles & "|" & largest & "|" & chosen.Count & "|" & labels.Count & "|" & maxChars
 End Function
 
 ' ---- the text ---------------------------------------------------------------------------------------------------------------------------

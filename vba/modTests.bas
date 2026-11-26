@@ -887,8 +887,8 @@ Public Sub T_RovoDebug()
     WriteUtf8File folder & "\07.md", "an old file of an earlier click"
     parts = Split(RovoRun(wb, folder, " | No Wait status: Feature, Team"), "|")
     text = RovoFiles(folder, Val(parts(0)))
-    Check "rovodebug", "the files: within the limit, the iterations of Metrics listed", "2 iterations", "yes|2|2", _
-          IIf(Val(parts(1)) <= 12000 And Val(parts(0)) >= 1, "yes", "no") & "|" & parts(2) & "|" & parts(3)
+    Check "rovodebug", "the files: within the limit, the iterations of Metrics listed, the limit of the spec", "2 iterations", "yes|2|2|12000", _
+          IIf(Val(parts(1)) <= 12000 And Val(parts(0)) >= 1, "yes", "no") & "|" & parts(2) & "|" & parts(3) & "|" & parts(4)
     Check "rovodebug", "only the files of an earlier click are deleted: 07.md, not x.md (a wildcard ??.md would take it)", "07.md x.md", "no|yes", _
           IIf(Len(Dir$(folder & "\07.md")) > 0 And Val(parts(0)) < 7, "yes", "no") & "|" & IIf(Len(Dir$(folder & "\x.md")) > 0, "yes", "no")
     Check "rovodebug", "file 1: its head, how to answer, the context, the health fields, the controls", "01.md", "yes|yes|yes|yes|yes", _
@@ -930,9 +930,9 @@ Public Sub T_RovoDebug()
 End Sub
 
 Private Function RovoRun(ByVal wb As Object, ByVal folder As String, ByVal health As String) As String
-    ' WriteRovoDebug, or "0|0|0|0" when it raises (the checks then fail, they do not stop the run).
+    ' WriteRovoDebug, or "0|0|0|0|0" when it raises (the checks then fail, they do not stop the run).
     On Error Resume Next
-    RovoRun = "0|0|0|0"
+    RovoRun = "0|0|0|0|0"
     RovoRun = WriteRovoDebug(wb, folder, health)
     Err.Clear
 End Function
