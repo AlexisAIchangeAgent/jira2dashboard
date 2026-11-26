@@ -443,6 +443,9 @@ Public Sub T_RequireLogin()
     FakeReset
     FakeAdd "GET", url, 200, J("{'self':'x'}")
     Check "login", "an answer without an account stops the same way", "200 without accountId", "J2D-JIRA-401|yes", LoginResult(cfg)
+    FakeReset
+    FakeAdd "GET", url, 200, J("{'accountId':123}")
+    Check "login", "an account that is not a text is no account (as the Python path)", "accountId 123", "J2D-JIRA-401|yes", LoginResult(cfg)
     FakeOff
 End Sub
 

@@ -62,41 +62,49 @@ def parse_preview(answer: dict, project: str, type_names: dict[str, str], workfl
             starts.add(start)
 
 
+def read_projects(client, keys: list[str]) -> list[dict]:
+    """Every project of `keys` that Jira knows, with its issue types, page after page, 50 keys a call (modJiraConfig.ReadProjects)."""
+    out = []
+    for first in range(0, len(keys), KEYS_PER_CALL):
+        start = 0
+        for _page in range(MAX_PAGES):
+            path = "/rest/api/3/project/search?" + "".join(f"keys={quote(k.upper())}&" for k in keys[first:first + KEYS_PER_CALL]) \
+                   + f"expand=issueTypes&startAt={start}&maxResults={PROJECTS_PER_PAGE}"
+            page = client.call("GET", path, "projects")
+            values = page.get("values") or []
+            out += values
+            if page.get("isLast") is True or not values:
+                break
+            start += len(values)
+    return out
+
+
 def read_workflows(client, keys: list[str]) -> JiraWorkflows:
-    """The JiraWorkflows of the projects `keys` (empty when Jira says nothing: no right, an unreadable answer). A project whose preview Jira refuses
-    (401, 403, 404) is counted and the next one is read, as the VBA does; another error stops the reading. One WARN line says either."""
+    """The JiraWorkflows of the projects `keys` (empty when Jira says nothing: no right, an unreadable answer). Every project first, then the keys
+    Jira did not give back (J2D-CFG-016, also when a preview fails afterwards), then the previews, in the order of modJiraConfig.ReadWorkflowRules.
+    A project whose preview Jira refuses (401, 403, 404) is counted and the next one is read, as the VBA does; another error stops the reading.
+    One WARN line says either."""
     workflow_of, seen, initial, moves, starts, free, refused, statuses = {}, set(), {}, set(), set(), set(), 0, {}
-    found: set[str] = set()
     try:
-        for first in range(0, len(keys), KEYS_PER_CALL):
-            start = 0
-            for _page in range(MAX_PAGES):
-                path = "/rest/api/3/project/search?" + "".join(f"keys={quote(k.upper())}&" for k in keys[first:first + KEYS_PER_CALL]) \
-                       + f"expand=issueTypes&startAt={start}&maxResults={PROJECTS_PER_PAGE}"
-                page = client.call("GET", path, "projects")
-                values = page.get("values") or []
-                for project in values:
-                    found.add(str(project.get("key") or ""))
-                    types = {str(t.get("id")): t.get("name") or "" for t in project.get("issueTypes") or []}
-                    ids = list(types)
-                    try:
-                        for n in range(0, len(ids), TYPES_PER_PREVIEW):
-                            body = json.dumps({"projectId": str(project.get("id")), "issueTypeIds": ids[n:n + TYPES_PER_PREVIEW]}).encode("utf-8")
-                            answer = client.call("POST", "/rest/api/3/workflows/preview", "workflows", body)
-                            parse_preview(answer, project.get("key") or "", types, workflow_of, seen, initial, moves, starts, free, statuses)
-                    except J.JiraError as err:
-                        if err.support_code not in REFUSED:
-                            raise
-                        refused += 1
-                if page.get("isLast") is True or not values:
-                    break
-                start += len(values)
+        projects = read_projects(client, keys)
+        missing = missing_keys(keys, {str(project.get("key") or "") for project in projects})
+        if missing:
+            log.warning(MISSING, len(missing), len(keys), ", ".join(missing))     # python.log names them (AL's choice: a complete log)
+        for project in projects:
+            types = {str(t.get("id")): t.get("name") or "" for t in project.get("issueTypes") or []}
+            ids = list(types)
+            try:
+                for n in range(0, len(ids), TYPES_PER_PREVIEW):
+                    body = json.dumps({"projectId": str(project.get("id")), "issueTypeIds": ids[n:n + TYPES_PER_PREVIEW]}).encode("utf-8")
+                    answer = client.call("POST", "/rest/api/3/workflows/preview", "workflows", body)
+                    parse_preview(answer, project.get("key") or "", types, workflow_of, seen, initial, moves, starts, free, statuses)
+            except J.JiraError as err:
+                if err.support_code not in REFUSED:
+                    raise
+                refused += 1
     except J.JiraError as err:
         log.warning(WARNING, err.support_code)
     else:
-        missing = missing_keys(keys, found)
-        if missing:
-            log.warning(MISSING, len(missing), len(keys), ", ".join(missing))     # python.log names them (AL's choice: a complete log)
         if refused:
             log.warning(WARNING, f"{refused} project(s) refused")
     return JiraWorkflows(initial, frozenset(moves), frozenset(starts), frozenset(free), workflow_of, statuses)

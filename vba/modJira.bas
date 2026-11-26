@@ -193,7 +193,9 @@ Public Sub RequireLogin(ByVal cfg As Object)
     CheckStatus resp, "login"
     RequireJson resp, "login"
     Set parsed = JsonParse(resp("Text"))
-    If Not IsObject(JGet(parsed, "accountId")) Then account = CStr(JGet(parsed, "accountId") & "")
+    If Not IsObject(JGet(parsed, "accountId")) Then                   ' an object, a number or true is no account (jira_api.require_account)
+        If VarType(JGet(parsed, "accountId")) = vbString Then account = JGet(parsed, "accountId")
+    End If
     If Len(account) = 0 Then
         Cov "JIR50"                                             ' "HTTP 401": the code J2D-JIRA-401 (modLog.ErrorCode reads the status there)
         Err.Raise vbObjectError + 602, "Jira login", "HTTP 401: Jira gave no account (it answered as to an unknown visitor)." & StatusHint(401)

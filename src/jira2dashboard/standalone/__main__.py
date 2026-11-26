@@ -259,6 +259,7 @@ def run(args, formatter: Scrubbed, collected: Collected, sleep=time.sleep, detec
     client = JiraClient(base, authorization, c.max_retries,
                         transport(c.timeout_s, proxy.server, proxy.bypass, c.windows_auth), sleep=sleep)
     step = time.monotonic()
+    log.info("BEGIN login")
     client.require_login()
     log.info("END login%s", took(step))
     log.info("BEGIN search: %s", jql)

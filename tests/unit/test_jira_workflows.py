@@ -130,6 +130,14 @@ def test_the_keys_jira_did_not_give_back_are_named_in_the_log_and_sent_in_capita
             "Phoenix train") in caplog.text
 
 
+def test_the_keys_not_found_are_warned_even_when_a_preview_fails_afterwards(caplog):
+    """As the VBA (ReadWorkflowRules): the keys are known once project/search has answered, so a preview that fails later loses nothing of it."""
+    client = Client([PROJECTS, J.JiraError(602, "HTTP 500: Jira is down")])
+    assert read_workflows(client, ["PRG", "XX"]) == JiraWorkflows()
+    assert "J2D-CFG-016 | project keys not found in Jira: 1 of 2" in caplog.text and ": XX" in caplog.text
+    assert "J2D-JIRA-030 | the workflows of Jira could not be read (J2D-JIRA-500)" in caplog.text
+
+
 def test_missing_keys_keeps_the_order_of_the_sheet_and_ignores_case():
     from jira2dashboard.standalone.workflows import missing_keys
     assert missing_keys(["B", "a", "C"], {"A"}) == ["B", "C"]

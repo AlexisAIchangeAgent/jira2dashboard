@@ -85,6 +85,7 @@ def test_a_wrong_account_stops_before_the_search_although_jira_cloud_would_answe
         asked = [r.path for r in server.requests]
     assert code == 1 and asked == ["/rest/api/3/myself"], asked
     assert "J2D-JIRA-401" in log and "In the sheet Config_from_user check Email and ApiToken" in log
+    assert "BEGIN login" in log and "END login" not in log                     # the step that stopped is named, as in the VBA log
     assert not (tmp_path / "out.xlsx").exists()
 
 
