@@ -211,8 +211,8 @@ def bulk_changelog(ds: Dataset, body: dict, *, tz: int, bulk_clamp: int, date: t
             "items": [_key_item(issue) if isinstance(change, _KeyMove) else
                       _field_item(change) if isinstance(change, FieldChange) else
                       {"field": "status", "fieldtype": "jira", "fieldId": "status",
-                       "from": ds.catalog.ids.get(change.from_status, "0"), "fromString": change.from_status,
-                       "to": ds.catalog.ids.get(change.to_status, "0"), "toString": change.to_status}],
+                       "from": ds.catalog.status_id(change.from_status), "fromString": change.from_status,
+                       "to": ds.catalog.status_id(change.to_status), "toString": change.to_status}],
         })
     out: dict = {"issueChangeLogs": [{"issueId": iid, "changeHistories": hs} for iid, hs in grouped.items()]}
     more = offset + size < len(histories)

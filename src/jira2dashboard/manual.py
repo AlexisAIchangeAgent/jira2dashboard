@@ -69,7 +69,8 @@ def manual(mandatory: tuple[str, ...]) -> list[tuple[str, str]]:
             f"{ITERATIONS}: Iteration-label, Start, End (End excluded, UTC). {PIS}: PI, Start, End, one PI per row, any name (PI#01-2026, PI#4.1-2024); the charts show the PIs by Start.",
             "A PI with no Start and no End is left out of the metrics (the status says PIs without dates); one date alone stops 2.",
             f"{WORKFLOWS}: the exceptions to what Jira says (an empty cell takes Jira's value): Category = Wait for a status that waits (Jira has "
-            "no such category), Removed for a Done status that is no delivery, IsStart = 1 when Jira's workflows cannot be read.",
+            "no such category), Removed for a Done status that is no delivery. The flow starts at the first status in progress after the "
+            f"last To Do one; FeatureStartStatuses / TeamStartStatuses of {CONFIG} name others.",
             "Its column Workflow is a kind, not a Jira name: Feature = the tickets of the Program project, Team = those of the Team projects, empty "
             f"= both. The real Jira workflows of each status are in {STATUS_RULES}, column JiraWorkflows.",
             f"{TRANSITIONS}: extra moves to allow in the data check of the moves, when Jira's workflows cannot be read.",
@@ -89,8 +90,7 @@ def manual(mandatory: tuple[str, ...]) -> list[tuple[str, str]]:
             "Every button that reads Jira first checks the account: a wrong Email or ApiToken stops it with J2D-JIRA-401 (Jira itself would "
             "answer with empty lists, not an error).",
             f'"Not found in Jira" names the keys of {PROJECTS} that Jira does not know: type the key of each project, not its name.',
-            "IsUserProjectAdmin = False: the workflows are not read (they need the project administrator right): declare the start statuses "
-            f"(IsStart) in {WORKFLOWS}.",
+            f"IsUserProjectAdmin = False: the workflows are not read (they need the project administrator right): the moves come from {TRANSITIONS}.",
         ]),
         (f'Button "{PROPOSE_CAPTION}"', [
             f'It does what "{CONFIG_CAPTION}" does, then fills the EMPTY cells of {CONFIG} and {ITERATIONS} with what Jira says: the field ids, '
@@ -148,7 +148,7 @@ def manual(mandatory: tuple[str, ...]) -> list[tuple[str, str]]:
             f"{S.of('VelocityCheck')}: why the Velocity differs from Jira's count of the changes into an end status (created done, closed then "
             "reopened, other types of the Program).",
             f"{S.of('FlowTimeCheck')}: the done items, then those left out of Flow Time: no start status in the rules, never entered the start "
-            "status, back to the backlog after the start (a To Do status after it: declare a later status IsStart, or the backlog one Wait), reopened.",
+            "status, back to the backlog after the start (a To Do status then done: or declare it Wait), reopened.",
             f"{S.of('FlowEfficiencyCheck')}: the active and wait days, the Wait statuses declared. {S.of('FlowLoadCheck')}: the days measured, the "
             f"start statuses, the load at the end. {S.of('FlowDistCheck')}: the done items per work type, Unmapped.",
             f"4. {METRIC_ITEMS}: the tickets behind each figure, four lists side by side. Done in an iteration (filter Iteration and Team: the rows "
@@ -159,7 +159,7 @@ def manual(mandatory: tuple[str, ...]) -> list[tuple[str, str]]:
             f'DURING (\"<start>\", \"<end>\"), or let Rovo do it ("{ROVO_DEBUG_CAPTION}"). VelocityCheck explains the differences. Dates are UTC; '
             "the End of an iteration is excluded.",
             f"6. Most \"not computable\" come from {STATUS_RULES}: no status with IsStart = 1, or none in the category Wait. Correct it in "
-            f'{WORKFLOWS}, then click "{COMPUTE_CAPTION}" and "{DRAW_CAPTION}": no new extraction.',
+            f'{WORKFLOWS} or {CONFIG}, then click "{COMPUTE_CAPTION}" and "{DRAW_CAPTION}": no new extraction.',
             f"7. {ITEMFLOW}: one row per ticket, with Account (every ticket is in one account), DoneIteration and WhyNotInFlowTime.",
         ]),
         ("When something stops", [

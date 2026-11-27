@@ -110,7 +110,7 @@ def flow_cases():
     """Nine issues for the flow metrics, with results worked out by hand in tests/unit/test_flow_reference.py.
 
     Alpha: A-1 clean run to Terminé; A-2 goes through Depriorise then Nouveau (the flow time restarts); A-3 done
-    without ever entering a start status; A-4 reopened after Terminé; A-5 still in progress; A-6 cancelled.
+    without ever entering a start status (straight from Nouveau to Terminé: a status in progress starts the flow, AL 2026-11-27); A-4 reopened after Terminé; A-5 still in progress; A-6 cancelled.
     Beta: B-1 clean run; B-2 passes through a status missing from Workflows (Unclassified).
     ART: PRG-1 a Program feature (Feature workflow). As of 2026-11-02.
     """
@@ -122,7 +122,7 @@ def flow_cases():
             ("10-02", "En analyse"), ("10-06", "Dépriorisé"), ("10-08", "Nouveau"), ("10-09", "En analyse"),
             ("10-11", "Prêt"), ("10-12", "En développement"), ("10-16", "En test"), ("10-17", "À déployer"),
             ("10-18", "Terminé")]),
-        flow_issue("A-3", "Alpha", "Bug", "Defect", "10-03", [("10-04", "Planifié"), ("10-08", "Terminé")]),
+        flow_issue("A-3", "Alpha", "Bug", "Defect", "10-03", [("10-08", "Terminé")]),
         flow_issue("A-4", "Alpha", "Story", "Enabler", "10-01", [
             ("10-02", "En analyse"), ("10-05", "En développement"), ("10-09", "Terminé"), ("10-10", "En test"),
             ("10-14", "Terminé")]),

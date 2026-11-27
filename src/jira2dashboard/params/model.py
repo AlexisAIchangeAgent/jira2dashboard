@@ -42,7 +42,8 @@ class ParamSheet:
 
 
 CONFIG_PARAMETERS = ("BaseUrl", "Email", "ApiToken", "Filter", "WorkTypeField", "ProxyServer", "ProxyBypass",
-                     "ProxyWindowsAuth", "IsUserProjectAdmin", "FlowLoadMode", "PredictabilityMode", "AsOf", "TimeoutSeconds", "MaxRetries", "ParentRequiredTypes",
+                     "ProxyWindowsAuth", "IsUserProjectAdmin", "FlowLoadMode",
+                     "FeatureStartStatuses", "TeamStartStatuses", "PredictabilityMode", "AsOf", "TimeoutSeconds", "MaxRetries", "ParentRequiredTypes",
                      "FeatureTypes", "SubTaskTypes", "PointsRequiredTypes", "StoryPointsField", "BusinessValueField",
                      "PIField", "TeamField", "SprintField", "TargetStartField", "TargetEndField", "BlocksLinkType",
                      "FillRateThreshold", "LogLevel", "OpenLogOnError")
@@ -58,8 +59,8 @@ SPECS = (
     SheetSpec("Iterations", "iterations.md", ("Iteration-label", "Start", "End")),
     SheetSpec("PIs", "pis.md", ("PI", "Start", "End")),
     SheetSpec("Workflows", "workflows.md",
-              ("Workflow", "Status", "Category", "IsStart", "IsEnd", "IsFree"),
-              frozenset({"IsStart", "IsEnd", "IsFree"})),
+              ("Workflow", "Status", "Category", "IsEnd", "IsFree"),
+              frozenset({"IsEnd", "IsFree"})),
     SheetSpec("Transitions", "transitions.md", ("Workflow", "From", "To")),
 )
 
@@ -103,9 +104,11 @@ def _records(sheet: ParamSheet):
 
 def _check_workflows(sheet: ParamSheet, problems: list[str]) -> None:
     """The sheet Workflows holds EXCEPTIONS to what Jira says (flow/status_rules.py, AL 2026-11-18): a row names a status, optionally a workflow
-    (empty = both), and any of Category, IsStart, IsEnd, IsFree; an empty cell takes Jira's value. So the sheet may be empty, and a workflow needs
-    no start or end status here."""
+    (empty = both), and any of Category, IsEnd, IsFree; an empty cell takes Jira's value. So the sheet may be empty, and a workflow needs
+    no start or end status here (the start: the statuses in progress, or Config FeatureStartStatuses / TeamStartStatuses, AL 2026-11-27). A status
+    is compared as Excel compares it (trimmed, case ignored): "Prêt" and "prêt " are the same row."""
     seen: Counter = Counter()
+    first: dict = {}
     for number, rec in _records(sheet):
         where = f"{S.of('Workflows')} row {number}"
         if rec["Workflow"] is not None and rec["Workflow"] not in WORKFLOWS:
@@ -114,11 +117,14 @@ def _check_workflows(sheet: ParamSheet, problems: list[str]) -> None:
             problems.append(f"{where}: Status is empty")
         if rec["Category"] is not None and rec["Category"] not in CATEGORIES:
             problems.append(f"{where}: Category {rec['Category']!r} is not one of {', '.join(CATEGORIES)} (or empty: Jira's)")
-        for flag in ("IsStart", "IsEnd", "IsFree"):
+        for flag in ("IsEnd", "IsFree"):
             if rec[flag] is not None and rec[flag] not in (0, 1):
                 problems.append(f"{where}: {flag} must be 0, 1 or empty, got {rec[flag]!r}")
-        seen[(rec["Workflow"], rec["Status"])] += 1
-    for (workflow, status), count in seen.items():
+        key = (rec["Workflow"], str(rec["Status"] or "").strip().lower())
+        seen[key] += 1
+        first.setdefault(key, rec["Status"])
+    for (workflow, key), count in seen.items():
+        status = first[(workflow, key)]
         if count > 1:
             problems.append(f"{S.of('Workflows')}: workflow {workflow!r} lists status {status!r} twice")
 

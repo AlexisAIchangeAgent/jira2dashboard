@@ -209,15 +209,21 @@ python.log). `tests/unit/test_claude_hooks.py` and `test_claude_skills.py` test 
 - **Jira-first status rules (AL, 2026-11-18).** The metrics read the statuses from Jira; the sheet `Workflows_from_user` holds EXCEPTIONS (an empty cell takes Jira's value, an
   empty `Workflow` touches both kinds, a row of the kind beats a row of both). Per status name (`flow/status_rules.py`, VBA twin `modParams.EffectiveRules`, same cases in
   `T_StatusRules`): Category from the Jira category (new -> Backlog, indeterminate -> Active, done -> Done), IsEnd = every Done status (exceptions: Removed / Wait / Backlog are no end),
-  IsStart = first in-progress status from the creation status in the transitions graph (`first_in_progress`, computed in `JiraWorkflows` at the Jira read and by
-  `modJiraConfig.ReadWorkflowRules` at an extraction that has no such sheet), IsFree = GLOBAL transition. Sources, in order: the exception, the catalog of every status of the instance
+  IsStart = **every status in progress** (effective category Active or Wait; AL 2026-11-27: "the calculations must still work when the workflow changes", the client's
+  Features were all "Never entered the start status"), unless Config `FeatureStartStatuses` / `TeamStartStatuses` (`modParams.StartStatuses`, `status_rules.START_PARAMETERS`)
+  name the start statuses of the kind; the sheet Workflows has NO IsStart column any more; `first_in_progress` still fills the column IsStart of the PROPOSAL sheet
+  `JiraWorkflows`, which no rule reads. **A status is a KEY** (`model.status_key` = `modParams.StatusKey`: trimmed, case ignored, as Excel's SUMIFS compares): one rule per
+  (kind, key), its name the first spelling of the catalog (binary order), so two spellings of a site ("En Analyse" / "en analyse") never make IsStart 2 again (the formulas
+  are also `IF(SUMIFS(...)>0,1,0)`). **A renamed status** (same id, old name in the changelog) takes its name of now: `mapping.status_name` = `modFlow.StatusNamesNow`
+  (in `RulesInit`), the catalog keeps the ids (`jira_workflows.catalog_rows/names_of`). The fake Jira holds "EN ANALYSE" of another project and the old name
+  "En analyse (ancien)" (`StatusCatalog.others/renamed`). IsFree = GLOBAL transition. Sources, in order: the exception, the catalog of every status of the instance
   (`ReadStatusCatalog`, GET `statuses/search`, sheet `JiraStatusCatalog`, tolerant of a refusal), the category Jira gives each ticket's CURRENT status; a status that none knows stays
   `Unclassified` (a retired workflow's status in a history). `modExtract.RulesInit` merges them once per run and writes the sheet `StatusRules_from_excel` (Workflow | Status | Category |
   IsStart | IsEnd | IsFree | Source Jira/user | JiraWorkflows: AL 2026-11-24, the Jira workflows of the kind that hold the status, from JiraIssueTypes and
   JiraWorkflows in the order of its rows, `modExtract.JiraWorkflowNames` = `jira_workflows.jira_workflow_names`; the sheet Workflows keeps the KINDS Feature
   / Team, AL's choice; `JiraWorkflows.statuses` keeps the statuses of each workflow); `StatusIntervals.Category` still comes from it at extraction time, and the formulas `IsStart/IsEnd/BadMove` read it (letters A..F as the old
   Workflows layout). Flow Efficiency is `not computable` without a status declared Wait (`Rules.waits`, formula `COUNTIF(StatusRules...,"Wait")`, `dashboard_spec.EFFICIENCY_REASON`).
-  The Python path asks the same catalog (`JiraClient.status_catalog`) but not the workflows (no start / free from Jira there: the exceptions give them). The delivered
+  The Python path asks the same catalog (`JiraClient.status_catalog`, ids in `status_names`) and the workflows (`read_workflows`: free statuses, moves). The delivered
   `params/workflows.md` stays as a complete example. **The workflow of each ticket (AL, 2026-11-18)**: the extraction without a sheet `JiraWorkflows` reads the projects and the
   workflow previews itself (`modJiraConfig.ReadWorkflowRules(..., wb)`; Python `standalone/workflows.read_workflows`) and WRITES `JiraIssueTypes`, `JiraWorkflows`, `JiraTransitions` (created
   empty at build: formulas read them); reference `flow/jira_workflows.JiraWorkflows` (workflow of (project, type), creation status, moves, starts, free). `ItemFlow.JiraWorkflow` (last column)
@@ -227,7 +233,7 @@ python.log). `tests/unit/test_claude_hooks.py` and `test_claude_skills.py` test 
   **The stack of the chart Cycle time by status** (`PIStatusTime`) no longer reads Workflows rows: the Active/Wait statuses the Features (Program project, FeatureTypes) visited, ordered by
   depth in the Jira workflow of the Feature types (`status_rules.flow_depths`, `JiraWorkflows.feature_depths`), then earliest `Seq`, then name (`pi_status_time.feature_statuses`,
   VBA `modFlowBuild.StatusNames(wb)` reading the RAW sheets). **The scenario art-metrics keeps Jira's full definition in `Dataset.jira_sheets` and only the 3 Wait exceptions in its
-  `sheets`** (`flow_adapter.jira_rules/jira_workflows` give the references): a test that builds `Rules` from `ds.sheets` alone sees no start. Not done yet: the delivered `params/workflows.md` / `transitions.md` still hold the complete example. The Python path writes the Jira sheets it read (JiraStatusCatalog, JiraIssueTypes, JiraWorkflows, JiraTransitions in the VBA layout: `jira_workflows.sheet_rows` / `from_sheets`, headers pinned against `modJiraConfig.bas`; the Python reading keeps no status id, Category, IsEnd or Project: empty cells) and StatusRules (`Rules.entries` keep the source).
+  `sheets`** (`flow_adapter.jira_rules/jira_workflows` give the references): a test that builds `Rules` from `ds.sheets` alone sees only the categories of the exceptions. Not done yet: the delivered `params/workflows.md` / `transitions.md` still hold the complete example. The Python path writes the Jira sheets it read (JiraStatusCatalog, JiraIssueTypes, JiraWorkflows, JiraTransitions in the VBA layout: `jira_workflows.sheet_rows` / `from_sheets`, headers pinned against `modJiraConfig.bas`; the Python reading keeps no status id, Category, IsEnd or Project: empty cells) and StatusRules (`Rules.entries` keep the source).
 - **MetricItems and Reconciliation (AL, 2026-11-18, "c'est de la comptabilite").** Every figure can be traced back to its tickets. `ItemFlow` gets the trace columns
   `DoneIteration` (+ `DoneIterationStart/End`, found in the key columns of `Metrics`: no circular reference), `DonePI` (from `PIMetrics`), `Account` (the partition of the
   population: done in an iteration / done outside the iterations / left out: not a Feature / removed / open), `WhyNotInFlowTime` (Reopened, No valid start),
@@ -423,9 +429,13 @@ python.log). `tests/unit/test_claude_hooks.py` and `test_claude_skills.py` test 
   `Done outside the iterations: N of M` (no metric counts a ticket done outside every iteration: the usual cause of empty charts), `Without a team`,
   `Statuses not in Workflows` (their names), `Cells in error: Table.Column x n` (a formula that fails on real data; the charts' own #N/A are not read).
   Since 2026-11-22 (AL: "flow metrics are still not computable") also, in this order: `No start status: Feature, Team` and `No Wait status` first, then
-  `Started in the second of the backlog entry`, `AsOf before the data`, `VelocityCheck gap`; they run in a log step `health`. **The Python twin is `flow/health.py`**
+  `Started in the second of the backlog entry`, `AsOf before the data`, `VelocityCheck gap`; they run in a log step `health`. Since 2026-11-27 (AL, after Rovo read the
+  client's log), right after `Statuses not in Workflows`: `Statuses unknown to Jira` (an exception or a start status whose key no catalog, current status or history
+  holds: the client's "À déployer" for Jira's "A déployer"; `WARN J2D-CFG-017`) and `Fields empty in every ticket` (a `...Field` of Config set while its Issues column
+  is empty, "not a field id" for a name such as "Activité"; `health.FIELD_COLUMNS` = the pairs of `modHealth.EmptyFields`; `WARN J2D-CFG-018`). **The Python twin is `flow/health.py`**
   (same fields, order and words, `tests/unit/test_health.py` reads `modHealth.bas`): the Python path writes them in its sheet `Run` (row Health) and `python.log`.
-  The cause they name most: no IsStart status (Jira's workflows not read, none in Workflows) leaves every done ticket without StartUtc: Flow Time, Flow Efficiency
+  The cause they named most until 2026-11-27: no IsStart status (now only: no status in progress, or start statuses of Config that Jira does not know; the scenario
+  art-metrics "statut de départ que Jira ne connaît pas" holds it) leaves every done ticket without StartUtc: Flow Time, Flow Efficiency
   and Flow Load not computable while Velocity counts; the log says it at the extraction (`INFO status rules | Feature: start n, active n, wait n, end n | Team: ...`,
   `WARN J2D-FLOW-010` / `J2D-FLOW-011`), `IsUserProjectAdmin` False skips Jira's workflows at the extraction too, a refusal is `WARN J2D-JIRA-030`; `WhyNotInFlowTime`
   says "No start status in the rules", "Never entered the start status" (FirstStartUtc empty) or "Back to the backlog after the start"; Flow Load is not computable (DailyLoad empty, never a false 0) when the workflow of the team

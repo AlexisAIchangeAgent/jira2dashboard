@@ -30,9 +30,9 @@ class _Workflow:
     def __init__(self, name: str, sheets: dict[str, ParamSheet]):
         rows = [r for r in sheets["Workflows"].rows if r[0] == name]
         category = {r[1]: r[2] for r in rows}
-        self.start = next(r[1] for r in rows if r[3] == 1)
-        self.end = next(r[1] for r in rows if r[4] == 1)
-        self.free = next(r[1] for r in rows if r[5] == 1)
+        self.start = next(r[1] for r in rows if r[2] == "Active")          # the first status in progress: where the flow starts
+        self.end = next(r[1] for r in rows if r[3] == 1)
+        self.free = next(r[1] for r in rows if r[4] == 1)
         self.first = rows[0][1]
         self.chain = [r[1] for r in rows][: [r[1] for r in rows].index(self.end) + 1]
         self.forward: dict[str, str] = {}

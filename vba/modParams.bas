@@ -10,7 +10,7 @@ Public Const SHEET_TRANSITIONS As String = "Transitions"
 Public Const SHEET_ROVO_SPEC As String = "RovoPromptSpec"
 Public Const SHEET_ROVO As String = "RovoPrompt"
 ' The warnings of RuleWarnings: the same texts as flow/status_rules.py (tests/unit/test_status_rules.py reads them here).
-Private Const NO_START_TEXT As String = " workflow: Flow Time, Flow Efficiency and Flow Load cannot be computed | declare IsStart = 1 for its first in-progress status in the sheet Workflows_from_user"
+Private Const NO_START_TEXT As String = " workflow: Flow Time, Flow Efficiency and Flow Load cannot be computed | the statuses in progress start the flow: check the Category of its statuses in the sheet Workflows_from_user and its start statuses in the sheet Config_from_user"
 Private Const NO_WAIT_TEXT As String = "no status is declared Wait: Flow Efficiency cannot be computed | declare Category = Wait in the sheet Workflows_from_user for the statuses where the work waits"
 
 Public Function ReadTable(ByVal ws As Object) As Collection
@@ -47,7 +47,7 @@ Public Function PiWithoutDates(ByVal startValue As Variant, ByVal endValue As Va
 End Function
 
 Public Function StatusCategories(ByVal wsWorkflows As Object, ByVal workflow As String) As Object
-    ' status -> category ("Active", "Wait", ...) for one workflow. This is the input of BuildStatusIntervals.
+    ' status -> category ("Active", "Wait", ...) for one workflow, as typed in the sheet (BuildStatusIntervals reads RuleCategories, by StatusKey).
     Cov "PRM03"
     Dim out As Object, row As Variant
     Set out = CreateObject("Scripting.Dictionary")
@@ -769,27 +769,23 @@ Private Function CellNumber(ByVal cell As Variant, ByRef value As Long) As Boole
     CellNumber = True
 End Function
 
-Public Function EffectiveRules(ByVal kinds As Variant, ByVal catalog As Object, ByVal currentOf As Object, ByVal starts As Object, _
-                               ByVal frees As Object, ByVal exceptions As Collection) As Collection
-    ' One rule per workflow kind and status: Array(kind, status, category, isStart, isEnd, isFree, source), the kinds in the order given then the names in
-    ' binary order. catalog: status -> Jira category, currentOf: the category Jira gives the tickets' current statuses, starts / frees: dictionaries
-    ' of the statuses the Jira workflows start with / reach freely. exceptions: Array(workflow, status, category, isStart, isEnd, isFree) of the sheet
-    ' Workflows, an empty cell is Empty or "": it takes Jira's value; a row without workflow touches both, a row of the workflow comes after it.
-    Cov "PRM61"
-    Dim names As Object, nm As Variant, ex As Variant, kind As Variant, sorted() As String, n As Long, i As Long, j As Long, tmp As String
-    Dim out As New Collection, cat As String, isStart As Long, isFree As Long, isEnd As Long, hasEnd As Boolean, applied As Boolean, pass As Long, v As Long
-    Set names = CreateObject("Scripting.Dictionary")
-    For Each nm In catalog.Keys: names(CStr(nm)) = True: Next nm
-    For Each nm In currentOf.Keys: names(CStr(nm)) = True: Next nm
-    For Each ex In exceptions: names(CStr(ex(1))) = True: Next ex
-    Set EffectiveRules = out
+Public Function StatusKey(ByVal name As String) As String
+    ' The key of a status name, the way Excel compares two texts (SUMIFS, COUNTIFS, MATCH): trimmed, case ignored. Two spellings of one name ("En Analyse",
+    ' "En analyse": two projects of the site) are one status for the formulas, so one rule (AL, 2026-11-27: IsStart 2 in Excel). Twin of flow/model.status_key.
+    StatusKey = LCase$(TrimWhite(name))
+End Function
+
+Private Function SortedNames(ByVal names As Object) As Collection
+    ' The keys of a dictionary in binary order (insertion sort): the order of Python's sorted on the names.
+    Dim out As New Collection, nm As Variant, sorted() As String, n As Long, i As Long, j As Long, tmp As String
+    Set SortedNames = out
     n = names.Count
     If n = 0 Then Exit Function
     ReDim sorted(1 To n)
     For Each nm In names.Keys
         i = i + 1: sorted(i) = CStr(nm)
     Next nm
-    For i = 2 To n                                                   ' insertion sort, binary compare: the order of Python's sorted on the names
+    For i = 2 To n
         tmp = sorted(i): j = i - 1
         Do While j >= 1
             If StrComp(sorted(j), tmp, vbBinaryCompare) <= 0 Then Exit Do
@@ -797,37 +793,123 @@ Public Function EffectiveRules(ByVal kinds As Variant, ByVal catalog As Object, 
         Loop
         sorted(j + 1) = tmp
     Next i
+    For i = 1 To n: out.Add sorted(i): Next i
+End Function
+
+Private Sub AddSpelling(ByVal spellings As Object, ByVal keys As Collection, ByVal name As String)
+    ' One more spelling of a status under its key (the first one met names the rule); keys keeps the order in which the keys came.
+    Dim key As String, nm As Variant
+    key = StatusKey(name)
+    If Len(key) = 0 Then Exit Sub
+    If Not spellings.Exists(key) Then
+        Set spellings(key) = New Collection: keys.Add key
+    Else
+        For Each nm In spellings(key)
+            If CStr(nm) = name Then Exit Sub
+        Next nm
+        Cov "PRM77"                                                  ' a second spelling of a status: one rule
+    End If
+    spellings(key).Add name
+End Sub
+
+Public Function StartStatuses(ByVal wsConfig As Object) As Object
+    ' kind -> Collection of the names typed in Config FeatureStartStatuses / TeamStartStatuses (comma-separated, trimmed): the statuses that alone start the
+    ' flow of their kind. An empty list: the statuses in progress start it (EffectiveRules).
+    Dim out As Object, kind As Variant, part As Variant, names As Collection
+    Set out = CreateObject("Scripting.Dictionary")
+    For Each kind In Array("Feature", "Team")
+        Set names = New Collection
+        For Each part In Split(ConfigValue(wsConfig, CStr(kind) & "StartStatuses"), ",")
+            If Len(TrimWhite(CStr(part))) > 0 Then names.Add TrimWhite(CStr(part))
+        Next part
+        Set out(CStr(kind)) = names
+    Next kind
+    Set StartStatuses = out
+End Function
+
+Public Function EffectiveRules(ByVal kinds As Variant, ByVal catalog As Object, ByVal currentOf As Object, ByVal frees As Object, _
+                               ByVal exceptions As Collection, ByVal startLists As Object) As Collection
+    ' One rule per workflow kind and status KEY (StatusKey): Array(kind, status, category, isStart, isEnd, isFree, source), the kinds in the order given then the
+    ' names in binary order. catalog: status -> Jira category, currentOf: the category Jira gives the tickets' current statuses, frees: dictionary of the
+    ' statuses the Jira workflows reach freely. exceptions: Array(workflow, status, category, isEnd, isFree) of the sheet Workflows, an empty cell is Empty or
+    ' "": it takes Jira's value; a row without workflow touches both, a row of the workflow comes after it. startLists: kind -> Collection of the names
+    ' of Config FeatureStartStatuses / TeamStartStatuses (Nothing, or an empty list: every status in progress, Active or Wait, starts the flow; AL,
+    ' 2026-11-27: "the calculations must still work when the workflow changes"). The name of a rule: its first spelling of the catalog (binary order),
+    ' else of the current statuses, else of the exceptions; its Jira category: the first spelling the catalog knows, else the current statuses.
+    ' Twin of flow/status_rules.effective_rules.
+    Cov "PRM61"
+    Dim spellings As Object, keys As New Collection, byName As Object, nm As Variant, ex As Variant, kind As Variant, key As Variant
+    Dim out As New Collection, cat As String, isStart As Long, isFree As Long, isEnd As Long, hasEnd As Boolean, applied As Boolean, pass As Long, v As Long
+    Dim freeKeys As Object, named As Object, names As Collection, v2 As Variant, order As Collection, exKeys() As String, i As Long
+    Set spellings = CreateObject("Scripting.Dictionary")
+    For Each nm In SortedNames(catalog): AddSpelling spellings, keys, CStr(nm): Next nm
+    For Each nm In SortedNames(currentOf): AddSpelling spellings, keys, CStr(nm): Next nm
+    For Each ex In exceptions: AddSpelling spellings, keys, TrimWhite(CStr(ex(1))): Next ex
+    Set EffectiveRules = out
+    If spellings.Count = 0 Then Exit Function
+    Set byName = CreateObject("Scripting.Dictionary")                ' the first spelling -> its key: the rules come out in the order of their names
+    For Each key In keys: byName(CStr(spellings(key)(1))) = CStr(key): Next key
+    Set order = SortedNames(byName)                                   ' once: the order of the rules of every kind
+    If exceptions.Count > 0 Then
+        ReDim exKeys(1 To exceptions.Count)
+        For Each ex In exceptions: i = i + 1: exKeys(i) = StatusKey(CStr(ex(1))): Next ex
+    End If
+    Set freeKeys = CreateObject("Scripting.Dictionary")
+    For Each nm In frees.Keys: freeKeys(StatusKey(CStr(nm))) = True: Next nm
     For Each kind In kinds
-        For i = 1 To n
-            nm = sorted(i): cat = ""
-            If catalog.Exists(nm) Then cat = JiraCategoryName(CStr(catalog(nm)))
-            If Len(cat) = 0 And currentOf.Exists(nm) Then Cov "PRM62": cat = JiraCategoryName(CStr(currentOf(nm)))
+        Set named = CreateObject("Scripting.Dictionary")
+        If Not startLists Is Nothing Then
+            If startLists.Exists(CStr(kind)) Then
+                For Each nm In startLists(CStr(kind))
+                    If Len(StatusKey(CStr(nm))) > 0 Then named(StatusKey(CStr(nm))) = True
+                Next nm
+            End If
+        End If
+        For Each nm In order
+            key = byName(CStr(nm)): Set names = spellings(key): cat = ""
+            For Each v2 In names
+                If catalog.Exists(CStr(v2)) Then cat = JiraCategoryName(CStr(catalog(CStr(v2))))
+                If Len(cat) > 0 Then Exit For
+            Next v2
+            If Len(cat) = 0 Then
+                For Each v2 In names
+                    If currentOf.Exists(CStr(v2)) Then Cov "PRM62": cat = JiraCategoryName(CStr(currentOf(CStr(v2))))
+                    If Len(cat) > 0 Then Exit For
+                Next v2
+            End If
             If Len(cat) = 0 Then Cov "PRM63": cat = "Unclassified"
-            isStart = IIf(starts.Exists(nm), 1, 0): isFree = IIf(frees.Exists(nm), 1, 0): hasEnd = False: applied = False
+            isFree = IIf(freeKeys.Exists(CStr(key)), 1, 0): hasEnd = False: applied = False
             For pass = 0 To 1                                        ' the rows of both workflows, then those of this workflow (the more precise wins)
+                i = 0
                 For Each ex In exceptions
-                    If CStr(ex(1)) = CStr(nm) And IIf(pass = 0, Len(CStr(ex(0) & "")) = 0, CStr(ex(0) & "") = CStr(kind)) Then
+                    i = i + 1
+                    If exKeys(i) = CStr(key) And IIf(pass = 0, Len(CStr(ex(0) & "")) = 0, CStr(ex(0) & "") = CStr(kind)) Then
                         Cov "PRM64"
                         applied = True
                         If Len(CStr(ex(2) & "")) > 0 Then cat = CStr(ex(2))
-                        If CellNumber(ex(3), v) Then isStart = v
-                        If CellNumber(ex(4), v) Then isEnd = v: hasEnd = True
-                        If CellNumber(ex(5), v) Then isFree = v
+                        If CellNumber(ex(3), v) Then isEnd = v: hasEnd = True
+                        If CellNumber(ex(4), v) Then isFree = v
                     End If
                 Next ex
             Next pass
             If Not hasEnd Then isEnd = IIf(cat = "Done", 1, 0)
-            out.Add Array(CStr(kind), CStr(nm), cat, isStart, isEnd, isFree, IIf(applied, "user", "Jira"))
-        Next i
+            If named.Count > 0 Then
+                Cov "PRM78"                                          ' Config names the start statuses of the kind: they alone start its flow
+                isStart = IIf(named.Exists(CStr(key)), 1, 0)
+            Else
+                isStart = IIf(cat = "Active" Or cat = "Wait", 1, 0)
+            End If
+            out.Add Array(CStr(kind), CStr(names(1)), cat, isStart, isEnd, isFree, IIf(applied, "user", "Jira"))
+        Next nm
     Next kind
 End Function
 
 Public Function RuleCategories(ByVal rules As Collection, ByVal kind As String) As Object
-    ' status -> category of the rules of one workflow kind: what BuildStatusIntervals reads.
+    ' StatusKey(status) -> category of the rules of one workflow kind: what BuildStatusIntervals and RefreshIntervals read (by the key of the status).
     Dim out As Object, r As Variant
     Set out = CreateObject("Scripting.Dictionary")
     For Each r In rules
-        If CStr(r(0)) = kind Then out(CStr(r(1))) = CStr(r(2))
+        If CStr(r(0)) = kind Then out(StatusKey(CStr(r(1)))) = CStr(r(2))
     Next r
     Set RuleCategories = out
 End Function
@@ -885,20 +967,21 @@ Public Function RuleWarnings(ByVal rules As Collection, ByVal kinds As Variant, 
 End Function
 
 Public Function WorkflowExceptions(ByVal wsWorkflows As Object) As Collection
-    ' The rows of the sheet Workflows as the exceptions of EffectiveRules: Array(workflow, status, category, isStart, isEnd, isFree). Unlike ReadTable it also
-    ' reads a row whose Workflow is empty (it touches both workflows); a row without a status is left out.
+    ' The rows of the sheet Workflows as the exceptions of EffectiveRules: Array(workflow, status, category, isEnd, isFree). Unlike ReadTable it also
+    ' reads a row whose Workflow is empty (it touches both workflows); a row without a status is left out. The sheet has no IsStart since 2026-11-27 (AL):
+    ' the statuses in progress start the flow, or the start statuses of Config.
     Cov "PRM66"
-    Dim out As New Collection, cW As Long, cS As Long, cC As Long, cB As Long, cE As Long, cF As Long, last As Long, r As Long, st As String
+    Dim out As New Collection, cW As Long, cS As Long, cC As Long, cE As Long, cF As Long, last As Long, r As Long, st As String
     Set WorkflowExceptions = out
     cS = HeaderColumn(wsWorkflows, "Status")
     If cS = 0 Then Exit Function
     cW = HeaderColumn(wsWorkflows, "Workflow"): cC = HeaderColumn(wsWorkflows, "Category")
-    cB = HeaderColumn(wsWorkflows, "IsStart"): cE = HeaderColumn(wsWorkflows, "IsEnd"): cF = HeaderColumn(wsWorkflows, "IsFree")
+    cE = HeaderColumn(wsWorkflows, "IsEnd"): cF = HeaderColumn(wsWorkflows, "IsFree")
     last = wsWorkflows.Cells(wsWorkflows.Rows.Count, cS).End(-4162).Row
     For r = 2 To last
         st = TrimWhite(CStr(wsWorkflows.Cells(r, cS).Value & ""))
-        If Len(st) > 0 Then out.Add Array(CellText(wsWorkflows, r, cW), st, CellText(wsWorkflows, r, cC), CellText(wsWorkflows, r, cB), _
-                                         CellText(wsWorkflows, r, cE), CellText(wsWorkflows, r, cF))
+        If Len(st) > 0 Then out.Add Array(CellText(wsWorkflows, r, cW), st, CellText(wsWorkflows, r, cC), CellText(wsWorkflows, r, cE), _
+                                         CellText(wsWorkflows, r, cF))
     Next r
 End Function
 

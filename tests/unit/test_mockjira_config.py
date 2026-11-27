@@ -94,7 +94,7 @@ def test_preview_global_transitions_lead_to_the_free_statuses_and_initial_to_the
     _found, answer = preview("TA")
     ref, transitions = names(answer), answer["workflows"][0]["transitions"]
     team = [r for r in SHEETS["Workflows"].rows if r[0] == "Team"]
-    assert [ref[t["toStatusReference"]] for t in transitions if t["type"] == "GLOBAL"] == [r[1] for r in team if r[5] == 1]
+    assert [ref[t["toStatusReference"]] for t in transitions if t["type"] == "GLOBAL"] == [r[1] for r in team if r[4] == 1]
     assert [ref[t["toStatusReference"]] for t in transitions if t["type"] == "INITIAL"] == [team[0][1]]     # the first row
     assert all(t["links"] == [] for t in transitions if t["type"] != "DIRECTED")
 
@@ -189,7 +189,8 @@ def test_the_status_search_lists_every_status_of_the_instance_with_its_category_
     assert first["startAt"] == 0 and first["maxResults"] == 4 and len(first["values"]) == 4 and first["isLast"] is False
     everything = config.statuses_search(DS, {})
     names = {s["name"] for s in everything["values"]}
-    assert everything["isLast"] is True and everything["total"] == len(names) == len(DS.catalog.ids)
+    assert everything["isLast"] is True and everything["total"] == len(names) == len(DS.catalog.ids) + len(DS.catalog.others)
+    assert "EN ANALYSE" in names and DS.catalog.others                         # a status of another project, spelled in capitals (AL, 2026-11-27)
     assert {"Nouveau", "En analyse", "Terminé", "Annulé"} <= names
     by_name = {s["name"]: s["statusCategory"] for s in everything["values"]}
     assert (by_name["Nouveau"], by_name["En analyse"], by_name["Terminé"]) == ("TODO", "IN_PROGRESS", "DONE")

@@ -19,7 +19,7 @@ from jira2dashboard.flow.model import ACTIVE, ART, UNMAPPED, WAIT, WORK_TYPES, F
 
 NO_ITEM = "no item done in the iteration"
 ALL, LEFT_OUT = "all ", " done items left out: "
-NO_START_RULE = " no start status in the rules (set IsStart in Workflows_from_user)"
+NO_START_RULE = " no start status in the rules (no status in progress, or a start status of Config_from_user that Jira does not know)"
 NEVER_STARTED = " never entered the start status"
 BACK_TO_BACKLOG = " back to the backlog after the start"
 REOPENED = " reopened"
@@ -141,7 +141,7 @@ def flow_efficiency_check(items: list[ItemFlow], iteration: Iteration, team: str
 # --- FlowLoadCheck: the days of the iteration, those that have a snapshot (not after AsOf), the start statuses of the workflow of the team, the
 # average load and the load at the end of the last measured day counted again (Excel: SUMPRODUCT over StatusIntervals in mode A, over ItemFlow in
 # mode B: another writing of the rule than the COUNTIFS of DailyLoad), Gap against Metrics where it is computable, and the Reason.
-NO_START_STATUS = "the workflow of the team has no start status (set IsStart in Workflows_from_user)"
+NO_START_STATUS = "the workflow of the team has no start status (no status in progress, or a start status of Config_from_user that Jira does not know)"
 AFTER_AS_OF = "every day of the iteration is after the as-of date (AsOf)"
 
 

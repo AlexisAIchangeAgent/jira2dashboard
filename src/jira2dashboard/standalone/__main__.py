@@ -28,6 +28,7 @@ from jira2dashboard.cli.args import parser
 from jira2dashboard.flow import dashboard_spec as D
 from jira2dashboard.flow import raw_types
 from jira2dashboard.flow.formulas import CHANGELOG_RAW, INTERVALS_RAW, ISSUES, PIINTERVALS_RAW
+from jira2dashboard.flow import health as H
 from jira2dashboard.flow.health import health_fields
 from jira2dashboard.flow import jira_workflows as JW
 from jira2dashboard.flow.jira_workflows import JiraWorkflows
@@ -209,13 +210,19 @@ def log_rules(rules: Rules, kinds_with_tickets: set[str]) -> None:
         log.warning("%s", line)
 
 
-def log_health(issues, results, settings, verdicts: list[str]) -> list[str]:
-    """What the person should look at (flow/health.py, the fields of modHealth.HealthFields): one INFO line per field, and the fields for the sheet Run."""
-    config = next(sheet for sheet in settings.sheets if sheet.name == "Config")
+def log_health(issues, results, settings, verdicts: list[str], rows=()) -> list[str]:
+    """What the person should look at (flow/health.py, the fields of modHealth.HealthFields): one INFO line per field, and the fields for the sheet Run;
+    a WARN with its code for a setting that matches nothing (a status Jira does not know, a field empty in every ticket). `rows`: the rows of Issues."""
+    config = config_values(next(sheet for sheet in settings.sheets if sheet.name == "Config"))
+    filled = H.fields_filled(config, ISSUES, rows)
     fields = health_fields(issues, results.items, settings.rules, list(settings.iterations), settings.as_of, results.velocity_check, verdicts,
-                           config_values(config)["FeatureTypes"], settings.checks.undated_pis)
+                           config["FeatureTypes"], settings.checks.undated_pis, filled)
     for field in fields:
         log.info("health%s", field)
+        if field.startswith(H.UNKNOWN_STATUSES):
+            log.warning("%s | a status named in the settings is unknown to Jira%s", H.UNKNOWN_STATUSES_CODE, field.removeprefix(H.UNKNOWN_STATUSES[:-2]))
+        if field.startswith(H.EMPTY_FIELDS):
+            log.warning("%s | a field of Config_from_user is empty in every ticket%s", H.EMPTY_FIELDS_CODE, field.removeprefix(H.EMPTY_FIELDS[:-2]))
     return fields
 
 
@@ -267,16 +274,16 @@ def run(args, formatter: Scrubbed, collected: Collected, sleep=time.sleep, detec
     issues = client.search_all(jql, fields)
     log.info("BEGIN changelogs of %d issues", len(issues))
     pages = client.changelogs([i["key"] for i in issues])
+    catalog = client.status_catalog()                                   # first: the names of the statuses by id (a renamed status is one status)
     extract = extracted(issues, pages, FieldIds(settings.work_type_field, settings.fields), settings.projects,
-                        settings.blocks_link_type, client.user_fields(), settings.checks.feature_types)
+                        settings.blocks_link_type, client.user_fields(), settings.checks.feature_types, client.status_names)
     current = {row[6]: row[8] for row in extract.rows if row[6] and row[8]}            # the category Jira gives the current status of a ticket
-    catalog = client.status_catalog()
     if settings.project_admin:
         info = read_workflows(client, [row[0] for row in settings.projects])
     else:
         log.info("workflows of Jira not read: IsUserProjectAdmin is False (they need the project administrator right)")
         info = JiraWorkflows()
-    settings = dataclasses.replace(settings, workflows=info, rules=Rules.from_params(settings.sheets, catalog, current, set(info.starts), set(info.free)))     # Jira's rules under the exceptions of the sheet
+    settings = dataclasses.replace(settings, workflows=info, rules=Rules.from_params(settings.sheets, catalog, current, set(info.free)))     # Jira's rules under the exceptions of the sheet
     log_rules(settings.rules, {issue.workflow for issue in extract.flow})
     log.info("END Jira: %d issues, %d changelog items, %d links%s", len(extract.rows), extract.changelog_items,
              len(extract.links), took(step))
@@ -290,7 +297,7 @@ def run(args, formatter: Scrubbed, collected: Collected, sleep=time.sleep, detec
         log.info("%s", line)
     source = [("Made by", "jira2dashboard, Python path without VBA (scripts\\run.ps1 extract): values, no formula"),
               ("Started (UTC)", started_at), ("Workbook read", str(workbook.resolve())), ("Jira", base), ("JQL", jql), ("Proxy", proxy.mode)]
-    return finish(args, started, settings, extract, catalog, info, collected, source, client.retries, out)
+    return finish(args, started, settings, extract, catalog, info, collected, source, client.retries, out, client.status_names)
 
 
 def compute(args, collected: Collected) -> Path:
@@ -310,11 +317,10 @@ def compute(args, collected: Collected) -> Path:
     log.info("BEGIN sheets of the extraction")
     held = recompute.read_workbook(workbook)
     flow = recompute.flow_of(held.rows, held.changelog, held.links, settings.projects, FieldIds(settings.work_type_field, settings.fields).pi,
-                             settings.checks.feature_types)
+                             settings.checks.feature_types, held.names)
     current = {row[6]: row[8] for row in held.rows if row[6] and row[8]}
     info = held.workflows
-    settings = dataclasses.replace(settings, workflows=info, rules=Rules.from_params(settings.sheets, held.catalog, current, set(info.starts),
-                                                                                      set(info.free)))
+    settings = dataclasses.replace(settings, workflows=info, rules=Rules.from_params(settings.sheets, held.catalog, current, set(info.free)))
     log_rules(settings.rules, {issue.workflow for issue in flow})
     dates, shapes = recompute.unreadable(held.changelog)
     extract = Extract(held.rows, flow, held.links, len(held.changelog), dates, shapes, held.changelog)
@@ -325,7 +331,7 @@ def compute(args, collected: Collected) -> Path:
     source = [("Made by", "jira2dashboard, Python path without VBA (scripts\\run.ps1 compute): the results made again from the sheets of the "
                           "workbook read, no call to Jira"),
               ("Started (UTC)", started_at), ("Workbook read", str(workbook.resolve()))]
-    written = finish(args, started, settings, extract, held.catalog, info, collected, source, 0, out)
+    written = finish(args, started, settings, extract, held.catalog, info, collected, source, 0, out, held.names)
     if args.check:
         check_page(workbook, written)
     return written
@@ -348,7 +354,7 @@ def check_page(workbook: Path, results: Path) -> Path:
 
 
 def finish(args, started: float, settings, extract, catalog: dict[str, str], info: JiraWorkflows, collected: Collected, source: list[tuple],
-           retries: int, out: Path) -> Path:
+           retries: int, out: Path, names: dict[str, str] | None = None) -> Path:
     """What both commands do once they hold the extraction: the intervals, the results, the charts, the health, and the xlsx."""
     step = time.monotonic()
     intervals = [row for issue in extract.flow for row in interval_rows(issue, settings.as_of, settings.rules)]
@@ -368,7 +374,7 @@ def finish(args, started: float, settings, extract, catalog: dict[str, str], inf
     log.info("END results: %d items, %d metrics rows, %d charts%s", len(results.items), len(results.metrics),
              len(pictures) + len(feature_pictures), took(step))
     reconciliation = R.reconciliation_rows(results, extract.flow, settings)
-    health = log_health(extract.flow, results, settings, [row[-1] for row in reconciliation])
+    health = log_health(extract.flow, results, settings, [row[-1] for row in reconciliation], extract.rows)
     run_rows = [
         *source, ("AsOf (UTC)", settings.as_of), ("FlowLoadMode", settings.mode), ("PredictabilityMode", settings.predictability_mode),
         ("Iterations", f"{len(settings.iterations)}: {settings.iterations[0].name} to {settings.iterations[-1].name}"),
@@ -407,18 +413,18 @@ def finish(args, started: float, settings, extract, catalog: dict[str, str], inf
         Sheet(S.of("PIIntervals"), PIINTERVALS_RAW, R.piinterval_rows(extract.flow)),
         Sheet(S.of("IssueLinks"), ("Blocker", "Blocked"), extract.links),
         Sheet(S.of("Changelog"), CHANGELOG_RAW, extract.changelog),
-        *jira_sheets(catalog, info, settings.rules, program_project(settings.projects)),
+        *jira_sheets(catalog, info, settings.rules, program_project(settings.projects), names),
         Sheet(ERRORS_SHEET, ("TimeUtc", "Level", "Message"), collected.rows),
     ] + _masked(settings.sheets)
     write_xlsx(out, sheets_out)
     return out
 
 
-def jira_sheets(catalog: dict[str, str], info: JiraWorkflows, rules: Rules, program: str) -> list[Sheet]:
+def jira_sheets(catalog: dict[str, str], info: JiraWorkflows, rules: Rules, program: str, names: dict[str, str] | None = None) -> list[Sheet]:
     """What the run read of Jira's configuration, in the sheets and layout of the VBA (flow/jira_workflows), and the rules it made of them (StatusRules):
     a later `compute` reads the first four again, never StatusRules (it makes the rules again under the exceptions of Workflows)."""
     rows = JW.sheet_rows(info)
-    return [Sheet(S.of("JiraStatusCatalog"), JW.CATALOG_HEADER, JW.catalog_rows(catalog)),
+    return [Sheet(S.of("JiraStatusCatalog"), JW.CATALOG_HEADER, JW.catalog_rows(catalog, names)),
             Sheet(S.of("JiraIssueTypes"), JW.ISSUE_TYPES_HEADER, rows["JiraIssueTypes"]),
             Sheet(S.of("JiraWorkflows"), JW.WORKFLOWS_HEADER, rows["JiraWorkflows"]),
             Sheet(S.of("JiraTransitions"), JW.TRANSITIONS_HEADER, rows["JiraTransitions"]),

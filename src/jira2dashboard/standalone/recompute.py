@@ -17,7 +17,7 @@ from jira2dashboard.flow.formulas import CHANGELOG_RAW, ISSUES
 from jira2dashboard.flow.jira_workflows import JiraWorkflows
 from jira2dashboard.flow.model import Change, FlowIssue, PIChange
 from jira2dashboard.params.model import ParamsError
-from jira2dashboard.standalone.mapping import date_shape, flow_issue
+from jira2dashboard.standalone.mapping import date_shape, flow_issue, status_name
 from jira2dashboard.standalone.xlsx_read import read_sheets
 
 EPOCH = dt.datetime(1899, 12, 30)                    # Excel's day 0
@@ -100,16 +100,18 @@ def unreadable(changelog: list[tuple]) -> tuple[int, str]:
 
 
 def flow_of(rows: list[tuple], changelog: list[tuple], links: list[tuple[str, str]], projects: list[tuple[str, str, str]], pi_field: str,
-            feature_types: frozenset[str] | None) -> list[FlowIssue]:
+            feature_types: frozenset[str] | None, names: dict[str, str] | None = None) -> list[FlowIssue]:
     """The flow issues of the rows of Issues, as `mapping.extracted` makes them: the status changes and the changes of the PI field (Config.PIField)
-    of the sheet Changelog (a change whose date could not be read is left out), the blocking links, the fix versions of the row."""
+    of the sheet Changelog (a change whose date could not be read is left out), the blocking links, the fix versions of the row. `names`: status id ->
+    its name now (JiraStatusCatalog): the sheet Changelog keeps the text Jira sent, a renamed status takes its name of now (mapping.status_name)."""
     changes: dict[str, list[Change]] = {}
     pi_history: dict[str, list[PIChange]] = {}
-    for key, _issue, change, at, _text, field_id, _field, _type, _from, from_string, _to, to_string in changelog:
+    for key, _issue, change, at, _text, field_id, _field, _type, from_id, from_string, to_id, to_string in changelog:
         if at is None:
             continue
         if field_id == "status":
-            changes.setdefault(key, []).append(Change(change or "", at, from_string or "", to_string or ""))
+            changes.setdefault(key, []).append(Change(change or "", at, status_name(as_text(from_id), from_string, names),
+                                                      status_name(as_text(to_id), to_string, names)))
         elif pi_field and field_id == pi_field:
             pi_history.setdefault(key, []).append(PIChange(change or "", at, from_string, to_string))
     blocked_by: dict[str, list[str]] = {}
@@ -127,6 +129,7 @@ class Filled:
     changelog: list[tuple]              # Changelog
     links: list[tuple[str, str]]        # IssueLinks
     catalog: dict[str, str]             # JiraStatusCatalog: status -> Jira category
+    names: dict[str, str]               # JiraStatusCatalog: status id -> name (a renamed status of the changelog takes its name of now)
     workflows: JiraWorkflows            # JiraIssueTypes, JiraWorkflows, JiraTransitions (empty when the workflows were not read)
 
 
@@ -140,7 +143,7 @@ def filled(grids: dict[str, list[list]]) -> Filled:
         raise ParamsError(f"The sheet {S.of('Issues')} holds no ticket: run 1. Extract from Jira first", NO_EXTRACTION)
     links = [(as_text(c["Blocker"]), as_text(c["Blocked"])) for c in _columns(grids["IssueLinks"], ("Blocker", "Blocked"), "IssueLinks")]
     body = {name: [tuple(r) for r in grids.get(name, [])[1:] if any(v not in (None, "") for v in r)] for name in JIRA}
-    return Filled(rows, changelog_rows(grids["Changelog"]), links, JW.catalog_of(body["JiraStatusCatalog"]),
+    return Filled(rows, changelog_rows(grids["Changelog"]), links, JW.catalog_of(body["JiraStatusCatalog"]), JW.names_of(body["JiraStatusCatalog"]),
                   JW.from_sheets(body["JiraIssueTypes"], body["JiraWorkflows"], body["JiraTransitions"]))
 
 

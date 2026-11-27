@@ -58,9 +58,9 @@ SHEET_RULES = {
                  "workflows from Jira by itself). Status = the status name exactly as in Jira. Workflow = Team or Feature to limit the "
                  "row to one of them, empty for both. Leave a cell empty to keep Jira's value. "
                  "Category = Backlog, Active (work in progress), Wait (waiting), Done, Removed (cancelled): Jira cannot say Wait or "
-                 "Removed, and calls Done a status that is no delivery (cancelled, to deploy). IsStart = 1 for the status where the "
-                 "work starts, IsEnd = 1 for a status that ends it (every Done status does by default), IsFree = 1 for a status "
-                 "reachable from any status; 0 or empty otherwise.",
+                 "Removed, and calls Done a status that is no delivery (cancelled, to deploy). IsEnd = 1 for a status that ends the "
+                 "work (every Done status does by default), IsFree = 1 for a status reachable from any status; 0 or empty otherwise. "
+                 "The work starts at the first status in progress: no column for it.",
 }
 FORMAT = (
     "",

@@ -7,7 +7,8 @@ Private Const CHANGELOG_PERSON_FIELDS As String = "assignee,reporter,creator"
 
 Public Function StatusChangesFromChangelog(ByVal changelogRows As Collection, ByVal idToKey As Object, _
                                            Optional ByRef skipped As Long = 0, Optional ByRef shapes As String = "") As Collection
-    ' Keeps fieldId = "status". Output rows: Array(issueKey, changeId, createdUtc, fromString, toString).
+    ' Keeps fieldId = "status". Output rows: Array(issueKey, changeId, createdUtc, fromString, toString, fromId, toId) (StatusNamesNow names a
+    ' renamed status by its id).
     ' A change whose date cannot be read is left out and counted in `skipped` (like the Python path, mapping.status_changes):
     ' it cannot be placed in time, and its Empty date made a negative DATE of the duration, which Excel refuses to write.
     ' `shapes` tells what the unreadable values look like (DateShape, no content), to find why they are not read.
@@ -25,7 +26,7 @@ Public Function StatusChangesFromChangelog(ByVal changelogRows As Collection, By
                 shape = DateShape(r(2))
                 seen(shape) = seen(shape) + 1
             Else
-                out.Add Array(key, r(1), at, r(9), r(11))
+                out.Add Array(key, r(1), at, r(9), r(11), r(8), r(10))
             End If
         End If
     Next r
@@ -35,6 +36,23 @@ Public Function StatusChangesFromChangelog(ByVal changelogRows As Collection, By
         Next k
     End If
     Set StatusChangesFromChangelog = out
+End Function
+
+Public Function StatusNamesNow(ByVal changes As Collection, ByVal names As Object) As Collection
+    ' The status changes with each status by its name NOW when names (status id -> name, the catalog of Jira) knows its id: a status renamed in Jira keeps
+    ' its id, the changelog keeps the name it had then (AL, 2026-11-27: "the calculations must still work when the workflow changes"). A change without
+    ' ids (rows of 5) or with an id the catalog lacks keeps its texts. Twin of standalone/mapping.status_name.
+    Dim out As New Collection, ch As Variant, fromName As String, toName As String
+    Set StatusNamesNow = out
+    For Each ch In changes
+        fromName = CStr(ch(3) & ""): toName = CStr(ch(4) & "")
+        If UBound(ch) >= 6 Then
+            If names.Exists(CStr(ch(5) & "")) Then fromName = CStr(names(CStr(ch(5) & "")))
+            If names.Exists(CStr(ch(6) & "")) Then toName = CStr(names(CStr(ch(6) & "")))
+        End If
+        If fromName <> CStr(ch(3) & "") Or toName <> CStr(ch(4) & "") Then Cov "FLW25"
+        out.Add Array(ch(0), ch(1), ch(2), fromName, toName)
+    Next ch
 End Function
 
 Public Function DateShape(ByVal value As Variant) As String
@@ -233,7 +251,7 @@ End Function
 
 Public Function BuildStatusIntervals(ByVal issueInfo As Object, ByVal statusChanges As Collection, _
                                      ByVal asOfUtc As Date, ByVal categories As Object) As Collection
-    ' issueInfo: key -> Array(createdUtc, currentStatus).  categories: status -> "Active" / "Wait" / "Done" / "Removed" / "Backlog" (unknown = "Unclassified").
+    ' issueInfo: key -> Array(createdUtc, currentStatus).  categories: StatusKey(status) -> "Active" / "Wait" / "Done" / "Removed" / "Backlog" (unknown = "Unclassified").
     ' Output rows: Array(key, seq, status, category, enteredUtc, leftUtc, durationDays, isOpen, changeId, check)
     Cov "FLW02"
     Dim byIssue As Object, ch As Variant, key As Variant, out As New Collection
@@ -285,7 +303,9 @@ Private Function DaysBetween(ByVal fromUtc As Variant, ByVal toUtc As Variant) A
 End Function
 
 Private Function Category(ByVal categories As Object, ByVal status As String) As String
-    If categories.Exists(status) Then Category = categories(status) Else Cov "FLW07": Category = "Unclassified"
+    Dim key As String
+    key = StatusKey(status)
+    If categories.Exists(key) Then Category = categories(key) Else Cov "FLW07": Category = "Unclassified"
 End Function
 
 Private Function SortByDate(ByVal changes As Collection) As Collection

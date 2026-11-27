@@ -151,7 +151,7 @@ def _workflow_json(ds: Dataset, workflow: str, type_ids: list[str], pid: str, pa
                             "links": [{"fromStatusReference": ref(workflow, s), "fromPort": 0, "toPort": 1}
                                       for s in sources]})
     for row in rows:
-        if row[5] == 1:                                 # a free status is reachable from any status: a GLOBAL transition
+        if row[4] == 1:                                 # a free status is reachable from any status: a GLOBAL transition
             transitions.append({"id": str(10 * len(transitions) + 1), "name": row[1], "type": "GLOBAL", "links": [],
                                 "toStatusReference": ref(workflow, row[1])})
     name = ds.workflow_names.get(workflow, workflow)                # a scenario names its workflow in Jira (program-workflow)
@@ -168,10 +168,8 @@ def statuses_search(ds: Dataset, query: dict) -> dict:
     (TODO, IN_PROGRESS, DONE), offset paging, in the order of the ids."""
     start = int(_first(query, "startAt", "0"))
     size = min(int(_first(query, "maxResults", str(STATUS_PAGE_MAX))), STATUS_PAGE_MAX)
-    category_of = {}
-    for (workflow, status), _cat in ds.catalog.categories.items():
-        category_of.setdefault(status, ds.catalog.jira_category(workflow, status)[0])
-    found = sorted(ds.catalog.ids.items(), key=lambda item: int(item[1]))
+    category_of = ds.catalog.jira_categories()
+    found = sorted(list(ds.catalog.ids.items()) + [(name, sid) for name, (sid, _cat) in ds.catalog.others.items()], key=lambda item: int(item[1]))
     values = [{"id": status_id, "name": name, "statusCategory": _PREVIEW_CATEGORY[category_of.get(name, "indeterminate")],
                "scope": {"type": "GLOBAL"}, "description": ""} for name, status_id in found[start:start + size]]
     return {"values": values, "startAt": start, "maxResults": size, "total": len(found), "isLast": start + size >= len(found)}

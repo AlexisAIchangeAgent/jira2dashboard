@@ -22,6 +22,8 @@ Option Explicit
 ' Reads the tables of the workbook; never calls Jira, never raises (a status must not hide a finished extraction).
 
 Private Const MAX_NAMES As Long = 5
+Private Const UNKNOWN_STATUSES_CODE As String = "J2D-CFG-017"   ' a status that a setting names and Jira does not know (flow/health.UNKNOWN_STATUSES_CODE)
+Private Const EMPTY_FIELDS_CODE As String = "J2D-CFG-018"       ' a ...Field of Config empty in every ticket (flow/health.EMPTY_FIELDS_CODE)
 Private Const PROGRAM_TEAM As String = "ART"             ' the team of the Features of the Program (flow/model.ART)
 Private Const OTHER_TEAM As String = "ART (other types)"  ' the team of the other tickets of the Program (flow/model.OTHER_TYPES)
 Private Const FILL_LINE_MAX As Long = 270                ' a log line is cut at 300 characters: the fill counts go on a next line (raw_types.FILL_LINE_MAX)
@@ -42,8 +44,8 @@ Public Function HealthFields(ByVal wb As Object) As String
     Set starts = CreateObject("Scripting.Dictionary")
     ruled = RuleFacts(wb, starts, waitFound)
     found = found & NoStartStatus(kinds, starts, ruled) & NoWaitStatus(kinds, waitFound, ruled) & NotFeatures(wb) & OutsideIterations(wb) & _
-            PisWithoutDates(wb) & WithoutTeam(wb) & UnclassifiedStatuses(wb) & SameSecondStarts(wb) & AsOfBeforeData(wb) & VelocityCheckGap(wb) & ReconciliationFindings(wb) & _
-            CellsInError(wb)
+            PisWithoutDates(wb) & WithoutTeam(wb) & UnclassifiedStatuses(wb) & UnknownStatuses(wb) & EmptyFields(wb) & SameSecondStarts(wb) & AsOfBeforeData(wb) & _
+            VelocityCheckGap(wb) & ReconciliationFindings(wb) & CellsInError(wb)
     LogEnd "health"
     HealthFields = found
     Exit Function
@@ -148,8 +150,8 @@ Private Function NoStartStatus(ByVal kinds As Object, ByVal starts As Object, By
     Next kind
     If Len(missing) > 0 Then
         Cov "HLT63"
-        NoStartStatus = " | No start status: " & missing & " (no Flow Time, Flow Efficiency or Flow Load): set IsStart = 1 on the first in-progress status in " & _
-                        SheetName("Workflows")
+        NoStartStatus = " | No start status: " & missing & " (no Flow Time, Flow Efficiency or Flow Load): no status in progress, or a start status that Jira does not know in " & _
+                        SheetName("Config")
     End If
 End Function
 
@@ -390,6 +392,117 @@ Private Function UnclassifiedStatuses(ByVal wb As Object) As String
         UnclassifiedStatuses = " | Statuses not in Workflows: " & n & " (" & names & IIf(n > MAX_NAMES, ", ...", "") & "): add them to " & _
                                SheetName("Workflows") & " with a Category"
     End If
+End Function
+
+Private Function SheetColumnValues(ByVal wb As Object, ByVal name As String, ByVal header As String) As Variant
+    ' The cells of the column `header` of the table or plain range `name` (TableShape) as a 2-D array (rows, 1); Empty when it has no row or no such column.
+    Dim ws As Object, headerRow As Long, firstCol As Long, nCols As Long, nRows As Long, c As Long
+    If Not TableShape(wb, name, ws, headerRow, firstCol, nCols, nRows) Then Exit Function
+    c = ColumnIndex(ws, headerRow, firstCol, nCols, header)
+    If c = 0 Then Exit Function
+    SheetColumnValues = BlockValues(ws, headerRow + 1, headerRow + nRows, c)
+End Function
+
+Private Sub AddStatusKeys(ByVal known As Object, ByVal values As Variant)
+    ' The keys (StatusKey) of the filled cells of a column.
+    Dim r As Long
+    If IsEmpty(values) Then Exit Sub
+    For r = 1 To UBound(values, 1)
+        If Not IsError(values(r, 1)) Then
+            If Len(StatusKey(CStr(values(r, 1) & ""))) > 0 Then known(StatusKey(CStr(values(r, 1) & ""))) = True
+        End If
+    Next r
+End Sub
+
+Private Function UnknownStatuses(ByVal wb As Object) As String
+    ' The statuses that the sheet Workflows or Config FeatureStartStatuses / TeamStartStatuses names and no source knows: the catalog (JiraStatusCatalog),
+    ' the current statuses (Issues), the histories (StatusIntervals). Nothing when Jira was not read (no catalog, no ticket): nothing to compare with.
+    ' AL, 2026-11-27: the exception "A-grave deployer" ruled nothing, Jira spells it with a plain A. Twin of flow/health.unknown_statuses.
+    Dim known As Object, seen As Object, ex As Variant, kind As Variant, nm As Variant, lists As Object, names As String, n As Long, key As String
+    Dim found As Collection, one As Variant
+    On Error GoTo Failed                                              ' an error cell in Workflows or Config: no field, the other fields stay
+    If Not SheetExists(wb, "Workflows") Or Not SheetExists(wb, "Config") Then Exit Function
+    Set known = CreateObject("Scripting.Dictionary")
+    AddStatusKeys known, SheetColumnValues(wb, "JiraStatusCatalog", "Status")
+    AddStatusKeys known, SheetColumnValues(wb, "Issues", "Status")
+    If known.Count = 0 Then Exit Function
+    AddStatusKeys known, SheetColumnValues(wb, "StatusIntervals", "Status")
+    Set found = New Collection
+    For Each ex In WorkflowExceptions(wb.Worksheets(SheetName("Workflows")))
+        found.Add Array(CStr(ex(1)), SheetName("Workflows"))
+    Next ex
+    Set lists = StartStatuses(wb.Worksheets(SheetName("Config")))
+    For Each kind In Array("Feature", "Team")
+        For Each nm In lists(CStr(kind))
+            found.Add Array(CStr(nm), CStr(kind) & "StartStatuses")
+        Next nm
+    Next kind
+    Set seen = CreateObject("Scripting.Dictionary")
+    For Each one In found
+        key = StatusKey(CStr(one(0)))
+        If Len(key) > 0 And Not known.Exists(key) And Not seen.Exists(key) Then
+            seen(key) = True
+            n = n + 1
+            If n <= MAX_NAMES Then names = names & IIf(Len(names) > 0, ", ", "") & TrimWhite(CStr(one(0))) & " (" & CStr(one(1)) & ")"
+        End If
+    Next one
+    If n > 0 Then
+        Cov "HLT71"
+        UnknownStatuses = " | Statuses unknown to Jira: " & n & " (" & names & IIf(n > MAX_NAMES, ", ...", "") & "): type each name as Jira spells it"
+        LogLine "WARN", UNKNOWN_STATUSES_CODE & " | a status named in the settings is unknown to Jira" & Mid$(UnknownStatuses, Len(" | Statuses unknown to Jira") + 1)
+    End If
+    Exit Function
+Failed:
+    Cov "HLT74"
+    UnknownStatuses = ""
+End Function
+
+Private Function EmptyFields(ByVal wb As Object) As String
+    ' The ...Field of Config that are set while their column of Issues holds no value ("not a field id" when the value cannot be one: a space, an accent);
+    ' nothing when no ticket was read. AL, 2026-11-27: WorkTypeField held the NAME of the field. Twin of flow/health.empty_fields (FIELD_COLUMNS).
+    Dim pairs As Variant, i As Long, value As String, vals As Variant, r As Long, filled As Boolean, names As String, n As Long
+    Dim ws As Object, headerRow As Long, firstCol As Long, nCols As Long, nRows As Long, c As Long, config As Object, row As Variant
+    On Error GoTo Failed                                              ' an error cell in Config: no field, the other fields stay
+    If Not SheetExists(wb, "Config") Then Exit Function
+    If Not TableShape(wb, "Issues", ws, headerRow, firstCol, nCols, nRows) Then Exit Function
+    Set config = CreateObject("Scripting.Dictionary")                 ' Config read once: each ReadTable makes a Dictionary per row
+    For Each row In ReadTable(wb.Worksheets(SheetName("Config")))
+        If Not IsError(row("Parameter")) And Not IsError(row("Value")) Then config(CStr(row("Parameter") & "")) = TrimWhite(CStr(row("Value") & ""))
+    Next row
+    pairs = Array("WorkTypeField", "WorkType", "StoryPointsField", "StoryPoints", "PIField", "PI", "BusinessValueField", "BV", "TeamField", "TeamValue", _
+                  "SprintField", "SprintState", "TargetStartField", "TargetStart", "TargetEndField", "TargetEnd")
+    For i = 0 To UBound(pairs) Step 2
+        value = ""
+        If config.Exists(CStr(pairs(i))) Then value = config(CStr(pairs(i)))
+        c = ColumnIndex(ws, headerRow, firstCol, nCols, CStr(pairs(i + 1)))
+        If Len(value) > 0 And c > 0 Then
+            vals = BlockValues(ws, headerRow + 1, headerRow + nRows, c): filled = False
+            For r = 1 To UBound(vals, 1)
+                If IsError(vals(r, 1)) Then
+                    filled = True
+                ElseIf Len(CStr(vals(r, 1) & "")) > 0 Then
+                    filled = True
+                End If
+                If filled Then Exit For
+            Next r
+            If Not filled Then
+                n = n + 1
+                If n <= MAX_NAMES Then
+                    names = names & IIf(Len(names) > 0, ", ", "") & CStr(pairs(i))
+                    If value Like "*[!A-Za-z0-9_.]*" Then Cov "HLT72": names = names & " (" & value & ": not a field id" & ")"
+                End If
+            End If
+        End If
+    Next i
+    If n > 0 Then
+        Cov "HLT73"
+        EmptyFields = " | Fields empty in every ticket: " & n & " (" & names & IIf(n > MAX_NAMES, ", ...", "") & _
+                      "): type the id of the field (customfield_ and digits, listed in " & SheetName("JiraFields") & ") in " & SheetName("Config")
+        LogLine "WARN", EMPTY_FIELDS_CODE & " | a field of " & SheetName("Config") & " is empty in every ticket" & Mid$(EmptyFields, Len(" | Fields empty in every ticket") + 1)
+    End If
+    Exit Function
+Failed:                                                               ' no marker: Config is read through IsError, nothing here raises today
+    EmptyFields = ""
 End Function
 
 Private Function ErrorCount(ByVal ws As Object, ByVal col As Object) As Double

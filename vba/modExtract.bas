@@ -435,17 +435,20 @@ End Sub
 
 Private Sub RulesInit()
     ' The status rules of the run (flow/status_rules.py): what Jira says (the catalog of every status of the instance, the category Jira gives the current
-    ' status of each ticket, the start and the free statuses of the workflows that "Read the Jira configuration" wrote in JiraWorkflows) under the exceptions
-    ' of the sheet Workflows. A status that no source knows stays Unclassified.
+    ' status of each ticket, the free statuses of the workflows that "Read the Jira configuration" wrote in JiraWorkflows) under the exceptions of the sheet
+    ' Workflows and the start statuses of Config. A status that no source knows stays Unclassified. The workflows are still read when JiraWorkflows holds
+    ' none (the Jira workflow of each ticket, the check DC28, the order of the chart Cycle time by status): their starts no longer make the rules.
     Cov "MEX16"
     Dim catalog As Object, current As Object, starts As Object, frees As Object, row As Variant, jw As Object, refused As Long, admin As Boolean
-    Dim kinds As Object, program As String, failCode As String, catalogRows As Collection
+    Dim kinds As Object, program As String, failCode As String, catalogRows As Collection, names As Object, startLists As Object
     LogBegin "status rules"
-    Set catalog = CreateObject("Scripting.Dictionary")
+    Set catalog = CreateObject("Scripting.Dictionary"): Set names = CreateObject("Scripting.Dictionary")
     Set catalogRows = ReadStatusCatalog(mCfg)
     For Each row In catalogRows
         catalog(CStr(row(1))) = CStr(row(2))
+        If Len(CStr(row(0))) > 0 Then names(CStr(row(0))) = CStr(row(1))
     Next row
+    Set mChanges = StatusNamesNow(mChanges, names)                      ' a renamed status of the changelog by its name now: before the intervals
     Set mCatalogRows = catalogRows                                      ' written with the raw sheets (phase 5): 2. Compute reads THIS catalog
     Set current = CreateObject("Scripting.Dictionary")
     For Each row In mRows
@@ -470,15 +473,16 @@ Private Sub RulesInit()
             If refused <> 0 Then
                 Cov "MEX18"
                 LogLine "WARN", "J2D-JIRA-030 | the workflows of Jira could not be read (" & IIf(refused > 0, refused & " project(s) refused", failCode) & _
-                                "): the start of a flow comes from the sheet " & SheetName("Workflows") & ", the check DC28 from the sheet " & _
-                                SheetName("Transitions")
+                                "): the check DC28 reads the sheet " & SheetName("Transitions") & " only (the start of the flow does not need them)"
             End If
         Else
             Cov "MEX19"
             LogLine "INFO", "workflows of Jira not read: IsUserProjectAdmin is False (they need the project administrator right)"
         End If
     End If
-    Set mRules = EffectiveRules(Array("Feature", "Team"), catalog, current, starts, frees, WorkflowExceptions(mWsWorkflows))
+    Set startLists = Nothing
+    If SheetExists(ThisWorkbook, "Config") Then Set startLists = StartStatuses(ThisWorkbook.Worksheets(SheetName("Config")))
+    Set mRules = EffectiveRules(Array("Feature", "Team"), catalog, current, frees, WorkflowExceptions(mWsWorkflows), startLists)
     program = ProgramProject(mWsProjects)                               ' the kinds that have tickets: only they need a start status
     Set kinds = CreateObject("Scripting.Dictionary")
     For Each row In mRows
@@ -499,12 +503,12 @@ End Sub
 
 Public Sub RefreshRules(ByVal wb As Object)
     ' Button 2. Compute the metrics (AL, 2026-11-22): the status rules made again from what the extraction kept of Jira (the sheets JiraStatusCatalog and
-    ' JiraWorkflows, the current status of each ticket in Issues) under the exceptions of the sheet Workflows, then the columns of StatusIntervals that
+    ' JiraWorkflows, the current status of each ticket in Issues) under the exceptions of the sheet Workflows and the start statuses of Config, then the columns of StatusIntervals that
     ' follow from them and from the parameters (RefreshIntervals). A change of Workflows, of the roles of Projects or of AsOf takes effect without reading
     ' Jira again. The same rules as RulesInit gives at the extraction: the scenarios compute right after extracting and compare with the reference.
     Cov "MEX20"
-    Dim catalog As Object, current As Object, starts As Object, frees As Object, rules As Collection, kinds As Object, projectOf As Object
-    Dim data As Variant, n As Long, r As Long, cS As Long, cC As Long, cK As Long, cP As Long, program As String, key As String, jw As Object
+    Dim catalog As Object, current As Object, frees As Object, rules As Collection, kinds As Object, projectOf As Object
+    Dim data As Variant, n As Long, r As Long, cS As Long, cC As Long, cK As Long, cP As Long, program As String, key As String
     Dim asOf As Double
     asOf = CDbl(AsOfFromConfig(wb.Worksheets(SheetName("Config"))))      ' every input read before the first write (error 604 changes nothing)
     LogBegin "status rules"
@@ -535,12 +539,12 @@ Public Sub RefreshRules(ByVal wb As Object)
         End If
     End If
     If SheetExists(wb, "JiraWorkflows") Then
-        Set jw = wb.Worksheets(SheetName("JiraWorkflows"))
-        Set starts = FlaggedStatuses(jw, "IsStart"): Set frees = FlaggedStatuses(jw, "IsFree")
+        Set frees = FlaggedStatuses(wb.Worksheets(SheetName("JiraWorkflows")), "IsFree")
     Else
-        Set starts = CreateObject("Scripting.Dictionary"): Set frees = CreateObject("Scripting.Dictionary")
+        Set frees = CreateObject("Scripting.Dictionary")
     End If
-    Set rules = EffectiveRules(Array("Feature", "Team"), catalog, current, starts, frees, WorkflowExceptions(wb.Worksheets(SheetName("Workflows"))))
+    Set rules = EffectiveRules(Array("Feature", "Team"), catalog, current, frees, WorkflowExceptions(wb.Worksheets(SheetName("Workflows"))), _
+                               StartStatuses(wb.Worksheets(SheetName("Config"))))
     LogRules rules, kinds
     WriteTable wb.Worksheets(SheetName("StatusRules")), Array("Workflow", "Status", "Category", "IsStart", "IsEnd", "IsFree", "Source", "JiraWorkflows"), _
                RulesWithJiraWorkflows(wb, rules)
@@ -577,6 +581,7 @@ Private Sub RefreshIntervals(ByVal wb As Object, ByVal rules As Collection, ByVa
                 If wf = "Feature" Then Set cats = catF Else Set cats = catT
                 status = CStr(data(r + 1, cS) & "")
                 wfCol(r, 1) = SafeCell(wf)                                   ' text kept as text, as the extraction writes it (WriteTable)
+                status = StatusKey(status)                                  ' the rules are keyed by the key of the status
                 If cats.Exists(status) Then catCol(r, 1) = SafeCell(CStr(cats(status))) Else Cov "MEX22": catCol(r, 1) = "Unclassified"
                 If VarType(data(r + 1, cO)) = vbBoolean Then isOpen = data(r + 1, cO) Else isOpen = (UCase$(CStr(data(r + 1, cO) & "")) = "TRUE")
                 If isOpen Then Cov "MEX21": durCol(r, 1) = asOf - CDbl(data(r + 1, cE))      ' an unreadable date is Empty, 0: as modFlow.DaysBetween

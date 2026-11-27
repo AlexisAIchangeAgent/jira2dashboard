@@ -143,8 +143,10 @@ class JiraClient:
 
     def status_catalog(self) -> dict[str, str]:
         """Every status of the instance with its Jira category (GET statuses/search, 200 a page): status name -> TODO, IN_PROGRESS or DONE (or the key
-        of a category object). It only improves what the run knows, so a call that fails ends the reading with what was got, never an error."""
+        of a category object). It only improves what the run knows, so a call that fails ends the reading with what was got, never an error.
+        It also keeps `status_names`: status id -> its name now (a status renamed in Jira keeps its id: the changelog says its old name)."""
         out: dict[str, str] = {}
+        self.status_names = {}
         start = 0
         for _page in range(100):
             try:
@@ -158,6 +160,8 @@ class JiraClient:
                 category = category.get("key") if isinstance(category, dict) else category
                 if isinstance(status, dict) and status.get("name"):
                     out[status["name"]] = category or ""
+                    if status.get("id") not in (None, ""):
+                        self.status_names[str(status["id"])] = status["name"]
             if not values or answer.get("isLast"):
                 break
             start += len(values)

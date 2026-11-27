@@ -50,7 +50,8 @@ break them), and a **flow time sample** for one type on request (flow time and e
 - **Project** name or key, and **iteration**: start and end dates (an iteration or a PI of the `Iterations` / `PIs` sheets).
   The workbook computes in UTC, Jira in the user's time zone: a few items can move across a iteration boundary.
 - **Filter** (optional): the `Filter` of the `Config` sheet, so the scope is the workbook's.
-- **Status classification**: the rows of the `Workflows` sheet (Workflow, Status, Category, IsStart, IsEnd). Either pasted
+- **Status classification**: the rows of the `StatusRules_from_excel` sheet (Workflow, Status, Category, IsStart, IsEnd): the
+  rules the workbook made from Jira and the exceptions of `Workflows_from_user` (a status in progress starts the flow). Either pasted
   in the conversation, or kept on the Confluence page "ART data rules" added as Knowledge (`rovo/rovo-guide.md`
   section 8), written as a clean table. Without it the agent cannot tell start, end, active and wait statuses, and
   says so.
@@ -99,7 +100,7 @@ harm than a JQL link. Label every number exact, approximate or sample, and give 
 <inputs>
 - project (name or key) and iteration (start date, end date). Ask for them if missing.
 - filter: optional JQL restriction; add it as AND (filter) to every search, so the scope is the workbook's.
-- status classification: the rows Workflow | Status | Category | IsStart | IsEnd of the workbook sheet Workflows, pasted
+- status classification: the rows Workflow | Status | Category | IsStart | IsEnd of the workbook sheet StatusRules_from_excel, pasted
   or on the knowledge page "ART data rules". Category is Backlog, Active, Wait, Done or Removed. Start statuses have
   IsStart = 1, end statuses IsEnd = 1, work in process (WIP) statuses are the Active and Wait ones. If you have no
   classification, say so and give only Velocity by resolution date, the current Load by status category In Progress,

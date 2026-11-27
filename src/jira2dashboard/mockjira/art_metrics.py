@@ -39,16 +39,16 @@ RELEASE_DAY = dt.timedelta(days=10, hours=12)                                   
 SETTLED = "2025-01-01T00:00"                                                          # the backlog, created at the start of PI-1
 ADDED = "2026-02-10T09:00"                                                            # ft-25, during IT-4-2
 
-# What JIRA defines (the fake Jira answers from these rows, in full): status, Workflows rows (Workflow, Status, Category, IsStart, IsEnd, IsFree) and
+# What JIRA defines (the fake Jira answers from these rows, in full): status, Workflows rows (Workflow, Status, Category, IsEnd, IsFree) and
 # Transitions (Workflow, From, To). The parameter sheets of the scenario hold only what Jira cannot say (EXCEPTION_ROWS): the metrics read the rest from Jira.
-_STATUS_ROWS = ((TODO, "Backlog", 0, 0, 0), ("analyzing", "Active", 1, 0, 0), ("ready4PI", "Wait", 0, 0, 0),
-                ("doing", "Active", 0, 0, 0), ("ready2test", "Wait", 0, 0, 0), ("testing", "Active", 0, 0, 0),
-                ("ready2deploy", "Wait", 0, 0, 0), ("deploying", "Active", 0, 0, 0), (DONE, "Done", 0, 1, 0))
-WORKFLOW_ROWS = tuple((WORKFLOW, name, category, start, end, free) for name, category, start, end, free in _STATUS_ROWS) + (
-    (WORKFLOW, DEFERRED, "Backlog", 0, 0, 1),)
+_STATUS_ROWS = ((TODO, "Backlog", 0, 0), ("analyzing", "Active", 0, 0), ("ready4PI", "Wait", 0, 0),
+                ("doing", "Active", 0, 0), ("ready2test", "Wait", 0, 0), ("testing", "Active", 0, 0),
+                ("ready2deploy", "Wait", 0, 0), ("deploying", "Active", 0, 0), (DONE, "Done", 1, 0))
+WORKFLOW_ROWS = tuple((WORKFLOW, name, category, end, free) for name, category, end, free in _STATUS_ROWS) + (
+    (WORKFLOW, DEFERRED, "Backlog", 0, 1),)
 TRANSITION_ROWS = tuple((WORKFLOW, _STATUS_ROWS[n][0], _STATUS_ROWS[n + 1][0]) for n in range(len(_STATUS_ROWS) - 1)) + (
     (WORKFLOW, DEFERRED, TODO),)
-EXCEPTION_ROWS = tuple((WORKFLOW, name, "Wait", None, None, None) for name, category, *_ in _STATUS_ROWS if category == "Wait")   # Jira cannot say Wait
+EXCEPTION_ROWS = tuple((WORKFLOW, name, "Wait", None, None) for name, category, *_ in _STATUS_ROWS if category == "Wait")   # Jira cannot say Wait
 
 
 @dataclass(frozen=True)

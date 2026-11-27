@@ -37,9 +37,20 @@ Fonctionnalité: Le scénario art-metrics du faux Jira donne, par le chemin Pyth
     Et la feuille FlowLoadCheck de l'ART est celle calculée à la main
     Et la feuille FlowDistCheck de l'ART est celle calculée à la main
 
-  Scénario: Sans statut de départ ni statut Wait, Flow Time, Flow Efficiency et Flow Load ne sont pas calculables et le résultat dit pourquoi
+  Scénario: Sans les workflows de Jira ni exception, le Flow Time et le Flow Load viennent des catégories de Jira, seul le Flow Efficiency manque d'un statut Wait
     Soit le faux Jira du scénario art-metrics
     Et le faux Jira refuse la lecture des workflows
+    Et la feuille Workflows du classeur de paramètres est vide
+    Quand je lance l'extraction Python sur ce scénario
+    Alors elle se termine avec le code 0
+    Et la vélocité par itération est celle du scénario
+    Et la feuille FlowTimeCheck de l'ART est celle calculée à la main
+    Et la feuille FlowEfficiencyCheck de l'ART est celle calculée à la main, sans statut Wait mais avec un début
+    Et la feuille FlowLoadCheck de l'ART est celle calculée à la main
+
+  Scénario: Avec un statut de départ que Jira ne connaît pas et sans statut Wait, Flow Time, Flow Efficiency et Flow Load ne sont pas calculables et le résultat dit pourquoi
+    Soit le faux Jira du scénario art-metrics
+    Et le paramètre "FeatureStartStatuses" vaut "in progress" dans le classeur de paramètres
     Et la feuille Workflows du classeur de paramètres est vide
     Quand je lance l'extraction Python sur ce scénario
     Alors elle se termine avec le code 0

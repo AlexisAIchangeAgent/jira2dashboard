@@ -139,3 +139,12 @@ def test_the_scan_sees_a_whole_column_inside_countifs():
     assert [c for c in _countifs_calls(old) if whole_columns(c)]
     cut = "=IF(COUNTIFS(Transitions!$A$2:INDEX(Transitions!$A:$A,cfg_TransitionsLast),[@Workflow])>0,0,1)"
     assert not [c for c in _countifs_calls(cut) if whole_columns(c)]
+
+
+def test_the_flags_of_an_interval_are_1_or_0_never_a_sum_of_rules():
+    """AL, 2026-11-27: SUMIFS ignores case and ADDS the rules it matches; two spellings of one status gave IsStart 2 at the client, which
+    COUNTIFS(IsStart, 1) never counted. The rules hold one row per status key, and the formula keeps 1 or 0 whatever the sheet holds."""
+    from jira2dashboard.flow.formulas import INTERVAL_HELPERS
+    helpers = dict(INTERVAL_HELPERS)
+    for name in ("IsStart", "IsEnd"):
+        assert helpers[name].startswith("=IF(SUMIFS(StatusRules_from_excel!") and helpers[name].endswith(")>0,1,0)"), name

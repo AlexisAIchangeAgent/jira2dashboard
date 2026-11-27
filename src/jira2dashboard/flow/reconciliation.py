@@ -14,7 +14,7 @@ from jira2dashboard.flow.iteration_features import IterationFeatures, carry_over
 from jira2dashboard.flow.metric_checks import (flow_distribution_check, flow_efficiency_check, flow_load_check, flow_time_check,
                                                in_process_at_end)
 from jira2dashboard.flow.metrics import TeamIterationMetrics
-from jira2dashboard.flow.model import ART, OTHER_TYPES, UNCLASSIFIED, WAIT, FlowIssue, Iteration, Rules
+from jira2dashboard.flow.model import ART, OTHER_TYPES, UNCLASSIFIED, WAIT, FlowIssue, Iteration, Rules, status_key
 from jira2dashboard.flow.trace import ACCOUNT_COUNTED, ACCOUNT_OTHER, ACCOUNTS, CUTOFF_HOURS, MetricItems, account, metric_items, trace
 
 POPULATION = "Tickets read from Jira = tickets of ItemFlow"
@@ -124,7 +124,8 @@ def done_statuses(issues: list[FlowIssue], rules: Rules) -> list[tuple]:
     """The statuses that end the flow and the tickets that sit in each now, one row per status in the order of the names: what the person reads to declare as
     exceptions the Done statuses of Jira that are no delivery (cancelled, to deploy): status, tickets."""
     ended = rules.ended_statuses()
-    count = Counter(issue.status for issue in issues if issue.status in ended)
+    named = {status_key(status): status for status in ended}                 # a ticket's status in another case is that status (Excel's COUNTIF)
+    count = Counter(named[status_key(issue.status)] for issue in issues if status_key(issue.status) in named)
     return [(status, count[status]) for status in sorted(ended)]
 
 

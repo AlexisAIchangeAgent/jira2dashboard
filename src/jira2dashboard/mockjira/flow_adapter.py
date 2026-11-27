@@ -31,6 +31,9 @@ def to_flow_issues(dataset: Dataset, sheets: list[ParamSheet] | None = None,
     if feature_types is None:
         feature_types = CheckSettings.from_params(used).feature_types
     projects = {row[0]: (row[1], row[2] or row[0]) for s in used if s.name == "Projects" for row in s.rows}
+
+    def now(status: str) -> str:
+        return dataset.catalog.renamed.get(status, status)
     out = []
     for issue in dataset.issues:
         role, team = projects[issue.project]
@@ -41,7 +44,7 @@ def to_flow_issues(dataset: Dataset, sheets: list[ParamSheet] | None = None,
         out.append(FlowIssue(
             key=issue.key, team=program_team(issue.type, feature_types) if program else team, type=issue.type, work_type=issue.work_type,
             workflow=workflow, created=issue.created, status=issue.status,
-            changes=tuple(Change(c.id, c.at, c.from_status, c.to_status) for c in issue.changes),
+            changes=tuple(Change(c.id, c.at, now(c.from_status), now(c.to_status)) for c in issue.changes),       # a renamed status: its name now
             parent=issue.parent, resolved=resolution[1] if resolution else None,
             status_category=dataset.catalog.jira_category(workflow, issue.status)[0],
             fix_versions=issue.fix_versions, story_points=issue.story_points, pi=issue.pi,
@@ -72,7 +75,7 @@ def jira_workflows(dataset: Dataset) -> JiraWorkflows:
         start = first_in_progress(rows[0][1], edges, categories)
         if start:
             starts.add(start)
-        free |= {row[1] for row in rows if row[5] == 1}
+        free |= {row[1] for row in rows if row[4] == 1}
     projects = {i.project for i in dataset.issues}
     workflow_of = {(i.project, i.type): dataset.workflow_names.get(i.workflow, i.workflow) for i in dataset.issues if i.project in projects}
     return JiraWorkflows(initial, frozenset(moves), frozenset(starts), frozenset(free), workflow_of)
@@ -80,11 +83,9 @@ def jira_workflows(dataset: Dataset) -> JiraWorkflows:
 
 def jira_rules(dataset: Dataset) -> Rules:
     """The status rules the workbook ends up with for this dataset: what the fake Jira defines (the catalog of the statuses, the category of the
-    current status of each ticket, the start of each workflow by its transitions, the free statuses) under the exceptions of the sheet Workflows."""
+    current status of each ticket, the free statuses) under the exceptions of the sheet Workflows and the start statuses of its Config."""
     own = list(dataset.sheets or load_all())
-    categories = {}
-    for (workflow, status), _cat in dataset.catalog.categories.items():
-        categories.setdefault(status, dataset.catalog.jira_category(workflow, status)[0])
+    categories = dataset.catalog.jira_categories()                  # the statuses of every project of the site (statuses/search)
     current = {i.status: categories[i.status] for i in dataset.issues if i.status in categories}
     info = jira_workflows(dataset)
-    return Rules.from_params(own, categories, current, set(info.starts), set(info.free))
+    return Rules.from_params(own, categories, current, set(info.free))

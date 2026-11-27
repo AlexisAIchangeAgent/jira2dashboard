@@ -8,6 +8,10 @@ Python path (its sheet Run and python.log). They say WHY a figure or a chart is 
   PIs without dates                  PIs of the sheet PIs with no Start and no End: left out of the metrics (AL, 2026-11-25)
   Without a team                     tickets whose Team is empty
   Statuses not in Workflows          statuses of the history that no rule knows (Unclassified)
+  Statuses unknown to Jira           a status that the sheet Workflows or Config FeatureStartStatuses / TeamStartStatuses names and no source of Jira
+                                     knows (AL, 2026-11-27: the exception "À déployer" ruled nothing, Jira spells it "A déployer"); the WARN J2D-CFG-017
+  Fields empty in every ticket       a ...Field of Config that is set while its column of Issues has no filled cell (AL, 2026-11-27: WorkTypeField =
+                                     "Activité", a name, not the id of the field: Flow Distribution had nothing to distribute); the WARN J2D-CFG-018
   Started in the second of the backlog entry   no StartUtc because the start was entered in the same second as the last backlog entry (the
                                      milliseconds are dropped and the start must come strictly after it): an automation that moves a ticket at once
   AsOf before the data               status changes after AsOf: the open intervals and Flow Load stop at AsOf
@@ -17,8 +21,10 @@ The VBA also has Column types (raw_types: the sheet Run of the Python path has i
 AL, 2026-11-22: "flow metrics are still not computable".
 """
 import datetime as dt
+import re
 
 from jira2dashboard import sheet_names as S
+from jira2dashboard.flow import status_rules as SR
 from jira2dashboard.flow.itemflow import ItemFlow
 from jira2dashboard.flow.model import ART, BACKLOG, OTHER_TYPES, UNCLASSIFIED, WAIT, FlowIssue, Iteration, Rules
 from jira2dashboard.flow.velocity_check import VelocityCheck
@@ -28,7 +34,7 @@ HALF_SECOND = dt.timedelta(seconds=0.5)         # the margin of the formulas (re
 KINDS = ("Feature", "Team")
 
 # the literal parts of the texts, the same in modHealth.bas
-NO_START = " (no Flow Time, Flow Efficiency or Flow Load): set IsStart = 1 on the first in-progress status in "
+NO_START = " (no Flow Time, Flow Efficiency or Flow Load): no status in progress, or a start status that Jira does not know in "
 NO_WAIT = " | No Wait status (no Flow Efficiency): set Category = Wait on the statuses where the work waits in "
 NOT_FEATURES = " tickets of the Program (team "
 LEFT_OUT = ", left out of the ART metrics)"
@@ -45,11 +51,22 @@ SAME_SECOND_WHY = " tickets (no StartUtc, so left out of Flow Time and Flow Load
 AS_OF = " | AsOf before the data: "
 AS_OF_WHY = " status changes after AsOf (Flow Load stops at AsOf): set AsOf in "
 AS_OF_FIX = " to the time of the extraction"
+UNKNOWN_STATUSES = " | Statuses unknown to Jira: "
+UNKNOWN_STATUSES_WHY = "): type each name as Jira spells it"
+EMPTY_FIELDS = " | Fields empty in every ticket: "
+NOT_AN_ID = ": not a field id"
+EMPTY_FIELDS_WHY = "): type the id of the field (customfield_ and digits, listed in "
+UNKNOWN_STATUSES_CODE, EMPTY_FIELDS_CODE = "J2D-CFG-017", "J2D-CFG-018"
+# the ...Field parameters of Config and the column of Issues each one fills (modHealth.FIELD_COLUMNS: the same pairs)
+FIELD_COLUMNS = (("WorkTypeField", "WorkType"), ("StoryPointsField", "StoryPoints"), ("PIField", "PI"), ("BusinessValueField", "BV"),
+                 ("TeamField", "TeamValue"), ("SprintField", "SprintState"), ("TargetStartField", "TargetStart"), ("TargetEndField", "TargetEnd"))
+_FIELD_ID = re.compile(r"[A-Za-z0-9_.]+")          # an id of Jira: customfield_10200, fixVersions...; a name has a space or an accent
 GAP = " | VelocityCheck gap: "
 REVIEW = " controls to review (sheet "
 VBA_TEXTS = (" | No start status: ", NO_START, NO_WAIT, " | Not Features: ", NOT_FEATURES, LEFT_OUT, " | FeatureTypes ", TYPE_IT,
              " | Done outside the iterations: ", OUTSIDE, ADD_ITERATIONS, UNDATED, UNDATED_WHY, " | Without a team: ", WITHOUT_TEAM, " | Statuses not in Workflows: ", UNKNOWN,
-             " with a Category", SAME_SECOND, SAME_SECOND_WHY, AS_OF, AS_OF_WHY, AS_OF_FIX, GAP, " rows (sheet ", " | Reconciliation: ", REVIEW)
+             " with a Category", UNKNOWN_STATUSES, UNKNOWN_STATUSES_WHY, EMPTY_FIELDS, NOT_AN_ID, EMPTY_FIELDS_WHY, SAME_SECOND, SAME_SECOND_WHY, AS_OF,
+             AS_OF_WHY, AS_OF_FIX, GAP, " rows (sheet ", " | Reconciliation: ", REVIEW)
 
 
 def _names(names) -> tuple[str, int]:
@@ -62,7 +79,7 @@ def no_start_status(issues: list[FlowIssue], rules: Rules) -> str:
     with_tickets = {i.workflow for i in issues}
     starts = {r.workflow for r in rules.listed() if r.is_start}
     missing = [k for k in KINDS if k in with_tickets and k not in starts]
-    return f" | No start status: {', '.join(missing)}{NO_START}{S.of('Workflows')}" if missing else ""
+    return f" | No start status: {', '.join(missing)}{NO_START}{S.of('Config')}" if missing else ""
 
 
 def no_wait_status(issues: list[FlowIssue], rules: Rules) -> str:
@@ -105,6 +122,38 @@ def unclassified_statuses(items: list[ItemFlow]) -> str:
     return f" | Statuses not in Workflows: {n} ({names}{UNKNOWN}{S.of('Workflows')} with a Category" if n else ""
 
 
+def unknown_statuses(rules: Rules, items: list[ItemFlow]) -> str:
+    """The statuses that a setting names (the sheet Workflows, Config FeatureStartStatuses / TeamStartStatuses) and no source knows: the catalog, the
+    current statuses, the histories. Nothing when Jira was not read at all (no catalog, no current status: nothing to compare with)."""
+    if not rules.known:
+        return ""
+    known = set(rules.known) | {iv.status for i in items for iv in i.intervals}
+    found = SR.unknown_statuses(rules.exceptions, rules.start_statuses, known)
+    shown, n = _names(f"{name} ({S.of('Workflows') if where == 'Workflows' else where})" for name, where in found)
+    return f"{UNKNOWN_STATUSES}{n} ({shown}{UNKNOWN_STATUSES_WHY}" if n else ""
+
+
+def fields_filled(config: dict, header, rows) -> list[tuple[str, str, int]]:
+    """(parameter, value, filled cells of its Issues column) for each ...Field of FIELD_COLUMNS, `config` the values of Config, `rows` the rows of
+    Issues under `header`."""
+    out = []
+    for parameter, column in FIELD_COLUMNS:
+        index = list(header).index(column)
+        value = str(config.get(parameter) or "").strip()
+        out.append((parameter, value, sum(1 for r in rows if r[index] not in (None, ""))))
+    return out
+
+
+def empty_fields(fields: list[tuple[str, str, int]], tickets: int) -> str:
+    """The ...Field of Config that are set while no ticket holds a value (`fields`: fields_filled); "not a field id" when the value cannot be an id.
+    Nothing when no ticket was read."""
+    if tickets == 0:
+        return ""
+    empty = [(p, v) for p, v, filled in fields if v and filled == 0]
+    shown, n = _names(p if _FIELD_ID.fullmatch(v) else f"{p} ({v}{NOT_AN_ID})" for p, v in empty)
+    return f"{EMPTY_FIELDS}{n} ({shown}{EMPTY_FIELDS_WHY}{S.of('JiraFields')}) in {S.of('Config')}" if n else ""
+
+
 def same_second_starts(issues: list[FlowIssue], items: list[ItemFlow], rules: Rules) -> str:
     """Tickets without a StartUtc that entered a start status in the same second as their last backlog entry."""
     n = 0
@@ -135,10 +184,11 @@ def reconciliation_findings(verdicts: list[str]) -> str:
 
 
 def health_fields(issues: list[FlowIssue], items: list[ItemFlow], rules: Rules, iterations: list[Iteration], as_of: dt.datetime,
-                  checks: list[VelocityCheck], verdicts: list[str], feature_types: str, undated_pis=()) -> list[str]:
+                  checks: list[VelocityCheck], verdicts: list[str], feature_types: str, undated_pis=(), fields=()) -> list[str]:
     """The fields in the order of modHealth.HealthFields; `items[n]` is the ItemFlow of `issues[n]`, `verdicts` the results of the Reconciliation,
-    `feature_types` the text of Config.FeatureTypes, `undated_pis` the PIs of the sheet PIs without dates."""
+    `feature_types` the text of Config.FeatureTypes, `undated_pis` the PIs of the sheet PIs without dates, `fields` the fields_filled of Config."""
     found = (no_start_status(issues, rules), no_wait_status(issues, rules), not_features(items, feature_types), outside_iterations(items, iterations),
-             pis_without_dates(undated_pis), without_team(items), unclassified_statuses(items), same_second_starts(issues, items, rules), as_of_before_data(items, as_of),
+             pis_without_dates(undated_pis), without_team(items), unclassified_statuses(items), unknown_statuses(rules, items),
+             empty_fields(list(fields), len(issues)), same_second_starts(issues, items, rules), as_of_before_data(items, as_of),
              velocity_check_gap(checks), reconciliation_findings(verdicts))
     return [f for f in found if f]

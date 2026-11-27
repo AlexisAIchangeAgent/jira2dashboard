@@ -230,11 +230,15 @@ Parameters are workbook sheets. Their sources are the files of `params/`, which 
 | `Projects` | [`projects.md`](params/projects.md) | Projects to extract: one `Program`, the others `Team` |
 | `Iterations` | [`iterations.md`](params/iterations.md) | Short cycles inside a PI, `[Start, End[` (empty in the repo) |
 | `PIs` | [`pis.md`](params/pis.md) | Long cycles (PI), each holding several iterations (empty in the repo) |
-| `Workflows` | [`workflows.md`](params/workflows.md) | Category of each status: Active, Wait, Done, Removed, Backlog |
+| `Workflows` | [`workflows.md`](params/workflows.md) | Exceptions to Jira: a status Wait, Removed, a Done that is no end |
 | `Transitions` | [`transitions.md`](params/transitions.md) | Allowed moves |
 
 - `Config` columns: Parameter, **Value** (the only one read), Example, Mandatory, Description. An empty value with
   Mandatory = `True` stops the extraction before any call to Jira (error 608).
+- The flow of a ticket starts at its first status in progress (Jira category In Progress) after its last To Do one,
+  whatever the workflow and its changes. `FeatureStartStatuses` / `TeamStartStatuses` name other start statuses.
+- A status is compared as Excel compares texts (case and outer spaces ignored), and a status renamed in Jira is found
+  by its id. The status field names a status of `Workflows` that Jira does not know, and a `...Field` empty in every ticket.
 - `ProxyServer` empty = the Windows proxy settings (WPAD, PAC, fixed); `DIRECT` = none; else `host:port`.
   `ProxyWindowsAuth` = `Yes` sends the Windows session to the proxy.
 - A test refuses an API token in `params/config.md`.

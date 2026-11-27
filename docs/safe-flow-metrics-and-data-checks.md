@@ -23,15 +23,16 @@ Labels: **SAFe** = definition from the SAFe framework site; **Documented** = Atl
 - All teams share **one workflow** (`Team`). Features have **one workflow** of their own (`Feature`). Statuses
   and moves (Jira UI, French) are defined **in the workbook, never in code**, on two sheets.
 
-**Sheet `Workflows`** (one row per status and workflow): `Workflow | Status | Category | IsStart | IsEnd | IsFree`
-(2026-11-18, AL: the column `Order` is gone, the rows are in the order of the normal flow)
+**Sheet `Workflows`** (one row per status and workflow): `Workflow | Status | Category | IsEnd | IsFree`
+(2026-11-18, AL: the column `Order` is gone, the rows are in the order of the normal flow; 2026-11-27, AL: the column
+`IsStart` is gone, the flow starts at a status in progress or at the statuses of Config `FeatureStartStatuses` /
+`TeamStartStatuses`)
 
 | Column | Meaning |
 |---|---|
 | Workflow | `Team` or `Feature` |
-| Status | exact Jira name (with accents, read from the sheet) |
+| Status | Jira name with its accents (compared as Excel compares texts: case and outer spaces ignored) |
 | Category | `Active`, `Wait`, `Done`, `Removed`, `Backlog`, `Unclassified` |
-| IsStart | 1 on `En analyse` (start of the flow time) |
 | IsEnd | 1 on `Terminé` only (end of the flow time) |
 | IsFree | 1 on `Dépriorisé`: reachable from any status |
 
@@ -73,10 +74,12 @@ The same 13 rows exist for `Team` and for `Feature` (with `En test / recette` in
 `Dépriorisé` can be reached from **any** status: this is carried by `IsFree = 1`, not by extra rows.
 `Terminé` and `Annulé` are terminal.
 
-- **Decided:** flow time starts at the first entry in `En analyse` (`IsStart`) and ends at `Terminé` only
-  (`À déployer` does not count as delivered). Moving back (for example `Prêt` to `En analyse`) does **not**
-  reset the flow time. Passing through a `Backlog` status (`Dépriorisé`, then `Nouveau`) **does**: the flow
-  time restarts at the next entry in `En analyse`.
+- **Decided (AL, 2026-11-27):** flow time starts at the first entry in a status **in progress** (Jira category In
+  Progress, or `Active` / `Wait` in the sheet `Workflows`: `En analyse` in the example), whatever the workflow, its
+  version or the names of its statuses, and ends at `Terminé` only (`À déployer` does not count as delivered). Config
+  `FeatureStartStatuses` / `TeamStartStatuses`, when filled, name the only statuses that start the flow of their kind.
+  Moving back (for example `Prêt` to `En analyse`) does **not** reset the flow time. Passing through a `Backlog`
+  status (`Dépriorisé`, then `Nouveau`) **does**: the flow time restarts at the next entry in a status in progress.
 - **Decided:** statuses 2 to 7 are *active* (work is done) or *waiting* (queue): `En analyse`, `En développement`
   and `En test` (`En test / recette` for Feature) are `Active`; `Prêt`, `Planifié` and `À déployer` are `Wait`.
   The `Category` column of the `Workflows` sheet **is** the status mapping: the workbook reads it, and the user
@@ -173,7 +176,7 @@ so a reviewer can check them. All dates are UTC. Durations are calendar days (we
 |---|---|
 | Key, Team, Type, Project role | issue fields + Config project table |
 | CreatedUtc | `created` |
-| StartUtc | first `EnteredUtc` in `StatusIntervals` of a status with `IsStart = 1`, **after the last `EnteredUtc` of a status with category `Backlog`** (the flow time restarts after a return to backlog) |
+| StartUtc | first `EnteredUtc` in `StatusIntervals` of a status with `IsStart = 1` (a status in progress, or one of Config `FeatureStartStatuses` / `TeamStartStatuses`), **after the last `EnteredUtc` of a status with category `Backlog`** (the flow time restarts after a return to backlog) |
 | BacklogReturns | count of entries in a `Backlog` status after a first start (makes the restart visible) |
 | DoneUtc | last `EnteredUtc` of a status with `IsEnd = 1`, **only if the issue is in that status now** |
 | RemovedUtc | same for category `Removed` (`Annulé`; excluded from velocity and flow time) |
@@ -195,7 +198,7 @@ can click a cell and see how it is computed. VBA only writes the raw tables (`St
 |---|---|---|
 | **Flow Velocity** | `COUNTIFS(ItemFlow[DoneUtc], ">="&PeriodStart, ItemFlow[DoneUtc], "<"&PeriodEnd, ItemFlow[Team], team, ItemFlow[Type], type)`. Optional second view: sum of story points of the same items (only if the points fill rate is above a threshold, else show "not reliable") | list of the counted keys (FILTER formula), fill rate of points |
 | **Flow Time** | median and 85th percentile of `FlowTimeDays` for items done in the period: `MEDIAN(FILTER(...))`, `PERCENTILE.INC(FILTER(...),0.85)` | count of items, items excluded (SkippedStart, Reopened) |
-| **Flow Load** | for each day D, count of items in work in process. Parameter `FlowLoadMode` in Config: **`A` (default)** = item counted from its first start until it is done or removed, except while it sits in a `Backlog` status (use the `StatusIntervals` rows of D: not `Backlog`, not terminal, and first start `<= D`); **`B`** = item counted only from its last `StartUtc` (after the last return to backlog) until `DoneUtc` or `RemovedUtc`. Table `DailyLoad` (Date x Team) built from `ItemFlow` and `StatusIntervals`. Report average and end-of-period value, and show the mode used. When the workflow of the team has no start status (no `IsStart`, from Jira or from `Workflows`), no item is ever in process: the load is not computable, never 0 (AL, 2026-11-22) | the `DailyLoad` rows of the period, the mode `A` or `B` |
+| **Flow Load** | for each day D, count of items in work in process. Parameter `FlowLoadMode` in Config: **`A` (default)** = item counted from its first start until it is done or removed, except while it sits in a `Backlog` status (use the `StatusIntervals` rows of D: not `Backlog`, not terminal, and first start `<= D`); **`B`** = item counted only from its last `StartUtc` (after the last return to backlog) until `DoneUtc` or `RemovedUtc`. Table `DailyLoad` (Date x Team) built from `ItemFlow` and `StatusIntervals`. Report average and end-of-period value, and show the mode used. When the workflow of the team has no start status (no status in progress, or only start statuses of Config that Jira does not know), no item is ever in process: the load is not computable, never 0 (AL, 2026-11-22) | the `DailyLoad` rows of the period, the mode `A` or `B` |
 | **Flow Efficiency** | `SUM(ActiveDays) / SUM(ActiveDays + WaitDays)` over items done in the period. Show **"not computable"** while any status of these items is `Unclassified` (for example a status missing from `Workflows`) | ActiveDays, WaitDays, UnclassifiedDays sums |
 | **Flow Distribution** | share of items by work type in the period: done items (and, separately, WIP at period end). Work type = the `TypeCategorie` column (**Decided**): `Feature`, `Enabler`, `Defect`, `Autre`. `Risk` and `Debt` (SAFe) do not exist in the extract; an empty or unknown value is counted as `Unmapped` | counts per type, `Unmapped` count |
 | **Flow Predictability** | `SUM(actual business value) / SUM(planned business value)` of **committed PI objectives** per team and for the ART. Uncommitted objectives add to actual, not to planned. Reliable trains operate in the **80-100 %** range (SAFe) | per objective: planned BV, actual BV, committed Y/N |

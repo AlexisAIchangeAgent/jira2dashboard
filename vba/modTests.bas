@@ -1565,7 +1565,7 @@ Private Sub FlowRaw(ByVal withStory As Boolean, Optional ByVal featurePis As Var
     WriteTable ThisWorkbook.Worksheets(SheetName("PIIntervals")), PiIntervalsHeader(), PiIntervalRows(info, New Collection)
     ' the rules the extraction writes: the exceptions of the sheet Workflows (the delivered parameters) and nothing from Jira
     WriteTable ThisWorkbook.Worksheets(SheetName("StatusRules")), Array("Workflow", "Status", "Category", "IsStart", "IsEnd", "IsFree", "Source"), _
-        EffectiveRules(Array("Feature", "Team"), Dict(), Dict(), Dict(), Dict(), WorkflowExceptions(ThisWorkbook.Worksheets(SheetName("Workflows"))))
+        EffectiveRules(Array("Feature", "Team"), Dict(), Dict(), Dict(), WorkflowExceptions(ThisWorkbook.Worksheets(SheetName("Workflows"))), Nothing)
 End Sub
 
 Private Sub FlowIterations(ByVal start1 As Variant, ByVal end1 As Variant, Optional ByVal second As Boolean = False)
@@ -2352,7 +2352,7 @@ Public Sub T_StatusIntervals()
     info("K-2") = Array(d0 + 7, "Nouveau")
     info("K-3") = Array(d0, "En test")
     Set cats = CreateObject("Scripting.Dictionary")
-    cats("Nouveau") = "Wait": cats("En analyse") = "Active"
+    cats(StatusKey("Nouveau")) = "Wait": cats(StatusKey("En analyse")) = "Active"      ' RuleCategories keys a status by StatusKey
     changes.Add Array("K-1", "c2", d0 + 4, "En analyse", "Termine")    ' out of order on purpose
     changes.Add Array("K-1", "c1", d0 + 1, "Nouveau", "En analyse")
     changes.Add Array("K-3", "c3", d0 + 1, "Nouveau", "En analyse")
@@ -2654,8 +2654,8 @@ Private Function ProposalBook() As Object
     Set wb = Workbooks.Add
     PutRows wb, "Projects", Array(Array("Project", "Role", "Team"), Array("PRG", "Program", "ART"), Array("TA", "Team", "Team A"), _
                                   Array("TB", "Team", "Team B"))
-    PutRows wb, "Workflows", Array(Array("Workflow", "Status", "Category", "IsStart", "IsEnd", "IsFree"), _
-                                   Array("Team", "Open", "Backlog", 1, "", 0), Array("Team", "Doing", "", 0, "", 0))
+    PutRows wb, "Workflows", Array(Array("Workflow", "Status", "Category", "IsEnd", "IsFree"), _
+                                   Array("Team", "Open", "Backlog", "", 0), Array("Team", "Doing", "", "", 0))
     PutRows wb, "Transitions", Array(Array("Workflow", "From", "To"), Array("Team", "Open", "Doing"))
     PutRows wb, "Config", Array(Array("Parameter", "Value", "Example", "Mandatory", "Description"), Array("SprintField", "", "x", "False", ""), _
                                 Array("TeamField", "customfield_9", "x", "False", ""), Array("StoryPointsField", "", "x", "False", ""), _
@@ -2707,8 +2707,8 @@ Public Sub T_ProposeFromSheets()
     Set wsW = wb.Worksheets(SheetName("Workflows")): Set wsT = wb.Worksheets(SheetName("Transitions")): Set wsC = wb.Worksheets(SheetName("Config"))
     Check "propose", "the summary names Config with its count and no longer the sheets Workflows and Transitions", "3", True, _
           InStr(summary, " | Config_from_user: 3 proposed") > 0 And InStr(summary, "Workflows_from_user") = 0 And InStr(summary, "Transitions_from_user") = 0
-    Check "propose", "the sheet Workflows is left as typed: Jira's statuses are read by the metrics, not copied", "rows", "3|Team|Open|Backlog|1||0", _
-          LastRow(wsW) & "|" & RowText(wsW, 2, 6)
+    Check "propose", "the sheet Workflows is left as typed: Jira's statuses are read by the metrics, not copied", "rows", "3|Team|Open|Backlog||0", _
+          LastRow(wsW) & "|" & RowText(wsW, 2, 5)
     Check "propose", "the sheet Transitions is left as typed", "rows", 2, LastRow(wsT)
     Check "propose", "an empty field id gets the one field that fits (by its custom type)", "SprintField", "customfield_1", CStr(wsC.Cells(2, 2).Value)
     Check "propose", "a typed field id is never changed", "TeamField", "customfield_9", CStr(wsC.Cells(3, 2).Value)
@@ -3007,7 +3007,7 @@ Public Sub T_ProposeValuesNotAdmin()
     Check "propose", "the status says why the workflows were not read", "IsUserProjectAdmin", True, _
           InStr(summary, " | Workflows not read: IsUserProjectAdmin is False") > 0
     Set wsW = wb.Worksheets(SheetName("Workflows"))
-    Check "propose", "the sheet Workflows is left alone: no status copied from JiraStatuses", "rows", "3|Team|Doing||0||0", LastRow(wsW) & "|" & RowText(wsW, 3, 6)
+    Check "propose", "the sheet Workflows is left alone: no status copied from JiraStatuses", "rows", "3|Team|Doing|||0", LastRow(wsW) & "|" & RowText(wsW, 3, 5)
     Check "propose", "the Sprint field is proposed too", "SprintField", "customfield_7", CStr(wb.Worksheets(SheetName("Config")).Cells(2, 2).Value)
     Application.DisplayAlerts = False
     wb.Close False
@@ -3036,8 +3036,14 @@ Private Function HealthBook(ByVal clean As Boolean) As Object
                                          Array("K1", "Weird", IIf(clean, "Active", "Unclassified"), CDate(IIf(clean, t0 + 1, t0 + 0.000003)), 1), _
                                          Array("K2", "Weird", IIf(clean, "Active", "Unclassified"), CDate(t0 + 1), 0), _
                                          Array("K3", "Odd", IIf(clean, "Done", "Unclassified"), IIf(clean, CDate(t0 + 5), DateSerial(2026, 3, 1)), 0))
-    PutRows wb, "Issues", Array(Array("Key"), Array("K1"), Array("K2"), Array("K3"), Array("K4"))
-    PutRows wb, "Config", Array(Array("Parameter", "Value", "Example", "Mandatory", "Description"), Array("AsOf", "2026-02-01", "", "True", ""))
+    PutRows wb, "Issues", Array(Array("Key", "Status", "WorkType"), Array("K1", "Open", IIf(clean, "Feature", "")), Array("K2", "Weird", ""), _
+                                Array("K3", "Odd", ""), Array("K4", "Open", ""))
+    PutRows wb, "Config", Array(Array("Parameter", "Value", "Example", "Mandatory", "Description"), Array("AsOf", "2026-02-01", "", "True", ""), _
+                                Array("FeatureStartStatuses", IIf(clean, "WEIRD", "Nowhere"), "", "False", ""), _
+                                Array("WorkTypeField", IIf(clean, "customfield_1", "Activit" & ChrW(233)), "", "False", ""))
+    ' the statuses Jira knows; the exception of the sheet Workflows names Ghost (unknown) or weird (Weird, another case: known)
+    PutRows wb, "JiraStatusCatalog", Array(Array("Id", "Status", "JiraCategory"), Array("1", "Open", "TODO"), Array("2", "Weird", "IN_PROGRESS"))
+    PutRows wb, "Workflows", Array(Array("Workflow", "Status", "Category", "IsEnd", "IsFree"), Array("", IIf(clean, "weird ", "Ghost"), "Active", "", ""))
     ' no start status and no Wait status in the rules (not clean)
     PutRows wb, "StatusRules", Array(Array("Workflow", "Status", "Category", "IsStart", "IsEnd", "IsFree", "Source"), _
                                      Array("Team", "Open", "Backlog", 0, 0, 0, "Jira"), Array("Team", "Weird", "Active", IIf(clean, 1, 0), 0, 0, "Jira"), _
@@ -3113,6 +3119,28 @@ Private Function RulesText(ByVal rules As Collection) As String
     Next r
 End Function
 
+Private Function StartsText(ByVal rules As Collection, ByVal kind As String) As String
+    ' The statuses of one kind whose IsStart is 1, joined by commas (the order of the rules: by name).
+    Dim r As Variant
+    For Each r In rules
+        If CStr(r(0)) = kind And Val(CStr(r(3))) = 1 Then StartsText = StartsText & IIf(Len(StartsText) > 0, ",", "") & CStr(r(1))
+    Next r
+End Function
+
+Private Function StartListsOf(ParamArray pairs() As Variant) As Object
+    ' kind -> Collection of names: StartListsOf("Feature", "a,b", "Team", "") is what StartStatuses reads from Config.
+    Dim out As Object, i As Long, part As Variant, names As Collection
+    Set out = CreateObject("Scripting.Dictionary")
+    For i = LBound(pairs) To UBound(pairs) Step 2
+        Set names = New Collection
+        For Each part In Split(CStr(pairs(i + 1)), ",")
+            If Len(TrimWhite(CStr(part))) > 0 Then names.Add CStr(part)
+        Next part
+        Set out(CStr(pairs(i))) = names
+    Next i
+    Set StartListsOf = out
+End Function
+
 Private Function Moves(ParamArray pairs() As Variant) As Collection
     Dim out As New Collection, i As Long
     For i = LBound(pairs) To UBound(pairs) Step 2
@@ -3158,48 +3186,82 @@ Public Sub T_StatusRules()
     Check "rules", "a loop and a status nobody leads to: none", "(empty)", "", FirstInProgress("Nouveau", Moves("Nouveau", "Idee", "Idee", "Nouveau", "Fini", "Dev"), cats)
     Check "rules", "no creation status: none", "(empty)", "", FirstInProgress("", Moves("Nouveau", "Analyse"), cats)
     Check "rules", "a creation status already in progress is the start", "Dev", "Dev", FirstInProgress("Dev", Moves("Dev", "Fini"), cats)
-    Set rules = EffectiveRules(Array("Feature"), Dict("Nouveau", "new", "Analyse", "indeterminate", "Fini", "done", "Parque", "new"), none, Dict("Analyse", True), _
-                               Dict("Parque", True), New Collection)
-    Check "rules", "without exception Jira gives category, end, start and free", "4 rules", _
+    Set rules = EffectiveRules(Array("Feature"), Dict("Nouveau", "new", "Analyse", "indeterminate", "Fini", "done", "Parque", "new"), none, _
+                               Dict("Parque", True), New Collection, Nothing)
+    Check "rules", "without exception Jira gives category, end, start (in progress) and free", "4 rules", _
           "Feature|Analyse|Active|1|0|0|Jira;Feature|Fini|Done|0|1|0|Jira;Feature|Nouveau|Backlog|0|0|0|Jira;Feature|Parque|Backlog|0|0|1|Jira", RulesText(rules)
     Set ex = New Collection
-    ex.Add Array("", "Attente", "Wait", Empty, Empty, Empty): ex.Add Array("", "Annule", "Removed", Empty, Empty, Empty)
-    ex.Add Array("", "Deploy", "Wait", "", "", ""): ex.Add Array("", "Analyse", "", "", "", 1)
+    ex.Add Array("", "Attente", "Wait", Empty, Empty): ex.Add Array("", "Annule", "Removed", Empty, Empty)
+    ex.Add Array("", "Deploy", "Wait", "", ""): ex.Add Array("", "Analyse", "", "", 1)
     Set rules = EffectiveRules(Array("Feature"), Dict("Analyse", "indeterminate", "Attente", "indeterminate", "Fini", "done", "Annule", "done", "Deploy", "done"), none, _
-                               Dict("Analyse", True), Dict(), ex)
-    Check "rules", "an exception wins field by field, an empty cell takes Jira's value, a Done turned Removed or Wait is no end", "5 rules", _
-          "Feature|Analyse|Active|1|0|1|user;Feature|Annule|Removed|0|0|0|user;Feature|Attente|Wait|0|0|0|user;Feature|Deploy|Wait|0|0|0|user;Feature|Fini|Done|0|1|0|Jira", RulesText(rules)
+                               Dict(), ex, Nothing)
+    Check "rules", "an exception wins field by field, an empty cell takes Jira's value, a Done turned Removed or Wait is no end, a Wait starts", "5 rules", _
+          "Feature|Analyse|Active|1|0|1|user;Feature|Annule|Removed|0|0|0|user;Feature|Attente|Wait|1|0|0|user;Feature|Deploy|Wait|1|0|0|user;Feature|Fini|Done|0|1|0|Jira", RulesText(rules)
     Set ex = New Collection
-    ex.Add Array("", "Fini", "", "", 0, ""): ex.Add Array("", "Suite", "", "", 1, "")
-    Set rules = EffectiveRules(Array("Feature"), Dict("Fini", "done", "Suite", "indeterminate"), none, Dict(), Dict(), ex)
-    Check "rules", "an explicit 0 or 1 beats the default, whatever the category", "Fini 0, Suite 1", "Feature|Fini|Done|0|0|0|user;Feature|Suite|Active|0|1|0|user", RulesText(rules)
+    ex.Add Array("", "Fini", "", 0, ""): ex.Add Array("", "Suite", "", 1, "")
+    Set rules = EffectiveRules(Array("Feature"), Dict("Fini", "done", "Suite", "indeterminate"), none, Dict(), ex, Nothing)
+    Check "rules", "an explicit 0 or 1 beats the default, whatever the category", "Fini 0, Suite 1", "Feature|Fini|Done|0|0|0|user;Feature|Suite|Active|1|1|0|user", RulesText(rules)
     Set ex = New Collection
-    ex.Add Array("Team", "Test", "Active", "", "", ""): ex.Add Array("", "Test", "Wait", "", "", "")
-    Set rules = EffectiveRules(Array("Feature", "Team"), Dict("Test", "indeterminate"), none, Dict(), Dict(), ex)
+    ex.Add Array("Team", "Test", "Active", "", ""): ex.Add Array("", "Test", "Wait", "", "")
+    Set rules = EffectiveRules(Array("Feature", "Team"), Dict("Test", "indeterminate"), none, Dict(), ex, Nothing)
     Check "rules", "a row of one workflow touches it only and beats the row of both, whatever their order", "Feature Wait, Team Active", _
-          "Feature|Test|Wait|0|0|0|user;Team|Test|Active|0|0|0|user", RulesText(rules)
+          "Feature|Test|Wait|1|0|0|user;Team|Test|Active|1|0|0|user", RulesText(rules)
     Set ex = New Collection
-    ex.Add Array("", "Autre", "Wait", "", "", "")
-    Set rules = EffectiveRules(Array("Feature"), Dict("Fini", "done"), Dict("Vieux", "indeterminate", "Fini", "indeterminate"), Dict(), Dict(), ex)
+    ex.Add Array("", "Autre", "Wait", "", "")
+    Set rules = EffectiveRules(Array("Feature"), Dict("Fini", "done"), Dict("Vieux", "indeterminate", "Fini", "indeterminate"), Dict(), ex, Nothing)
     Check "rules", "the current status category of a ticket is the second source, the catalog beats it, an exception alone is ruled", "3 rules", _
-          "Feature|Autre|Wait|0|0|0|user;Feature|Fini|Done|0|1|0|Jira;Feature|Vieux|Active|0|0|0|Jira", RulesText(rules)
-    Set rules = EffectiveRules(Array("Feature"), none, Dict("Vieux", "whatever"), Dict(), Dict(), New Collection)
+          "Feature|Autre|Wait|1|0|0|user;Feature|Fini|Done|0|1|0|Jira;Feature|Vieux|Active|1|0|0|Jira", RulesText(rules)
+    Set rules = EffectiveRules(Array("Feature"), none, Dict("Vieux", "whatever"), Dict(), New Collection, Nothing)
     Check "rules", "a status that no source knows stays Unclassified", "Vieux", "Feature|Vieux|Unclassified|0|0|0|Jira", RulesText(rules)
-    Set rules = EffectiveRules(Array("Feature", "Team"), Dict("B", "new", "A", "new"), none, Dict(), Dict(), New Collection)
+    Set rules = EffectiveRules(Array("Feature", "Team"), Dict("B", "new", "A", "new"), none, Dict(), New Collection, Nothing)
     Check "rules", "the kinds in the order given, then the names", "Feature A B, Team A B", "Feature|A|Backlog|0|0|0|Jira;Feature|B|Backlog|0|0|0|Jira;Team|A|Backlog|0|0|0|Jira;Team|B|Backlog|0|0|0|Jira", RulesText(rules)
-    Check "rules", "no source at all: no rule", "0", 0, EffectiveRules(Array("Feature"), none, none, none, none, New Collection).Count
-    Check "rules", "the categories of one kind", "Feature A", "Backlog", RuleCategories(rules, "Feature").Item("A")
-    Set ex = New Collection: ex.Add Array("", "A", "Wait", "", "", "")
-    Set rules = EffectiveRules(Array("Feature"), Dict("A", "indeterminate"), none, Dict(), Dict(), ex)
-    Check "rules", "a declared Wait status is told", "Wait", "Waitx", RuleCategories(rules, "Feature").Item("A") & IIf(HasWait(rules), "x", "")
-    Check "rules", "no Wait status declared: told too", "no", "no", IIf(HasWait(EffectiveRules(Array("Feature"), Dict("A", "indeterminate"), none, Dict(), Dict(), New Collection)), "yes", "no")
-    Set ex = New Collection: ex.Add Array("Team", "Dev", "Wait", "", "", "")
+    Check "rules", "no source at all: no rule", "0", 0, EffectiveRules(Array("Feature"), none, none, none, New Collection, Nothing).Count
+    Check "rules", "the categories of one kind, by the key of the status", "Feature A", "Backlog", RuleCategories(rules, "Feature").Item(StatusKey("A"))
+    Set ex = New Collection: ex.Add Array("", "A", "Wait", "", "")
+    Set rules = EffectiveRules(Array("Feature"), Dict("A", "indeterminate"), none, Dict(), ex, Nothing)
+    Check "rules", "a declared Wait status is told", "Wait", "Waitx", RuleCategories(rules, "Feature").Item(StatusKey("A")) & IIf(HasWait(rules), "x", "")
+    Check "rules", "no Wait status declared: told too", "no", "no", IIf(HasWait(EffectiveRules(Array("Feature"), Dict("A", "indeterminate"), none, Dict(), New Collection, Nothing)), "yes", "no")
+    ' one status whatever its spelling (AL, 2026-11-27: two spellings in the catalog of the site gave IsStart = 2 in Excel)
+    Check "rules", "the key of a status: trimmed, case ignored, as Excel compares", " En Analyse ", "en analyse|yes", _
+          StatusKey(" En Analyse ") & "|" & IIf(StatusKey("PRET") = StatusKey("pret"), "yes", "no")
+    Set rules = EffectiveRules(Array("Feature"), Dict("En analyse", "new", "En Analyse", "indeterminate", "Fini", "done"), none, Dict(), New Collection, Nothing)
+    Check "rules", "two spellings of one status are one rule named as the catalog spells it first (binary order)", "En Analyse", _
+          "Feature|En Analyse|Active|1|0|0|Jira;Feature|Fini|Done|0|1|0|Jira", RulesText(rules)
+    Check "rules", "the category of a status found whatever the spelling of the ticket", "EN ANALYSE", "Active", RuleCategories(rules, "Feature").Item(StatusKey("EN ANALYSE "))
+    Set ex = New Collection: ex.Add Array("Feature", " pret ", "Wait", "", "")
+    Set rules = EffectiveRules(Array("Feature"), Dict("Pret", "indeterminate"), none, Dict(), ex, Nothing)
+    Check "rules", "an exception typed in another case or with spaces rules the status of Jira", " pret ", "Feature|Pret|Wait|1|0|0|user", RulesText(rules)
+    Set rules = EffectiveRules(Array("Feature"), Dict("Termine", "done"), Dict("TERMINE", "indeterminate"), Dict(), New Collection, Nothing)
+    Check "rules", "the current status of a ticket in another case is the status of the catalog", "TERMINE", "Feature|Termine|Done|0|1|0|Jira", RulesText(rules)
+    ' the start of the flow: every status in progress, or the start statuses of Config alone (AL, 2026-11-27)
+    Set ex = New Collection: ex.Add Array("", "Pret", "Wait", "", ""): ex.Add Array("", "Annule", "Removed", "", "")
+    Set rules = EffectiveRules(Array("Feature"), Dict("Nouveau", "new", "Analyse", "indeterminate", "Pret", "indeterminate", "Dev", "indeterminate", "Fini", "done", _
+                                                      "Annule", "done"), none, Dict(), ex, Nothing)
+    Check "rules", "every status in progress starts the flow, Active or Wait, nothing else", "Analyse Dev Pret", "Analyse,Dev,Pret", StartsText(rules, "Feature")
+    Set ex = New Collection: ex.Add Array("Feature", "Analyse", "Backlog", "", "")
+    Set rules = EffectiveRules(Array("Feature"), Dict("Nouveau", "new", "Analyse", "indeterminate", "Dev", "indeterminate"), none, Dict(), ex, Nothing)
+    Check "rules", "an exception Backlog on a status in progress moves the start later", "Dev", "Dev", StartsText(rules, "Feature")
+    Set rules = EffectiveRules(Array("Feature", "Team"), Dict("Nouveau", "new", "Analyse", "indeterminate", "Dev", "indeterminate", "Fini", "done"), none, Dict(), _
+                               New Collection, StartListsOf("Feature", " dev ", "Team", ""))
+    Check "rules", "the start statuses of Config alone start the flow of their kind (by key), an empty list: the statuses in progress", "Feature dev", _
+          "Dev|Analyse,Dev", StartsText(rules, "Feature") & "|" & StartsText(rules, "Team")
+    Set rules = EffectiveRules(Array("Feature"), Dict("Analyse", "indeterminate"), none, Dict(), New Collection, StartListsOf("Feature", "Inconnu"))
+    Check "rules", "a start status of Config that no source knows starts nothing", "Inconnu", "", StartsText(rules, "Feature")
+    ' a status renamed in Jira keeps its id: the changelog says its old name (AL, 2026-11-27)
+    Dim changes As New Collection, named As Collection
+    changes.Add Array("K-1", "c1", Now, "Nouveau", "Analyse (old)", "1", "2")
+    changes.Add Array("K-1", "c2", Now, "Analyse (old)", "Fini", "2", "9")
+    changes.Add Array("K-2", "c3", Now, "Nouveau", "Dev")
+    Set named = StatusNamesNow(changes, Dict("1", "Nouveau", "2", "Analyse"))
+    Check "rules", "a status of the changelog by its name now when the catalog knows its id, else its text", "Analyse (old) -> Analyse", _
+          "Nouveau>Analyse;Analyse>Fini;Nouveau>Dev", named(1)(3) & ">" & named(1)(4) & ";" & named(2)(3) & ">" & named(2)(4) & ";" & named(3)(3) & ">" & named(3)(4)
+    Set ex = New Collection: ex.Add Array("Team", "Dev", "Wait", "", "")
     Set rules = EffectiveRules(Array("Feature", "Team"), Dict("Funnel", "new", "Analyse", "indeterminate", "Dev", "indeterminate", "Done", "done", "Cancelled", "done"), _
-                               none, Dict("Analyse", True), Dict(), ex)
-    Check "rules", "the counts of each kind: starts, actives, waits, ends", "Feature 1 2 0 2, Team 1 1 1 2", _
-          "status rules | Feature: start 1, active 2, wait 0, end 2 | Team: start 1, active 1, wait 1, end 2", RuleCountsLine(rules, Array("Feature", "Team"))
+                               none, Dict(), ex, Nothing)
+    Check "rules", "the counts of each kind: starts, actives, waits, ends", "Feature 2 2 0 2, Team 2 1 1 2", _
+          "status rules | Feature: start 2, active 2, wait 0, end 2 | Team: start 2, active 1, wait 1, end 2", RuleCountsLine(rules, Array("Feature", "Team"))
     Check "rules", "a start in each kind and a Wait somewhere: no warning", "0", 0, RuleWarnings(rules, Array("Feature", "Team"), Dict("Feature", True, "Team", True)).Count
-    Set rules = EffectiveRules(Array("Feature", "Team"), Dict("Dev", "indeterminate", "Done", "done"), none, Dict(), Dict(), New Collection)
+    Set rules = EffectiveRules(Array("Feature", "Team"), Dict("New", "new", "Done", "done"), none, Dict(), New Collection, Nothing)
     Set warns = RuleWarnings(rules, Array("Feature", "Team"), Dict("Team", True))
     For Each w In warns
         s = s & IIf(Len(s) > 0, ";", "") & Left$(CStr(w), 48)
@@ -3208,9 +3270,9 @@ Public Sub T_StatusRules()
           "J2D-FLOW-010 | no start status in the Team workf;J2D-FLOW-011 | no status is declared Wait: Flow ", s
     s = ""
     For Each w In warns                                             ' never warns(1): an empty collection would raise and hang the run
-        If InStr(CStr(w), "declare IsStart = 1") > 0 Or InStr(CStr(w), "declare Category = Wait") > 0 Then s = s & "x"
+        If InStr(CStr(w), "check the Category of its statuses") > 0 Or InStr(CStr(w), "declare Category = Wait") > 0 Then s = s & "x"
     Next w
-    Check "rules", "the warnings name what to do", "IsStart, Wait", "xx", s
+    Check "rules", "the warnings name what to do", "Category, Wait", "xx", s
     Check "rules", "no ticket at all: no warning", "0", 0, RuleWarnings(rules, Array("Feature", "Team"), Dict()).Count
 End Sub
 
@@ -3222,7 +3284,7 @@ Public Sub T_RefreshRules()
     Set wb = Workbooks.Add
     PutRows wb, "Config", Array(Array("Parameter", "Value", "Example", "Mandatory", "Description"), Array("AsOf", "'2026-10-11", "", "True", ""))
     PutRows wb, "Projects", Array(Array("Project", "Role", "Team"), Array("TTT", "Program", ""), Array("AAA", "Team", "Alpha"))
-    PutRows wb, "Workflows", Array(Array("Workflow", "Status", "Category", "IsStart", "IsEnd", "IsFree"), Array("", "Review", "Wait", "", "", ""))
+    PutRows wb, "Workflows", Array(Array("Workflow", "Status", "Category", "IsEnd", "IsFree"), Array("", "Review", "Wait", "", ""))
     PutRows wb, "JiraStatusCatalog", Array(Array("Id", "Status", "JiraCategory"), Array("1", "Todo", "TODO"), Array("2", "Doing", "IN_PROGRESS"), _
                                            Array("3", "Review", "IN_PROGRESS"), Array("4", "Done", "DONE"))
     PutRows wb, "JiraWorkflows", Array(Array("Workflow", "Status", "IsStart", "IsFree"), Array("WF", "Doing", 1, 0))
@@ -3241,8 +3303,8 @@ Public Sub T_RefreshRules()
             found = found & CStr(row("Workflow")) & "|" & CStr(row("Status")) & "|" & CStr(row("Category")) & "|" & CStr(row("IsStart")) & "|" & CStr(row("Source")) & ";"
         End If
     Next row
-    Check "rules", "the rules made again from the catalog, the starts of Jira and the exceptions (2 kinds x 4 statuses)", "8 rules", _
-          "8|Feature|Doing|Active|1|Jira;Feature|Review|Wait|0|user;Team|Doing|Active|1|Jira;Team|Review|Wait|0|user;", n & "|" & found
+    Check "rules", "the rules made again from the catalog and the exceptions, every status in progress a start (2 kinds x 4 statuses)", "8 rules", _
+          "8|Feature|Doing|Active|1|Jira;Feature|Review|Wait|1|user;Team|Doing|Active|1|Jira;Team|Review|Wait|1|user;", n & "|" & found
     Check "rules", "the open intervals get the categories of the rules and their duration up to AsOf; a closed one keeps its own", "Active 8, Wait 10", _
           "Backlog|2|Active|8|Team|Wait|10", ws.Cells(2, 5).Value & "|" & ws.Cells(2, 8).Value & "|" & ws.Cells(3, 5).Value & "|" & ws.Cells(3, 8).Value & "|" & _
           ws.Cells(4, 2).Value & "|" & ws.Cells(4, 5).Value & "|" & ws.Cells(4, 8).Value
@@ -3251,7 +3313,7 @@ Public Sub T_RefreshRules()
     RefreshRules wb
     Check "rules", "a role of Projects and AsOf changed after the extraction", "Team | Feature, 10 | 12", "Team|Feature|10|12", _
           ws.Cells(3, 2).Value & "|" & ws.Cells(4, 2).Value & "|" & ws.Cells(3, 8).Value & "|" & ws.Cells(4, 8).Value
-    PutRows wb, "Workflows", Array(Array("Workflow", "Status", "Category", "IsStart", "IsEnd", "IsFree"))
+    PutRows wb, "Workflows", Array(Array("Workflow", "Status", "Category", "IsEnd", "IsFree"))
     RefreshRules wb
     Check "rules", "the Wait exception removed: Review is what Jira says (in progress)", "Active", "Active", ws.Cells(4, 5).Value
     ws.Cells(5, 1).Value = "ZZZ-9": ws.Cells(5, 2).Value = "Team": ws.Cells(5, 3).Value = 1: ws.Cells(5, 4).Value = "Ghost": ws.Cells(5, 5).Value = "Active"
@@ -3263,8 +3325,8 @@ Public Sub T_RefreshRules()
     RefreshRules wb
     Check "rules", "an empty catalog is written with its header only", "evenEmpty", "Id|", _
           CStr(wb.Worksheets(SheetName("JiraStatusCatalog")).Cells(1, 1).Value) & "|" & CStr(wb.Worksheets(SheetName("JiraStatusCatalog")).Cells(2, 1).Value)
-    Check "rules", "no catalog: a status no ticket is in now is Unclassified; a ticket that Issues lacks keeps its workflow; no start without the workflows", _
-          "Todo, ZZZ-9", "Unclassified|Team|Unclassified|0", ws.Cells(2, 5).Value & "|" & ws.Cells(5, 2).Value & "|" & ws.Cells(5, 5).Value & "|" & _
+    Check "rules", "no catalog: a status no ticket is in now is Unclassified; a ticket that Issues lacks keeps its workflow; the statuses in progress start " & _
+          "the flow without the workflows (Doing, Review x 2 kinds)", "Todo, ZZZ-9", "Unclassified|Team|Unclassified|4", ws.Cells(2, 5).Value & "|" & ws.Cells(5, 2).Value & "|" & ws.Cells(5, 5).Value & "|" & _
           CStr(Application.WorksheetFunction.CountIf(wb.Worksheets(SheetName("StatusRules")).Range("D:D"), 1))
     Application.DisplayAlerts = False
     wb.Close False
@@ -3280,10 +3342,10 @@ Public Sub T_WorkflowExceptions()
     rows.Add Array("", "Annule", "Removed", "", 0, "")
     rows.Add Array("Feature", " Analyse ", "", 1, "", 1)
     rows.Add Array("Team", "", "Done", "", "", "")
-    WriteTable ws, Array("Workflow", "Status", "Category", "IsStart", "IsEnd", "IsFree"), rows
+    WriteTable ws, Array("Workflow", "Status", "Category", "IsStart", "IsEnd", "IsFree"), rows     ' a sheet of before 2026-11-27: its IsStart is not read
     Set ex = WorkflowExceptions(ws)
-    Check "rules", "the exceptions of the sheet Workflows, also the row of both workflows, none without a status", "3", _
-          "Team|Attente|Wait|||;|Annule|Removed||0|;Feature|Analyse||1||1", _
+    Check "rules", "the exceptions of the sheet Workflows, also the row of both workflows, none without a status, no IsStart", "3", _
+          "Team|Attente|Wait||;|Annule|Removed|0|;Feature|Analyse|||1", _
           Join(ex(1), "|") & ";" & Join(ex(2), "|") & ";" & Join(ex(3), "|") & IIf(ex.Count = 3, "", "?")
     ws.Cells.Clear
     Set rows = New Collection
@@ -3334,7 +3396,17 @@ Public Sub T_HealthFields()
     Check "health", "the column of a formula that fails on the data", "DC03 x 2", True, _
           InStr(text, " | Cells in error: 1 column(s), first ItemFlow.DC03 x 2") > 0
     Check "health", "a kind with tickets and no start status", "Team", True, InStr(text, " | No start status: Team (no Flow Time, Flow Efficiency or Flow Load): " & _
-          "set IsStart = 1 on the first in-progress status in Workflows_from_user") > 0
+          "no status in progress, or a start status that Jira does not know in Config_from_user") > 0
+    Check "health", "the statuses a setting names and Jira does not know, with where they are typed", "Ghost, Nowhere", True, _
+          InStr(text, " | Statuses unknown to Jira: 2 (Ghost (Workflows_from_user), Nowhere (FeatureStartStatuses)): type each name as Jira spells it") > 0
+    Check "health", "a field of Config empty in every ticket, a name is no id", "WorkTypeField", True, _
+          InStr(text, " | Fields empty in every ticket: 1 (WorkTypeField (Activit") > 0 And _
+          InStr(text, ": not a field id)): type the id of the field (customfield_ and digits, listed in JiraFields_from_Jira) in Config_from_user") > 0
+    wb.Worksheets(SheetName("Workflows")).Range("B2").Formula = "=NA()"     ' an error cell in Workflows: that field goes, the others stay
+    text = HealthFields(wb)
+    Check "health", "an error cell in the sheet Workflows takes no other field down", "#N/A", "no|yes|yes", _
+          IIf(InStr(text, "Statuses unknown to Jira") > 0, "yes", "no") & "|" & IIf(InStr(text, " | Without a team: 1") > 0, "yes", "no") & "|" & _
+          IIf(InStr(text, " | Fields empty in every ticket: 1") > 0, "yes", "no")
     Check "health", "no Wait status", "no Wait", True, InStr(text, " | No Wait status (no Flow Efficiency): set Category = Wait on the statuses where the work waits " & _
           "in Workflows_from_user") > 0
     Check "health", "a start in the second of the backlog entry", "K1", True, _
@@ -3930,7 +4002,7 @@ Public Sub T_ParamsOnWorkbook()
     deployer = ChrW(192) & " d" & ChrW(233) & "ployer"
     termine = "Termin" & ChrW(233)
     Set wsW = ThisWorkbook.Worksheets(SheetName("Workflows"))
-    Check "params", "Team start status", "Team IsStart", "En analyse", FlaggedStatus(wsW, "Team", "IsStart")
+    Check "params", "the sheet Workflows has no IsStart (the statuses in progress start the flow, AL 2026-11-27)", "IsStart", 0, HeaderColumn(wsW, "IsStart")
     Check "params", "Team end status", "Team IsEnd", termine, FlaggedStatus(wsW, "Team", "IsEnd")
     Check "params", "Team category", "Team En analyse", "Active", CategoryOf("Team", "En analyse")
     Check "params", "Team waiting status", "Team Pret", "Wait", CategoryOf("Team", pret)
@@ -4279,7 +4351,8 @@ Public Sub M_FlowFromMock()
         keys.Add JGet(issue, "key")
     Next issue
     Set changes = StatusChangesFromChangelog(JiraChangelogsAll(cfg, keys), idToKey)
-    Set cats = StatusCategories(ThisWorkbook.Worksheets(SheetName("Workflows")), "Team")
+    Set cats = RuleCategories(EffectiveRules(Array("Team"), Dict(), Dict(), Dict(), WorkflowExceptions(ThisWorkbook.Worksheets(SheetName("Workflows"))), _
+                                             Nothing), "Team")              ' by StatusKey, as BuildStatusIntervals reads them
     Set out = BuildStatusIntervals(info, changes, DateSerial(2026, 11, 3), cats)
     For Each iv In out
         If Len(CStr(iv(9) & "")) > 0 Then bad = bad + 1

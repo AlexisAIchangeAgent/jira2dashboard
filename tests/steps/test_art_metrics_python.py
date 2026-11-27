@@ -225,6 +225,12 @@ def _flow_efficiency_check_no_wait(world):
     flow_efficiency_check_of(world, FLOW_EFFICIENCY_CHECK_NO_START)
 
 
+@then("la feuille FlowEfficiencyCheck de l'ART est celle calculée à la main, sans statut Wait mais avec un début")
+def _flow_efficiency_check_no_wait_but_a_start(world):
+    from art_oracle import FLOW_EFFICIENCY_CHECK_NO_WAIT
+    flow_efficiency_check_of(world, FLOW_EFFICIENCY_CHECK_NO_WAIT)
+
+
 def flow_efficiency_check_of(world, expected):
     got = {r["Iteration-label"]: tuple("" if r[c] is None else r[c] for c in ("Counted", "WithUnclassified", "ActiveDays", "WaitDays", "WaitStatuses",
                                                                            "Efficiency", "Gap", "Reason"))

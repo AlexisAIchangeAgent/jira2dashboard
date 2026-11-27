@@ -81,13 +81,13 @@ def test_the_workflow_is_program_workflow_with_its_categories(scenario):
     assert ds.workflow_names == {"Feature": "program-workflow"}
     workflows = next(s for s in ds.jira_sheets if s.name == "Workflows")            # what JIRA defines, in full
     feature = [row for row in workflows.rows if row[0] == "Feature"]
-    assert [(row[1], row[3], row[4], row[5]) for row in feature] == [          # status, IsStart, IsEnd, IsFree
-        ("todo", 0, 0, 0), ("analyzing", 1, 0, 0), ("ready4PI", 0, 0, 0), ("doing", 0, 0, 0), ("ready2test", 0, 0, 0),
-        ("testing", 0, 0, 0), ("ready2deploy", 0, 0, 0), ("deploying", 0, 0, 0), ("released", 0, 1, 0), ("deferred", 0, 0, 1)]
+    assert [(row[1], row[3], row[4]) for row in feature] == [          # status, IsEnd, IsFree
+        ("todo", 0, 0), ("analyzing", 0, 0), ("ready4PI", 0, 0), ("doing", 0, 0), ("ready2test", 0, 0),
+        ("testing", 0, 0), ("ready2deploy", 0, 0), ("deploying", 0, 0), ("released", 1, 0), ("deferred", 0, 1)]
     assert not any(row[0] == "Team" for row in workflows.rows)                  # no Team workflow: the scenario has no Team project
     exceptions = next(s for s in ds.sheets if s.name == "Workflows")            # the sheet holds what Jira cannot say: the Wait statuses (AL, 2026-11-18)
-    assert exceptions.rows == (("Feature", "ready4PI", "Wait", None, None, None), ("Feature", "ready2test", "Wait", None, None, None),
-                               ("Feature", "ready2deploy", "Wait", None, None, None))
+    assert exceptions.rows == (("Feature", "ready4PI", "Wait", None, None), ("Feature", "ready2test", "Wait", None, None),
+                               ("Feature", "ready2deploy", "Wait", None, None))
 
 
 @pytest.mark.parametrize("number, label", sorted(RELEASED.items()))

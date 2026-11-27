@@ -48,9 +48,25 @@ WORKFLOWS_HEADER = ("Workflow", "Status", "Category", "IsStart", "IsEnd", "IsFre
 TRANSITIONS_HEADER = ("Workflow", "From", "To", "JiraTransition", "TransitionId", "Scope", "Project")
 
 
-def catalog_rows(catalog: dict[str, str]) -> list[tuple]:
-    """The sheet JiraStatusCatalog: one row per status of the instance, by name (the Python reading keeps no id)."""
-    return [("", status, catalog[status]) for status in sorted(catalog)]
+def catalog_rows(catalog: dict[str, str], names: dict[str, str] | None = None) -> list[tuple]:
+    """The sheet JiraStatusCatalog: one row per status of the instance (Id, Status, JiraCategory) by name then id, `names` = id -> name; a status whose
+    id is not known has an empty Id. 2. Compute (and recompute) read the ids back to name a renamed status of the changelog as it is called now."""
+    with_id = sorted(((sid, name) for sid, name in (names or {}).items() if name in catalog), key=lambda r: (r[1], r[0]))
+    named = {name for _sid, name in with_id}
+    return sorted([(sid, name, catalog[name]) for sid, name in with_id] + [("", s, catalog[s]) for s in catalog if s not in named],
+                  key=lambda r: (r[1], r[0]))
+
+
+def names_of(rows: list[tuple]) -> dict[str, str]:
+    """status id -> name, from the rows of JiraStatusCatalog (Id, Status, JiraCategory): an id stored as a number comes back as its digits."""
+    out = {}
+    for r in rows:
+        sid = r[0]
+        if isinstance(sid, float) and sid.is_integer():
+            sid = int(sid)
+        if sid not in (None, "") and r[1] not in (None, ""):
+            out[str(sid)] = str(r[1])
+    return out
 
 
 def catalog_of(rows: list[tuple]) -> dict[str, str]:

@@ -42,8 +42,8 @@ def test_real_parameters_have_the_documented_sizes():
 
 def test_workflows_cells_are_typed():
     rows = sheet(model.load_all(), "Workflows").rows
-    assert rows[0] == ("Team", "Nouveau", "Backlog", 0, 0, 0)
-    assert rows[9] == ("Team", "Dépriorisé", "Backlog", 0, 0, 1)
+    assert rows[0] == ("Team", "Nouveau", "Backlog", 0, 0)
+    assert rows[9] == ("Team", "Dépriorisé", "Backlog", 0, 1)
 
 
 def test_every_row_has_as_many_cells_as_the_header():
@@ -60,8 +60,8 @@ def test_unknown_category_is_refused(params_copy):
 
 
 def test_flag_must_be_0_or_1(params_copy):
-    edit(params_copy, "workflows.md", "| Active | 1 | 0 | 0 |", "| Active | 2 | 0 | 0 |")
-    with pytest.raises(ParamsError, match="IsStart"):
+    edit(params_copy, "workflows.md", "| Done | 1 | 0 |", "| Done | 2 | 0 |")
+    with pytest.raises(ParamsError, match="IsEnd"):
         model.load_all(params_copy)
 
 
@@ -367,10 +367,10 @@ def test_the_sheet_workflows_may_be_empty_and_a_row_may_leave_any_cell_empty():
 
 
 def test_an_exception_is_still_checked_when_it_is_given():
-    header = ("Workflow", "Status", "Category", "IsStart", "IsEnd", "IsFree")
-    rows = (("Equipe", "A", None, None, None, None), (None, "", None, None, None, None), (None, "C", "Actif", None, None, None),
-            (None, "D", None, 2, None, None), (None, "E", None, None, None, None), (None, "E", None, None, None, None))
+    header = ("Workflow", "Status", "Category", "IsEnd", "IsFree")
+    rows = (("Equipe", "A", None, None, None), (None, "", None, None, None), (None, "C", "Actif", None, None),
+            (None, "D", None, 2, None), (None, "E", None, None, None), (None, "e ", None, None, None))
     assert model.shape_problems({"Workflows": model.ParamSheet("Workflows", header, rows)}) == [
         "Workflows_from_user row 1: Workflow 'Equipe' is not one of Team, Feature (or empty: both)", "Workflows_from_user row 2: Status is empty",
         "Workflows_from_user row 3: Category 'Actif' is not one of Active, Wait, Done, Removed, Backlog, Unclassified (or empty: Jira's)",
-        "Workflows_from_user row 4: IsStart must be 0, 1 or empty, got 2", "Workflows_from_user: workflow None lists status 'E' twice"]
+        "Workflows_from_user row 4: IsEnd must be 0, 1 or empty, got 2", "Workflows_from_user: workflow None lists status 'E' twice"]

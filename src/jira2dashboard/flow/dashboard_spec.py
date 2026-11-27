@@ -78,12 +78,12 @@ STEPS_CELL = "T1"           # the first steps (manual.first_steps), right of the
 # Efficiency (a gap: never 0, never a guess). The value is written above the bar and the note under the chart says why.
 NO_ITEM_DONE = "no item was done in these iterations, so there is nothing to measure"
 # AL, 2026-11-22: the note names every cause of a gap, the start status first (a setting to fix; WhyNotInFlowTime of the sheet MetricItems says it per ticket)
-FLOW_TIME_REASON = ("no item was done in these iterations, or every done item was left out: no start status (IsStart, the sheet Workflows_from_user), "
+FLOW_TIME_REASON = ("no item was done in these iterations, or every done item was left out: no start status (no status in progress, or a start status of Config_from_user that Jira does not know), "
                     "never in the start status, back to the backlog after it, or reopened (WhyNotInFlowTime, the sheet MetricItems_from_excel)")
 EFFICIENCY_REASON = ("no item was done in these iterations, or every done item was left out (no start status: see Flow Time), or no status is "
                      "declared Wait (the sheet Workflows_from_user): Jira cannot say which in-progress statuses wait")
-LOAD_REASON = "the workflow of the team has no start status (IsStart, the sheet Workflows_from_user), or the iteration ends after the as-of date"
-DAILY_LOAD_REASON = "the day is after the as-of date, or the workflow of the team has no start status (IsStart, the sheet Workflows_from_user)"
+LOAD_REASON = "the workflow of the team has no start status (no status in progress, or a start status of Config_from_user that Jira does not know), or the iteration ends after the as-of date"
+DAILY_LOAD_REASON = "the day is after the as-of date, or the workflow of the team has no start status (no status in progress, or a start status of Config_from_user that Jira does not know)"
 PI_STATUS_REASON = "no Feature was released in the PI, or the PI is not in the sheet PIs_from_user"
 ZERO_NOTE = "no item was done (no bar)"
 

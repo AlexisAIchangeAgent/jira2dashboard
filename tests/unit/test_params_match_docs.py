@@ -34,9 +34,8 @@ def test_workflows_match_the_status_table_of_the_doc(doc_tables, sheets):
 
 
 def test_flags_match_the_documented_decisions(sheets):
-    """IsStart on En analyse, IsEnd on Terminé only, IsFree on Dépriorisé (doc, section 1)."""
-    for _wf, status, _cat, start, end, free in sheets["Workflows"].rows:
-        assert start == (status == "En analyse"), status
+    """IsEnd on Terminé only, IsFree on Dépriorisé (doc, section 1); the start: the statuses in progress (no column since 2026-11-27)."""
+    for _wf, status, _cat, end, free in sheets["Workflows"].rows:
         assert end == (status == "Terminé"), status
         assert free == (status == "Dépriorisé"), status
 

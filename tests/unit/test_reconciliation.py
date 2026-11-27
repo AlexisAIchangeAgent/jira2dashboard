@@ -156,13 +156,13 @@ def test_the_unclassified_statuses_are_listed_by_name_with_the_intervals_of_the_
 def test_the_statuses_that_end_the_flow_are_listed_with_the_tickets_that_sit_in_them_now():
     from jira2dashboard.flow.reconciliation import done_statuses
     from jira2dashboard.params.model import ParamSheet
-    header = ("Workflow", "Status", "Category", "IsStart", "IsEnd", "IsFree")
+    header = ("Workflow", "Status", "Category", "IsEnd", "IsFree")
     issues = [issue("A", [("2025-05-02T00:00", "done"), ("2025-05-03T00:00", "cancelled")]), issue("B", [("2025-05-02T00:00", "cancelled")]),
               issue("C", [("2025-05-02T00:00", "done")]), issue("D", [("2025-05-02T00:00", "doing")])]
     catalog = {"done": "DONE", "cancelled": "DONE", "doing": "IN_PROGRESS"}                                   # Jira calls both done
     rules = Rules.from_params([ParamSheet("Workflows", header, ())], catalog, {})
     assert done_statuses(issues, rules) == [("cancelled", 2), ("done", 1)]
-    declared = Rules.from_params([ParamSheet("Workflows", header, ((None, "cancelled", "Removed", None, None, None),))], catalog, {})
+    declared = Rules.from_params([ParamSheet("Workflows", header, ((None, "cancelled", "Removed", None, None),))], catalog, {})
     assert done_statuses(issues, declared) == [("done", 1)]                                                     # an exception takes it off the list
 
 

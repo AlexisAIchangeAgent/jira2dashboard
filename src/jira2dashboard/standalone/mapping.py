@@ -295,16 +295,23 @@ def changelog_items(pages: list[dict]) -> list[tuple[str, dict, dict]]:
             for history in log.get("changeHistories") or [] for item in history.get("items") or []]
 
 
-def status_changes(items, id_to_key: dict[str, str]) -> dict[str, list[Change]]:
-    """{key: status changes} from the items whose fieldId is status (modFlow.StatusChangesFromChangelog)."""
+def status_name(status_id, text, names: dict[str, str] | None) -> str:
+    """The name of a status of the changelog: its name NOW when the catalog knows its id (a status renamed in Jira keeps its id, the changelog keeps
+    the old name: AL, 2026-11-27, "the calculations must still work when the workflow changes"), else the text Jira sent (modFlow.StatusNameNow)."""
+    now = (names or {}).get("" if status_id in (None, "") else str(status_id))
+    return now or text or ""
+
+
+def status_changes(items, id_to_key: dict[str, str], names: dict[str, str] | None = None) -> dict[str, list[Change]]:
+    """{key: status changes} from the items whose fieldId is status (modFlow.StatusChangesFromChangelog), each status by its name now (status_name)."""
     out: dict[str, list[Change]] = {}
     for issue_id, history, item in items:
         key = id_to_key.get(issue_id, issue_id)
         if item.get("fieldId") == "status":
             at = parse_jira_date(history.get("created"))
             if at is not None:
-                out.setdefault(key, []).append(Change(str(history.get("id")), at, item.get("fromString") or "",
-                                                      item.get("toString") or ""))
+                out.setdefault(key, []).append(Change(str(history.get("id")), at, status_name(item.get("from"), item.get("fromString"), names),
+                                                      status_name(item.get("to"), item.get("toString"), names)))
     return out
 
 
@@ -452,11 +459,12 @@ class Extract:
 
 
 def extracted(issues: list[dict], changelog_pages: list[dict], ids: FieldIds, projects: list[tuple[str, str, str]],
-              link_type: str, user_fields=frozenset(), feature_types: frozenset[str] | None = None) -> Extract:
-    """The issues of the search pages with their changelogs. The Program issues come first, as the VBA writes them."""
+              link_type: str, user_fields=frozenset(), feature_types: frozenset[str] | None = None, status_names: dict[str, str] | None = None) -> Extract:
+    """The issues of the search pages with their changelogs. The Program issues come first, as the VBA writes them. `status_names`: status id -> its
+    name now (the catalog), so that a renamed status is one status."""
     id_to_key = {str(i.get("id")): i.get("key") for i in issues}
     items = changelog_items(changelog_pages)
-    changes, moved = status_changes(items, id_to_key), key_change_counts(items, id_to_key)
+    changes, moved = status_changes(items, id_to_key, status_names), key_change_counts(items, id_to_key)
     pi_history = pi_changes(items, id_to_key, ids.pi)
     links = block_links(issues, link_type)
     program = program_project(projects)

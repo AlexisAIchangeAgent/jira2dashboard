@@ -381,4 +381,4 @@ def _preview_moves(world, workflow):
 def _preview_free(world, workflow):
     names, found = _workflow(world)
     targets = [names[t["toStatusReference"]] for t in found["transitions"] if t["type"] == "GLOBAL"]
-    assert targets == [r[1] for r in _rows("Workflows") if r[0] == workflow and r[5] == 1]
+    assert targets == [r[1] for r in _rows("Workflows") if r[0] == workflow and r[4] == 1]

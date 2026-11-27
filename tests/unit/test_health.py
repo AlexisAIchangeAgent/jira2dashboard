@@ -3,6 +3,7 @@ only when there is something to see. AL, 2026-11-22: "flow metrics are still not
 AsOf before the data, a start in the second of the backlog entry...). Every figure is typed by hand from the small tickets below.
 """
 import datetime as dt
+import re
 from pathlib import Path
 
 from jira2dashboard import sheet_names as S
@@ -47,8 +48,8 @@ def test_a_clean_run_says_nothing():
 
 def test_a_kind_with_tickets_and_no_start_status_is_named():
     rules = Rules({k: StatusRule(r.category, False, r.is_end, False) if k[0] == "Team" else r for k, r in RULES._rows.items()})
-    assert fields(CLEAN, rules) == [f" | No start status: Team (no Flow Time, Flow Efficiency or Flow Load): set IsStart = 1 on the first in-progress "
-                                    f"status in {S.of('Workflows')}"]
+    assert fields(CLEAN, rules) == [f" | No start status: Team (no Flow Time, Flow Efficiency or Flow Load): no status in progress, or a start status "
+                                    f"that Jira does not know in {S.of('Config')}"]
 
 
 def test_both_kinds_without_a_start_are_named_in_one_field_and_a_kind_without_tickets_is_not():
@@ -134,6 +135,49 @@ def test_the_vba_says_the_same_words():
     for text in H.VBA_TEXTS:
         assert f'"{text}"' in vba, text
     order = vba.split("Public Function HealthFields", 1)[1].split("Exit Function", 1)[0]
-    names = ("NoStartStatus", "NoWaitStatus", "NotFeatures", "OutsideIterations", "PisWithoutDates", "WithoutTeam", "UnclassifiedStatuses", "SameSecondStarts",
+    names = ("NoStartStatus", "NoWaitStatus", "NotFeatures", "OutsideIterations", "PisWithoutDates", "WithoutTeam", "UnclassifiedStatuses", "UnknownStatuses",
+             "EmptyFields", "SameSecondStarts",
              "AsOfBeforeData", "VelocityCheckGap", "ReconciliationFindings")
     assert [order.index(n + "(") for n in names] == sorted(order.index(n + "(") for n in names)
+
+
+# --- the settings that match nothing (AL, 2026-11-27: the exception "À déployer" ruled nothing, WorkTypeField held the name "Activité") --------
+
+def _rules_from_jira(exceptions=(), config=()):
+    from jira2dashboard.params.model import ParamSheet
+    sheets = [ParamSheet("Workflows", ("Workflow", "Status", "Category", "IsEnd", "IsFree"), tuple(exceptions)),
+              ParamSheet("Config", ("Parameter", "Value", "Example", "Mandatory", "Description"), tuple(config))]
+    return Rules.from_params(sheets, {"To Do": "new", "Dev": "indeterminate", "A déployer": "indeterminate", "Done": "done"}, {})
+
+
+def test_a_status_that_a_setting_names_and_jira_does_not_know_is_named_with_where_it_is_typed():
+    rules = _rules_from_jira([("Team", "À déployer", "Wait", None, None), (None, "dev", "Active", None, None)],
+                             [("FeatureStartStatuses", "En cours, Dev", None, None, None)])
+    got = [f for f in fields(CLEAN, rules) if f.startswith(H.UNKNOWN_STATUSES)]
+    assert got == [f" | Statuses unknown to Jira: 2 (À déployer ({S.of('Workflows')}), En cours (FeatureStartStatuses)): type each name as Jira spells it"]
+
+
+def test_a_status_known_only_by_a_history_is_known_and_jira_not_read_says_nothing():
+    rules = _rules_from_jira([(None, "Review", "Wait", None, None)])                    # not in the catalog, but T-1 went through it
+    assert not [f for f in fields(CLEAN, rules) if f.startswith(H.UNKNOWN_STATUSES)]
+    assert H.unknown_statuses(RULES, []) == ""                                           # no catalog, no current status: nothing to compare with
+
+
+def test_a_field_of_config_empty_in_every_ticket_is_named_and_a_name_is_no_id():
+    config = {"WorkTypeField": "Activité", "StoryPointsField": "customfield_1", "PIField": "customfield_2", "TeamField": ""}
+    header = ("Key", "WorkType", "StoryPoints", "PI", "BV", "TeamValue", "SprintState", "TargetStart", "TargetEnd")
+    rows = [("A-1", None, "", "PI-1", None, None, None, None, None), ("A-2", "", None, None, None, None, None, None, None)]
+    filled = H.fields_filled(config, header, rows)
+    assert filled[:3] == [("WorkTypeField", "Activité", 0), ("StoryPointsField", "customfield_1", 0), ("PIField", "customfield_2", 1)]
+    assert H.empty_fields(filled, 2) == (f" | Fields empty in every ticket: 2 (WorkTypeField (Activité: not a field id), StoryPointsField): type the id "
+                                         f"of the field (customfield_ and digits, listed in {S.of('JiraFields')}) in {S.of('Config')}")
+    assert H.empty_fields(filled, 0) == ""                                               # no ticket read: nothing to say
+    assert H.empty_fields([("TeamField", "", 0)], 2) == ""                               # a field that is not set is not asked for
+
+
+def test_the_fields_of_config_are_the_columns_of_issues_on_both_sides():
+    from jira2dashboard.flow.formulas import ISSUES
+    vba = (Path(__file__).resolve().parents[2] / "vba" / "modHealth.bas").read_text(encoding="ascii")
+    assert all(column in ISSUES for _p, column in H.FIELD_COLUMNS)
+    flat = re.sub(r" _\n\s+", " ", vba)                                                   # the VBA lines continued with " _"
+    assert ", ".join(f'"{p}", "{c}"' for p, c in H.FIELD_COLUMNS) in flat

@@ -97,7 +97,7 @@ def jira_server():
 
 def set_config(wb, name, value):
     ws = wb.Worksheets(S.of("Config"))
-    row = next(r for r in range(2, 30) if ws.Cells(r, 1).Value == name)
+    row = next(r for r in range(2, 100) if ws.Cells(r, 1).Value == name)
     ws.Cells(row, 2).Value = com.as_cell(value)
 
 
@@ -237,7 +237,7 @@ def _extract_and_compute(world):
 
 def reference(world):
     """The Python reference of the data the fake Jira holds, for the steps that compare with the workbook."""
-    rules, as_of = Rules.from_params(), world["dataset"].as_of
+    rules, as_of = jira_rules(world["dataset"]), world["dataset"].as_of          # Jira's catalog under the exceptions, as the workbook makes them
     world["rules"] = rules
     world["items"] = [item_flow(i, as_of, rules) for i in to_flow_issues(world["dataset"])]
 
@@ -1372,7 +1372,7 @@ def _workflows(world):
     for wf, status, *_rest in param_rows("Workflows"):
         first.setdefault(wf, status)
     expected = {(wf, status): (1 if status == first[wf] else "", proposed[category], free)
-                for wf, status, category, _start, _end, free in param_rows("Workflows")}
+                for wf, status, category, _end, free in param_rows("Workflows")}
     rows = sheet_rows(world["wb"], "JiraWorkflows")
     got = {(r["Workflow"], r["Status"]): (number_or_text(r["Initial"]), r["Category"], number_or_text(r["IsFree"])) for r in rows}
     assert got == expected
@@ -2035,6 +2035,11 @@ def _only_waits(world):
     set_workflow_exceptions(world, [("", name, "Wait", None, None, None) for name in ("ready4PI", "ready2test", "ready2deploy")])
 
 
+@given(parsers.parse('le paramètre "{name}" de la feuille Config vaut "{value}"'))
+def _config_value(world, name, value):
+    set_config(world["wb"], name, value)
+
+
 @given("la feuille Workflows est vide")
 def _no_exception(world):
     set_workflow_exceptions(world, [])
@@ -2084,9 +2089,9 @@ def _art_left_out(world):
 def _art_told(world):
     from art_oracle import NO_START_HEALTH, NO_START_WARNINGS
     wb = world["wb"]
+    health = wb.Application.Run(f"'{wb.Name}'!modHealth.HealthFields", wb)        # first: it writes the WARN J2D-CFG-017 (the synchronous run writes no health)
     text = log_file(world).read_bytes()[world.get("log_from", 0):].decode("ascii")
     assert all(w in text for w in NO_START_WARNINGS), text[-3000:]
-    health = wb.Application.Run(f"'{wb.Name}'!modHealth.HealthFields", wb)
     assert all(f" | {field}" in health for field in NO_START_HEALTH), health
 
 
@@ -2452,11 +2457,11 @@ def status_rules(world):
 @then("la feuille StatusRules donne la catégorie, le début et la fin de chaque statut du scénario avec leur source")
 def _art_status_rules(world):
     rules = {(r[0], r[1]): r[2:] for r in status_rules(world)}
-    wait = ("Wait", 0.0, 0.0, 0.0, "user")
+    wait = ("Wait", 1.0, 0.0, 0.0, "user")                                    # in progress: a start too (AL, 2026-11-27)
     assert [rules[("Feature", s)] for s in ("ready4PI", "ready2test", "ready2deploy")] == [wait] * 3                      # the exceptions
     assert rules[("Feature", "todo")] == ("Backlog", 0.0, 0.0, 0.0, "Jira")                                         # new -> Backlog
-    assert rules[("Feature", "analyzing")] == ("Active", 1.0, 0.0, 0.0, "Jira")                                     # the first in progress from todo
-    assert rules[("Feature", "doing")][:4] == ("Active", 0.0, 0.0, 0.0) and rules[("Feature", "testing")][0] == "Active"
+    assert rules[("Feature", "analyzing")] == ("Active", 1.0, 0.0, 0.0, "Jira")                                     # in progress: a start
+    assert rules[("Feature", "doing")][:4] == ("Active", 1.0, 0.0, 0.0) and rules[("Feature", "testing")][0] == "Active"
     assert rules[("Feature", "released")] == ("Done", 0.0, 1.0, 0.0, "Jira")                                        # every Done status ends the flow
     assert rules[("Feature", "deferred")] == ("Backlog", 0.0, 0.0, 1.0, "Jira")                                     # reached by a GLOBAL transition: free
 
@@ -2693,7 +2698,7 @@ def _rovo_debug_summary(world):
     first = rovo_files(world)[0].read_bytes().decode("utf-8")
     assert "## How to answer" in first and "Run each JQL exactly as it is written" in first and "\n- Time zone: " in first
     assert f'- Filter (in every JQL): labels != "équipe"' in first
-    assert re.search(r"\n  - Feature: start: analyzing; end: released;", first), first[:3000]
+    assert re.search(r"\n  - Feature: start: analyzing, deploying, doing, ready2deploy, ready2test, ready4PI, testing; end: released;", first), first[:3000]
     assert f"## The {len(RD.CONTROL_TEXTS)} controls of {S.of('Reconciliation')}" in first
     for row in retry(lambda: table_dicts(world["wb"], "Reconciliation")):       # each control with the result of the workbook, under its Rovo title
         _group, title, _hint = RD.CONTROL_TEXTS[row["Control"]]

@@ -60,6 +60,12 @@ class StatusCatalog:
     ids: dict[str, str]                                   # status name -> id
     categories: dict[tuple[str, str], str]                # (workflow, status) -> Active/Wait/Done/Removed/Backlog
     end_statuses: dict[str, str]                          # workflow -> status with IsEnd = 1
+    # AL, 2026-11-27 (a real site): statuses/search lists the statuses of EVERY project. `others`: a status of another project, name -> (id, Jira
+    # category key), in no workflow of the scenario; the default spells a start status of ours in capitals (one status for Excel, which ignores case:
+    # the rules must hold one row for both, or SUMIFS gives IsStart 2). `renamed`: an old name -> the status it is now: the changelog sends the id
+    # of the status and the name it had then (a status renamed in Jira keeps its id).
+    others: dict = field(default_factory=dict)
+    renamed: dict = field(default_factory=dict)
 
     @classmethod
     def from_params(cls, sheets: list[ParamSheet] | None = None) -> "StatusCatalog":
@@ -68,8 +74,23 @@ class StatusCatalog:
         return cls(
             ids={name: str(10000 + i) for i, name in enumerate(names, start=1)},
             categories={(row[0], row[1]): row[2] for row in workflows.rows},
-            end_statuses={row[0]: row[1] for row in workflows.rows if row[4] == 1},
+            end_statuses={row[0]: row[1] for row in workflows.rows if row[3] == 1},
+            others={name.upper(): (str(10900 + i), "indeterminate") for i, name in enumerate(names, start=1) if name == "En analyse"},
+            renamed={"En analyse (ancien)": "En analyse"} if "En analyse" in names else {},
         )
+
+    def status_id(self, name: str) -> str:
+        """The id the changelog sends for a status: that of the status it is now when the name is an old one."""
+        return self.ids.get(self.renamed.get(name, name), "0")
+
+    def jira_categories(self) -> dict[str, str]:
+        """status name -> the key of its Jira category, for every status of the instance (statuses/search): ours (the first workflow that has it),
+        then those of the other projects."""
+        out: dict[str, str] = {}
+        for (workflow, status), _cat in self.categories.items():
+            out.setdefault(status, self.jira_category(workflow, status)[0])
+        out.update({name: category for name, (_sid, category) in self.others.items()})
+        return out
 
     def jira_category(self, workflow: str, status: str) -> tuple[str, str]:
         """(key, name) of the Jira status category: new / indeterminate / done."""

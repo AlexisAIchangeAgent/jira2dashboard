@@ -128,7 +128,10 @@ def test_the_status_catalog_lists_every_status_of_the_instance_page_by_page_and_
     waits = []
     got = client(jira.base_url, waits).status_catalog()
     assert got["Nouveau"] == "TODO" and got["En analyse"] == "IN_PROGRESS" and got["Terminé"] == "DONE" and waits == []
-    assert len(got) == len(dataset.catalog.ids)
+    assert len(got) == len(dataset.catalog.ids) + len(dataset.catalog.others)         # every project of the site: "EN ANALYSE" of another one too
+    names = client(jira.base_url, waits)
+    names.status_catalog()
+    assert names.status_names[dataset.catalog.ids["En analyse"]] == "En analyse" and len(names.status_names) == len(got)
     jira.fail_next("GET", "/rest/api/3/statuses/search", 403, times=1, body={"errorMessages": ["no permission"]})
     with caplog.at_level(logging.WARNING, logger="jira2dashboard.extract"):
         assert client(jira.base_url, waits).status_catalog() == {}

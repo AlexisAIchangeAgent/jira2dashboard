@@ -89,15 +89,17 @@ DC28_BAD_MOVES_PER_SUBTASK = 2
 
 
 # --- the same scenario with no start status and no Wait status (AL, 2026-11-22: "flow metrics are still not computable") ----------------------
-# Jira refuses the workflows (no project administrator right: no start status from Jira) and the sheet Workflows declares nothing (no IsStart, no Wait).
+# Since 2026-11-27 (AL) every status in progress starts the flow, whatever Jira's workflows: refusing them no longer removes the start. The variant names
+# in Config FeatureStartStatuses a status that Jira does not know ("in progress") and the sheet Workflows declares nothing (no Wait).
 # Velocity does not change; Flow Time, Flow Efficiency and Flow Load are not computable in every iteration (never a 0); each of the 19 released Features
 # is left out of Flow Time with the reason below; and the workbook says why, with its codes. Typed by hand.
 NO_START_RELEASED = 19
 NO_START_REASON = "No start status in the rules"
-NO_START_HEALTH = ("No start status: Feature (no Flow Time, Flow Efficiency or Flow Load): set IsStart = 1 on the first in-progress status in "
-                   "Workflows_from_user",
+NO_START_HEALTH = ("No start status: Feature (no Flow Time, Flow Efficiency or Flow Load): no status in progress, or a start status that Jira does "
+                   "not know in Config_from_user",
+                   "Statuses unknown to Jira: 1 (in progress (FeatureStartStatuses)): type each name as Jira spells it",
                    "No Wait status (no Flow Efficiency): set Category = Wait on the statuses where the work waits in Workflows_from_user")
-NO_START_WARNINGS = ("J2D-JIRA-030 | the workflows of Jira could not be read",
+NO_START_WARNINGS = ("J2D-CFG-017 | a status named in the settings is unknown to Jira: 1 (in progress (FeatureStartStatuses))",
                      "J2D-FLOW-010 | no start status in the Feature workflow: Flow Time, Flow Efficiency and Flow Load cannot be computed",
                      "J2D-FLOW-011 | no status is declared Wait: Flow Efficiency cannot be computed")
 NO_START_CONTROLS = {"Every workflow kind with tickets has a start status (IsStart)": (0, 1, "REVIEW"),
@@ -107,7 +109,7 @@ NO_START_CONTROLS = {"Every workflow kind with tickets has a start status (IsSta
 # analyzing, a start status), nothing is left out; an iteration with no release says it. Without a start status (the variant above) every released
 # Feature is left out for that reason. Typed by hand from VELOCITY.
 FLOW_TIME_CHECK = {label: (v, 0, 0, 0, 0, v, 0, "" if v else "no item done in the iteration") for label, v in VELOCITY.items()}
-FLOW_TIME_CHECK_NO_START = {label: (v, 0, v, 0, 0, 0, 0, f"all {v} done items left out: {v} no start status in the rules (set IsStart in Workflows_from_user)"
+FLOW_TIME_CHECK_NO_START = {label: (v, 0, v, 0, 0, 0, 0, f"all {v} done items left out: {v} no start status in the rules (no status in progress, or a start status of Config_from_user that Jira does not know)"
                                     if v else "no item done in the iteration") for label, v in VELOCITY.items()}
 
 # --- FlowEfficiencyCheck (AL, 2026-11-22): each released Feature spends FLOW_TIME_DAYS days between its start and its release, of which the share
@@ -120,12 +122,15 @@ FLOW_EFFICIENCY_CHECK = {label: (v, 0, v * FLOW_TIME_DAYS * FLOW_EFFICIENCY["PI-
                                  WAIT_RULES, FLOW_EFFICIENCY["PI-" + label[3]], 0, "") if v else (0, 0, 0, 0, WAIT_RULES, "", 0, NOTHING_COUNTED_REASON)
                          for label, v in VELOCITY.items()}
 FLOW_EFFICIENCY_CHECK_NO_START = {label: (0, 0, 0, 0, 0, "", 0, NO_WAIT_REASON) for label in VELOCITY}
+# No exception at all (AL, 2026-11-27): the Features still start (analyzing is in progress in Jira), but the 3 waiting statuses are in progress for Jira
+# too, so all FLOW_TIME_DAYS days of each released Feature are Active: Efficiency would be 1 (100 %), so it is not computable, and the row says why.
+FLOW_EFFICIENCY_CHECK_NO_WAIT = {label: (v, 0, v * FLOW_TIME_DAYS, 0, 0, 1 if v else "", 0, NO_WAIT_REASON) for label, v in VELOCITY.items()}
 
-# --- FlowLoadCheck (AL, 2026-11-22): the 24 iterations of 21 days are all measured (AS_OF is the end of the last one), the Feature workflow has one
-# start status (analyzing, the first in progress of the workflow of Jira). Without a start status every row says to declare one. The loads
+# --- FlowLoadCheck (AL, 2026-11-22): the 24 iterations of 21 days are all measured (AS_OF is the end of the last one), the Feature workflow has 7
+# start statuses (AL, 2026-11-27: every status in progress: analyzing, ready4PI, doing, ready2test, testing, ready2deploy, deploying). Without a start status every row says to declare one. The loads
 # themselves are compared with the reference by flow_excel.feature; here: what tells why.
-NO_START_STATUS_REASON = "the workflow of the team has no start status (set IsStart in Workflows_from_user)"
-FLOW_LOAD_CHECK = {label: (21, 21, 1, 0, "") for label in VELOCITY}                          # Days, DaysMeasured, StartStatuses, Gap, Reason
+NO_START_STATUS_REASON = "the workflow of the team has no start status (no status in progress, or a start status of Config_from_user that Jira does not know)"
+FLOW_LOAD_CHECK = {label: (21, 21, 7, 0, "") for label in VELOCITY}                          # Days, DaysMeasured, StartStatuses, Gap, Reason
 FLOW_LOAD_CHECK_NO_START = {label: (21, 21, 0, 0, NO_START_STATUS_REASON) for label in VELOCITY}
 
 # --- FlowDistCheck (AL, 2026-11-22): every Feature of the scenario has the work type Feature: the released ones are all Feature, nothing is

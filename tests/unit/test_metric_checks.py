@@ -51,14 +51,13 @@ def test_without_a_start_status_in_the_rules_every_done_item_is_left_out_and_the
     got = check(NO_START)
     assert (got.done, got.excl_reopened, got.excl_no_start_rule, got.excl_never_started, got.excl_back_to_backlog, got.counted, got.gap) == (
         4, 1, 3, 0, 0, 0, 0)
-    assert got.reason == "all 4 done items left out: 3 no start status in the rules (set IsStart in Workflows_from_user), 1 reopened"
+    assert got.reason == "all 4 done items left out: 3 no start status in the rules (no status in progress, or a start status of Config_from_user that Jira does not know), 1 reopened"
 
 
 def test_a_done_item_that_went_back_to_the_backlog_after_its_start_is_told_apart_from_one_that_never_started():
-    """AL, 2026-11-24: B-1 starts (En analyse), goes back to Nouveau (Backlog), then En développement (no start status): back to the backlog. S-1 goes
-    from Nouveau to Terminé: never entered the start status."""
-    back = ticket("B-1", [("2025-05-02T00:00", "En analyse"), ("2025-05-03T00:00", "Nouveau"), ("2025-05-04T00:00", "En développement"),
-                          ("2025-05-06T00:00", "Terminé")])
+    """AL, 2026-11-24: B-1 starts (En analyse), goes back to Nouveau (Backlog), then to Terminé with no status in progress between: back to the backlog.
+    S-1 goes from Nouveau to Terminé: never entered the start status."""
+    back = ticket("B-1", [("2025-05-02T00:00", "En analyse"), ("2025-05-03T00:00", "Nouveau"), ("2025-05-06T00:00", "Terminé")])
     issues = [back, ISSUES[3]]
     items = [item_flow(i, AS_OF, RULES) for i in issues]
     got = MC.flow_time_check(issues, items, I1, "ART", RULES, team_iteration_metrics(items, "ART", I1, "A", AS_OF))
@@ -220,7 +219,7 @@ def test_the_tickets_in_process_at_the_end_are_those_flowloadcheck_counts_and_no
 
 def test_the_cause_of_a_flow_time_point_is_its_largest_reason_without_the_counts():
     assert check().cause == "" and check(iteration=EMPTY).cause == MC.NO_ITEM
-    assert check(NO_START).cause == "every done item left out, mostly: no start status in the rules (set IsStart in Workflows_from_user)"     # 3 of 4
+    assert check(NO_START).cause == "every done item left out, mostly: no start status in the rules (no status in progress, or a start status of Config_from_user that Jira does not know)"     # 3 of 4
     assert MC.FlowTimeCheck("I", "T", 5, 2, 0, 3, 0, 0, 0, "x").cause == "every done item left out, mostly: never entered the start status"
     assert MC.FlowTimeCheck("I", "T", 5, 1, 0, 1, 3, 0, 0, "x").cause.endswith("back to the backlog after the start")
     assert MC.FlowTimeCheck("I", "T", 4, 2, 0, 2, 0, 0, 0, "x").cause.endswith("never entered the start status")   # equal: the order of the Reason

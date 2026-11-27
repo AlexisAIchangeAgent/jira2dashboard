@@ -2,14 +2,15 @@
 exceptions the person typed in the sheet Workflows winning over what Jira says (AL, 2026-11-18: the metrics use the _from_Jira sheets, the
 _from_user sheet only corrects what Jira cannot decide). Every figure is typed by hand.
 """
+from jira2dashboard.flow.model import status_key
 from jira2dashboard.flow.status_rules import (Exception_, KindCounts, Rule, counts_line, effective_rules, first_in_progress, has_wait, jira_category,
-                                              rule_counts, rule_warnings)
+                                              rule_counts, rule_warnings, unknown_statuses)
 
 NEW, IND, DONE = "new", "indeterminate", "done"
 
 
-def rows(catalog, exceptions=(), kinds=("Feature",), starts=(), free=(), current=None):
-    got = effective_rules(kinds, catalog, current or {}, set(starts), set(free), list(exceptions))
+def rows(catalog, exceptions=(), kinds=("Feature",), starts=None, free=(), current=None):
+    got = effective_rules(kinds, catalog, current or {}, set(free), list(exceptions), starts)
     return {(r.workflow, r.status): r for r in got}
 
 
@@ -49,19 +50,19 @@ def test_a_creation_status_that_is_already_in_progress_is_the_start():
 # --- the effective rules ---------------------------------------------------------------------------------------------------------
 
 def test_without_any_exception_jira_gives_the_category_the_end_the_start_and_the_free_flag():
-    got = rows({"Nouveau": NEW, "Analyse": IND, "Fini": DONE, "Parque": NEW}, starts={"Analyse"}, free={"Parque"})
+    got = rows({"Nouveau": NEW, "Analyse": IND, "Fini": DONE, "Parque": NEW}, free={"Parque"})
     assert got[("Feature", "Nouveau")] == Rule("Feature", "Nouveau", "Backlog", 0, 0, 0, "Jira")
-    assert got[("Feature", "Analyse")] == Rule("Feature", "Analyse", "Active", 1, 0, 0, "Jira")
+    assert got[("Feature", "Analyse")] == Rule("Feature", "Analyse", "Active", 1, 0, 0, "Jira")          # in progress: it starts the flow
     assert got[("Feature", "Fini")] == Rule("Feature", "Fini", "Done", 0, 1, 0, "Jira")                 # every Done status ends the flow
     assert got[("Feature", "Parque")] == Rule("Feature", "Parque", "Backlog", 0, 0, 1, "Jira")
 
 
 def test_an_exception_wins_field_by_field_and_an_empty_cell_takes_jiras_value():
-    got = rows({"Analyse": IND, "Attente": IND, "Fini": DONE, "Annule": DONE, "Deploy": DONE}, starts={"Analyse"},
-               exceptions=[Exception_(None, "Attente", "Wait", None, None, None),
-                           Exception_(None, "Annule", "Removed", None, None, None),
-                           Exception_(None, "Deploy", "Wait", None, None, None),
-                           Exception_(None, "Analyse", None, None, None, 1)])
+    got = rows({"Analyse": IND, "Attente": IND, "Fini": DONE, "Annule": DONE, "Deploy": DONE},
+               exceptions=[Exception_(None, "Attente", "Wait", None, None),
+                           Exception_(None, "Annule", "Removed", None, None),
+                           Exception_(None, "Deploy", "Wait", None, None),
+                           Exception_(None, "Analyse", None, None, 1)])
     assert got[("Feature", "Attente")].category == "Wait" and got[("Feature", "Attente")].source == "user"
     assert (got[("Feature", "Annule")].category, got[("Feature", "Annule")].is_end) == ("Removed", 0)           # no longer Done: not an end
     assert (got[("Feature", "Deploy")].category, got[("Feature", "Deploy")].is_end) == ("Wait", 0)
@@ -71,24 +72,24 @@ def test_an_exception_wins_field_by_field_and_an_empty_cell_takes_jiras_value():
 
 
 def test_an_explicit_zero_or_one_beats_the_default_even_against_the_category():
-    got = rows({"Fini": DONE, "Suite": IND}, exceptions=[Exception_(None, "Fini", None, None, 0, None), Exception_(None, "Suite", None, None, 1, None)])
+    got = rows({"Fini": DONE, "Suite": IND}, exceptions=[Exception_(None, "Fini", None, 0, None), Exception_(None, "Suite", None, 1, None)])
     assert got[("Feature", "Fini")].is_end == 0 and got[("Feature", "Suite")].is_end == 1
 
 
 def test_an_exception_of_one_workflow_only_touches_that_workflow_and_the_most_precise_row_wins():
-    got = rows({"Test": IND}, kinds=("Feature", "Team"), exceptions=[Exception_(None, "Test", "Wait", None, None, None),
-                                                                    Exception_("Team", "Test", "Active", None, None, None)])
+    got = rows({"Test": IND}, kinds=("Feature", "Team"), exceptions=[Exception_(None, "Test", "Wait", None, None),
+                                                                    Exception_("Team", "Test", "Active", None, None)])
     assert got[("Feature", "Test")].category == "Wait" and got[("Team", "Test")].category == "Active"
 
 
 def test_the_most_precise_row_wins_whatever_the_order_of_the_rows():
-    got = rows({"Test": IND}, kinds=("Feature", "Team"), exceptions=[Exception_("Team", "Test", "Active", None, None, None),
-                                                                    Exception_(None, "Test", "Wait", None, None, None)])
+    got = rows({"Test": IND}, kinds=("Feature", "Team"), exceptions=[Exception_("Team", "Test", "Active", None, None),
+                                                                    Exception_(None, "Test", "Wait", None, None)])
     assert got[("Feature", "Test")].category == "Wait" and got[("Team", "Test")].category == "Active"
 
 
 def test_a_status_that_only_the_exceptions_or_the_current_statuses_know_is_still_ruled():
-    got = rows({"Fini": DONE}, current={"Vieux": IND}, exceptions=[Exception_(None, "Autre", "Wait", None, None, None)])
+    got = rows({"Fini": DONE}, current={"Vieux": IND}, exceptions=[Exception_(None, "Autre", "Wait", None, None)])
     assert got[("Feature", "Vieux")].category == "Active"                              # from the category Jira gives a ticket's current status
     assert got[("Feature", "Autre")].category == "Wait"
     assert rows({}, current={"Vieux": "whatever"})[("Feature", "Vieux")].category == "Unclassified"      # no source knows it: it stays visible
@@ -99,30 +100,95 @@ def test_the_catalog_beats_the_current_status_category_of_a_ticket():
 
 
 def test_the_rules_come_out_in_the_order_of_the_kinds_then_the_names():
-    got = effective_rules(("Feature", "Team"), {"B": NEW, "A": NEW}, {}, set(), set(), [])
+    got = effective_rules(("Feature", "Team"), {"B": NEW, "A": NEW}, {}, set(), [])
     assert [(r.workflow, r.status) for r in got] == [("Feature", "A"), ("Feature", "B"), ("Team", "A"), ("Team", "B")]
 
 
 def test_flow_efficiency_needs_a_declared_wait_status():
-    assert has_wait(list(effective_rules(("Feature",), {"A": IND}, {}, set(), set(), []))) is False
-    assert has_wait(list(effective_rules(("Feature",), {"A": IND}, {}, set(), set(), [Exception_(None, "A", "Wait", None, None, None)]))) is True
+    assert has_wait(list(effective_rules(("Feature",), {"A": IND}, {}, set(), []))) is False
+    assert has_wait(list(effective_rules(("Feature",), {"A": IND}, {}, set(), [Exception_(None, "A", "Wait", None, None)]))) is True
+
+
+# --- one status whatever its spelling (AL, 2026-11-27: two spellings in the catalog of the site gave IsStart = 2 in Excel) -------------------
+
+def test_the_key_of_a_status_is_its_name_trimmed_case_ignored_as_excel_compares():
+    assert status_key(" En Analyse ") == status_key("en analyse") == "en analyse"
+    assert status_key("Prêt") == status_key("PRÊT") and status_key("A déployer") != status_key("À déployer")       # an accent is no case
+    assert status_key(None) == ""
+
+
+def test_two_spellings_of_one_status_are_one_rule_named_as_the_catalog_spells_it_first():
+    got = effective_rules(("Feature",), {"En analyse": NEW, "En Analyse": IND, "Fini": DONE}, {}, set(), [])
+    assert [(r.status, r.category, r.is_start) for r in got] == [("En Analyse", "Active", 1), ("Fini", "Done", 0)]      # binary order: "A" < "a"
+
+
+def test_an_exception_typed_in_another_case_or_with_spaces_rules_the_status_of_jira():
+    got = effective_rules(("Feature",), {"Prêt": IND}, {}, set(), [Exception_("Feature", " prêt ", "Wait", None, None)])
+    assert [(r.status, r.category, r.source) for r in got] == [("Prêt", "Wait", "user")]
+
+
+def test_the_current_status_of_a_ticket_in_another_case_is_the_status_of_the_catalog():
+    got = effective_rules(("Feature",), {"Terminé": DONE}, {"TERMINÉ": IND}, set(), [])
+    assert [(r.status, r.category) for r in got] == [("Terminé", "Done")]
+
+
+def test_the_rule_of_a_status_is_found_whatever_the_spelling_of_the_ticket():
+    from jira2dashboard.flow.model import Rules
+    from jira2dashboard.params.model import ParamSheet
+    header = ("Workflow", "Status", "Category", "IsEnd", "IsFree")
+    rules = Rules.from_params([ParamSheet("Workflows", header, ())], {"En Analyse": IND, "En analyse": IND}, {})
+    assert rules.rule("Feature", "EN ANALYSE ").is_start and rules.rule("Feature", "en analyse").category == "Active"
+    assert [r.status for r in rules.listed() if r.workflow == "Feature"] == ["En Analyse"]
+
+
+# --- the start of the flow: a status in progress, whatever the workflow (AL, 2026-11-27) ----------------------------------------------
+
+def test_every_status_in_progress_starts_the_flow_active_or_wait_and_nothing_else():
+    got = rows({"Nouveau": NEW, "Analyse": IND, "Pret": IND, "Dev": IND, "Fini": DONE, "Annule": DONE},
+               exceptions=[Exception_(None, "Pret", "Wait", None, None), Exception_(None, "Annule", "Removed", None, None)])
+    assert {s for (_k, s), r in got.items() if r.is_start} == {"Analyse", "Pret", "Dev"}
+
+
+def test_an_exception_backlog_on_a_status_in_progress_moves_the_start_later():
+    got = rows({"Nouveau": NEW, "Analyse": IND, "Dev": IND}, exceptions=[Exception_("Feature", "Analyse", "Backlog", None, None)])
+    assert (got[("Feature", "Analyse")].is_start, got[("Feature", "Dev")].is_start) == (0, 1)
+
+
+def test_the_start_statuses_of_config_alone_start_the_flow_of_their_kind():
+    got = rows({"Nouveau": NEW, "Analyse": IND, "Dev": IND, "Fini": DONE}, kinds=("Feature", "Team"), starts={"Feature": [" dev "], "Team": []})
+    assert {s for (k, s), r in got.items() if r.is_start and k == "Feature"} == {"Dev"}                   # compared by key
+    assert {s for (k, s), r in got.items() if r.is_start and k == "Team"} == {"Analyse", "Dev"}           # empty: the statuses in progress
+
+
+def test_a_start_status_of_config_that_no_source_knows_starts_nothing():
+    got = rows({"Analyse": IND}, starts={"Feature": ["Inconnu"]})
+    assert not any(r.is_start for r in got.values())
+
+
+def test_the_statuses_that_a_setting_names_and_jira_does_not_know_are_listed_once():
+    exceptions = [Exception_("Feature", "À déployer", "Wait", None, None), Exception_("Team", "à déployer", "Wait", None, None),
+                  Exception_(None, "prêt", "Wait", None, None)]
+    got = unknown_statuses(exceptions, {"Feature": ["En dev", "Prêt"], "Team": []}, ["Prêt", "A déployer"])
+    assert got == [("À déployer", "Workflows"), ("En dev", "FeatureStartStatuses")]
+    assert unknown_statuses([], {}, []) == []
 
 
 # --- what the log says about the rules, and the warnings when a metric cannot be computed (AL, 2026-11-22) ---------------------------
 
 def test_the_counts_of_each_kind_name_its_starts_actives_waits_and_ends():
-    got = effective_rules(("Feature", "Team"), {"Funnel": NEW, "Analyse": IND, "Dev": IND, "Done": DONE, "Cancelled": DONE}, {}, {"Analyse"}, set(),
-                          [Exception_("Team", "Dev", "Wait", None, None, None)])
+    got = effective_rules(("Feature", "Team"), {"Funnel": NEW, "Analyse": IND, "Dev": IND, "Done": DONE, "Cancelled": DONE}, {}, set(),
+                          [Exception_("Team", "Dev", "Wait", None, None)])
     counts = rule_counts(got, ("Feature", "Team"))
-    assert counts == [KindCounts("Feature", 1, 2, 0, 2), KindCounts("Team", 1, 1, 1, 2)]
-    assert counts_line(counts) == "status rules | Feature: start 1, active 2, wait 0, end 2 | Team: start 1, active 1, wait 1, end 2"
+    assert counts == [KindCounts("Feature", 2, 2, 0, 2), KindCounts("Team", 2, 1, 1, 2)]
+    assert counts_line(counts) == "status rules | Feature: start 2, active 2, wait 0, end 2 | Team: start 2, active 1, wait 1, end 2"
 
 
 def test_a_kind_with_tickets_and_no_start_status_is_warned_with_its_code():
     counts = [KindCounts("Feature", 1, 2, 1, 1), KindCounts("Team", 0, 3, 0, 1)]
     assert rule_warnings(counts, {"Feature", "Team"}) == [
         "J2D-FLOW-010 | no start status in the Team workflow: Flow Time, Flow Efficiency and Flow Load cannot be computed"
-        " | declare IsStart = 1 for its first in-progress status in the sheet Workflows_from_user"]
+        " | the statuses in progress start the flow: check the Category of its statuses in the sheet Workflows_from_user and its start statuses in "
+        "the sheet Config_from_user"]
 
 
 def test_a_kind_without_tickets_is_not_warned_and_no_ticket_at_all_gives_no_warning():
@@ -135,7 +201,8 @@ def test_no_wait_status_in_any_kind_is_warned_once_after_the_starts():
     counts = [KindCounts("Feature", 0, 1, 0, 1), KindCounts("Team", 1, 1, 0, 1)]
     assert rule_warnings(counts, {"Feature", "Team"}) == [
         "J2D-FLOW-010 | no start status in the Feature workflow: Flow Time, Flow Efficiency and Flow Load cannot be computed"
-        " | declare IsStart = 1 for its first in-progress status in the sheet Workflows_from_user",
+        " | the statuses in progress start the flow: check the Category of its statuses in the sheet Workflows_from_user and its start statuses in "
+        "the sheet Config_from_user",
         "J2D-FLOW-011 | no status is declared Wait: Flow Efficiency cannot be computed"
         " | declare Category = Wait in the sheet Workflows_from_user for the statuses where the work waits"]
 

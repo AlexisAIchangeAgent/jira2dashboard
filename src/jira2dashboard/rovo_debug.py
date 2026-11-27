@@ -152,8 +152,8 @@ CONTROL_TEXTS = {
                       "Run JQL F: when it returns nothing, give the issue types of the Program project as Jira names them (FeatureTypes must "
                       "name one)."),
     R.START_STATUS: (PARTIAL, R.START_STATUS,
-                     "Give, for each Jira workflow of the projects, the first in-progress status after the creation status: the workbook must "
-                     "declare it IsStart."),
+                     "Give, for each Jira workflow of the projects, its statuses in progress (category In Progress): the flow starts at the "
+                     "first one, unless FeatureStartStatuses / TeamStartStatuses of Config_from_user name others that Jira does not know."),
     R.WAIT_STATUS: (PARTIAL, R.WAIT_STATUS,
                     "Give the statuses of the Jira workflows where the work waits (ready for, to test, blocked): Jira has no Wait category, "
                     "the workbook must declare them."),

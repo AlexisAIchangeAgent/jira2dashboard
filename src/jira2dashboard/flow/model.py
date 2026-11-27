@@ -21,6 +21,17 @@ def work_type_bucket(work_type) -> str:
     return {w.lower(): w for w in WORK_TYPES}.get("" if work_type is None else str(work_type).lower(), UNMAPPED)
 
 
+def status_key(name) -> str:
+    """The key of a status name, the way Excel compares two texts (SUMIFS, COUNTIFS, MATCH): trimmed, case ignored. Two spellings of one name are
+    one status for the formulas, so they must be one for the rules too (status_rules; VBA modParams.StatusKey: LCase$(TrimWhite(...)))."""
+    return str(name or "").strip().lower()
+
+
+def list_value(value) -> tuple[str, ...]:
+    """The names of a list parameter of Config (FeatureTypes, FeatureStartStatuses...): separated by commas, trimmed, empty ones left out."""
+    return tuple(t.strip() for t in str(value or "").split(",") if t.strip())
+
+
 @dataclass(frozen=True)
 class StatusRule:
     """One row of the Workflows sheet."""
@@ -31,31 +42,40 @@ class StatusRule:
 
 
 class Rules:
-    """The status rules: what Jira says (flow/status_rules.py) and the exceptions of the sheet Workflows. A status that no source knows is
-    Unclassified. `waits` is True once a status is declared Wait (Flow Efficiency needs one)."""
+    """The status rules: what Jira says (flow/status_rules.py) and the exceptions of the sheet Workflows, keyed by (workflow, status_key). A status
+    that no source knows is Unclassified. `waits` is True once a status is declared Wait (Flow Efficiency needs one)."""
 
-    def __init__(self, rows: dict[tuple[str, str], StatusRule], waits: bool = True, entries: tuple = ()):
-        self._rows = rows
+    def __init__(self, rows: dict[tuple[str, str], StatusRule], waits: bool = True, entries: tuple = (), exceptions: tuple = (),
+                 start_statuses: dict | None = None, known: frozenset = frozenset()):
+        self._rows = {(wf, status_key(status)): rule for (wf, status), rule in rows.items()}
+        self._names = {(wf, status_key(status)): status for (wf, status) in rows}
         self.waits = waits
         self.entries = entries          # the status_rules.Rule of each row with its source (from_params): the sheet StatusRules
+        self.exceptions = exceptions    # the rows of the sheet Workflows (status_rules.Exception_)
+        self.start_statuses = start_statuses or {}      # kind -> the names of Config FeatureStartStatuses / TeamStartStatuses
+        self.known = known              # the statuses Jira knows (catalog and current statuses): what the health field "Statuses unknown" compares with
 
     @classmethod
     def from_params(cls, sheets: list[ParamSheet] | None = None, catalog: dict[str, str] | None = None, current: dict[str, str] | None = None,
-                    starts: set[str] | None = None, free: set[str] | None = None) -> "Rules":
+                    free: set[str] | None = None) -> "Rules":
         """The rules of the sheet Workflows (its rows are exceptions) over what Jira gives: `catalog` status -> Jira category, `current` the
-        category Jira gives the tickets' current statuses, `starts` / `free` the statuses that the Jira workflows start with / reach freely.
-        Without any Jira argument the rows alone rule (a complete sheet gives the rules of before)."""
-        from jira2dashboard.flow.status_rules import Exception_, effective_rules, has_wait
-        workflows = next(s for s in (sheets or load_all()) if s.name == "Workflows")
-        exceptions = [Exception_(wf, status, category, start, end, free_) for wf, status, category, start, end, free_ in workflows.rows]
-        rules = effective_rules(("Team", "Feature"), catalog or {}, current or {}, set(starts or ()), set(free or ()), exceptions)
+        category Jira gives the tickets' current statuses, `free` the statuses that the Jira workflows reach freely; the start statuses of each kind
+        from Config (FeatureStartStatuses, TeamStartStatuses) when the sheets hold it. Without any Jira argument the rows alone rule."""
+        from jira2dashboard.flow.status_rules import START_PARAMETERS, Exception_, effective_rules, has_wait
+        sheets = sheets or load_all()
+        workflows = next(s for s in sheets if s.name == "Workflows")
+        exceptions = tuple(Exception_(wf, status, category, end, free_) for wf, status, category, end, free_ in workflows.rows)
+        config = next((dict((r[0], r[1]) for r in s.rows) for s in sheets if s.name == "Config"), {})
+        starts = {kind: list_value(config.get(name)) for kind, name in START_PARAMETERS.items()}
+        rules = effective_rules(("Team", "Feature"), catalog or {}, current or {}, set(free or ()), list(exceptions), starts)
         return cls({(r.workflow, r.status): StatusRule(r.category, bool(r.is_start), bool(r.is_end), bool(r.is_free)) for r in rules},
-                   waits=has_wait(rules), entries=tuple(rules))
+                   waits=has_wait(rules), entries=tuple(rules), exceptions=exceptions, start_statuses=starts,
+                   known=frozenset(catalog or ()) | frozenset(current or ()))
 
     def listed(self) -> list:
         """The rules one by one (status_rules.Rule, source left empty): what status_rules.rule_counts reads."""
         from jira2dashboard.flow.status_rules import Rule
-        return [Rule(wf, status, r.category, int(r.is_start), int(r.is_end), int(r.is_free), "") for (wf, status), r in self._rows.items()]
+        return [Rule(wf, self._names[(wf, key)], r.category, int(r.is_start), int(r.is_end), int(r.is_free), "") for (wf, key), r in self._rows.items()]
 
     def has_start(self, workflow: str) -> bool:
         """A status of the workflow starts the flow (IsStart). Without one no ticket has a StartUtc: no Flow Time, Flow Efficiency or Flow Load."""
@@ -63,10 +83,10 @@ class Rules:
 
     def ended_statuses(self) -> set[str]:
         """The statuses that end the flow (IsEnd) in at least one workflow: what the sheet Reconciliation lists with the tickets that sit in them."""
-        return {status for (_wf, status), rule in self._rows.items() if rule.is_end}
+        return {self._names[k] for k, rule in self._rows.items() if rule.is_end}
 
     def rule(self, workflow: str, status: str) -> StatusRule:
-        return self._rows.get((workflow, status), StatusRule(UNCLASSIFIED, False, False, False))
+        return self._rows.get((workflow, status_key(status)), StatusRule(UNCLASSIFIED, False, False, False))
 
 
 @dataclass(frozen=True)

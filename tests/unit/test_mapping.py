@@ -61,7 +61,8 @@ def to_second(issue: FlowIssue) -> FlowIssue:
 def test_the_flow_issues_of_the_json_are_those_of_the_fake_jira():
     dataset, cases = with_anomalies(generate(seed=11, issues=150, projects=project_keys()), project_keys())
     issues, pages, ids = answers(dataset)
-    extract = M.extracted(issues, pages, ids, PROJECTS, "Blocks")
+    names = {sid: name for name, sid in dataset.catalog.ids.items()}           # what statuses/search gives: a renamed status takes its name of now
+    extract = M.extracted(issues, pages, ids, PROJECTS, "Blocks", status_names=names)
     got = {i.key: dataclasses.replace(i, changes=tuple(sorted(i.changes, key=lambda c: (c.at, c.id))))
            for i in extract.flow}
     expected = {i.key: dataclasses.replace(to_second(i), jira_workflow="") for i in to_flow_issues(dataset)}      # the Jira workflow is read apart (standalone/workflows.py)
@@ -392,3 +393,20 @@ def test_the_wire_lines_name_the_key_found_for_the_date_and_say_when_there_is_no
 def test_only_the_first_200_issues_are_read_for_the_wire_types():
     late = [{"id": str(n), "key": f"A-{n}", "fields": {}} for n in range(M.WIRE_SAMPLE)] + [{"id": "x", "key": "A-x", "fields": {"created": "c"}}]
     assert "fields.created absent" in M.wire_lines(late, [], M.FieldIds("", {}), "created")[0]
+
+
+def test_a_status_of_the_changelog_takes_its_name_of_now_by_its_id():
+    """AL, 2026-11-27: a status renamed in Jira keeps its id; the changelog keeps the name it had then. Same status, so same rule."""
+    names = {"10003": "En analyse"}
+    assert M.status_name("10003", "En analyse (ancien)", names) == "En analyse"
+    assert M.status_name(10003, "old", names) == "En analyse"                       # an id read as a number
+    assert M.status_name("999", "Revue", names) == "Revue" and M.status_name(None, "Revue", names) == "Revue"     # unknown id: the text
+    assert M.status_name("10003", None, None) == ""
+
+
+def test_the_status_catalog_sheet_keeps_the_ids_and_gives_them_back():
+    from jira2dashboard.flow.jira_workflows import catalog_of, catalog_rows, names_of
+    rows = catalog_rows({"Prêt": "IN_PROGRESS", "Nouveau": "TODO", "Vieux": "DONE"}, {"2": "Prêt", "1": "Nouveau", "7": "Prêt", "9": "Absent"})
+    assert rows == [("1", "Nouveau", "TODO"), ("2", "Prêt", "IN_PROGRESS"), ("7", "Prêt", "IN_PROGRESS"), ("", "Vieux", "DONE")]
+    assert names_of(rows + [(10.0, "Dix", "TODO"), (None, "X", "TODO")]) == {"1": "Nouveau", "2": "Prêt", "7": "Prêt", "10": "Dix"}
+    assert catalog_of(rows) == {"Nouveau": "TODO", "Prêt": "IN_PROGRESS", "Vieux": "DONE"}

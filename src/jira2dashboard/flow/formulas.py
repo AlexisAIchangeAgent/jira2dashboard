@@ -44,8 +44,10 @@ _row_index = row_index
 # --- StatusIntervals: helper columns after the raw ones ------------------------------------------------
 
 INTERVAL_HELPERS = (
-    ("IsStart", "=SUMIFS(StatusRules_from_excel!$D:$D,StatusRules_from_excel!$A:$A,[@Workflow],StatusRules_from_excel!$B:$B,[@Status])"),
-    ("IsEnd", "=SUMIFS(StatusRules_from_excel!$E:$E,StatusRules_from_excel!$A:$A,[@Workflow],StatusRules_from_excel!$B:$B,[@Status])"),
+    # 1 or 0, never 2: SUMIFS ignores case and ADDS the rows it matches; the rules hold one row per status key (status_rules), and the IF keeps a hand-made
+    # second row from making a 2 that COUNTIFS(IsStart, 1) would never count (AL, 2026-11-27: no Feature of the client ever entered its start status)
+    ("IsStart", "=IF(SUMIFS(StatusRules_from_excel!$D:$D,StatusRules_from_excel!$A:$A,[@Workflow],StatusRules_from_excel!$B:$B,[@Status])>0,1,0)"),
+    ("IsEnd", "=IF(SUMIFS(StatusRules_from_excel!$E:$E,StatusRules_from_excel!$A:$A,[@Workflow],StatusRules_from_excel!$B:$B,[@Status])>0,1,0)"),
     ("PrevCategory", f'=IF([@Seq]=1,"",INDEX({SI}[Category],{_row_index(SI)}-1))'),
     ("Team", f"=INDEX({IF_}[Team],MATCH([@Key],{IF_}[Key],0))"),
     ("Bucket", f"=INDEX({IF_}[WorkTypeBucket],MATCH([@Key],{IF_}[Key],0))"),
