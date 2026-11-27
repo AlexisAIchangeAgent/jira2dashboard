@@ -60,8 +60,8 @@ Releases: the version is `vX.Y.Z` only (`v0.0.0-dryrun` is refused) and the numb
 (only that dry-run folder: a real release keeps its `out\release\<version>`, whose `notes.md` holds the SHA-256 and MD5). The release body
 starts with `(commit <40 hex>)`: take the MD5 to give AL from the line ending `bytes)` or from `md5sum out\release\<version>\jira2dashboard.xlsm`, never "the first 32 hex".
 `-Publish` also needs HEAD == origin/main and `gh` logged in.
-Published: `v0.5.0` to `v0.20.0` (the last: 2026-11-26, commit ed56d50). `gh release list` lists them; the body of each starts with its commit and gives
-the MD5, as `out\release\<v>\notes.md`. AL removed `v0.1.0` to `v0.4.0` (2026-11-13): never used again; the next one is above `v0.20.0`. What a
+Published: `v0.5.0` to `v0.21.0` (the last: 2026-11-27, commit cfa2e6d). `gh release list` lists them; the body of each starts with its commit and gives
+the MD5, as `out\release\<v>\notes.md`. AL removed `v0.1.0` to `v0.4.0` (2026-11-13): never used again; the next one is above `v0.21.0`. What a
 version changed: its commit message; a text the client reports dates its release (`git log -S`, Environment gotchas).
 A clone may keep old tags (`git fetch --tags`): `version.py` stamps the commit, never `git describe`.
 `diagnose` never opens the workbook, never reads `python.log` (JQL, Jira's messages) nor the Windows event log, and masks the home
