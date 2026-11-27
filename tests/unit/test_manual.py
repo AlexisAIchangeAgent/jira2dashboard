@@ -75,5 +75,5 @@ def test_the_manual_says_how_to_check_the_figures_with_the_counts_of_the_code():
 
 def test_the_manual_stays_short():
     rows = manual.manual(MANDATORY)
-    assert max(len(text) for _kind, text in rows) <= 420 and sum(len(text) for _kind, text in rows) <= 10_500      # AL, 2026-11-26: + the button Debug prompt for Rovo
+    assert max(len(text) for _kind, text in rows) <= 420 and sum(len(text) for _kind, text in rows) <= 10_500      # AL, 2026-11-26: + the button Debug prompt for Rovo (VBA code for Rovo since 2026-11-27)
     assert sum(len(line) for line in manual.first_steps()) <= 1_300

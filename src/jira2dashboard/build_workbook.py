@@ -10,6 +10,7 @@ import sys
 from pathlib import Path
 
 from jira2dashboard import clean, sheet_names as S, version
+from jira2dashboard import vba_code as VC
 from jira2dashboard.cli.args import bare_xlsm, parser
 from jira2dashboard.excel import com as R
 from jira2dashboard.flow.sheets import write_blueprint, write_manual
@@ -27,9 +28,9 @@ def target_for(name: str) -> Path:
 
 
 TARGET = target_for(DELIVERY_NAME)
-# No test module, no test button: modCoverage stays because the other modules call Cov (a no-op unless switched on).
-MODULES = ["modCoverage", "modLog", "modJson", "modText", "modHttp", "modProxy", "modJira", "modFlow", "modParams", "modExtract",
-           "modJiraConfig", "modPropose", "modHealth", "modFlowBuild", "modRovoDebug", "modActions"]
+# No test module, no test button: modCoverage stays because the other modules call Cov (a no-op unless switched on). The same list writes the
+# sheet VbaCode (the code that the button VBA code for Rovo writes into one text file).
+MODULES = VC.MODULES
 BUTTON_MACRO = "modActions.BtnExtract"
 # The handler of the workbook: a slice of the extraction still scheduled when the workbook is closed would reopen it.
 THISWORKBOOK_CODE = "\r\n".join((

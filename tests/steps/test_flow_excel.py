@@ -31,7 +31,6 @@ from jira2dashboard.mockjira.flow_adapter import jira_rules, jira_workflows, to_
 from jira2dashboard.mockjira.generator import generate
 from jira2dashboard.mockjira.server import MockJira
 from jira2dashboard import rovo_prompt as RP
-from jira2dashboard import rovo_debug as RD
 import art_oracle as art
 from jira2dashboard.params.model import load_all, mandatory_parameters, project_keys
 from jira2dashboard.paths import INTER_DIR
@@ -41,7 +40,7 @@ scenarios("../features/flow_excel.feature")
 scenarios("../features/jira_config.feature")             # same workbook and fake Jira steps
 scenarios("../features/first_use.feature")
 scenarios("../features/rovo_prompt.feature")
-scenarios("../features/rovo_debug.feature")              # the button Debug prompt for Rovo: the scenario art-metrics, then a workbook not computed
+scenarios("../features/vba_code.feature")                # the button VBA code for Rovo: the code of the workbook in one text file
 
 WORKER = os.environ.get("PYTEST_XDIST_WORKER", "")       # gw0, gw1... when the module runs under pytest-xdist (`-n 3`), "" otherwise
 # Each worker builds and opens its OWN workbook, in its own folder: the VBA log (folder logs next to the workbook) and the files of the scenarios are then never shared.
@@ -2569,59 +2568,31 @@ def _art_chart_values(world):
     sheets.export_charts_to_look_at(world["wb"], "art_metrics", report)  # SVG, PNG, index.html in out/manual_test/charts/art_metrics
 
 
-# --- rovo_debug.feature: the files of the button Debug prompt for Rovo (AL, 2026-11-26) ---------------------------------------------------
-# The keys expected are those of tests/art_oracle.py, worked out by hand; the files are read as the user uploads them (UTF-8 bytes).
+# --- vba_code.feature: the button VBA code for Rovo (AL, 2026-11-27) -----------------------------------------------------------------------
+# The file is read as the user uploads it (UTF-8 bytes) and compared with vba_code.file_text, made from the same vba\*.bas and formula plan.
 
-ROVO_ANSWER = "rovo-answer.md"                       # a file the user saved there: the button deletes its own NN.md only
+ROVO_ANSWER = "rovo-answer.md"                       # a file the user saved there: the button deletes the NN.md of the earlier button only
 
 
 def rovo_folder(world) -> Path:
     """Read once (an Excel that has just run a macro may refuse a call for a moment: retry)."""
     if "rovo_folder" not in world:
-        world["rovo_folder"] = Path(retry(lambda: world["wb"].Path)) / RD.FOLDER
+        world["rovo_folder"] = Path(retry(lambda: world["wb"].Path)) / "rovo-debug"
     return world["rovo_folder"]
-
-
-def rovo_files(world) -> list[Path]:
-    return sorted(path for path in rovo_folder(world).glob("*.md") if re.fullmatch(r"\d\d\.md", path.name))
-
-
-def rovo_text(world) -> str:
-    return "\n".join(path.read_bytes().decode("utf-8") for path in rovo_files(world))
-
-
-def rovo_sections(world) -> dict[str, str]:
-    """The text of each iteration of the files: from its heading "## Iteration X:" to the next one (or the end of its file)."""
-    out = {}
-    for path in rovo_files(world):
-        parts = re.split(r"(?m)^## Iteration ", path.read_bytes().decode("utf-8"))
-        for part in parts[1:]:
-            out[part.split(":", 1)[0]] = part
-    return out
-
-
-def rovo_line(section: str, start: str) -> str:
-    return next(line for line in section.splitlines() if line.startswith(start))
 
 
 @given("un ancien fichier 07.md et une réponse de Rovo enregistrée dans le dossier rovo-debug")
 def _rovo_old_files(world):
     folder = rovo_folder(world)
     folder.mkdir(exist_ok=True)
-    for path in folder.glob("*.md"):
+    for path in folder.iterdir():
         path.unlink()
-    (folder / "07.md").write_text("an old file of an earlier click", encoding="utf-8")
+    (folder / "07.md").write_text("an old file of the Debug prompt for Rovo", encoding="utf-8")
     (folder / ROVO_ANSWER).write_text("the answer of Rovo, saved by the user", encoding="utf-8")
 
 
-@when(parsers.parse("le paramètre Filter de la feuille Config vaut « {value} »"))
-def _rovo_filter(world, value):
-    set_config(world["wb"], "Filter", value)
-    world["filter"] = value
-
-
-@when("je clique sur le bouton Debug prompt for Rovo")
-def _rovo_debug_click(world):
+@when("je clique sur le bouton VBA code for Rovo")
+def _rovo_code_click(world):
     wb = world["wb"]
     buttons = {shape.TextFrame.Characters().Text: (shape.OnAction, shape.TopLeftCell.Address)
                for shape in wb.Worksheets(S.of("Dashboard")).Shapes if shape.Type == MSO_FORM_CONTROL}
@@ -2634,168 +2605,50 @@ def _rovo_debug_click(world):
     rovo_folder(world)
 
 
-@then("le dossier rovo-debug a les nouveaux fichiers 01.md, 02.md..., chacun de 12 000 caractères au plus en UTF-8, plus d'ancien fichier et la "
-      "réponse de Rovo gardée")
-def _rovo_debug_files(world):
-    files = rovo_files(world)
-    assert [path.name for path in files] == [f"{n:02d}.md" for n in range(1, len(files) + 1)], files
-    for n, path in enumerate(files, start=1):
-        raw = path.read_bytes()
-        assert not raw.startswith(b"\xef\xbb\xbf"), path                        # no BOM
-        text = raw.decode("utf-8")                                               # UTF-8, or this fails
-        assert text.startswith(f"# jira2dashboard - debug prompt for Rovo, file {n} of {len(files)}\n"), (path, text[:80])   # none is the old 07.md
-        assert len(text) <= RD.MAX_CHARACTERS, (path, len(text))
-    assert (rovo_folder(world) / ROVO_ANSWER).exists()
-    assert f'labels != "équipe"' in rovo_text(world)                             # an accent written right (the Filter typed in Config)
+@then("le fichier vba-code.txt du dossier rovo-debug est le code des modules livrés et les formules des tables, caractère par caractère")
+def _rovo_code_file(world):
+    from jira2dashboard import vba_code as VC
+    from jira2dashboard.flow import blueprint as B
+    from jira2dashboard.paths import VBA_DIR
+    got = (rovo_folder(world) / VC.FILE_NAME).read_bytes()
+    assert not got.startswith(b"\xef\xbb\xbf") and b"\r\n" not in got                     # UTF-8 without BOM, LF
+    wb = world["wb"]
+    version = retry(lambda: wb.Application.Run(f"'{wb.Name}'!modLog.WorkbookVersion", wb))
+    want = VC.file_text(VC.rows(VC.delivered(VBA_DIR, VC.MODULES)), B.formula_rows(), version)
+    text = got.decode("utf-8")
+    if text != want:                                                                        # the first line that differs, not 400 kB
+        bad = next(n for n, (a, b) in enumerate(zip(text.split("\n"), want.split("\n"))) if a != b)
+        raise AssertionError((bad, text.split("\n")[bad], want.split("\n")[bad], len(text), len(want)))
+    assert "Sub BtnExtract()" in text and "ItemFlow | StartUtc | =" in text and "modTests" not in text
 
 
-@then("les fichiers donnent les 18 dernières itérations, aucune de IT-1, chacune avec les clés livrées calculées à la main")
-def _rovo_debug_iterations(world):
-    sections = rovo_sections(world)
-    by_start = sorted(art.ITERATION_STARTS, key=art.ITERATION_STARTS.get)
-    assert list(sections) == by_start[-18:] and not [label for label in sections if label.startswith("IT-1-")], list(sections)
-    for label, section in sections.items():
-        expected = sorted(f"TTT-{n}" for n, released in art.RELEASED.items() if released == label)
-        line = rovo_line(section, "- Done in the workbook (")
-        assert line == f"- Done in the workbook ({len(expected)} keys): {', '.join(expected) if expected else 'none'}", (label, line)
-        assert f"### {label}, team ART\n- Velocity {art.VELOCITY[label]}" in section, label
-    text = rovo_text(world)
-    assert f"the controls count all {len(art.ITERATION_STARTS)}; the next files list the last 18 that started" in text
+@then("l'ancien fichier 07.md est effacé et la réponse de Rovo est gardée")
+def _rovo_code_old_files(world):
+    folder = rovo_folder(world)
+    assert not (folder / "07.md").exists() and (folder / ROVO_ANSWER).exists()
 
 
-@then("les sous-tâches TTT-26 et TTT-27 sont laissées de côté dans IT-2-1 et TTT-28 dans IT-3-4, comme des tickets qui ne sont pas des Features")
-def _rovo_debug_left_out(world):
-    expected = {"IT-2-1": ["TTT-26", "TTT-27"], "IT-3-4": ["TTT-28"]}
-    for label, section in rovo_sections(world).items():
-        line = rovo_line(section, "Left out of the metrics though done in it")
-        found = re.findall(r"(TTT-\d+): ART \(other types\), Left out: not a Feature", line)
-        assert sorted(found) == expected.get(label, []), (label, line)
-        assert found or line.endswith(": none"), (label, line)
+@then("la feuille VbaCode est cachée")
+def _rovo_code_hidden(world):
+    assert retry(lambda: world["wb"].Worksheets(S.of("VbaCode")).Visible) == 0          # xlSheetHidden
 
 
-@then("une itération sans ticket livré a des requêtes JQL sans liste vide")
-def _rovo_debug_empty_iteration(world):
-    sections = rovo_sections(world)
-    quiet = [label for label in sections if art.VELOCITY[label] == 0]
-    assert quiet and len(quiet) == 6, quiet                                      # IT-2-6, IT-3-1, IT-3-2, IT-3-3, IT-3-5, IT-4-4
-    for label in quiet:
-        start = dt.date.fromisoformat(art.ITERATION_STARTS[label])
-        last = (start + dt.timedelta(days=21) - dt.timedelta(days=1)).isoformat()    # 21 days, End excluded: the last minute of the day before
-        jql_a, jql_b = rovo_line(sections[label], "- JQL A, "), rovo_line(sections[label], "- JQL B, ")
-        assert "key not in" not in jql_a and "()" not in jql_a, jql_a
-        assert (f'`project in ("TTT") AND issuetype in ("Feature") AND (labels != "équipe") AND status in ("released") AND status CHANGED TO '
-                f'("released") DURING ("{start.isoformat()} 00:00", "{last} 23:59")`') in jql_a, jql_a
-        assert jql_b.endswith(": none: the workbook counts no ticket here"), jql_b
-    jql_b = rovo_line(sections["IT-2-1"], "- JQL B, ")
-    assert ('`key in (TTT-7) AND NOT (status CHANGED TO ("released") DURING ("2025-05-07 00:00", "2025-05-27 23:59"))`') in jql_b, jql_b
-    assert " AND key not in (TTT-7)`" in rovo_line(sections["IT-2-1"], "- JQL A, ")
-    assert not [line for line in rovo_text(world).splitlines() if line.startswith("- JQL") and "()" in line]
+@then("l'état du tableau de bord donne le fichier, ses modules, ses lignes et le dossier")
+def _rovo_code_status(world):
+    from jira2dashboard import vba_code as VC
+    from jira2dashboard.paths import VBA_DIR
+    status, lines = world["status"], len(VC.rows(VC.delivered(VBA_DIR, VC.MODULES)))
+    assert status.startswith(f"VBA code for Rovo | File: vba-code.txt, {len(VC.MODULES)} modules, {lines} lines of code, "), status
+    assert f"Folder: {rovo_folder(world)}" in status and "Next: in Rovo Chat" in status
 
 
-@then("le premier fichier donne les consignes, le Filter, les statuts de fin, les contrôles et l'avertissement sur le fuseau horaire, sans aucun "
-      "code de contrôle")
-def _rovo_debug_summary(world):
-    first = rovo_files(world)[0].read_bytes().decode("utf-8")
-    assert "## How to answer" in first and "Run each JQL exactly as it is written" in first and "\n- Time zone: " in first
-    assert f'- Filter (in every JQL): labels != "équipe"' in first
-    assert re.search(r"\n  - Feature: start: analyzing, deploying, doing, ready2deploy, ready2test, ready4PI, testing; end: released;", first), first[:3000]
-    assert f"## The {len(RD.CONTROL_TEXTS)} controls of {S.of('Reconciliation')}" in first
-    for row in retry(lambda: table_dicts(world["wb"], "Reconciliation")):       # each control with the result of the workbook, under its Rovo title
-        _group, title, _hint = RD.CONTROL_TEXTS[row["Control"]]
-        assert f"\n- {row['Result']}: {title}. Expected " in first, (row["Control"], row["Result"])
-    assert not re.search(r"\bDC\d\d\b", rovo_text(world))
-
-
-@then("les fichiers ne contiennent ni le jeton, ni l'e-mail, ni l'adresse de Jira")
-def _rovo_debug_no_secret(world):
-    text = rovo_text(world)
-    typed = {name: str(value) for name, value, *_ in retry(lambda: list(world["wb"].Worksheets(S.of("Config")).UsedRange.Value[1:]))
-             if name in ("BaseUrl", "Email", "ApiToken")}
-    assert all(typed.values()) and typed["BaseUrl"].startswith("http://127.0.0.1:"), typed      # the scenario typed them
-    for name, value in typed.items():
-        assert value not in text, name
-    assert "127.0.0.1" not in text
-
-
-@then("l'état du tableau de bord dit combien de fichiers sont écrits et lequel déposer d'abord")
-def _rovo_debug_status(world):
-    status, n = world["status"], len(rovo_files(world))
-    assert status.startswith("Rovo debug prompt | Files: " + f"{n}, the largest "), status
-    assert "Iterations: 18 of 24, the last ones that started" in status and f"Folder: {rovo_folder(world)}" in status
-    assert "01.md first" in status and "Over the limit" not in status
-
-
-@then('le journal local décrit le run du bouton "Debug prompt for Rovo", avec ses paramètres en clair dont le Filter, sans aucune clé de ticket')
-def _rovo_debug_log(world):
+@then('le journal local décrit le run du bouton "VBA code for Rovo", sans aucun chemin')
+def _rovo_code_log(world):
+    from jira2dashboard import vba_code as VC
     lines, text = logged_run(world, "button " + D.ROVO_DEBUG_CAPTION)
-    assert "PARAM Filter = labels != " in text                                 # in clear since 2026-11-26 (AL); the log is ASCII: "?quipe"
     ends = [rest[0] for kind, *rest in lines if kind == "END"]
-    assert any(end.startswith(f"debug prompt for Rovo: {len(rovo_files(world))} files, the largest ") for end in ends), ends
-    assert "TTT-" not in text and str(rovo_folder(world)) not in text          # no key, no path (the home folder)
-
-
-@given(parsers.parse("l'équipe du projet {key} s'appelle « {team} » dans la feuille Projects"))
-def _team_name(world, key, team):
-    """A team named apart from its key (the Team cell): the JQL of the team must name the project, the block the team."""
-    ws = world["wb"].Worksheets(S.of("Projects"))
-    row = next(r for r in range(2, 60) if ws.Cells(r, 1).Value == key)
-    ws.Cells(row, 3).Value = com.as_cell(team)
-    world["renamed_team"] = (key, team)
-
-
-@when(parsers.parse("la limite des fichiers de la feuille RovoDebugSpec passe à {limit:d} caractères"))
-def _rovo_debug_limit(world, limit):
-    ws = world["wb"].Worksheets(S.of(RD.SPEC_SHEET))
-    row = next(r for r in range(2, 200) if ws.Cells(r, 1).Value == RD.LIMIT and ws.Cells(r, 2).Value == "MaxCharacters")
-    ws.Cells(row, 3).Value = com.as_cell(str(limit))
-    world["limit"] = limit
-
-
-@then("chaque équipe de chaque itération a ses requêtes JQL sur ses projets, avec les clés livrées de la liste Done de MetricItems")
-def _rovo_debug_teams(world):
-    wb, text = world["wb"], rovo_text(world)
-    assert "none: the workbook has no project for this team" not in text and "none: the rules of the workbook" not in text
-    assert not [line for line in text.splitlines() if line.startswith("- JQL") and "()" in line]
-    projects = retry(lambda: list(wb.Worksheets(S.of("Projects")).UsedRange.Value[1:]))
-    of_team = {}
-    for key, role, team, *_ in projects:
-        if key and str(role).lower() == "team":
-            of_team.setdefault(str(team or key).strip(), []).append(str(key).strip().upper())
-    done = {}
-    for row in retry(lambda: metric_blocks(wb))[0]:                       # Iteration, Start, End, Team, Key...
-        done.setdefault((row[0], row[3]), []).append(row[4])
-    teams_with_keys = 0
-    for label, section in rovo_sections(world).items():
-        for block in section.split("\n### ")[1:]:
-            team = block.split("\n", 1)[0].split(", team ", 1)[1]
-            keys = done.get((label, team), [])
-            line = rovo_line(block, "- Done in the workbook (")
-            assert line == f"- Done in the workbook ({len(keys)} keys): {', '.join(keys) if keys else 'none'}", (label, team, line)
-            jql_a = rovo_line(block, "- JQL A, ")
-            if team != "ART":
-                scope = "`project in (" + ", ".join(f'"{k}"' for k in of_team[team]) + ")"
-                assert scope in jql_a, (label, team, jql_a)
-                teams_with_keys += bool(keys)
-            if keys:
-                assert jql_a.endswith(f" AND key not in ({', '.join(keys)})`"), (label, team, jql_a)
-                assert f"`key in ({', '.join(keys)}) AND NOT (status CHANGED TO (" in rovo_line(block, "- JQL B, "), (label, team)
-    assert teams_with_keys > 0                                                # the path of a team project with done tickets is exercised
-    key, team = world["renamed_team"]
-    assert f", team {team}\n" in text and of_team[team] == [key]            # the team of the Team cell, its JQL on its project
-
-
-@then(parsers.parse("l'état du tableau de bord signale le fichier qui dépasse la limite de {limit:d} caractères"))
-def _rovo_debug_over(world, limit):
-    status, largest = world["status"], max(len(path.read_bytes().decode("utf-8")) for path in rovo_files(world))
-    assert largest > limit and len(rovo_files(world)) > 2, (largest, len(rovo_files(world)))
-    assert f" | Over the limit: the largest file has {largest} characters, more than {limit}: Rovo may read only a part of it" in status, status
-
-
-@then("l'état du tableau de bord donne le code J2D-ROVO-004 et dit de cliquer sur 2. Compute the metrics")
-def _rovo_debug_not_computed(world):
-    status = world["status"]
-    assert status.startswith("Stopped | Code: J2D-ROVO-004 | Message: "), status
-    assert f"click {D.COMPUTE_CAPTION}, then {D.ROVO_DEBUG_CAPTION}" in status, status
+    assert any(end.startswith(f"VBA code for Rovo: {len(VC.MODULES)} modules, ") for end in ends), ends
+    assert str(rovo_folder(world)) not in text                                              # no path (the home folder)
 
 
 scenarios("../features/art_metrics_excel.feature")

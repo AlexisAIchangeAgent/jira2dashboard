@@ -141,12 +141,11 @@ workbook parameters, filled at the client only):
 | DC21 | `issuetype in (<FeatureTypes>) AND "<BusinessValueField>" IS NOT EMPTY` |
 | DC26 | `issuetype in (<FeatureTypes>) AND fixVersion IS EMPTY` |
 
-**The figures, not the data (2026-11-26, Decided).** To find why a figure of the workbook differs from Jira, do not write the
-prompt by hand: the button *Debug prompt for Rovo* writes `rovo-debug/01.md`, `02.md`... next to the workbook (the keys of the
-last 18 iterations with JQL that return only the differences, the controls of the Reconciliation, a closed list of causes).
-Upload them in Rovo Chat, `01.md` first. The text is `src/jira2dashboard/rovo_debug.py` (one master: the button reads it from
-the workbook). Rovo does not count reliably (Community: ROVO-535, ROVO-287, ROVO-249): the files ask for keys, never a total.
-The size of a file (12 000 characters) is a guess: Verify in UI with a file whose key count you know.
+**The figures, not the data (2026-11-27, Decided).** To find why a figure of the workbook differs from Jira, give Rovo the
+code and the figures: the button *VBA code for Rovo* writes `rovo-debug/vba-code.txt` next to the workbook (the code of the macros
+and the formula of every column of the tables, `src/jira2dashboard/vba_code.py`), and a copy of the workbook saved as .xlsx holds
+the figures (Rovo reads an xlsx, not the macros of an xlsm). Rovo does not count reliably (Community: ROVO-535, ROVO-287, ROVO-249):
+ask it for keys and causes, never a total. The size Rovo reads of one file is not documented: Verify in UI (the code file is large).
 
 The prompts below predate this table: where they differ (P03 uses Story instead of `PointsRequiredTypes`; P04 limits
 DC13 to some types; P05 DC19 names one status), the table wins.

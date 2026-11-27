@@ -7,7 +7,7 @@ Option Explicit
 ' lists as the Python side (src/jira2dashboard/sheet_names.py): tests/unit/test_sheet_names.py compares them.
 Private Const USER_SHEETS As String = "|Config|Projects|Iterations|PIs|Workflows|Transitions|"
 Private Const JIRA_SHEETS As String = "|Issues|StatusIntervals|IssueLinks|JiraIssueTypes|JiraStatuses|JiraWorkflows|JiraTransitions|JiraFields|JiraProjectWorkflows|JiraProjectFields|JiraFieldUsage|JiraSprints|JiraLinkTypes|JiraStatusCatalog|Changelog|PIIntervals|"
-Private Const EXCEL_SHEETS As String = "|Dashboard|Charts|Manual|ErrorCodes|Steps|StatusRules|ItemFlow|DailyLoad|Metrics|PIMetrics|PIStatusTime|VelocityCheck|FlowTimeCheck|FlowEfficiencyCheck|FlowLoadCheck|FlowDistCheck|MetricItems|Reconciliation|IterationFeatures|IterationCharts|DataChecks|FillRates|Controls|ChartData|FlowFormulas|ChartSpec|ChecksSpec|RawTypesSpec|RovoPromptSpec|RovoDebugSpec|RovoPrompt|Run|Errors|"
+Private Const EXCEL_SHEETS As String = "|Dashboard|Charts|Manual|ErrorCodes|Steps|StatusRules|ItemFlow|DailyLoad|Metrics|PIMetrics|PIStatusTime|VelocityCheck|FlowTimeCheck|FlowEfficiencyCheck|FlowLoadCheck|FlowDistCheck|MetricItems|Reconciliation|IterationFeatures|IterationCharts|DataChecks|FillRates|Controls|ChartData|FlowFormulas|ChartSpec|ChecksSpec|RawTypesSpec|RovoPromptSpec|VbaCode|RovoPrompt|Run|Errors|"
 Private Const SUFFIX_USER As String = "_from_user"
 Private Const SUFFIX_JIRA As String = "_from_Jira"
 Private Const SUFFIX_EXCEL As String = "_from_excel"

@@ -441,6 +441,7 @@ Public Function ErrorCode(ByVal number As Long, Optional ByVal description As St
             Case 632: ErrorCode = "J2D-ROVO-003"
             Case 633: ErrorCode = "J2D-ROVO-004"
             Case 634: ErrorCode = "J2D-ROVO-005"
+            Case 635: ErrorCode = "J2D-ROVO-006"
             Case 610: ErrorCode = "J2D-SYS-001"
             Case 611: ErrorCode = "J2D-SYS-002"
             Case 612: ErrorCode = "J2D-SYS-003"

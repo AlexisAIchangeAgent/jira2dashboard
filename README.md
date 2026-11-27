@@ -107,7 +107,7 @@ Excel tables keep the logical names (`Config`, `Issues[Key]`); `sheet_names.py` 
 
 | Sheets | Content | Written by |
 |---|---|---|
-| `Dashboard_from_excel`, `Manual_from_excel`, `Charts_from_excel` | Progress bar and buttons stacked in `A2:A20` (the three steps: 1. Extract from Jira, 2. Compute the metrics, 3. Draw the charts; then Cancel and Debug prompt for Rovo), status `A22` and one row per field under it; user manual; the 10 charts and their team `B2` | build |
+| `Dashboard_from_excel`, `Manual_from_excel`, `Charts_from_excel` | Progress bar and buttons stacked in `A2:A20` (the three steps: 1. Extract from Jira, 2. Compute the metrics, 3. Draw the charts; then Cancel and VBA code for Rovo), status `A22` and one row per field under it; user manual; the 10 charts and their team `B2` | build |
 | `ErrorCodes_from_excel`, `Steps_from_excel` | The support codes (what each means and what to check); the steps of the last run | build, VBA |
 | `Config_from_user`, `Projects_from_user`, `Iterations_from_user`, `PIs_from_user`, `Workflows_from_user`, `Transitions_from_user` | Parameters | build, then user |
 | `Issues_from_Jira`, `StatusIntervals_from_Jira`, `IssueLinks_from_Jira` | Raw data (values) | VBA |
@@ -115,7 +115,7 @@ Excel tables keep the logical names (`Config`, `Issues[Key]`); `sheet_names.py` 
 | `FlowFormulas_from_excel`, `ChartSpec_from_excel`, `ChecksSpec_from_excel`, `RawTypesSpec_from_excel` | The plan. Do not edit. | build |
 | `JiraIssueTypes_from_Jira`, `JiraStatuses_from_Jira`, `JiraWorkflows_from_Jira`, `JiraTransitions_from_Jira`, `JiraFields_from_Jira` | Proposals read from Jira (workflows and moves end with the column Project) | VBA |
 | `RovoPromptSpec_from_excel`, `RovoPrompt_from_excel` | The text behind the button Prompt for Rovo, and the prompt it writes (a CSV answer is asked: Sheet, Row, Column, Value, Note); the button Load settings CSV loads that answer into Config and the parameter sheets | Python (spec), VBA |
-| `RovoDebugSpec_from_excel` | The texts, JQL and limits behind the button Debug prompt for Rovo, which writes `rovo-debug/01.md`, `02.md`... next to the workbook: how Rovo answers, the context, the controls, then the keys of the last 18 iterations with JQL that return only the differences | Python (spec), VBA |
+| `VbaCode_from_excel` (hidden) | The code of the delivered macros, one row per line: the button VBA code for Rovo writes it with the formulas of the tables into `rovo-debug/vba-code.txt` (Rovo reads an xlsx, not the macros) | Python (build), VBA |
 | `JiraProjectWorkflows_from_Jira`, `JiraProjectFields_from_Jira`, `JiraFieldUsage_from_Jira` | Per project: workflow and issue types; fields of the create screen; fields filled in one page of issues | VBA |
 | `PIIntervals_from_Jira` | The PI field of each ticket through time, from its changelog: one row per stretch with a PI (from, to, still open); Feature Predictability counts what was engaged at the start of the PI | VBA |
 | `Changelog_from_Jira` | Every changelog item of the tickets read (all fields, no author, texts cut at 255 characters, no value for assignee, reporter, creator), the date read and as Jira sent it | VBA |

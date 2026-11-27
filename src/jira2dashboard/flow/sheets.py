@@ -17,7 +17,8 @@ from jira2dashboard.flow import raw_types as RT
 from jira2dashboard import manual as M
 from jira2dashboard import error_codes as EC
 from jira2dashboard import rovo_prompt as RP
-from jira2dashboard import rovo_debug as RD
+from jira2dashboard import vba_code as VC
+from jira2dashboard.paths import VBA_DIR
 
 EXCEL_ERRORS = {-2146826281: "#DIV/0!", -2146826246: "#N/A", -2146826259: "#NAME?", -2146826288: "#NULL!",
                 -2146826252: "#NUM!", -2146826265: "#REF!", -2146826273: "#VALUE!", -2146826254: "#CALC!"}
@@ -76,10 +77,11 @@ def write_blueprint(wb, dash=None, button_macro: str | None = None) -> None:
     R.write_block(ws, 1, 1, [list(RP.SPEC_HEADER)] + [list(row) for row in RP.spec_rows()])
     ws.Columns("A:B").ColumnWidth = 12
     ws.Columns("C").ColumnWidth = 120
-    ws = R.add_sheet_after_last(wb, RD.SPEC_SHEET)                  # the texts and the JQL behind the button Debug prompt for Rovo
-    R.write_block(ws, 1, 1, [list(RD.SPEC_HEADER)] + [list(row) for row in RD.spec_rows()])
-    ws.Columns("A:B").ColumnWidth = 16
-    ws.Columns("C:D").ColumnWidth = 100
+    ws = R.add_sheet_after_last(wb, VC.SHEET)                       # the code of the delivered modules: the button VBA code for Rovo writes it to a file
+    R.write_block(ws, 1, 1, [list(VC.HEADER)] + [list(row) for row in VC.rows(VC.delivered(VBA_DIR, VC.MODULES))])
+    ws.Columns("A").ColumnWidth = 16
+    ws.Columns("C").ColumnWidth = 120
+    ws.Visible = 0                                                  # xlSheetHidden: nobody types in it (Format > Sheet > Unhide shows it)
     ws = R.add_sheet_after_last(wb, "ErrorCodes")                    # the support codes: what each one means and what to check
     R.write_block(ws, 1, 1, [list(EC.HEADER)] + [list(row) for row in EC.rows()])
     ws.Range("A1:E1").Font.Bold = True
