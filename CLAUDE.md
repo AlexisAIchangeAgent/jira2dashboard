@@ -283,6 +283,8 @@ python.log). `tests/unit/test_claude_hooks.py` and `test_claude_skills.py` test 
   (`modParams`). Status names, team names and extract columns must not appear as literals in VBA (a guard test enforces it).
   `Config` columns: Parameter | Value | Example | Mandatory | Description (formulas read A and B; the rest by header). An empty Mandatory=True value
   stops the buttons before any call to Jira (`modParams.RequireMandatory`, error 608).
+  A new Config parameter: its row in `params/config.md` and `params/model.CONFIG_PARAMETERS` (`test_params_match_docs`), `modLog.SHOWN_PARAMETERS`,
+  the row count of `params.feature`, `mockjira/config.py` when the fake Jira answers it, and the parts `keep`/`skip` of `rovo_prompt` if Rovo must not ask it.
 - **Dashboard and Charts.** Top left, one under the other (AL's order): the progress bar `A2`, the buttons Prompt for Rovo
   `A3`, Load settings CSV `A5`, Read the Jira configuration `A7`, Propose values from Jira `A9`, then the three steps `1. Extract from Jira` `A11`,
   `2. Compute the metrics` `A13`, `3. Draw the charts` `A15`, Cancel `A17`, and last VBA code for Rovo `A19` (AL, 2026-11-27) (cells and captions in
@@ -390,7 +392,8 @@ python.log). `tests/unit/test_claude_hooks.py` and `test_claude_skills.py` test 
   the table is `src/jira2dashboard/error_codes.py` (code, vba number, meaning, cause, check, what support asks), shown in the sheet
   `ErrorCodes`; `modLog.ErrorCode(number, description)` is the VBA rule (602 has two causes: BaseUrl check, HTTP status = `JIRA-<status>`,
   status 0 = `NET-<WinHTTP error>`), `error_codes.code_of_vba` and `standalone.support_code` the Python one. A new `Err.Raise vbObjectError + n`
-  needs its `Case n` in `ErrorCode` and a row in the table (`test_error_codes.py` fails otherwise); a code is never reused or renumbered.
+  needs its `Case n` in `ErrorCode` and a row in the table (`test_error_codes.py` fails otherwise); a code is never reused or renumbered:
+  a retired one keeps its row and its `Case`, its meaning starting `Retired on <date> (vX.Y.Z only): `.
   The scripts use `J2D-SCR-nnn` (every `Fail`, `throw` and unknown-argument message of `scripts\*.ps1` carries one: a test pins it), `diagnose` lists
   its `Findings` as `J2D-SYS-02x` with the line `Codes to quote to the support`, `check-machine` prints `J2D-SYS-040` on a FAIL.
 - **Logs.** VBA (`modLog`): the version of the workbook on the `RUN` line (hidden name `J2D_Version`, written at build by
@@ -488,7 +491,8 @@ python.log). `tests/unit/test_claude_hooks.py` and `test_claude_skills.py` test 
   deleted). **The workbook never reads its own VBA project** (AL's choice: no "Trust access to the VBA project object model", which an endpoint protection reads as
   malware). Error 635 `J2D-ROVO-006` without the sheet or its code. The log gets counts only (no path). Python twin `vba_code.file_text`: `vba_code.feature` compares
   the file of the real workbook with it character by character; `T_VbaCode` (in place of `T_RovoDebug`, right after `T_FlowBuild`) the small cases. The figures
-  themselves reach Rovo as a copy of the workbook saved as .xlsx.
+  themselves reach Rovo as a copy of the workbook saved as .xlsx. The file is about 505 000 characters (v0.21.0): how much of one file Rovo reads is
+  not documented (Verify in UI at the client).
 - **Rovo side (md only, no code).** `rovo/` holds the master copies of the Rovo Studio agents. `rovo/rovo-guide.md` is
   the current guide; `docs/rovo-guide.md` is frozen. Steering is hybrid: the workbook computes, and the RTE publishes
   the figures on the page `rovo/confluence_flow_metrics_page.md`. The agent `rovo/rovo_train_steering.md` reads that
@@ -691,6 +695,8 @@ then `mermaid.parse`), and check every `](#anchor)` link against the headings.
   survives means the test data cannot tell it (a tautology: add the case, or let the function take the ledger as a parameter so a test can feed a wrong one).
   A mutation script that runs pytest in a subprocess passes `env={**os.environ, "PYTHONPATH": ...}`: a bare env breaks pywin32
   (`PermissionError ... C:\Windows\gen_py`) and every mutation looks KILLED. Run the unmutated control first.
+  A guard that lives only in a formula (the clamp `IF(SUMIFS(...)>0,1,0)`) has no twin in the reference: pin its text in `test_flow_formulas`,
+  or only the Excel scenarios see it go.
 - **A scenario must not hold what Jira gives in its parameter sheets** (2026-11-18): `Dataset.jira_sheets` = Jira's full Workflows/Transitions, `sheets` = the exceptions. References
   come from `flow_adapter.jira_rules(ds)` / `jira_workflows(ds)`, never `Rules.from_params(list(ds.sheets))`; a test whose dataset still has complete sheets cannot see an exceptions-only workbook.
 - **A sheet that a formula reads must exist from the build** (`flow/sheets.py`, list of `add_sheet_after_last`), even empty: the formula written at the build of the flow sheets would
